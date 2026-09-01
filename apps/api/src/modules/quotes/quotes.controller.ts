@@ -1,5 +1,4 @@
-// quotes.controller.ts
-import { Controller, Post, Body, Version } from '@nestjs/common';
+import { Controller, Post, Body } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { QuotesService } from './quotes.service';

@@ -133,7 +133,7 @@ export class NotificationsService {
   }
 
   @OnEvent('ticket.updated')
-  async onTicketUpdated({ ticket, client }: { ticket: any; client?: any }) {
+  async onTicketUpdated({ ticket }: { ticket: any; client?: any }) {
     if (!ticket.clientId) return;
 
     const clientRecord = await this.prisma.client.findUnique({

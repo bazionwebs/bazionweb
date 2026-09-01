@@ -356,7 +356,7 @@ export class BillingService {
   }
 
   async getPdfUrl(id: string, user: any) {
-    const invoice = await this.findOne(id, user);
+    await this.findOne(id, user);
     return {
       data: {
         url: `/api/v1/invoices/${id}/pdf/download`,

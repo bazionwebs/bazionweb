@@ -6,7 +6,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ClientsService } from './clients.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
-import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
+import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
 
 @ApiTags('clients')

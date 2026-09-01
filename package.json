@@ -2,7 +2,9 @@
   "name": "bazionweb-monorepo",
   "version": "1.0.0",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "npm run dev --workspaces",
     "build": "npm run build --workspaces",
@@ -10,6 +12,10 @@
     "test": "npm run test --workspaces"
   },
   "devDependencies": {
+    "prisma": "^5.22.0",
     "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
   }
 }

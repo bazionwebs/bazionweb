@@ -1,9 +1,8 @@
 import {
   Controller, Get, Patch, Param, Query,
-  UseGuards, Request, ParseUUIDPipe, Sse, Res,
+  UseGuards, Request, ParseUUIDPipe, Sse,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { Response } from 'express';
 import { map } from 'rxjs/operators';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';

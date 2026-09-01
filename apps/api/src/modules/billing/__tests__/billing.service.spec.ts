@@ -35,6 +35,21 @@ const mockPrisma = {
   subscription: { findMany: jest.fn() },
 };
 
+import { IntaSendService } from '../intasend.service';
+import { WiseService } from '../wise.service';
+
+const mockIntaSendService = {
+  createSubscriptionPlan: jest.fn(),
+  subscribeMpesa: jest.fn(),
+  createCardCheckout: jest.fn(),
+  verifyWebhookSignature: jest.fn(),
+};
+
+const mockWiseService = {
+  getReceivingAccount: jest.fn(),
+  verifyWebhookSignature: jest.fn(),
+};
+
 const mockEvents = { emit: jest.fn() };
 
 describe('BillingService', () => {
@@ -44,8 +59,10 @@ describe('BillingService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BillingService,
-        { provide: PrismaService,  useValue: mockPrisma },
-        { provide: EventEmitter2,  useValue: mockEvents },
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: EventEmitter2, useValue: mockEvents },
+        { provide: IntaSendService, useValue: mockIntaSendService },
+        { provide: WiseService, useValue: mockWiseService },
       ],
     }).compile();
     service = module.get<BillingService>(BillingService);
@@ -59,7 +76,7 @@ describe('BillingService', () => {
       mockPrisma.invoice.count.mockResolvedValue(0);
       mockPrisma.invoice.create.mockResolvedValue(mockInvoice);
 
-      const result = await service.generate({ clientId: 'client-uuid-1', amount: 199 });
+      await service.generate({ clientId: 'client-uuid-1', amount: 199 });
 
       const createCall = mockPrisma.invoice.create.mock.calls[0][0];
       expect(createCall.data.invoiceNumber).toMatch(/^INV-\d{4}-\d{4}$/);

@@ -9,7 +9,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
-import jwksClient = require('jwks-rsa');
+import jwksClient from 'jwks-rsa';
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);

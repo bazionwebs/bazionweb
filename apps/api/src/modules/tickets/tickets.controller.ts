@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Body, Param, Query,
-  UseGuards, Request, ParseUUIDPipe, Version,
+  UseGuards, Request, ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';

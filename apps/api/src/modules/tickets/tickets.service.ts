@@ -9,7 +9,7 @@ import { AddCommentDto } from './dto/add-comment.dto';
 import { TicketPriority } from '@prisma/client';
 
 // P1–P4 response windows in minutes, matching plan SLAs (MPD Section 5.2)
-const SLA_MINUTES: Record<string, Record<TicketPriority, number>> = {
+export const SLA_MINUTES: Record<string, Record<TicketPriority, number>> = {
   STARTER:    { P1: 60,  P2: 240,  P3: 1440, P4: 2880 },
   GROWTH:     { P1: 30,  P2: 120,  P3: 240,  P4: 1440 },
   BUSINESS:   { P1: 15,  P2: 60,   P3: 240,  P4: 720  },

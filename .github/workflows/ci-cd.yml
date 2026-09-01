@@ -52,7 +52,7 @@ jobs:
         run: |
           cd apps/api
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
-          npx prisma generate --schema=../../prisma/schema.prisma
+          npm run prisma:generate
 
       - name: Lint API
         run: npm run lint --prefix apps/api
@@ -109,7 +109,7 @@ jobs:
         run: |
           cd apps/api
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
-          npx prisma generate --schema=../../prisma/schema.prisma
+          npm run prisma:generate
           npm run test:cov -- --passWithNoTests
         env:
           DATABASE_URL: postgresql://bazionweb:testpassword@localhost:5432/bazionweb_test
