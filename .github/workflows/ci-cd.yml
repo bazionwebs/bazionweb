@@ -46,18 +46,19 @@ jobs:
         run: npm run lint --prefix apps/web
 
       - name: TypeScript check (frontend)
-        run: npm run tsc --prefix apps/web || npx --prefix apps/web tsc --noEmit
+        run: npm run tsc --prefix apps/web
 
       - name: Install API deps
         run: |
           cd apps/api
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npx prisma generate --schema=../../prisma/schema.prisma
 
       - name: Lint API
         run: npm run lint --prefix apps/api
 
       - name: TypeScript check (API)
-        run: npm run tsc --prefix apps/api || npx --prefix apps/api tsc --noEmit
+        run: npm run tsc --prefix apps/api
 
   # ─── Stage 2: Unit Tests ────────────────────────────────────────────────────
   unit-tests:
@@ -108,6 +109,7 @@ jobs:
         run: |
           cd apps/api
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npx prisma generate --schema=../../prisma/schema.prisma
           npm run test:cov -- --passWithNoTests
         env:
           DATABASE_URL: postgresql://bazionweb:testpassword@localhost:5432/bazionweb_test
