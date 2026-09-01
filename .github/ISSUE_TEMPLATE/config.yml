@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 General Discussion
+    url: https://github.com/bazionwebsites/bazionweb/discussions
+    about: Ask questions, share ideas, or start a discussion.
+  - name: 🔐 Security Vulnerability
+    url: https://github.com/bazionwebsites/bazionweb/security/advisories/new
+    about: Report a security vulnerability privately via GitHub's security advisory system.
+  - name: 📧 Business Enquiries
+    url: mailto:hello@bazionweb.com
+    about: Enterprise plans, partnerships, or custom development enquiries.

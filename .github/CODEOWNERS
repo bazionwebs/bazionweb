@@ -1,0 +1,30 @@
+# CODEOWNERS
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Each line is a file pattern followed by one or more owners.
+# Owners are automatically requested for review when someone opens a PR that
+# modifies files matching these patterns.
+
+# ── Default owner for everything ─────────────────────────────────────────────
+*                           @bazionwebsites
+
+# ── Backend API ───────────────────────────────────────────────────────────────
+/apps/api/                  @bazionwebsites
+
+# ── Frontend ─────────────────────────────────────────────────────────────────
+/apps/web/                  @bazionwebsites
+
+# ── Database Schema ───────────────────────────────────────────────────────────
+/prisma/                    @bazionwebsites
+
+# ── Infrastructure & CI/CD ───────────────────────────────────────────────────
+/infrastructure/            @bazionwebsites
+/.github/                   @bazionwebsites
+
+# ── Security-sensitive files ─────────────────────────────────────────────────
+SECURITY.md                 @bazionwebsites
+.env.example                @bazionwebsites
+
+# ── Billing module (extra scrutiny) ──────────────────────────────────────────
+/apps/api/src/modules/billing/  @bazionwebsites
+/apps/web/src/components/billing/  @bazionwebsites
