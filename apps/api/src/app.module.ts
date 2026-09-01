@@ -1,0 +1,65 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { ClientsModule } from './modules/clients/clients.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { TicketsModule } from './modules/tickets/tickets.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { HostingModule } from './modules/hosting/hosting.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { QuotesModule } from './modules/quotes/quotes.module';
+import { HealthModule } from './modules/health/health.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { MfaGuard } from './common/guards/mfa.guard';
+
+@Module({
+  imports: [
+    // ── Configuration ──────────────────────────────────────────────────────────
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env'],
+    }),
+
+    // ── Rate limiting (OWASP A04 — Rate Limiting) ──────────────────────────────
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: cfg.get<number>('RATE_LIMIT_TTL', 60) * 1000,
+            limit: cfg.get<number>('RATE_LIMIT_MAX', 100),
+          },
+        ],
+      }),
+    }),
+
+    // ── Event bus for domain events ────────────────────────────────────────────
+    EventEmitterModule.forRoot({ wildcard: true }),
+
+    // ── Cron jobs (backups, SSL checks, report generation) ────────────────────
+    ScheduleModule.forRoot(),
+
+    // ── Core ───────────────────────────────────────────────────────────────────
+    PrismaModule,
+
+    // ── Feature modules ────────────────────────────────────────────────────────
+    AuthModule,
+    ClientsModule,
+    ProjectsModule,
+    TicketsModule,
+    BillingModule,
+    HostingModule,
+    ReportsModule,
+    QuotesModule,
+    HealthModule,
+    NotificationsModule,
+  ],
+  providers: [AuditInterceptor, MfaGuard],
+})
+export class AppModule {}

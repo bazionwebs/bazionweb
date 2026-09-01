@@ -1,0 +1,434 @@
+import Link from 'next/link';
+import {
+  Globe, Shield, Wrench, Server, Zap, LifeBuoy,
+  Check, ArrowRight, Star, TrendingUp, Clock, Award,
+  ChevronRight, Users, HeartHandshake
+} from 'lucide-react';
+
+// ─── Data ────────────────────────────────────────────────────────────────────
+
+const stats = [
+  { value: '99.95%', label: 'Uptime SLA', sub: 'Guaranteed in every plan' },
+  { value: '<15 min', label: 'P1 Response', sub: 'Business plan and above' },
+  { value: '100+', label: 'Managed Sites', sub: 'Target: Year 1' },
+  { value: '95%', label: 'Retention Rate', sub: 'Annual client renewal' },
+];
+
+const services = [
+  {
+    icon: Globe,
+    name: 'Website Development',
+    href: '/services/development',
+    desc: 'Custom, responsive websites built on modern Next.js with CMS integration and SEO-ready architecture.',
+    tags: ['Next.js', 'Tailwind', 'Strapi CMS'],
+    accent: 'bg-blue-50 text-blue-600',
+  },
+  {
+    icon: Server,
+    name: 'Managed Cloud Hosting',
+    href: '/services/hosting',
+    desc: 'Cloud infrastructure with SSL, CDN, monitoring and daily backups — fully managed so you never worry.',
+    tags: ['Cloudflare CDN', 'Auto SSL', 'Daily Backups'],
+    accent: 'bg-teal-50 text-teal-600',
+  },
+  {
+    icon: Wrench,
+    name: 'Website Maintenance',
+    href: '/services/maintenance',
+    desc: 'Monthly software updates, security patches, content updates and comprehensive health checks.',
+    tags: ['CMS Updates', 'Performance', 'Monthly Reports'],
+    accent: 'bg-purple-50 text-purple-600',
+  },
+  {
+    icon: Shield,
+    name: 'Security Management',
+    href: '/services/security',
+    desc: 'WAF protection, malware monitoring, SSL management and regular security audits — proactive defense.',
+    tags: ['WAF', 'Malware Scan', 'Audit Logs'],
+    accent: 'bg-red-50 text-red-600',
+  },
+  {
+    icon: Zap,
+    name: 'Performance Optimization',
+    href: '/services/performance',
+    desc: 'Core Web Vitals improvements, image optimization, caching configuration — Lighthouse 95+ guaranteed.',
+    tags: ['Core Web Vitals', 'Lighthouse 95+', 'CDN Config'],
+    accent: 'bg-yellow-50 text-yellow-600',
+  },
+  {
+    icon: LifeBuoy,
+    name: '24/7 Technical Support',
+    href: '/services/support',
+    desc: 'SLA-backed ticket and email support. Real engineers, real accountability, real response times.',
+    tags: ['Ticket System', 'SLA-Backed', 'Escalation Matrix'],
+    accent: 'bg-green-50 text-green-600',
+  },
+];
+
+const plans = [
+  {
+    name: 'Starter',
+    price: '$49',
+    per: '/mo',
+    desc: 'Hosting, SSL, backups, and monitoring. Everything you need to stay online.',
+    uptime: '99.9%',
+    support: '1 hour P1',
+    color: 'border-slate-200',
+    ctaColor: 'btn-secondary',
+    features: ['Managed Cloud Hosting', 'Auto SSL Certificate', 'Daily Backups', 'Uptime Monitoring', 'Basic Security', 'Email Support'],
+  },
+  {
+    name: 'Growth',
+    price: '$99',
+    per: '/mo',
+    desc: 'Add monthly maintenance, full security, and priority support to your hosting.',
+    uptime: '99.95%',
+    support: '30 min P1',
+    featured: true,
+    color: 'border-[#2563EB]',
+    ctaColor: 'btn-primary',
+    features: ['Everything in Starter', 'Monthly Maintenance', 'Full Security Management', 'Monthly Performance Report', 'Priority Support', 'SSL Monitoring'],
+  },
+  {
+    name: 'Business',
+    price: '$199',
+    per: '/mo',
+    desc: 'Full lifecycle management with performance optimization and unlimited minor updates.',
+    uptime: '99.95%',
+    support: '15 min P1',
+    color: 'border-slate-200',
+    ctaColor: 'btn-secondary',
+    features: ['Everything in Growth', 'Performance Optimization', 'Unlimited Minor Updates', 'Priority Queue', 'Monthly Strategy Call', 'Custom Reporting'],
+  },
+];
+
+const testimonials = [
+  {
+    name: 'Sarah K.',
+    role: 'Director, HealthCare NGO',
+    quote: 'BazionWeb took complete ownership of our website. No more SSL errors, no more slow pages — and when we needed help, someone actually answered.',
+    rating: 5,
+  },
+  {
+    name: 'Michael O.',
+    role: 'CEO, Professional Services Firm',
+    quote: 'I used to juggle three vendors for hosting, maintenance, and support. Now it\'s one invoice, one team. I haven\'t thought about my website in months — that\'s exactly what I wanted.',
+    rating: 5,
+  },
+  {
+    name: 'Amara N.',
+    role: 'Founder, Tech Startup',
+    quote: 'Got our site live in two weeks. Professional design, fast loading, and Lighthouse score above 95. Our investors were impressed on day one.',
+    rating: 5,
+  },
+];
+
+const painPoints = [
+  {
+    icon: Users,
+    pain: 'Managing 3–7 vendors',
+    solution: 'One provider, one contract, one invoice',
+  },
+  {
+    icon: TrendingUp,
+    pain: 'Surprise hosting costs',
+    solution: 'Transparent, all-inclusive pricing',
+  },
+  {
+    icon: Clock,
+    pain: 'No real technical support',
+    solution: 'SLA-backed engineers, not bots',
+  },
+  {
+    icon: Award,
+    pain: 'Security ignored until crisis',
+    solution: 'Proactive WAF, malware, SSL rotation',
+  },
+];
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function HomePage() {
+  return (
+    <>
+      {/* ── Hero ── */}
+      <section className="relative min-h-screen bg-[#0F172A] flex items-center overflow-hidden">
+        {/* Ambient gradient orbs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#2563EB]/10 blur-[120px]" />
+          <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-[#14B8A6]/10 blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-[#2563EB]/5 blur-[140px]" />
+        </div>
+
+        {/* Grid pattern overlay */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
+            backgroundSize: '60px 60px',
+          }}
+        />
+
+        <div className="container-default relative z-10 py-32 md:py-40">
+          <div className="max-w-4xl">
+            {/* Eyebrow */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm mb-8">
+              <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
+              <span className="text-xs font-semibold text-slate-300 tracking-widest uppercase">Now Serving Kenya & East Africa</span>
+            </div>
+
+            {/* Headline */}
+            <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white mb-6 leading-[1.05] tracking-tight">
+              Your website,{' '}
+              <span className="bg-gradient-to-r from-[#2563EB] to-[#14B8A6] bg-clip-text text-transparent">
+                completely managed.
+              </span>
+            </h1>
+
+            <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-10 leading-relaxed">
+              Development, hosting, maintenance, security, and 24/7 support — one trusted provider, one monthly invoice.
+              Stop managing your website. Start growing your business.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 mb-16">
+              <Link href="/contact" className="btn-primary px-8 py-4 text-base">
+                Get Free Quote
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+              <Link href="/pricing" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/15 text-white font-semibold text-base hover:bg-white/5 transition-all duration-200">
+                View Pricing
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            {/* Micro trust signals */}
+            <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500">
+              {['No setup fees', '30-day money-back', 'Cancel anytime', 'Kenyan-based team'].map(t => (
+                <span key={t} className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-[#22C55E]" />
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Scroll cue */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-40">
+          <div className="w-px h-12 bg-gradient-to-b from-transparent to-white" />
+        </div>
+      </section>
+
+      {/* ── Stats bar ── */}
+      <section className="bg-white border-b border-slate-100 py-8">
+        <div className="container-default">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 divide-x divide-slate-100">
+            {stats.map(s => (
+              <div key={s.value} className="text-center px-4 first:pl-0">
+                <div className="text-3xl md:text-4xl font-black text-[#0F172A] mb-1">{s.value}</div>
+                <div className="text-sm font-semibold text-[#0F172A] mb-0.5">{s.label}</div>
+                <div className="text-xs text-slate-400">{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pain → Solution ── */}
+      <section className="section bg-[#F8FAFC]">
+        <div className="container-default">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <span className="eyebrow">The Problem</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#0F172A] mb-4">
+              Managing a website shouldn't be this hard
+            </h2>
+            <p className="text-slate-500 text-lg">
+              Most businesses deal with the same frustrations. We've built BazionWeb to solve every one of them.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {painPoints.map((p, i) => (
+              <div key={i} className="card p-6">
+                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center mb-4">
+                  <p.icon className="w-5 h-5 text-red-500" />
+                </div>
+                <div className="text-sm font-semibold text-red-500 mb-2 line-through opacity-70">{p.pain}</div>
+                <div className="text-sm font-medium text-[#0F172A]">→ {p.solution}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Services ── */}
+      <section className="section bg-white">
+        <div className="container-default">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <span className="eyebrow">What We Do</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#0F172A] mb-4">
+              Everything your website needs, under one roof
+            </h2>
+            <p className="text-slate-500 text-lg">
+              Six service lines, one provider. From initial build to continuous optimization — we own it all.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {services.map(s => (
+              <Link
+                key={s.name}
+                href={s.href}
+                className="card-interactive p-6 group"
+              >
+                <div className={`w-12 h-12 rounded-xl ${s.accent} flex items-center justify-center mb-5`}>
+                  <s.icon className="w-6 h-6" />
+                </div>
+                <h3 className="text-lg font-bold text-[#0F172A] mb-2 group-hover:text-[#2563EB] transition-colors">{s.name}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed mb-4">{s.desc}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {s.tags.map(t => (
+                    <span key={t} className="badge-slate text-xs">{t}</span>
+                  ))}
+                </div>
+              </Link>
+            ))}
+          </div>
+          <div className="text-center mt-10">
+            <Link href="/services" className="btn-secondary">
+              Explore All Services
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing Preview ── */}
+      <section className="section bg-[#F8FAFC]">
+        <div className="container-default">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <span className="eyebrow">Pricing</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#0F172A] mb-4">
+              Simple, transparent pricing
+            </h2>
+            <p className="text-slate-500 text-lg">
+              No surprise fees. No lock-in contracts. Cancel any time.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {plans.map(plan => (
+              <div
+                key={plan.name}
+                className={`relative bg-white rounded-2xl border-2 ${plan.color} shadow-[var(--shadow-card)] p-8 flex flex-col`}
+              >
+                {plan.featured && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                    <span className="bg-[#2563EB] text-white text-xs font-bold px-4 py-1.5 rounded-full shadow">
+                      Most Popular
+                    </span>
+                  </div>
+                )}
+                <div className="mb-6">
+                  <div className="text-sm font-semibold text-slate-500 uppercase tracking-widest mb-1">{plan.name}</div>
+                  <div className="flex items-end gap-1 mb-2">
+                    <span className="text-4xl font-black text-[#0F172A]">{plan.price}</span>
+                    <span className="text-slate-400 text-sm mb-1">{plan.per}</span>
+                  </div>
+                  <p className="text-sm text-slate-500">{plan.desc}</p>
+                </div>
+
+                <div className="flex gap-4 mb-6 pb-6 border-b border-slate-100">
+                  <div className="text-center">
+                    <div className="text-sm font-bold text-[#0F172A]">{plan.uptime}</div>
+                    <div className="text-xs text-slate-400">uptime</div>
+                  </div>
+                  <div className="w-px bg-slate-100" />
+                  <div className="text-center">
+                    <div className="text-sm font-bold text-[#0F172A]">{plan.support}</div>
+                    <div className="text-xs text-slate-400">response</div>
+                  </div>
+                </div>
+
+                <ul className="flex flex-col gap-2.5 mb-8 flex-1">
+                  {plan.features.map(f => (
+                    <li key={f} className="flex items-center gap-2 text-sm text-slate-600">
+                      <Check className="w-4 h-4 text-[#22C55E] shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <Link href="/contact" className={plan.ctaColor + ' w-full justify-center'}>
+                  Get Started
+                </Link>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-8">
+            <Link href="/pricing" className="text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] flex items-center gap-1 justify-center">
+              See full pricing details including Enterprise <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Testimonials ── */}
+      <section className="section bg-[#0F172A]">
+        <div className="container-default">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
+              What Clients Say
+            </span>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Trusted by growing businesses across Kenya
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {testimonials.map((t, i) => (
+              <div key={i} className="bg-white/5 border border-white/8 rounded-2xl p-8 backdrop-blur-sm">
+                <div className="flex gap-0.5 mb-5">
+                  {Array.from({ length: t.rating }).map((_, j) => (
+                    <Star key={j} className="w-4 h-4 fill-[#F59E0B] text-[#F59E0B]" />
+                  ))}
+                </div>
+                <blockquote className="text-slate-300 text-sm leading-relaxed mb-6">
+                  "{t.quote}"
+                </blockquote>
+                <div>
+                  <div className="font-semibold text-white text-sm">{t.name}</div>
+                  <div className="text-xs text-slate-500">{t.role}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="section bg-white">
+        <div className="container-default">
+          <div className="max-w-3xl mx-auto text-center">
+            <span className="eyebrow">Ready to Start?</span>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-[#0F172A] mb-6">
+              Get a free website assessment
+            </h2>
+            <p className="text-lg text-slate-500 mb-10 max-w-xl mx-auto">
+              We'll review your current setup and give you a clear plan with honest recommendations — no commitment required.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/contact" className="btn-primary px-8 py-4 text-base">
+                Request Free Assessment
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+              <Link href="/pricing" className="btn-secondary px-8 py-4 text-base">
+                View Pricing First
+              </Link>
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-8">
+              <HeartHandshake className="w-4 h-4 text-[#14B8A6]" />
+              <span className="text-sm text-slate-400">Response within 24 hours, guaranteed</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}

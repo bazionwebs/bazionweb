@@ -1,0 +1,379 @@
+name: CI/CD Pipeline
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BazionWeb CI/CD Pipeline
+# Aligned with: MPD v2.0, Section 10.2 (9 pipeline stages)
+# Stages: Lint → Unit Tests → Build → Security Scan → Staging Deploy →
+#         E2E Tests → Lighthouse CI → Production Deploy (manual gate) →
+#         Post-Deploy Verification
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [develop, staging, main]
+  pull_request:
+    branches: [develop, staging, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/bazionweb-web
+  API_IMAGE: ghcr.io/${{ github.repository_owner }}/bazionweb-api
+  NODE_VERSION: "20"
+
+jobs:
+  # ─── Stage 1: Lint & Type-check ─────────────────────────────────────────────
+  lint:
+    name: "Stage 1 — Lint & Type-check"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install frontend deps
+        run: npm ci --prefix apps/web
+
+      - name: Lint frontend
+        run: npm run lint --prefix apps/web
+
+      - name: TypeScript check (frontend)
+        run: npm run tsc --prefix apps/web
+
+      - name: Install API deps
+        run: npm ci --prefix apps/api
+
+      - name: Lint API
+        run: npm run lint --prefix apps/api
+
+      - name: TypeScript check (API)
+        run: npm run tsc --prefix apps/api
+
+  # ─── Stage 2: Unit Tests ────────────────────────────────────────────────────
+  unit-tests:
+    name: "Stage 2 — Unit Tests"
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: bazionweb_test
+          POSTGRES_USER: bazionweb
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install & run frontend tests
+        run: |
+          npm ci --prefix apps/web
+          npm test --prefix apps/web -- --coverage --passWithNoTests
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+
+      - name: Install & run API tests
+        run: |
+          npm ci --prefix apps/api
+          npm run test:cov --prefix apps/api
+        env:
+          DATABASE_URL: postgresql://bazionweb:testpassword@localhost:5432/bazionweb_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-minimum-32-characters
+          NODE_ENV: test
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # ─── Stage 3: Build Docker Images ───────────────────────────────────────────
+  build:
+    name: "Stage 3 — Build & Push Images"
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: github.event_name == 'push'
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.WEB_IMAGE }}
+            ${{ env.API_IMAGE }}
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+
+      - name: Build & push web image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/web
+          push: true
+          tags: ${{ env.WEB_IMAGE }}:${{ steps.meta.outputs.version }},${{ env.WEB_IMAGE }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+      - name: Build & push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/api
+          push: true
+          tags: ${{ env.API_IMAGE }}:${{ steps.meta.outputs.version }},${{ env.API_IMAGE }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Stage 4: Security Scan ─────────────────────────────────────────────────
+  security-scan:
+    name: "Stage 4 — Security Scan (Trivy)"
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy on web image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.WEB_IMAGE }}:${{ github.ref_name }}"
+          format: "sarif"
+          output: "trivy-web.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+      - name: Run Trivy on API image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.API_IMAGE }}:${{ github.ref_name }}"
+          format: "sarif"
+          output: "trivy-api.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-web.sarif"
+
+      - name: npm audit (frontend)
+        run: npm audit --audit-level=high --prefix apps/web
+
+      - name: npm audit (API)
+        run: npm audit --audit-level=high --prefix apps/api
+
+  # ─── Stage 5: Deploy to Staging ─────────────────────────────────────────────
+  deploy-staging:
+    name: "Stage 5 — Deploy to Staging"
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: github.ref == 'refs/heads/staging'
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/bazionweb
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            export IMAGE_TAG=${{ needs.build.outputs.image-tag }}
+            docker compose -f infrastructure/docker/docker-compose.yml pull web api
+            docker compose -f infrastructure/docker/docker-compose.yml up -d --no-deps web api
+            docker compose -f infrastructure/docker/docker-compose.yml exec -T api npx prisma migrate deploy
+            docker image prune -f
+
+  # ─── Stage 6: E2E Tests (Staging) ───────────────────────────────────────────
+  e2e-tests:
+    name: "Stage 6 — E2E Tests (Playwright)"
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/staging'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install Playwright
+        run: |
+          npm ci --prefix e2e
+          npx playwright install --with-deps chromium --prefix e2e
+
+      - name: Run E2E tests
+        run: npm test --prefix e2e
+        env:
+          BASE_URL: https://staging.bazionweb.com
+          PORTAL_TEST_EMAIL: ${{ secrets.E2E_CLIENT_EMAIL }}
+          PORTAL_TEST_PASSWORD: ${{ secrets.E2E_CLIENT_PASSWORD }}
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 30
+
+  # ─── Stage 7: Lighthouse CI ─────────────────────────────────────────────────
+  lighthouse:
+    name: "Stage 7 — Lighthouse CI"
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/staging'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: |
+            https://staging.bazionweb.com
+            https://staging.bazionweb.com/services
+            https://staging.bazionweb.com/pricing
+          configPath: ".lighthouserc.json"
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  # ─── Stage 8: Deploy to Production (manual gate) ────────────────────────────
+  deploy-production:
+    name: "Stage 8 — Deploy to Production"
+    runs-on: ubuntu-latest
+    needs: [e2e-tests, lighthouse]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://bazionweb.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Blue/green deploy to production
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/bazionweb
+
+            # Pull new images
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            export IMAGE_TAG=${{ needs.build.outputs.image-tag }}
+            docker compose -f infrastructure/docker/docker-compose.yml pull web api
+
+            # Run migrations before switching traffic
+            docker compose -f infrastructure/docker/docker-compose.yml run --rm api npx prisma migrate deploy
+
+            # Rolling restart
+            docker compose -f infrastructure/docker/docker-compose.yml up -d --no-deps --force-recreate web api
+
+            # Health check gate (fail = automatic rollback)
+            sleep 15
+            curl --fail https://bazionweb.com/api/health || \
+              (docker compose -f infrastructure/docker/docker-compose.yml rollback && exit 1)
+
+            docker image prune -f
+
+  # ─── Stage 9: Post-Deploy Verification ──────────────────────────────────────
+  post-deploy-verify:
+    name: "Stage 9 — Post-Deploy Smoke Tests"
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Smoke tests — homepage
+        run: curl --fail --silent https://bazionweb.com | grep -q "BazionWeb"
+
+      - name: Smoke tests — API health
+        run: |
+          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://api.bazionweb.com/api/v1/health)
+          [ "$STATUS" = "200" ] || (echo "API health check failed: $STATUS" && exit 1)
+
+      - name: Smoke tests — SSL valid
+        run: |
+          echo | openssl s_client -connect bazionweb.com:443 -servername bazionweb.com 2>/dev/null \
+            | openssl x509 -noout -checkend 2592000 \
+            || (echo "SSL cert expires within 30 days!" && exit 1)
+
+      - name: Notify Slack on success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ BazionWeb production deploy successful — ${{ github.sha }} by ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🚨 BazionWeb post-deploy verification FAILED — ${{ github.sha }} — immediate rollback required"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

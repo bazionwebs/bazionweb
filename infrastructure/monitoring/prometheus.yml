@@ -1,0 +1,114 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# BazionWeb — Prometheus Configuration
+# Aligned with: MPD v2.0, Section 9 (Monitoring stack: Prometheus + Grafana + Loki)
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  scrape_interval:     15s   # How often to scrape targets
+  evaluation_interval: 15s   # How often to evaluate rules
+  scrape_timeout:      10s
+  external_labels:
+    environment: 'production'
+    project:     'bazionweb'
+
+# ── Alertmanager ────────────────────────────────────────────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# ── Rule files ───────────────────────────────────────────────────────────────
+rule_files:
+  - /etc/prometheus/rules/uptime.rules.yml
+  - /etc/prometheus/rules/api.rules.yml
+  - /etc/prometheus/rules/ssl.rules.yml
+
+# ── Scrape configs ───────────────────────────────────────────────────────────
+scrape_configs:
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # NestJS API — exposes /metrics via prom-client
+  - job_name: 'bazionweb-api'
+    metrics_path: '/api/v1/metrics'
+    static_configs:
+      - targets: ['api:4000']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement:  'api'
+
+  # Next.js web app health (custom endpoint)
+  - job_name: 'bazionweb-web'
+    metrics_path: '/api/health/metrics'
+    static_configs:
+      - targets: ['web:3000']
+
+  # PostgreSQL — via postgres_exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement:  'postgres'
+
+  # Redis — via redis_exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Node exporter — host OS metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement:  'vps-nairobi'
+
+  # Nginx Proxy Manager — via nginx-prometheus-exporter
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+
+  # Blackbox exporter — external uptime probes
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://bazionweb.com
+          - https://api.bazionweb.com/api/v1/health
+          - https://auth.bazionweb.com/health/ready
+          - https://status.bazionweb.com
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # SSL certificate expiry probe
+  - job_name: 'blackbox-ssl'
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+          - bazionweb.com:443
+          - api.bazionweb.com:443
+          - auth.bazionweb.com:443
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

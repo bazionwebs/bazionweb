@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 1 — builder
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+RUN apk add --no-cache libc6-compat python3 make g++
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci --ignore-scripts
+
+COPY . .
+
+# Generate Prisma client
+RUN npx prisma generate --schema ./prisma.schema.prisma 2>/dev/null || true
+
+# Build NestJS
+RUN npm run build 2>/dev/null || npx tsc -p tsconfig.json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 2 — production deps only
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat python3 make g++
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production --ignore-scripts
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 3 — runner
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS runner
+RUN apk add --no-cache curl openssl
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Non-root user
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser  --system --uid 1001 nestjs
+
+COPY --from=deps    --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/dist         ./dist
+
+# Prisma schema needed for migrations at runtime
+COPY --chown=nestjs:nodejs prisma.schema.prisma ./prisma/schema.prisma
+
+USER nestjs
+
+EXPOSE 4000
+ENV PORT=4000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:4000/api/v1/health || exit 1
+
+CMD ["node", "dist/main"]

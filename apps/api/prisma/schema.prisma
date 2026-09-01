@@ -1,0 +1,552 @@
+// BazionWeb — Authoritative Prisma Schema v2.0
+// Aligned with: BazionWeb Harmonized MPD v2.0, Section 6 (DB Schema)
+// Rules: UUID PKs, created_at/updated_at on all tables, soft deletes only, all FKs indexed
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+  CLIENT
+}
+
+enum ClientStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  TRIAL
+}
+
+enum PlanTier {
+  STARTER
+  GROWTH
+  BUSINESS
+  ENTERPRISE
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  TRIAL
+}
+
+enum PaymentProvider {
+  INTASEND
+  WISE
+  MANUAL_BANK_TRANSFER
+}
+
+enum PaymentMethodType {
+  MPESA
+  CARD
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  ON_HOLD
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum HostingStatus {
+  ACTIVE
+  SUSPENDED
+  PROVISIONING
+  MIGRATING
+  DECOMMISSIONED
+}
+
+enum TicketPriority {
+  P1
+  P2
+  P3
+  P4
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_CLIENT
+  RESOLVED
+  CLOSED
+}
+
+enum TicketCategory {
+  HOSTING
+  DEVELOPMENT
+  MAINTENANCE
+  SECURITY
+  BILLING
+  PERFORMANCE
+  OTHER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum BackupType {
+  DAILY_INCREMENTAL
+  WEEKLY_FULL
+  MONTHLY_ARCHIVE
+  MANUAL
+}
+
+enum BackupStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  VERIFIED
+}
+
+enum NotificationType {
+  SSL_EXPIRY
+  BACKUP_FAILURE
+  DOWNTIME_ALERT
+  TICKET_UPDATE
+  INVOICE_DUE
+  RENEWAL_REMINDER
+  SECURITY_ALERT
+  SYSTEM
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  role        UserRole @default(CLIENT)
+  keycloakId  String   @unique @map("keycloak_id")
+  firstName   String?  @map("first_name")
+  lastName    String?  @map("last_name")
+  phone       String?
+  avatarUrl   String?  @map("avatar_url")
+  mfaEnabled  Boolean  @default(false) @map("mfa_enabled")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  // Relations
+  client          Client?
+  assignedTickets Ticket[] @relation("AssignedTickets")
+  ticketComments  TicketComment[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  paymentLogs     PaymentLog[]
+
+  @@index([email])
+  @@index([keycloakId])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Plan {
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  tier                PlanTier
+  intasendPlanId      String?  @unique @map("intasend_plan_id")
+  priceMonthly        Decimal  @map("price_monthly") @db.Decimal(10, 2)
+  priceAnnual         Decimal  @map("price_annual") @db.Decimal(10, 2)
+  priceMonthlyKes     Decimal? @map("price_monthly_kes") @db.Decimal(12, 2)
+  priceAnnualKes      Decimal? @map("price_annual_kes") @db.Decimal(12, 2)
+  uptimeSla           String   @map("uptime_sla")           // e.g. "99.95%"
+  p1ResponseMinutes   Int      @map("p1_response_minutes")
+  p2ResponseMinutes   Int      @map("p2_response_minutes")
+  p3ResponseMinutes   Int      @map("p3_response_minutes")
+  maxBackupRetention  Int      @map("max_backup_retention") // days
+  hasMaintenance      Boolean  @default(false) @map("has_maintenance")
+  hasSecurityMgmt     Boolean  @default(false) @map("has_security_mgmt")
+  hasPerformanceOpt   Boolean  @default(false) @map("has_performance_opt")
+  hasUnlimitedUpdates Boolean  @default(false) @map("has_unlimited_updates")
+  hasDedicatedAM      Boolean  @default(false) @map("has_dedicated_am")
+  hasCustomSla        Boolean  @default(false) @map("has_custom_sla")
+  maxServiceCredPct   Int      @default(5) @map("max_service_cred_pct")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  clients       Client[]
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Client {
+  id                   String       @id @default(uuid())
+  userId               String       @unique @map("user_id")
+  businessName         String       @map("business_name")
+  contactName          String       @map("contact_name")
+  email                String       @unique
+  phone                String?
+  address              String?
+  country              String       @default("KE")
+  taxPin               String?      @map("tax_pin")
+  intasendCustomerId   String?      @unique @map("intasend_customer_id")
+  wiseProfileId        String?      @map("wise_profile_id")
+  planId               String       @map("plan_id")
+  status               ClientStatus @default(TRIAL)
+  onboardedAt          DateTime?    @map("onboarded_at")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  deletedAt            DateTime?    @map("deleted_at")
+
+  user                 User                  @relation(fields: [userId], references: [id])
+  plan                 Plan                  @relation(fields: [planId], references: [id])
+  projects             Project[]
+  hostingAccounts      HostingAccount[]
+  subscriptions        Subscription[]
+  invoices             Invoice[]
+  tickets              Ticket[]
+  wiseReceivingAccounts WiseReceivingAccount[]
+  paymentLogs          PaymentLog[]
+
+  @@index([planId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("clients")
+}
+
+model Project {
+  id             String        @id @default(uuid())
+  clientId       String        @map("client_id")
+  name           String
+  description    String?
+  status         ProjectStatus @default(PLANNING)
+  completionPct  Int           @default(0) @map("completion_pct")
+  startDate      DateTime?     @map("start_date")
+  dueDate        DateTime?     @map("due_date")
+  completedAt    DateTime?     @map("completed_at")
+  stagingUrl     String?       @map("staging_url")
+  productionUrl  String?       @map("production_url")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+
+  client Client        @relation(fields: [clientId], references: [id])
+  tasks  ProjectTask[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("projects")
+}
+
+model ProjectTask {
+  id          String       @id @default(uuid())
+  projectId   String       @map("project_id")
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  assigneeId  String?      @map("assignee_id")
+  dueDate     DateTime?    @map("due_date")
+  completedAt DateTime?    @map("completed_at")
+  sortOrder   Int          @default(0) @map("sort_order")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+  @@map("project_tasks")
+}
+
+model HostingAccount {
+  id         String        @id @default(uuid())
+  clientId   String        @map("client_id")
+  domain     String        @unique
+  server     String
+  plan       String
+  sslExpiry  DateTime?     @map("ssl_expiry")
+  sslIssuer  String?       @map("ssl_issuer")
+  status     HostingStatus @default(PROVISIONING)
+  diskUsageMb Int?         @map("disk_usage_mb")
+  bandwidthGb Decimal?     @map("bandwidth_gb") @db.Decimal(10, 2)
+  ipAddress  String?       @map("ip_address")
+  serverOs   String?       @map("server_os")
+  phpVersion String?       @map("php_version")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  deletedAt  DateTime?     @map("deleted_at")
+
+  client  Client   @relation(fields: [clientId], references: [id])
+  backups Backup[]
+
+  @@index([clientId])
+  @@index([sslExpiry])
+  @@index([deletedAt])
+  @@map("hosting_accounts")
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  clientId               String             @map("client_id")
+  planId                 String             @map("plan_id")
+  billingCycle           BillingCycle       @default(MONTHLY) @map("billing_cycle")
+  status                 SubscriptionStatus @default(ACTIVE)
+  provider               PaymentProvider    @default(INTASEND)
+  providerSubscriptionId String?            @unique @map("provider_subscription_id")
+  cardToken              String?            @map("card_token")
+  mpesaPhoneNumber       String?            @map("mpesa_phone_number")
+  startDate              DateTime           @map("start_date")
+  renewalDate            DateTime           @map("renewal_date")
+  currentPeriodStart     DateTime?          @map("current_period_start")
+  currentPeriodEnd       DateTime?          @map("current_period_end")
+  gracePeriodEnd         DateTime?          @map("grace_period_end")
+  dunningAttemptsCount   Int                @default(0) @map("dunning_attempts_count")
+  lastDunningAt          DateTime?          @map("last_dunning_at")
+  cancelledAt            DateTime?          @map("cancelled_at")
+  discountPct            Int                @default(0) @map("discount_pct")
+  notes                  String?
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  client      Client       @relation(fields: [clientId], references: [id])
+  plan        Plan         @relation(fields: [planId], references: [id])
+  invoices    Invoice[]
+  paymentLogs PaymentLog[]
+
+  @@index([clientId])
+  @@index([planId])
+  @@index([renewalDate])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model WiseReceivingAccount {
+  id               String   @id @default(uuid())
+  clientId         String   @map("client_id")
+  invoiceId        String   @unique @map("invoice_id")
+  wiseAccountId    String   @map("wise_account_id")
+  currency         String   // USD, EUR, GBP
+  accountHolder    String   @map("account_holder")
+  accountNumber    String   @map("account_number")
+  routingNumber    String?  @map("routing_number") // ABA/Routing for USD
+  swiftBic         String?  @map("swift_bic")
+  iban             String?  // For EUR/GBP
+  bankAddress      Json?    @map("bank_address")
+  paymentReference String   @unique @map("payment_reference")
+  expiresAt        DateTime @map("expires_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  client  Client  @relation(fields: [clientId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([clientId])
+  @@index([paymentReference])
+  @@map("wise_receiving_accounts")
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  clientId       String        @map("client_id")
+  subscriptionId String?       @map("subscription_id")
+  invoiceNumber  String        @unique @map("invoice_number")
+  amount         Decimal       @db.Decimal(10, 2)
+  currency       String        @default("USD")
+  status         InvoiceStatus @default(DRAFT)
+  dueDate        DateTime      @map("due_date")
+  paidAt         DateTime?     @map("paid_at")
+  pdfUrl         String?       @map("pdf_url")
+  lineItems      Json?         @map("line_items")
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  client               Client                @relation(fields: [clientId], references: [id])
+  subscription         Subscription?         @relation(fields: [subscriptionId], references: [id])
+  wiseReceivingAccount WiseReceivingAccount?
+  paymentLogs          PaymentLog[]
+
+  @@index([clientId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+model PaymentLog {
+  id             String            @id @default(uuid())
+  idempotencyKey String            @unique @map("idempotency_key")
+  provider       PaymentProvider
+  providerRef    String?           @map("provider_ref") // IntaSend tracking_id / Wise transfer_id
+  method         PaymentMethodType
+  amount         Decimal           @db.Decimal(12, 2)
+  currency       String
+  status         PaymentStatus     @default(PENDING)
+  rawPayload     Json              @map("raw_payload")
+  errorMessage   String?           @map("error_message")
+  
+  clientId       String            @map("client_id")
+  subscriptionId String?           @map("subscription_id")
+  invoiceId      String?           @map("invoice_id")
+  userId         String?           @map("user_id")
+  
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  client       Client        @relation(fields: [clientId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  invoice      Invoice?      @relation(fields: [invoiceId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+
+  @@index([providerRef])
+  @@index([status])
+  @@index([clientId])
+  @@index([subscriptionId])
+  @@index([createdAt])
+  @@map("payment_logs")
+}
+
+model Ticket {
+  id         String         @id @default(uuid())
+  clientId   String         @map("client_id")
+  subject    String
+  priority   TicketPriority @default(P3)
+  status     TicketStatus   @default(OPEN)
+  category   TicketCategory @default(OTHER)
+  assignedTo String?        @map("assigned_to")
+  resolvedAt DateTime?      @map("resolved_at")
+  closedAt   DateTime?      @map("closed_at")
+  slaBreached Boolean       @default(false) @map("sla_breached")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  client   Client          @relation(fields: [clientId], references: [id])
+  assignee User?           @relation("AssignedTickets", fields: [assignedTo], references: [id])
+  comments TicketComment[]
+
+  @@index([clientId])
+  @@index([assignedTo])
+  @@index([status])
+  @@index([priority])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id         String   @id @default(uuid())
+  ticketId   String   @map("ticket_id")
+  authorId   String   @map("author_id")
+  body       String
+  isInternal Boolean  @default(false) @map("is_internal")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@map("ticket_comments")
+}
+
+model Backup {
+  id               String       @id @default(uuid())
+  hostingAccountId String       @map("hosting_account_id")
+  type             BackupType
+  status           BackupStatus @default(PENDING)
+  sizeMb           Decimal?     @map("size_mb") @db.Decimal(10, 2)
+  storagePath      String?      @map("storage_path")
+  storageBucket    String?      @map("storage_bucket")
+  checksum         String?
+  verifiedAt       DateTime?    @map("verified_at")
+  expiresAt        DateTime?    @map("expires_at")
+  errorMessage     String?      @map("error_message")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  hostingAccount HostingAccount @relation(fields: [hostingAccountId], references: [id])
+
+  @@index([hostingAccountId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("backups")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String?  @map("user_id")
+  action       String                    // e.g. "client.create", "ticket.resolve"
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  oldValue     Json?    @map("old_value")
+  newValue     Json?    @map("new_value")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  timestamp    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  // Append-only: NO updates or deletes permitted (enforced at application layer)
+  @@index([userId])
+  @@index([resourceType, resourceId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  actionUrl String?          @map("action_url")
+  metadata  Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([read])
+  @@map("notifications")
+}

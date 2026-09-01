@@ -1,0 +1,294 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BazionWeb — Production Docker Compose
+# Aligned with: BazionWeb MPD v2.0, Section 9.2 (Infrastructure Topology)
+# Host: Oracle Cloud Free Tier / Hetzner Cloud (Ubuntu 24.04 LTS)
+# ─────────────────────────────────────────────────────────────────────────────
+
+networks:
+  bazionweb-internal:
+    driver: bridge
+    internal: true        # No direct external access to internal services
+  bazionweb-public:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  keycloak_data:
+  strapi_uploads:
+  loki_data:
+  grafana_data:
+  uptime_kuma_data:
+  zammad_data:
+  nginx_data:
+  nginx_letsencrypt:
+
+services:
+
+  # ── Next.js Web App ──────────────────────────────────────────────────────────
+  web:
+    image: ghcr.io/bazionweb/web:${IMAGE_TAG:-latest}
+    container_name: bazionweb-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://api.bazionweb.com/api/v1
+      NEXT_PUBLIC_APP_URL: https://bazionweb.com
+    networks:
+      - bazionweb-public
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.bazionweb.service=web"
+
+  # ── NestJS API ───────────────────────────────────────────────────────────────
+  api:
+    image: ghcr.io/bazionweb/api:${IMAGE_TAG:-latest}
+    container_name: bazionweb-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?schema=public
+      REDIS_URL: redis://redis:6379
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      BACKBLAZE_BUCKET: ${BACKBLAZE_BUCKET}
+      BACKBLAZE_KEY_ID: ${BACKBLAZE_KEY_ID}
+      BACKBLAZE_APP_KEY: ${BACKBLAZE_APP_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: noreply@bazionweb.com
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bazionweb-internal
+      - bazionweb-public
+    expose:
+      - "4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ── PostgreSQL 16 ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: bazionweb-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bazionweb-internal
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+        -c max_connections=100
+        -c shared_buffers=256MB
+        -c effective_cache_size=512MB
+        -c maintenance_work_mem=64MB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c default_statistics_target=100
+        -c log_min_duration_statement=1000
+
+  # ── Redis 7 ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: bazionweb-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - bazionweb-internal
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Keycloak 23+ ─────────────────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: bazionweb-auth
+    restart: unless-stopped
+    command: start --optimized
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/${DB_NAME}
+      KC_DB_USERNAME: ${DB_USER}
+      KC_DB_PASSWORD: ${DB_PASSWORD}
+      KC_DB_SCHEMA: keycloak
+      KC_HOSTNAME: auth.bazionweb.com
+      KC_HOSTNAME_STRICT: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: edge
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_FEATURES: token-exchange,admin-fine-grained-authz
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - bazionweb-internal
+      - bazionweb-public
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ── Strapi 5 CMS ─────────────────────────────────────────────────────────────
+  strapi:
+    image: strapi/strapi:5-alpine
+    container_name: bazionweb-cms
+    restart: unless-stopped
+    environment:
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DB_NAME}
+      DATABASE_USERNAME: ${DB_USER}
+      DATABASE_PASSWORD: ${DB_PASSWORD}
+      DATABASE_SCHEMA: strapi
+      APP_KEYS: ${STRAPI_APP_KEYS}
+      API_TOKEN_SALT: ${STRAPI_API_TOKEN_SALT}
+      ADMIN_JWT_SECRET: ${STRAPI_ADMIN_JWT_SECRET}
+      JWT_SECRET: ${STRAPI_JWT_SECRET}
+      NODE_ENV: production
+    volumes:
+      - strapi_uploads:/opt/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - bazionweb-internal
+    expose:
+      - "1337"
+
+  # ── Nginx Proxy Manager ───────────────────────────────────────────────────────
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: bazionweb-npm
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"   # NPM admin UI — firewall to IP whitelist only
+    volumes:
+      - nginx_data:/data
+      - nginx_letsencrypt:/etc/letsencrypt
+    networks:
+      - bazionweb-public
+      - bazionweb-internal
+    healthcheck:
+      test: ["CMD", "/bin/check-health"]
+      interval: 10s
+      timeout: 3s
+
+  # ── Uptime Kuma ───────────────────────────────────────────────────────────────
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: bazionweb-uptime
+    restart: unless-stopped
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - bazionweb-internal
+      - bazionweb-public
+    expose:
+      - "3001"
+
+  # ── Grafana ───────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: bazionweb-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: https://monitoring.bazionweb.com
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: ${SMTP_HOST}:${SMTP_PORT}
+      GF_SMTP_USER: ${SMTP_USER}
+      GF_SMTP_PASSWORD: ${SMTP_PASS}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - bazionweb-internal
+    expose:
+      - "3000"
+    depends_on:
+      - loki
+
+  # ── Loki (Log Aggregation) ────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    container_name: bazionweb-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+      - ./infrastructure/monitoring/loki-config.yaml:/etc/loki/local-config.yaml
+    networks:
+      - bazionweb-internal
+    expose:
+      - "3100"
+
+  # ── Zammad (Support Ticketing) ───────────────────────────────────────────────
+  zammad:
+    image: zammad/zammad-docker-compose:latest
+    container_name: bazionweb-support
+    restart: unless-stopped
+    environment:
+      POSTGRESQL_HOST: db
+      POSTGRESQL_DB: ${DB_NAME}
+      POSTGRESQL_USER: ${DB_USER}
+      POSTGRESQL_PASS: ${DB_PASSWORD}
+    volumes:
+      - zammad_data:/opt/zammad
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - bazionweb-internal
+      - bazionweb-public
+    expose:
+      - "8080"

@@ -1,0 +1,75 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BazionWeb — Development Docker Compose
+# Runs only infrastructure services locally; Next.js + NestJS run via npm
+# Usage: docker compose -f docker-compose.dev.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+networks:
+  bazionweb-dev:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+
+services:
+
+  # PostgreSQL 16
+  db:
+    image: postgres:16-alpine
+    container_name: bazionweb-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bazionweb_dev
+      POSTGRES_USER: bazionweb
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"   # Exposed for local Prisma Studio
+    networks:
+      - bazionweb-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bazionweb -d bazionweb_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis 7
+  redis:
+    image: redis:7-alpine
+    container_name: bazionweb-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - bazionweb-dev
+
+  # MailHog — catch all outbound emails in development
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: bazionweb-mail-dev
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI: http://localhost:8025
+    networks:
+      - bazionweb-dev
+
+  # Adminer — lightweight DB GUI (dev only)
+  adminer:
+    image: adminer:latest
+    container_name: bazionweb-adminer-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # http://localhost:8080
+    networks:
+      - bazionweb-dev
+    depends_on:
+      db:
+        condition: service_healthy

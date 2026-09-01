@@ -1,0 +1,49 @@
+name: Security & Dependency Scan
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Every Monday at 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  dependency-audit:
+    name: npm audit (all workspaces)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm audit --audit-level=moderate --prefix apps/web
+      - run: npm audit --audit-level=moderate --prefix apps/api
+
+  owasp-zap:
+    name: OWASP ZAP Baseline Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ZAP Scan — marketing site
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: "https://staging.bazionweb.com"
+          rules_file_name: ".zap/rules.tsv"
+          cmd_options: "-a"
+          fail_action: warn
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      matrix:
+        language: [javascript, typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
