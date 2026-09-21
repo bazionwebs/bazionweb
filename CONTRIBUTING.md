@@ -26,7 +26,7 @@ This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/bazionwebsites/bazionweb.git
+   git clone https://github.com/bazionwebs/bazionweb.git
    cd bazionweb
    ```
 
@@ -166,6 +166,6 @@ Coverage threshold: **70%** statements (enforced in CI).
 
 ## Reporting Bugs
 
-Use the [Bug Report template](https://github.com/bazionwebsites/bazionweb/issues/new?template=bug_report.md).
+Use the [Bug Report template](https://github.com/bazionwebs/bazionweb/issues/new?template=bug_report.md).
 
 For **security vulnerabilities**, do **not** open a public issue — see [SECURITY.md](SECURITY.md).

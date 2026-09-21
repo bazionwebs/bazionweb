@@ -51,5 +51,5 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Four subscription tiers: Starter ($49), Growth ($99), Business ($199), Enterprise (Custom)
 - Architecture documentation, SOPs, and runbooks
 
-[Unreleased]: https://github.com/bazionwebsites/bazionweb/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/bazionwebsites/bazionweb/releases/tag/v1.0.0
+[Unreleased]: https://github.com/bazionwebs/bazionweb/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/bazionwebs/bazionweb/releases/tag/v1.0.0

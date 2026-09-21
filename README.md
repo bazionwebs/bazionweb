@@ -3,8 +3,8 @@
 > Enterprise-grade website lifecycle management for SMEs in Kenya and East Africa.  
 > One provider · One invoice · Complete ownership.
 
-[![CI/CD Pipeline](https://github.com/bazionwebsites/bazionweb/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/bazionwebsites/bazionweb/actions/workflows/ci-cd.yml)
-[![Security Scan](https://github.com/bazionwebsites/bazionweb/actions/workflows/security.yml/badge.svg)](https://github.com/bazionwebsites/bazionweb/actions/workflows/security.yml)
+[![CI/CD Pipeline](https://github.com/bazionwebs/bazionweb/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/bazionwebs/bazionweb/actions/workflows/ci-cd.yml)
+[![Security Scan](https://github.com/bazionwebs/bazionweb/actions/workflows/security.yml/badge.svg)](https://github.com/bazionwebs/bazionweb/actions/workflows/security.yml)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](#license)
 [![Node Version](https://img.shields.io/badge/node-20%2B-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue)](https://www.typescriptlang.org/)
@@ -142,7 +142,7 @@ Annual billing available with **17% discount** (2 months free).
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/bazionwebsites/bazionweb.git
+git clone https://github.com/bazionwebs/bazionweb.git
 cd bazionweb
 cp .env.example .env.local
 # Edit .env.local with your secrets

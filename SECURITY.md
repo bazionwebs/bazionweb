@@ -20,7 +20,7 @@ To report a security vulnerability, use one of the following channels:
 
 Use GitHub's built-in security reporting:
 
-👉 [Report a vulnerability](https://github.com/bazionwebsites/bazionweb/security/advisories/new)
+👉 [Report a vulnerability](https://github.com/bazionwebs/bazionweb/security/advisories/new)
 
 This creates a private draft advisory visible only to maintainers.
 

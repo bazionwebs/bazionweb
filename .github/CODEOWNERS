@@ -6,25 +6,25 @@
 # modifies files matching these patterns.
 
 # ── Default owner for everything ─────────────────────────────────────────────
-*                           @bazionwebsites
+*                           @bazionwebs
 
 # ── Backend API ───────────────────────────────────────────────────────────────
-/apps/api/                  @bazionwebsites
+/apps/api/                  @bazionwebs
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
-/apps/web/                  @bazionwebsites
+/apps/web/                  @bazionwebs
 
 # ── Database Schema ───────────────────────────────────────────────────────────
-/prisma/                    @bazionwebsites
+/prisma/                    @bazionwebs
 
 # ── Infrastructure & CI/CD ───────────────────────────────────────────────────
-/infrastructure/            @bazionwebsites
-/.github/                   @bazionwebsites
+/infrastructure/            @bazionwebs
+/.github/                   @bazionwebs
 
 # ── Security-sensitive files ─────────────────────────────────────────────────
-SECURITY.md                 @bazionwebsites
-.env.example                @bazionwebsites
+SECURITY.md                 @bazionwebs
+.env.example                @bazionwebs
 
 # ── Billing module (extra scrutiny) ──────────────────────────────────────────
-/apps/api/src/modules/billing/  @bazionwebsites
-/apps/web/src/components/billing/  @bazionwebsites
+/apps/api/src/modules/billing/  @bazionwebs
+/apps/web/src/components/billing/  @bazionwebs
