@@ -31,8 +31,12 @@ const mockPrisma = {
     update:     jest.fn(),
     updateMany: jest.fn(),
   },
-  client:  { findFirst: jest.fn() },
+  client:  { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+  plan:    { findUnique: jest.fn() },
+  wiseReceivingAccount: { create: jest.fn() },
+  paymentLog: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   subscription: { findMany: jest.fn() },
+  $transaction: jest.fn((cb) => (typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb))),
 };
 
 import { IntaSendService } from '../intasend.service';
@@ -43,11 +47,16 @@ const mockIntaSendService = {
   subscribeMpesa: jest.fn(),
   createCardCheckout: jest.fn(),
   verifyWebhookSignature: jest.fn(),
+  getOrCreateCustomer: jest.fn(),
+  triggerMpesaStkPush: jest.fn(),
+  createCheckoutSession: jest.fn(),
+  getPublishableKey: jest.fn(),
 };
 
 const mockWiseService = {
   getReceivingAccount: jest.fn(),
   verifyWebhookSignature: jest.fn(),
+  generateVirtualBankDetails: jest.fn(),
 };
 
 const mockEvents = { emit: jest.fn() };
@@ -224,6 +233,191 @@ describe('BillingService', () => {
       mockPrisma.invoice.updateMany.mockResolvedValue({ count: 0 });
       await service.markOverdueInvoices();
       expect(mockEvents.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── subscribeIntaSend() ───────────────────────────────────────────────────────
+
+  describe('subscribeIntaSend()', () => {
+    const mockPlan = {
+      id: 'plan-growth',
+      name: 'Growth',
+      isActive: true,
+      priceMonthlyKes: 12900,
+      priceAnnualKes: 129000,
+      priceMonthly: { toNumber: () => 99 },
+      priceAnnual: { toNumber: () => 990 },
+    };
+
+    it('triggers MPESA STK push for MPESA payment method', async () => {
+      mockPrisma.client.findUnique.mockResolvedValue({
+        id: 'client-uuid-1',
+        email: 'test@example.com',
+        phone: '254712345678',
+        user: { firstName: 'Peter', lastName: 'Kimani' },
+      });
+      mockPrisma.plan.findUnique.mockResolvedValue(mockPlan);
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-1',
+        invoiceNumber: 'INV-KE-12345678',
+        amount: 12900,
+      });
+      mockIntaSendService.triggerMpesaStkPush.mockResolvedValue({
+        invoiceId: 'IS_INV_1',
+        trackingId: 'IS_TRK_1',
+        state: 'PENDING',
+        customerMessage: 'Prompt sent',
+      });
+
+      const result = await service.subscribeIntaSend(
+        { id: 'user-uuid-1', email: 'test@example.com' },
+        {
+          planId: 'plan-growth',
+          billingCycle: 'MONTHLY' as any,
+          paymentMethod: 'MPESA',
+          mpesaPhoneNumber: '0712345678',
+        },
+      );
+
+      expect(mockIntaSendService.triggerMpesaStkPush).toHaveBeenCalled();
+      expect(result.method).toBe('MPESA');
+      expect(result.invoiceNumber).toBe('INV-KE-12345678');
+    });
+
+    it('generates checkout session for CARD payment method', async () => {
+      mockPrisma.client.findUnique.mockResolvedValue(null);
+      mockPrisma.client.create.mockResolvedValue({
+        id: 'client-new-1',
+        email: 'carduser@example.com',
+        phone: '254700000000',
+        user: { firstName: 'Alice', lastName: 'Wambui' },
+      });
+      mockPrisma.plan.findUnique.mockResolvedValue(mockPlan);
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-2',
+        invoiceNumber: 'INV-KE-87654321',
+        amount: 129000,
+      });
+      mockIntaSendService.createCheckoutSession.mockResolvedValue({
+        checkoutUrl: 'https://payment.intasend.com/checkout/123',
+        signature: 'sig_abc',
+        trackingId: 'trk_abc',
+      });
+
+      const result = await service.subscribeIntaSend(
+        { id: 'user-new', email: 'carduser@example.com', firstName: 'Alice', lastName: 'Wambui' },
+        {
+          planId: 'plan-growth',
+          billingCycle: 'ANNUAL' as any,
+          paymentMethod: 'CARD',
+        },
+      );
+
+      expect(mockIntaSendService.createCheckoutSession).toHaveBeenCalled();
+      expect(result.method).toBe('CARD');
+      expect(result.checkoutUrl).toBe('https://payment.intasend.com/checkout/123');
+    });
+
+    it('throws BadRequestException if plan is inactive or not found', async () => {
+      mockPrisma.client.findUnique.mockResolvedValue({
+        id: 'client-uuid-1',
+        user: { firstName: 'Peter' },
+      });
+      mockPrisma.plan.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.subscribeIntaSend(
+          { id: 'user-uuid-1' },
+          {
+            planId: 'non-existent',
+            billingCycle: 'MONTHLY' as any,
+            paymentMethod: 'MPESA',
+            mpesaPhoneNumber: '0712345678',
+          },
+        ),
+      ).rejects.toThrow();
+    });
+
+    it('throws BadRequestException if MPESA selected without phone number', async () => {
+      mockPrisma.client.findUnique.mockResolvedValue({
+        id: 'client-uuid-1',
+        user: { firstName: 'Peter' },
+      });
+      mockPrisma.plan.findUnique.mockResolvedValue(mockPlan);
+
+      await expect(
+        service.subscribeIntaSend(
+          { id: 'user-uuid-1' },
+          {
+            planId: 'plan-growth',
+            billingCycle: 'MONTHLY' as any,
+            paymentMethod: 'MPESA',
+          },
+        ),
+      ).rejects.toThrow();
+    });
+  });
+
+  // ── createWiseCorporateInvoice() ─────────────────────────────────────────────
+
+  describe('createWiseCorporateInvoice()', () => {
+    it('creates invoice and wise receiving account for corporate wire transfer', async () => {
+      mockPrisma.client.findUnique.mockResolvedValue({
+        id: 'corp-client-1',
+        businessName: 'Acme Corp',
+        contactName: 'John Doe',
+        email: 'john@acmecorp.com',
+        user: { firstName: 'John', lastName: 'Doe' },
+      });
+
+      mockPrisma.plan.findUnique.mockResolvedValue({
+        id: 'plan-enterprise',
+        name: 'Enterprise',
+        isActive: true,
+        priceMonthly: { toNumber: () => 199 },
+        priceAnnual: { toNumber: () => 1990 },
+      });
+
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-corp-1',
+        invoiceNumber: 'INV-WISE-123456',
+        amount: 199,
+        currency: 'USD',
+        dueDate: new Date(),
+      });
+
+      mockWiseService.generateVirtualBankDetails.mockResolvedValue({
+        id: 'wise-rec-1',
+        currency: 'USD',
+        accountHolderName: 'BazionWeb Ltd',
+        accountNumber: '409182390182',
+        routingNumber: '026073150',
+        swiftBic: 'EVBLUS33',
+        bankAddress: { country: 'United States' },
+      });
+
+      mockPrisma.wiseReceivingAccount.create.mockResolvedValue({
+        id: 'rec-acc-1',
+        accountHolder: 'BazionWeb Ltd',
+        accountNumber: '409182390182',
+        routingNumber: '026073150',
+        swiftBic: 'EVBLUS33',
+        bankAddress: { country: 'United States' },
+      });
+
+      const result = await service.createWiseCorporateInvoice(
+        { id: 'corp-user-1', email: 'john@acmecorp.com' },
+        {
+          planId: 'plan-enterprise',
+          billingCycle: 'MONTHLY' as any,
+          currency: 'USD',
+          purchaseOrderNumber: 'PO-999',
+        },
+      );
+
+      expect(result.status).toBe('INVOICE_GENERATED');
+      expect(result.bankTransferDetails.accountNumber).toBe('409182390182');
+      expect(mockWiseService.generateVirtualBankDetails).toHaveBeenCalledWith('USD');
     });
   });
 });
