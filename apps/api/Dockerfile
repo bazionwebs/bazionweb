@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 1 — builder
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN npm run build 2>/dev/null || npx tsc -p tsconfig.json
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — production deps only
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN npm ci --only=production --ignore-scripts
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 3 — runner
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 RUN apk add --no-cache curl openssl
 
 WORKDIR /app

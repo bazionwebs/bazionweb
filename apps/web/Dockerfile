@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 1 — deps: install production dependencies only
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -11,7 +11,7 @@ RUN npm ci --only=production --ignore-scripts
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — builder: full build with dev deps
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -19,6 +19,11 @@ COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts
 
 COPY . .
+
+# Ensure public/ exists — Next.js standalone build expects it, but the repo
+# has no public/ dir yet. Without this, `COPY --from=builder /app/public`
+# in the runner stage fails with "not found".
+RUN mkdir -p ./public
 
 # Build-time public env vars (non-secret)
 ARG NEXT_PUBLIC_API_URL
@@ -36,7 +41,7 @@ RUN npm run build
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 3 — runner: minimal runtime image
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 RUN apk add --no-cache curl
 
 WORKDIR /app
