@@ -18,8 +18,8 @@ const contactMethods = [
   {
     icon: Phone,
     label: 'Call us',
-    value: '+254 700 000 000',
-    href: 'tel:+254700000000',
+    value: '+254 721 287 053',
+    href: 'tel:+254721287053',
     sub: 'Mon–Fri, 8am–6pm EAT',
   },
   {

@@ -55,7 +55,7 @@ test.describe('Contact page and form', () => {
 
   test('contact sidebar shows email and phone', async ({ page }) => {
     await expect(page.getByText('hello@bazionweb.com')).toBeVisible();
-    await expect(page.getByText('+254 700 000 000')).toBeVisible();
+    await expect(page.getByText('+254 721 287 053')).toBeVisible();
   });
 
   test('can reset form after success', async ({ page }) => {

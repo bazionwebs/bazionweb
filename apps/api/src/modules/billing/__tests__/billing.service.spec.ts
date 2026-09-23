@@ -289,7 +289,7 @@ describe('BillingService', () => {
       mockPrisma.client.create.mockResolvedValue({
         id: 'client-new-1',
         email: 'carduser@example.com',
-        phone: '254700000000',
+        phone: '254721287053',
         user: { firstName: 'Alice', lastName: 'Wambui' },
       });
       mockPrisma.plan.findUnique.mockResolvedValue(mockPlan);

@@ -101,7 +101,7 @@ export class BillingService {
           businessName: user.firstName ? `${user.firstName}'s Organisation` : 'BazionWeb Client',
           contactName: `${user.firstName || 'Valued'} ${user.lastName || 'Client'}`.trim(),
           email: user.email,
-          phone: dto.mpesaPhoneNumber || user.phone || '254700000000',
+          phone: dto.mpesaPhoneNumber || user.phone || '254721287053',
           planId: dto.planId,
         },
         include: { user: true },

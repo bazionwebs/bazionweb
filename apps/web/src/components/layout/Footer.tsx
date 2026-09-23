@@ -51,9 +51,9 @@ export default function Footer() {
                 <Mail className="w-4 h-4 shrink-0 text-[#14B8A6]" />
                 hello@bazionweb.com
               </a>
-              <a href="tel:+254700000000" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm">
+              <a href="tel:+254721287053" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm">
                 <Phone className="w-4 h-4 shrink-0 text-[#14B8A6]" />
-                +254 700 000 000
+                +254 721 287 053
               </a>
               <span className="flex items-center gap-2 text-slate-400 text-sm">
                 <MapPin className="w-4 h-4 shrink-0 text-[#14B8A6]" />
