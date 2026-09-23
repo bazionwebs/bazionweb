@@ -8,8 +8,14 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Direct (non-pooled) connection for `prisma migrate` / `prisma validate`.
+  // Set to the SAME value as DATABASE_URL for direct Postgres (local Docker,
+  // Render Postgres). Set to Neon's direct string (pooling disabled) when
+  // DATABASE_URL is the pooled ("-pooler") string. Runtime queries always
+  // use `url`, so the app boots fine even if this is only needed for migrate.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────────────

@@ -1,0 +1,47 @@
+name: Keep Render Services Awake (business hours)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Render's free web services sleep after ~15 min without inbound traffic
+# (~1 min cold wake on the next request). This workflow pings both health
+# endpoints every 14 min during business hours so the site stays warm.
+#
+# Quota math (docs: render.com/docs/free — 750 free instance hours per
+# workspace/month, spun-down services consume nothing):
+#   05:00–15:59 UTC = 08:00–18:59 EAT, ~11 h/day awake per service
+#   2 services × 11 h × 30 days ≈ 660 h/month < 750 h/month (90 h margin
+#   for deploys/restarts). Outside this window services sleep normally.
+# To keep services awake 24/7 instead, upgrade web/api to Starter.
+#
+# Required repo secrets (set once; pings are skipped gracefully until set):
+#   WEB_URL — e.g. https://bazionweb-web-xxxx.onrender.com
+#   API_URL — e.g. https://bazionweb-api-xxxx.onrender.com
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: "*/14 5-15 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping health endpoints
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping web + api (best-effort, never fails the workflow)
+        run: |
+          ping() {
+            if [ -z "$1" ] || [ "$1" = "/api/health" ] || [ "$1" = "/api/v1/health" ]; then
+              echo "URL secret not set yet — skipping."
+              return 0
+            fi
+            if curl --fail --silent --max-time 90 "$1"; then
+              echo "OK: $1"
+            else
+              echo "No response yet (cold start or first deploy pending): $1"
+            fi
+          }
+          ping "$WEB_URL/api/health"
+          ping "$API_URL/api/v1/health"
+        env:
+          WEB_URL: ${{ secrets.WEB_URL }}
+          API_URL: ${{ secrets.API_URL }}

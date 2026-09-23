@@ -228,31 +228,61 @@ jobs:
           cd apps/api
           if [ -f package-lock.json ]; then npm audit --audit-level=high; else echo "No lockfile — skipping audit"; fi
 
+  # ─── Stage 4b: Database Migrations (Neon Postgres) ────────────────────────────
+  # Runs Prisma migrations from CI because the API's production image excludes
+  # the Prisma CLI. Needs repo secrets: DATABASE_URL (Neon pooled string) and
+  # DATABASE_URL_UNPOOLED (Neon direct string — migrate can't run through the
+  # pooler). Skips gracefully until DATABASE_URL is set.
+  migrate:
+    name: "Stage 4b — Prisma Migrate (Neon)"
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run Prisma migrations
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL secret not set — skipping migrations (set it to the Neon pooled connection string)"
+            exit 0
+          fi
+          cd apps/api
+          npm ci
+          npm run prisma:generate
+          npm run prisma:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+
   # ─── Stage 5: Deploy to Staging ─────────────────────────────────────────────
   deploy-staging:
     name: "Stage 5 — Deploy to Staging"
     runs-on: ubuntu-latest
-    needs: [build, security-scan]
+    needs: [build, security-scan, migrate]
     if: github.ref == 'refs/heads/staging'
     environment: staging
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to staging VPS via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.STAGING_HOST }}
-          username: ${{ secrets.STAGING_USER }}
-          key: ${{ secrets.STAGING_SSH_KEY }}
-          script: |
-            cd /opt/bazionweb
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            export IMAGE_TAG=${{ needs.build.outputs.image-tag }}
-            docker compose -f infrastructure/docker/docker-compose.yml pull web api
-            docker compose -f infrastructure/docker/docker-compose.yml up -d --no-deps web api
-            docker compose -f infrastructure/docker/docker-compose.yml exec -T api npx prisma migrate deploy
-            docker image prune -f
+      - name: Trigger Render deploy (staging)
+        run: |
+          trigger() {
+            if [ -z "$1" ]; then
+              echo "No deploy hook configured — relying on Render auto-deploy."
+            else
+              curl --fail --silent --show-error -X POST "$1" && echo "Deploy hook triggered."
+            fi
+          }
+          trigger "$RENDER_DEPLOY_HOOK_WEB"
+          trigger "$RENDER_DEPLOY_HOOK_API"
+        env:
+          RENDER_DEPLOY_HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
+          RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
 
   # ─── Stage 6: E2E Tests (Staging) ───────────────────────────────────────────
   e2e-tests:
@@ -327,34 +357,36 @@ jobs:
       url: https://bazionweb.com
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Trigger Render deploy (production)
+        run: |
+          trigger() {
+            if [ -z "$1" ]; then
+              echo "No deploy hook configured — relying on Render auto-deploy."
+            else
+              curl --fail --silent --show-error -X POST "$1" && echo "Deploy hook triggered."
+            fi
+          }
+          trigger "$RENDER_DEPLOY_HOOK_WEB"
+          trigger "$RENDER_DEPLOY_HOOK_API"
+        env:
+          RENDER_DEPLOY_HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
+          RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
 
-      - name: Blue/green deploy to production
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ${{ secrets.PROD_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            cd /opt/bazionweb
-
-            # Pull new images
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            export IMAGE_TAG=${{ needs.build.outputs.image-tag }}
-            docker compose -f infrastructure/docker/docker-compose.yml pull web api
-
-            # Run migrations before switching traffic
-            docker compose -f infrastructure/docker/docker-compose.yml run --rm api npx prisma migrate deploy
-
-            # Rolling restart
-            docker compose -f infrastructure/docker/docker-compose.yml up -d --no-deps --force-recreate web api
-
-            # Health check gate (fail = automatic rollback)
-            sleep 15
-            curl --fail https://bazionweb.com/api/health || \
-              (docker compose -f infrastructure/docker/docker-compose.yml rollback && exit 1)
-
-            docker image prune -f
+      - name: Health check gate
+        run: |
+          WEB_URL="${WEB_URL:-https://bazionweb-web.onrender.com}"
+          for i in 1 2 3 4 5 6; do
+            if curl --fail --silent "$WEB_URL/api/health"; then
+              echo "Web healthy at $WEB_URL"
+              exit 0
+            fi
+            echo "Waiting for web to become healthy… ($i/6)"
+            sleep 20
+          done
+          echo "Web health check failed at $WEB_URL/api/health"
+          exit 1
+        env:
+          WEB_URL: ${{ secrets.WEB_URL }}
 
   # ─── Stage 9: Post-Deploy Verification ──────────────────────────────────────
   post-deploy-verify:
