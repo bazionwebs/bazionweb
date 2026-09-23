@@ -7,6 +7,7 @@ import {
   Palette, Check, ArrowRight, ChevronRight,
   TrendingDown, Info, ArrowLeft
 } from 'lucide-react';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,7 @@ export default function QuoteCalculatorPage() {
       {/* Header */}
       <div className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-4xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Instant Quote' }]} />
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
             Quote Calculator
           </span>

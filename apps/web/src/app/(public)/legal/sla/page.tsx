@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Service Level Agreement',
   description: 'BazionWeb SLA — uptime guarantees, response times, and service credit definitions per plan.',
+  alternates: { canonical: 'https://bazionweb.com/legal/sla' },
 };
 
 export default function SLAPage() {
@@ -10,6 +12,7 @@ export default function SLAPage() {
     <div className="min-h-screen bg-[#F8FAFC]">
       <div className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Service Level Agreement' }]} />
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">Legal</span>
           <h1 className="text-4xl font-bold text-white mb-3">Service Level Agreement</h1>
           <p className="text-slate-400 text-sm">Version 1.0 · Effective June 1, 2025 · Applies to all active subscriptions</p>

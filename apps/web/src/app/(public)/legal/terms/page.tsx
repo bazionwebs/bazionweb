@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description: 'BazionWeb Terms of Service — the contract that governs your use of our managed web services.',
+  alternates: { canonical: 'https://bazionweb.com/legal/terms' },
 };
 
 const LAST_UPDATED = 'June 1, 2025';
@@ -13,6 +15,7 @@ export default function TermsPage() {
     <div className="min-h-screen bg-[#F8FAFC]">
       <div className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Terms of Service' }]} />
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">Legal</span>
           <h1 className="text-4xl font-bold text-white mb-3">Terms of Service</h1>
           <p className="text-slate-400 text-sm">

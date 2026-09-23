@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Target, Eye, Heart, Shield, Users, TrendingUp } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -78,6 +79,7 @@ export default function AboutPage() {
         <div className="absolute -top-40 right-0 w-[600px] h-[600px] rounded-full bg-[#2563EB]/8 blur-[120px] pointer-events-none" />
         <div className="container-default relative z-10">
           <div className="max-w-3xl">
+            <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'About' }]} />
             <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
               About BazionWeb
             </span>

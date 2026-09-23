@@ -1,12 +1,18 @@
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
-export const metadata: Metadata = { title: 'Cookie Policy' };
+export const metadata: Metadata = {
+  title: 'Cookie Policy',
+  description: 'BazionWeb Cookie Policy — what cookies and local storage items we use and why.',
+  alternates: { canonical: 'https://bazionweb.com/legal/cookies' },
+};
 
 export default function CookiePolicyPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <div className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Cookie Policy' }]} />
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">Legal</span>
           <h1 className="text-4xl font-bold text-white mb-3">Cookie Policy</h1>
           <p className="text-slate-400 text-sm">Last updated: June 1, 2025</p>

@@ -4,7 +4,8 @@ import AudioTestimonial from '@/components/testimonials/AudioTestimonial';
 import {
   Globe, Shield, Wrench, Server, Zap, LifeBuoy,
   Check, ArrowRight, Star, TrendingUp, Clock, Award,
-  ChevronRight, Users, HeartHandshake
+  ChevronRight, Users, HeartHandshake, RotateCcw,
+  Laptop, FileText, CheckCircle2
 } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -155,6 +156,93 @@ const painPoints = [
     icon: Award,
     pain: 'Security ignored until crisis',
     solution: 'Proactive WAF, malware, SSL rotation',
+  },
+];
+
+const reasons = [
+  {
+    num: '01',
+    title: 'Single Point of Accountability',
+    desc: 'Development, cloud hosting, security, patches, and support from one team. No more finger-pointing between separate hosting companies, web developers, and domain registrars.',
+    icon: Users,
+    highlight: 'One contract, one invoice',
+  },
+  {
+    num: '02',
+    title: 'Financially Backed 99.95% Uptime SLA',
+    desc: 'Our uptime commitment is not just a marketing claim — it is written into our legal Service Level Agreement with automated fee credits if we ever fall short.',
+    icon: Server,
+    highlight: 'Guaranteed in every tier',
+  },
+  {
+    num: '03',
+    title: 'Sub-15 Minute P1 Emergency Response',
+    desc: 'When an unexpected outage or critical issue occurs, real systems engineers triage and resolve it 24/7. No chatbots, ticket black holes, or days of waiting.',
+    icon: Clock,
+    highlight: '24/7 engineer escalation',
+  },
+  {
+    num: '04',
+    title: '100% Client Asset Ownership',
+    desc: 'You retain complete, unencumbered ownership of your domain names, code repositories, design assets, and content. Zero proprietary platform lock-in.',
+    icon: Award,
+    highlight: 'Your assets stay yours',
+  },
+  {
+    num: '05',
+    title: 'No Lock-in Contracts & 30-Day Guarantee',
+    desc: 'All plans operate on simple, predictable monthly subscriptions. You can cancel with 30 days notice anytime, backed by a 30-day money-back guarantee for new clients.',
+    icon: HeartHandshake,
+    highlight: 'Zero risk to start',
+  },
+  {
+    num: '06',
+    title: 'Proactive Security & WAF Protection',
+    desc: 'Every client website is protected by an enterprise Web Application Firewall, automated malware scanning, SSL management, and proactive vulnerability patching.',
+    icon: Shield,
+    highlight: 'Threats stopped before impact',
+  },
+  {
+    num: '07',
+    title: 'Lighthouse 95+ Performance Target',
+    desc: 'Built on modern Next.js 14 and routed through global edge CDNs. We optimize for Core Web Vitals (LCP, CLS, INP) to maximize Google search rank and conversion.',
+    icon: Zap,
+    highlight: 'Blazing fast load times',
+  },
+  {
+    num: '08',
+    title: 'Automated Daily & Verified Backups',
+    desc: 'Your database and assets are automatically encrypted and snapshotted offsite daily, with regular restore drills to ensure instant disaster recovery.',
+    icon: RotateCcw,
+    highlight: 'Disaster recovery ready',
+  },
+  {
+    num: '09',
+    title: 'Private Staging Environments',
+    desc: 'Never test in production. Every update, design refinement, and new feature is deployed to a private staging URL for your explicit review and sign-off.',
+    icon: Laptop,
+    highlight: 'Approve before launch',
+  },
+  {
+    num: '10',
+    title: 'Plain-Language Monthly Reports',
+    desc: 'Receive transparent monthly summaries detailing updates completed, security scans passed, uptime records, and site speed benchmarks in plain business English.',
+    icon: FileText,
+    highlight: 'Transparent accountability',
+  },
+  {
+    num: '11',
+    title: 'Unified Client Portal & Helpdesk',
+    desc: 'Log in anytime to submit tickets, track milestone deliveries, view invoices, and monitor system health and uptime stats in real time.',
+    icon: CheckCircle2,
+    highlight: 'Real-time visibility',
+  },
+  {
+    num: '12',
+    title: 'Predictable Flat Pricing — Zero Hidden Fees',
+    desc: 'No sudden invoices for software updates, PHP upgrades, SSL renewals, or unexpected maintenance spikes. What you see is what you pay.',
+    icon: TrendingUp,
+    highlight: 'No budget surprises',
   },
 ];
 
@@ -309,6 +397,76 @@ export default function HomePage() {
               Explore All Services
               <ArrowRight className="w-4 h-4" />
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 12 Reasons to Choose BazionWeb ── */}
+      <section className="section bg-[#0F172A] text-white relative overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="absolute top-0 right-1/4 w-[500px] h-[500px] rounded-full bg-[#2563EB]/10 blur-[140px] pointer-events-none" />
+        <div className="absolute bottom-0 left-1/4 w-[500px] h-[500px] rounded-full bg-[#14B8A6]/10 blur-[140px] pointer-events-none" />
+
+        <div className="container-default relative z-10">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
+              Why Choose BazionWeb
+            </span>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-6">
+              12 reasons growing businesses trust us with their website
+            </h2>
+            <p className="text-slate-400 text-lg leading-relaxed">
+              From guaranteed SLAs to complete asset ownership, here is why companies switch from
+              scattered freelancers and basic hosting providers to our fully managed model.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {reasons.map(r => (
+              <div
+                key={r.num}
+                className="bg-white/5 border border-white/10 hover:border-blue-500/40 rounded-2xl p-7 transition-all duration-300 flex flex-col group hover:-translate-y-1 hover:shadow-card-xl backdrop-blur-sm"
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <span className="text-xs font-mono font-bold tracking-widest text-[#14B8A6] bg-teal-500/10 px-2.5 py-1 rounded-md border border-teal-500/20">
+                    {r.num}
+                  </span>
+                  <div className="w-10 h-10 rounded-xl bg-white/5 group-hover:bg-[#2563EB]/20 border border-white/10 flex items-center justify-center transition-colors">
+                    <r.icon className="w-5 h-5 text-slate-300 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-bold text-white mb-2.5 group-hover:text-[#60A5FA] transition-colors">
+                  {r.title}
+                </h3>
+                <p className="text-slate-400 text-sm leading-relaxed mb-6 flex-1">
+                  {r.desc}
+                </p>
+
+                <div className="pt-4 border-t border-white/10 flex items-center gap-2 text-xs font-medium text-slate-400">
+                  <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0" />
+                  <span>{r.highlight}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Process & Pricing cross-links */}
+          <div className="card bg-white/5 border border-white/10 p-8 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 max-w-4xl mx-auto">
+            <div>
+              <h4 className="text-lg font-bold text-white mb-1">
+                Curious how our six delivery phases work?
+              </h4>
+              <p className="text-sm text-slate-400">
+                From free assessment to launch and ongoing management, see our exact step-by-step milestones.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <Link href="/process" className="btn-primary text-sm px-6 py-3">
+                See Our Process
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>

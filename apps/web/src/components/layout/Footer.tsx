@@ -15,9 +15,11 @@ const services = [
 
 const company = [
   { name: 'About Us', href: '/about' },
+  { name: 'Our Process', href: '/process' },
   { name: 'Pricing', href: '/pricing' },
   { name: 'Case Studies', href: '/case-studies' },
   { name: 'Blog', href: '/blog' },
+  { name: 'FAQ', href: '/faq' },
   { name: 'Careers', href: '/careers' },
   { name: 'System Status', href: 'https://status.bazionweb.com' },
 ];

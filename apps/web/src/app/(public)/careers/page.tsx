@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Careers',
@@ -20,6 +21,7 @@ export default function CareersPage() {
       {/* Header */}
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-2xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Careers' }]} />
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
             Careers
           </span>
