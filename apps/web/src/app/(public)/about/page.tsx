@@ -54,6 +54,7 @@ const team = [
     desc: 'Owns the outbound pipeline and client relationships — from discovery calls and proposals to onboarding and growth.',
     initials: 'MK',
     color: 'from-[#14B8A6] to-[#2563EB]',
+    photo: '/team/mary-m.jpg',
   },
 ];
 
