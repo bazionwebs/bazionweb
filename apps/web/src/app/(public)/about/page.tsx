@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, Target, Eye, Heart, Shield, Users, TrendingUp } from 'lucide-react';
 import type { Metadata } from 'next';
 
@@ -45,6 +46,7 @@ const team = [
     desc: 'Full-stack engineer and systems architect with deep roots in cloud infrastructure and managed services.',
     initials: 'JM',
     color: 'from-[#2563EB] to-[#14B8A6]',
+    photo: '/team/joseph-m.jpg',
   },
 ];
 
@@ -224,9 +226,19 @@ export default function AboutPage() {
           <div className="flex justify-center">
             {team.map(t => (
               <div key={t.name} className="card p-8 text-center max-w-xs">
-                <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${t.color} flex items-center justify-center text-white font-black text-xl mb-5 mx-auto shadow-md`}>
-                  {t.initials}
-                </div>
+                {'photo' in t && t.photo ? (
+                  <Image
+                    src={t.photo}
+                    alt={`${t.name}, ${t.role} at BazionWeb`}
+                    width={320}
+                    height={320}
+                    className="w-20 h-20 rounded-2xl object-cover object-top mb-5 mx-auto shadow-md"
+                  />
+                ) : (
+                  <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${t.color} flex items-center justify-center text-white font-black text-xl mb-5 mx-auto shadow-md`}>
+                    {t.initials}
+                  </div>
+                )}
                 <div className="font-bold text-[#0F172A] text-lg mb-1">{t.name}</div>
                 <div className="text-sm font-medium text-[#2563EB] mb-3">{t.role}</div>
                 <p className="text-sm text-slate-500 leading-relaxed">{t.desc}</p>
