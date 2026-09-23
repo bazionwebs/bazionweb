@@ -12,7 +12,7 @@ const studies: Record<string, {
 }> = {
   'acacia-healthcare': {
     client: 'Acacia Healthcare Ltd', industry: 'Healthcare & Clinics',
-    plan: 'Business', website: 'acaciahealthcare.co.ke', timeline: '3 weeks to full migration',
+    plan: 'Business', website: 'acaciahealthcare.com', timeline: '3 weeks to full migration',
     teamSize: '6 managed sites',
     challenge: 'A 6-site healthcare network with slow pages, three different hosting providers, no unified monitoring, and SSL certificates expiring without warning. Their IT manager had left, and the remaining staff had no technical capacity to manage the websites. Patients were complaining about the booking form being unreliable.',
     approach: [
@@ -34,7 +34,7 @@ const studies: Record<string, {
   },
   'parkview-law': {
     client: 'Parkview Law Associates', industry: 'Professional Services',
-    plan: 'Growth', website: 'parkviewlaw.co.ke', timeline: '2 weeks to first results',
+    plan: 'Growth', website: 'parkviewlaw.com', timeline: '2 weeks to first results',
     teamSize: '1 main site + 2 practice area landing pages',
     challenge: 'A law firm whose website had been untouched for 18 months. Outdated CMS with 14 unpatched plugins, a broken contact form that was silently dropping enquiries, a Lighthouse score of 42, and no backups. The firm had recently lost a major client pitch partly because their website looked untrustworthy.',
     approach: [

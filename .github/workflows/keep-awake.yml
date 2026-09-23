@@ -7,7 +7,7 @@ name: Keep Render Services Awake (business hours)
 #
 # Quota math (docs: render.com/docs/free — 750 free instance hours per
 # workspace/month, spun-down services consume nothing):
-#   05:00–15:59 UTC = 08:00–18:59 EAT, ~11 h/day awake per service
+#   05:00–15:59 UTC (≈08:00–18:59 UTC+3), ~11 h/day awake per service
 #   2 services × 11 h × 30 days ≈ 660 h/month < 750 h/month (90 h margin
 #   for deploys/restarts). Outside this window services sleep normally.
 # To keep services awake 24/7 instead, upgrade web/api to Starter.

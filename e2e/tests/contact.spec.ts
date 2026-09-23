@@ -30,7 +30,7 @@ test.describe('Contact page and form', () => {
 
   test('shows success state after valid submission', async ({ page }) => {
     await page.getByLabel('Full name').fill('Sarah Kamau');
-    await page.getByLabel('Email address').fill('sarah@test.co.ke');
+    await page.getByLabel('Email address').fill('sarah@test.com');
     await page.getByLabel(/tell us about your website/i).fill(
       'We need managed hosting for our clinic website. Currently on a shared server that is very slow.',
     );
@@ -60,7 +60,7 @@ test.describe('Contact page and form', () => {
 
   test('can reset form after success', async ({ page }) => {
     await page.getByLabel('Full name').fill('Sarah Kamau');
-    await page.getByLabel('Email address').fill('sarah@test.co.ke');
+    await page.getByLabel('Email address').fill('sarah@test.com');
     await page.getByLabel(/tell us about your website/i).fill('Need help with hosting and maintenance for our business website');
     await page.getByRole('button', { name: /send message/i }).click();
     await page.getByText('Message received!').waitFor({ timeout: 5000 });

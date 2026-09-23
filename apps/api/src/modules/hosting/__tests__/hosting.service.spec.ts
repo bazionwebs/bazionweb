@@ -7,8 +7,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 const mockAccount = {
   id: 'hosting-uuid-1',
   clientId: 'client-uuid-1',
-  domain: 'acaciahealthcare.co.ke',
-  server: 'Oracle Cloud (Nairobi)',
+  domain: 'acaciahealthcare.com',
+  server: 'Oracle Cloud (Frankfurt)',
   plan: 'Business',
   status: 'ACTIVE',
   sslExpiry: new Date('2026-03-12'),
@@ -63,7 +63,7 @@ describe('HostingService', () => {
       const result = await service.findMe('user-uuid-1');
 
       expect(result.data).toHaveLength(1);
-      expect(result.data[0].domain).toBe('acaciahealthcare.co.ke');
+      expect(result.data[0].domain).toBe('acaciahealthcare.com');
     });
 
     it('throws NotFoundException when user has no client account', async () => {
@@ -84,7 +84,7 @@ describe('HostingService', () => {
     it('allows owner to access own account', async () => {
       mockPrisma.hostingAccount.findUnique.mockResolvedValue(mockAccount);
       const result = await service.findOne('hosting-uuid-1', clientUser);
-      expect(result.data.domain).toBe('acaciahealthcare.co.ke');
+      expect(result.data.domain).toBe('acaciahealthcare.com');
     });
 
     it('throws ForbiddenException for wrong user', async () => {
@@ -109,7 +109,7 @@ describe('HostingService', () => {
     it('creates a backup record for each active account', async () => {
       mockPrisma.hostingAccount.findMany.mockResolvedValue([
         mockAccount,
-        { ...mockAccount, id: 'hosting-uuid-2', domain: 'parkviewlaw.co.ke' },
+        { ...mockAccount, id: 'hosting-uuid-2', domain: 'parkviewlaw.com' },
       ]);
       mockPrisma.backup.create.mockResolvedValue({});
 
@@ -163,7 +163,7 @@ describe('HostingService', () => {
       await service.checkSslExpiry();
 
       expect(mockEvents.emit).toHaveBeenCalledWith('ssl.expiry_warning', expect.objectContaining({
-        domain: 'acaciahealthcare.co.ke',
+        domain: 'acaciahealthcare.com',
         daysLeft: expect.any(Number),
       }));
     });
@@ -193,7 +193,7 @@ describe('HostingService', () => {
     });
 
     it('continues processing remaining accounts when one fails', async () => {
-      const secondAccount = { ...mockAccount, id: 'hosting-uuid-2', domain: 'parkviewlaw.co.ke' };
+      const secondAccount = { ...mockAccount, id: 'hosting-uuid-2', domain: 'parkviewlaw.com' };
       mockPrisma.hostingAccount.findMany.mockResolvedValue([mockAccount, secondAccount]);
       mockPrisma.hostingAccount.update.mockResolvedValue(mockAccount);
 

@@ -80,7 +80,7 @@ export class HostingService {
 
   /**
    * Check SSL expiry for all active hosting accounts.
-   * Runs every day at 07:00 EAT (04:00 UTC).
+   * Runs every day at 04:00 UTC.
    * Emits alerts for certificates expiring within 30 days.
    */
   @Cron('0 4 * * *', { name: 'ssl-expiry-check' })

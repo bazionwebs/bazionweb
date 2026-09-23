@@ -28,6 +28,6 @@ describe('Footer', () => {
   it('should render contact info', () => {
     render(<Footer />);
     expect(screen.getByText('hello@bazionweb.com')).toBeInTheDocument();
-    expect(screen.getByText('Nairobi, Kenya')).toBeInTheDocument();
+    expect(screen.getByText('Remote-first · Worldwide')).toBeInTheDocument();
   });
 });

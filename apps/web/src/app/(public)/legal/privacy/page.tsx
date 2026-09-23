@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         <div className="container-default max-w-3xl">
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">Legal</span>
           <h1 className="text-4xl font-bold text-white mb-3">Privacy Policy</h1>
-          <p className="text-slate-400 text-sm">Last updated: June 1, 2025 · Compliant with GDPR (EU) 2016/679 and POPIA (Kenya)</p>
+          <p className="text-slate-400 text-sm">Last updated: June 1, 2025 · Compliant with GDPR (EU) 2016/679</p>
         </div>
       </div>
 
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">1. Who We Are (Data Controller)</h2>
             <p className="text-slate-600 leading-relaxed">
-              BazionWeb ("we", "our", "us"), based in Nairobi, Kenya, is the data controller for personal data collected via bazionweb.com and our client portal. Contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>
+              BazionWeb ("we", "our", "us") is the data controller for personal data collected via bazionweb.com and our client portal. Contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>
             </p>
           </section>
 
@@ -115,7 +115,7 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">8. Contact & Complaints</h2>
             <p className="text-slate-600 leading-relaxed">
               Data Protection contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a><br />
-              You have the right to lodge a complaint with the Office of the Data Protection Commissioner of Kenya (ODPC).
+              You have the right to lodge a complaint with your local data protection authority.
             </p>
           </section>
 

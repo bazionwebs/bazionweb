@@ -182,7 +182,7 @@ export default function HomePage() {
             {/* Eyebrow */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm mb-8">
               <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
-              <span className="text-xs font-semibold text-slate-300 tracking-widest uppercase">Now Serving Kenya & East Africa</span>
+              <span className="text-xs font-semibold text-slate-300 tracking-widest uppercase">Now Serving Clients Worldwide</span>
             </div>
 
             {/* Headline */}
@@ -211,7 +211,7 @@ export default function HomePage() {
 
             {/* Micro trust signals */}
             <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500">
-              {['No setup fees', '30-day money-back', 'Cancel anytime', 'Kenyan-based team'].map(t => (
+              {['No setup fees', '30-day money-back', 'Cancel anytime', 'Dedicated support team'].map(t => (
                 <span key={t} className="flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-[#22C55E]" />
                   {t}
@@ -386,7 +386,7 @@ export default function HomePage() {
               What Clients Say
             </span>
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Trusted by growing businesses across Kenya
+              Trusted by growing businesses worldwide
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

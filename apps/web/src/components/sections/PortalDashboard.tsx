@@ -17,7 +17,7 @@ const mockClient = {
   name: 'Acacia Healthcare Ltd',
   plan: 'Business',
   contactName: 'Sarah Kamau',
-  domain: 'acaciahealthcare.co.ke',
+  domain: 'acaciahealthcare.com',
   renewalDate: '2025-10-15',
 };
 
@@ -62,10 +62,10 @@ const invoices = [
 ];
 
 const hostingStatus = {
-  domain: 'acaciahealthcare.co.ke',
-  server: 'Oracle Cloud (Nairobi)',
+  domain: 'acaciahealthcare.com',
+  server: 'Oracle Cloud (Frankfurt)',
   sslExpiry: '2026-03-12',
-  lastBackup: '2025-06-09 02:14 EAT',
+  lastBackup: '2025-06-09 02:14 UTC',
   backupSize: '840 MB',
   cdnStatus: 'Active',
   uptime: '99.98%',
@@ -517,7 +517,7 @@ export default function PortalDashboard() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <div className="font-semibold text-[#0F172A]">Homepage redesign — Q3 2025</div>
-                    <div className="text-xs text-slate-400 mt-0.5">Staging: staging.acaciahealthcare.co.ke</div>
+                    <div className="text-xs text-slate-400 mt-0.5">Staging: staging.acaciahealthcare.com</div>
                   </div>
                   <span className="badge-blue">In Progress</span>
                 </div>
@@ -579,8 +579,8 @@ export default function PortalDashboard() {
                   {[
                     { label: 'Business name', value: mockClient.name, type: 'text' },
                     { label: 'Contact name', value: 'Sarah Kamau', type: 'text' },
-                    { label: 'Email address', value: 'sarah@acaciahealthcare.co.ke', type: 'email' },
-                    { label: 'Phone number', value: '+254 711 111 111', type: 'tel' },
+                    { label: 'Email address', value: 'sarah@acaciahealthcare.com', type: 'email' },
+                    { label: 'Phone number', value: '+1 555 011 1234', type: 'tel' },
                   ].map(f => (
                     <div key={f.label}>
                       <label className="label">{f.label}</label>

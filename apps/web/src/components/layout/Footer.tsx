@@ -54,7 +54,7 @@ export default function Footer() {
               </a>
               <span className="flex items-center gap-2 text-slate-400 text-sm">
                 <MapPin className="w-4 h-4 shrink-0 text-[#14B8A6]" />
-                Nairobi, Kenya
+                Remote-first · Worldwide
               </span>
             </div>
             <div className="flex items-center gap-3">

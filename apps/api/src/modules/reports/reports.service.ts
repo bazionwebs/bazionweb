@@ -116,7 +116,7 @@ export class ReportsService {
 
   /**
    * Auto-generate and email monthly reports to all active clients.
-   * Runs on the 2nd of each month at 08:00 EAT.
+   * Runs on the 2nd of each month at 05:00 UTC.
    */
   @Cron('0 5 2 * *', { name: 'monthly-report-generation' })
   async generateMonthlyReports() {

@@ -91,7 +91,7 @@ export default function SubscriptionCheckout({
   );
   const [activeTab, setActiveTab] = useState<PaymentTab>('MPESA');
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>(initialCycle);
-  const [phone, setPhone] = useState('2547');
+  const [phone, setPhone] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GBP'>('USD');
   const [poNumber, setPoNumber] = useState('');
   
@@ -326,7 +326,7 @@ export default function SubscriptionCheckout({
               }`}
             >
               <Smartphone className="w-4 h-4" />
-              <span>M-Pesa (Kenya)</span>
+              <span>M-Pesa</span>
             </button>
 
             <button
@@ -368,7 +368,7 @@ export default function SubscriptionCheckout({
             </div>
           )}
 
-          {/* Tab 1: M-Pesa Express (Kenya) */}
+          {/* Tab 1: M-Pesa Express */}
           {activeTab === 'MPESA' && (
             <form onSubmit={handleMpesaPay} className="space-y-4">
               <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
@@ -384,7 +384,7 @@ export default function SubscriptionCheckout({
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="254712345678"
+                  placeholder="0712 345 678"
                   required
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                 />

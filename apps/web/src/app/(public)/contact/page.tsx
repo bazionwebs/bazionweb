@@ -21,7 +21,7 @@ const contactMethods = [
     label: 'Call us',
     value: '+254 721 287 053',
     href: 'tel:+254721287053',
-    sub: 'Mon–Fri, 8am–6pm EAT',
+    sub: 'Mon–Fri, 8am–6pm (UTC+3)',
   },
   {
     icon: MessageSquare,
@@ -98,10 +98,10 @@ export default function ContactPage() {
               <div className="card p-6">
                 <div className="flex items-center gap-2 mb-3">
                   <MapPin className="w-4 h-4 text-[#2563EB]" />
-                  <span className="font-semibold text-[#0F172A] text-sm">Based in Nairobi</span>
+                  <span className="font-semibold text-[#0F172A] text-sm">Remote-first, worldwide</span>
                 </div>
                 <p className="text-sm text-slate-500 leading-relaxed">
-                  We serve clients across Kenya and East Africa. Remote-first team with in-person meetings available in Nairobi.
+                  We serve clients across the globe. Remote-first team with video meetings in your timezone.
                 </p>
               </div>
 
@@ -113,8 +113,8 @@ export default function ContactPage() {
                 </div>
                 <div className="space-y-1.5 text-sm">
                   {[
-                    { day: 'Mon – Fri', hours: '8:00am – 6:00pm EAT' },
-                    { day: 'Saturday', hours: '9:00am – 1:00pm EAT' },
+                    { day: 'Mon – Fri', hours: '8:00am – 6:00pm (UTC+3)' },
+                    { day: 'Saturday', hours: '9:00am – 1:00pm (UTC+3)' },
                     { day: 'Sunday', hours: 'Emergency only' },
                   ].map(h => (
                     <div key={h.day} className="flex justify-between">

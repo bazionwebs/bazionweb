@@ -18,7 +18,7 @@ export class IntaSendSubscriptionDto {
   @IsNotEmpty()
   paymentMethod: 'MPESA' | 'CARD';
 
-  @ApiPropertyOptional({ description: 'Safaricom M-Pesa phone number in format 2547XXXXXXXX or 07XXXXXXXX' })
+  @ApiPropertyOptional({ description: 'M-Pesa phone number in international format, e.g. 254712345678' })
   @IsOptional()
   @IsString()
   mpesaPhoneNumber?: string;

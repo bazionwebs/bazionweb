@@ -19,7 +19,7 @@ const features = [
 ];
 
 const specs = [
-  ['Infrastructure',  'Oracle Cloud / Hetzner Cloud (Nairobi + Frankfurt)'],
+  ['Infrastructure',  'Multi-region cloud (Oracle Cloud / Hetzner)'],
   ['Web server',      'Nginx (via Nginx Proxy Manager)'],
   ['Runtime',         'Node.js 20 LTS / PHP 8.3 / Python 3.12'],
   ['Database',        'PostgreSQL 16 (managed, automated backups)'],

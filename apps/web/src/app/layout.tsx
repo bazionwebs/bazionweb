@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://bazionweb.com'),
   title: { default: 'BazionWeb — Build. Host. Grow.', template: '%s | BazionWeb' },
   description: 'Complete website lifecycle management for growing businesses. Professional web development, managed hosting, security, maintenance & 24/7 support — one provider, one invoice.',
-  keywords: ['managed website hosting','website development Kenya','website maintenance service','managed web services','website security management','website lifecycle management'],
+  keywords: ['managed website hosting','custom website development','website maintenance service','managed web services','website security management','website lifecycle management'],
   authors: [{ name: 'BazionWeb' }],
   creator: 'BazionWeb',
   openGraph: {

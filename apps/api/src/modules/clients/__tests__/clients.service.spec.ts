@@ -10,9 +10,9 @@ const mockClient = {
   userId: 'user-uuid-1',
   businessName: 'Acacia Healthcare Ltd',
   contactName: 'Sarah Kamau',
-  email: 'sarah@acacia.co.ke',
-  phone: '+254711111111',
-  country: 'KE',
+  email: 'sarah@acacia.com',
+  phone: '+15550101234',
+  country: 'US',
   planId: 'plan-uuid-1',
   status: 'ACTIVE',
   deletedAt: null,
@@ -59,7 +59,7 @@ describe('ClientsService', () => {
     const dto = {
       businessName: 'New Business Ltd',
       contactName:  'John Doe',
-      email:        'john@newbiz.co.ke',
+      email:        'john@newbiz.com',
       planTier:     'STARTER',
     };
 

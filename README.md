@@ -1,6 +1,6 @@
 # BazionWeb — Managed Website Lifecycle Platform
 
-> Enterprise-grade website lifecycle management for SMEs in Kenya and East Africa.  
+> Enterprise-grade website lifecycle management for SMEs worldwide.  
 > One provider · One invoice · Complete ownership.
 
 [![CI/CD Pipeline](https://github.com/bazionwebs/bazionweb/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/bazionwebs/bazionweb/actions/workflows/ci-cd.yml)
@@ -35,7 +35,7 @@
 BazionWeb is a full-stack managed website lifecycle platform for SMEs, corporates, and institutions. It handles everything from initial design and development to ongoing hosting, maintenance, security management, and performance optimization — all under a single subscription.
 
 **Core capabilities:**
-- 🇰🇪 **M-Pesa Express** — Local Kenya subscriptions via IntaSend STK Push
+- 📱 **M-Pesa Express** — Mobile-money subscriptions via IntaSend STK Push
 - 💳 **Card Payments** — International Visa/Mastercard via IntaSend tokenization
 - 🏦 **Corporate Wire Transfers** — B2B invoicing with Wise virtual IBAN/ACH accounts (USD/EUR/GBP)
 - 📊 **Client Portal** — Subscription management, invoicing, project tracking, support tickets
@@ -83,7 +83,7 @@ bazionweb/
 | **Cache / Queue** | Redis | 7 |
 | **Authentication** | Keycloak (OIDC/JWT + MFA) | 23 |
 | **CMS** | Strapi | 5 |
-| **Payments (Local)** | IntaSend (M-Pesa STK + Card) | REST v1 |
+| **Payments (Mobile)** | IntaSend (M-Pesa STK + Card) | REST v1 |
 | **Payments (Corporate)** | Wise (Virtual IBAN/ACH) | REST v1 |
 | **Reverse Proxy** | Nginx | 1.26 |
 | **Monitoring** | Uptime Kuma, Grafana, Loki | — |
@@ -99,7 +99,7 @@ BazionWeb uses a **three-rail payment architecture**:
 
 ### Track A — IntaSend (M-Pesa & Cards)
 - `POST /api/v1/invoices/subscribe/intasend`
-- Triggers M-Pesa STK Push for local clients (KES)
+- Triggers M-Pesa STK Push for mobile-money clients
 - Generates secure card tokenization checkout sessions for international clients
 - IntaSend IPN webhooks at `POST /api/v1/webhooks/intasend`
 
@@ -260,7 +260,7 @@ creation with no backups; Neon's free plan is permanent (0.5 GB, 100 CU-h/mo,
 scale-to-zero). Best practice applied in code: pooled URL for runtime queries,
 direct URL for migrations (`directUrl` in all Prisma schemas). Free web
 services sleep after ~15 min idle — the `keep-awake` workflow warms them
-08:00–18:59 EAT to stay inside the 750 free-instance-hours/month quota.
+08:00–18:59 UTC+3 to stay inside the 750 free-instance-hours/month quota.
 
 ---
 

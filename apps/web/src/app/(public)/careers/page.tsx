@@ -3,14 +3,14 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Careers',
-  description: 'Join the BazionWeb team. We\'re building the best managed web services company in Africa.',
+  description: 'Join the BazionWeb team. We\'re building the best managed web services company in the world.',
   alternates: { canonical: 'https://bazionweb.com/careers' },
 };
 
 const values = [
   { emoji: '🏗️', title: 'Build something real', desc: 'We\'re building production infrastructure used by real businesses. Your work ships fast and matters.' },
   { emoji: '📈', title: 'Grow with us', desc: 'We\'re early-stage and scaling. Strong performers get equity-like upside as the team grows.' },
-  { emoji: '🌍', title: 'Africa-first', desc: 'We\'re building the managed services company East Africa deserves — global quality, local roots.' },
+  { emoji: '🌍', title: 'Global-first', desc: 'We\'re building a world-class managed services company — global quality, remote-first roots.' },
   { emoji: '🔒', title: 'Security culture', desc: 'Security isn\'t a checkbox here. It\'s how we think and build, from day one.' },
 ];
 
@@ -24,7 +24,7 @@ export default function CareersPage() {
             Careers
           </span>
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-5">
-            Build the internet infrastructure East Africa deserves
+            Build the internet infrastructure businesses deserve
           </h1>
           <p className="text-lg text-slate-400">
             We're a small, expert team moving fast. Every role here has real ownership, real impact, and room to grow.

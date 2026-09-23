@@ -50,7 +50,7 @@ export default function CheckoutPage({
           <span className="text-xs font-bold uppercase tracking-widest text-[#14B8A6]">Billing & Activation</span>
           <h1 className="text-3xl md:text-4xl font-extrabold text-white mt-1">Complete Your Subscription</h1>
           <p className="text-sm text-slate-400 mt-2">
-            Choose your preferred payment method. Local M-Pesa instant activation, international card billing, or corporate B2B wire transfers.
+            Choose your preferred payment method. Mobile-money instant activation, international card billing, or corporate B2B wire transfers.
           </p>
         </div>
 

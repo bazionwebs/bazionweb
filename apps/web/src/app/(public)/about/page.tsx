@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'About',
-  description: 'BazionWeb is a managed website lifecycle company built for SMEs in Kenya and East Africa.',
+  description: 'BazionWeb is a managed website lifecycle company built for SMEs worldwide.',
   alternates: { canonical: 'https://bazionweb.com/about' },
 };
 
@@ -33,9 +33,9 @@ const values = [
 ];
 
 const milestones = [
-  { year: '2024', event: 'BazionWeb founded in Nairobi, Kenya' },
+  { year: '2024', event: 'BazionWeb founded as a remote-first company' },
   { year: 'Q1 2025', event: 'MVP platform launched — first 10 clients onboarded' },
-  { year: 'Q2 2025', event: 'Reached 30 managed websites across Kenya' },
+  { year: 'Q2 2025', event: 'Reached 30 managed websites worldwide' },
   { year: 'Q3 2025', event: 'Launched security management and performance optimization tiers' },
   { year: 'Q4 2025', event: 'Scaling toward 100-client milestone on Hetzner infrastructure' },
 ];
@@ -117,10 +117,10 @@ export default function AboutPage() {
                 <h2 className="text-2xl font-bold text-[#0F172A]">Our Vision</h2>
               </div>
               <p className="text-slate-600 leading-relaxed text-lg mb-6">
-                To become the most trusted managed web services provider for SMEs in Africa and beyond, known for reliability, transparency, and measurable business impact.
+                To become the most trusted managed web services provider for SMEs worldwide, known for reliability, transparency, and measurable business impact.
               </p>
               <p className="text-slate-500 leading-relaxed">
-                We're starting in Kenya. We're building for Africa. And we're doing it to the same standard that enterprise businesses expect — just packaged for the businesses that actually need it most.
+                We started with a simple belief: every business deserves enterprise-grade web management. And we're delivering it to the same standard that enterprise businesses expect — just packaged for the businesses that actually need it most.
               </p>
             </div>
           </div>

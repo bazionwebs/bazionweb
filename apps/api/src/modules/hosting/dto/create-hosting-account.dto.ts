@@ -6,11 +6,11 @@ export class CreateHostingAccountDto {
   @IsUUID()
   clientId: string;
 
-  @ApiProperty({ example: 'acaciahealthcare.co.ke' })
+  @ApiProperty({ example: 'acaciahealthcare.com' })
   @IsString() @IsNotEmpty() @MaxLength(253)
   domain: string;
 
-  @ApiProperty({ example: 'Oracle Cloud (Nairobi)' })
+  @ApiProperty({ example: 'Oracle Cloud (Frankfurt)' })
   @IsString() @IsNotEmpty() @MaxLength(100)
   server: string;
 

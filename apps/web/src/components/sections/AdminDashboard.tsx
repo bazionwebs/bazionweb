@@ -24,11 +24,11 @@ const kpis = [
 ];
 
 const clients = [
-  { id: '1', name: 'Acacia Healthcare Ltd', domain: 'acaciahealthcare.co.ke', plan: 'Business', status: 'ACTIVE', uptime: '99.98%', tickets: 1, mrr: 199, renewal: '2025-10-15' },
-  { id: '2', name: 'Parkview Law Associates', domain: 'parkviewlaw.co.ke', plan: 'Growth', status: 'ACTIVE', uptime: '100%', tickets: 0, mrr: 99, renewal: '2025-08-01' },
+  { id: '1', name: 'Acacia Healthcare Ltd', domain: 'acaciahealthcare.com', plan: 'Business', status: 'ACTIVE', uptime: '99.98%', tickets: 1, mrr: 199, renewal: '2025-10-15' },
+  { id: '2', name: 'Parkview Law Associates', domain: 'parkviewlaw.com', plan: 'Growth', status: 'ACTIVE', uptime: '100%', tickets: 0, mrr: 99, renewal: '2025-08-01' },
   { id: '3', name: 'GrowAfrica Initiative', domain: 'growafrica.org', plan: 'Starter', status: 'ACTIVE', uptime: '99.9%', tickets: 0, mrr: 49, renewal: '2025-07-15' },
-  { id: '4', name: 'Savanna Foods Kenya', domain: 'savannafoods.co.ke', plan: 'Growth', status: 'TRIAL', uptime: '—', tickets: 2, mrr: 0, renewal: '2025-06-30' },
-  { id: '5', name: 'BlueSky Architects', domain: 'blueskyarch.co.ke', plan: 'Business', status: 'SUSPENDED', uptime: '—', tickets: 0, mrr: 0, renewal: '2025-06-01' },
+  { id: '4', name: 'Savanna Foods Ltd', domain: 'savannafoods.com', plan: 'Growth', status: 'TRIAL', uptime: '—', tickets: 2, mrr: 0, renewal: '2025-06-30' },
+  { id: '5', name: 'BlueSky Architects', domain: 'blueskyarch.com', plan: 'Business', status: 'SUSPENDED', uptime: '—', tickets: 0, mrr: 0, renewal: '2025-06-01' },
 ];
 
 const openTickets = [
@@ -39,13 +39,13 @@ const openTickets = [
 
 const sslAlerts = [
   { domain: 'growafrica.org', expiry: '2025-07-02', daysLeft: 22 },
-  { domain: 'parkviewlaw.co.ke', expiry: '2025-07-10', daysLeft: 30 },
+  { domain: 'parkviewlaw.com', expiry: '2025-07-10', daysLeft: 30 },
 ];
 
 const recentActivity = [
   { type: 'ticket', text: 'TKT-0044 opened by Savanna Foods', time: '1h ago', icon: Ticket, color: 'text-[#F59E0B]' },
   { type: 'payment', text: 'Invoice INV-2025-06 paid — Parkview Law ($99)', time: '3h ago', icon: DollarSign, color: 'text-[#22C55E]' },
-  { type: 'security', text: 'SSL auto-renewed: acaciahealthcare.co.ke', time: '6h ago', icon: Shield, color: 'text-[#14B8A6]' },
+  { type: 'security', text: 'SSL auto-renewed: acaciahealthcare.com', time: '6h ago', icon: Shield, color: 'text-[#14B8A6]' },
   { type: 'client', text: 'Savanna Foods trial started (Growth plan)', time: '1d ago', icon: Users, color: 'text-[#2563EB]' },
   { type: 'alert', text: 'SSL expiry alert: growafrica.org (22 days)', time: '1d ago', icon: AlertTriangle, color: 'text-[#EF4444]' },
 ];

@@ -81,7 +81,7 @@ export class IntaSendService {
    */
   async triggerMpesaStkPush(params: IntaSendMpesaStkParams) {
     try {
-      // Normalize Kenyan phone numbers (e.g., 0712... -> 254712...)
+      // Normalize M-Pesa phone numbers to international format (e.g., 0712... -> 254712...)
       let formattedPhone = params.phoneNumber.replace(/[\s+-]/g, '');
       if (formattedPhone.startsWith('0')) {
         formattedPhone = `254${formattedPhone.slice(1)}`;
