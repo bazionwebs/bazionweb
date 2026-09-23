@@ -35,7 +35,7 @@
 BazionWeb is a full-stack managed website lifecycle platform for SMEs, corporates, and institutions. It handles everything from initial design and development to ongoing hosting, maintenance, security management, and performance optimization — all under a single subscription.
 
 **Core capabilities:**
-- 📱 **M-Pesa Express** — Mobile-money subscriptions via IntaSend STK Push
+- 📱 **Mobile Money** — Pay via M-Pesa (IntaSend STK Push)
 - 💳 **Card Payments** — International Visa/Mastercard via IntaSend tokenization
 - 🏦 **Corporate Wire Transfers** — B2B invoicing with Wise virtual IBAN/ACH accounts (USD/EUR/GBP)
 - 📊 **Client Portal** — Subscription management, invoicing, project tracking, support tickets

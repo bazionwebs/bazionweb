@@ -256,9 +256,11 @@ jobs:
           npm ci
           npm run prisma:generate
           npm run prisma:migrate
+          npm run prisma:seed
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
   # ─── Stage 5: Deploy to Staging ─────────────────────────────────────────────
   deploy-staging:

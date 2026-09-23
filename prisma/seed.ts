@@ -1,4 +1,26 @@
 import { PrismaClient, PlanTier, BillingCycle, UserRole, ClientStatus } from '@prisma/client';
+import { randomBytes, scrypt as _scrypt } from 'crypto';
+
+function scryptAsync(
+  password: string | Buffer,
+  salt: string | Buffer,
+  keylen: number,
+  opts: { N: number; r: number; p: number },
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    _scrypt(password, salt, keylen, opts, (err, derived) => {
+      if (err) reject(err);
+      else resolve(derived as Buffer);
+    });
+  });
+}
+
+/** Must stay in sync with hashPassword() in apps/api/src/modules/auth/auth.service.ts */
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16);
+  const key = (await scryptAsync(password, salt, 64, { N: 16384, r: 8, p: 1 })) as Buffer;
+  return `scrypt$16384$8$1$${salt.toString('hex')}$${key.toString('hex')}`;
+}
 
 const prisma = new PrismaClient();
 
@@ -91,16 +113,23 @@ async function main() {
   }
 
   // ─── Demo Admin User ─────────────────────────────────────────────────────────
+  // Local password comes from ADMIN_PASSWORD env (never committed). Without it
+  // the admin row is created but cannot log in until the password is seeded.
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminPasswordHash = adminPassword ? await hashPassword(adminPassword) : undefined;
+  if (!adminPassword) {
+    console.log('  ! ADMIN_PASSWORD not set — admin created without a local password');
+  }
   await prisma.user.upsert({
     where: { email: 'admin@bazionweb.com' },
-    update: {},
+    update: adminPasswordHash ? { passwordHash: adminPasswordHash } : {},
     create: {
       email: 'admin@bazionweb.com',
       role: UserRole.SUPER_ADMIN,
-      keycloakId: 'seed-admin-keycloak-id',
       firstName: 'BazionWeb',
       lastName: 'Admin',
       mfaEnabled: true,
+      ...(adminPasswordHash ? { passwordHash: adminPasswordHash } : {}),
     },
   });
   console.log('  ✓ Admin user: admin@bazionweb.com');

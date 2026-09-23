@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, TrendingUp, Shield, Zap, Clock } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -8,7 +10,17 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://bazionweb.com/case-studies' },
 };
 
-const studies = [
+type Study = {
+  slug: string; client: string; industry: string; plan: string;
+  challenge: string;
+  results: { icon: LucideIcon; metric: string; label: string }[];
+  quote: string; quoteName: string; quoteRole: string;
+  color: string;
+  /** Screenshot under /public (e.g. /case-studies/acacia.png). Card renders unchanged until set. */
+  image?: string;
+};
+
+const studies: Study[] = [
   {
     slug: 'acacia-healthcare',
     client: 'Acacia Healthcare',
@@ -89,6 +101,17 @@ export default function CaseStudiesPage() {
             <div key={study.slug} className="card p-8 md:p-10 grid grid-cols-1 lg:grid-cols-5 gap-8">
               {/* Left */}
               <div className="lg:col-span-3 flex flex-col">
+                {study.image && (
+                  <div className="relative aspect-[16/10] rounded-xl overflow-hidden mb-5 bg-slate-100 border border-slate-100">
+                    <Image
+                      src={study.image}
+                      alt={`${study.client} website screenshot after BazionWeb redesign`}
+                      fill
+                      className="object-cover object-top"
+                      sizes="(max-width: 1024px) 100vw, 60vw"
+                    />
+                  </div>
+                )}
                 <div className="flex items-center gap-3 mb-5">
                   <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${study.color} flex items-center justify-center text-white font-black text-lg shadow`}>
                     {study.client[0]}

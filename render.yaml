@@ -78,6 +78,13 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # local = built-in credentials auth (default). Set to `keycloak` only
+      # if you host Keycloak and provide KEYCLOAK_URL/REALM/CLIENT_ID/SECRET.
+      - key: AUTH_PROVIDER
+        value: local
+      # Seed/snippet: sets the admin@bazionweb.com password on deploy.
+      - key: ADMIN_PASSWORD
+        sync: false
       # Neon pooled connection string (hostname contains "-pooler").
       # Runtime queries go through PgBouncer; prompt at Blueprint creation.
       - key: DATABASE_URL

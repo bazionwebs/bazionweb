@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import AudioTestimonial from '@/components/testimonials/AudioTestimonial';
 import {
   Globe, Shield, Wrench, Server, Zap, LifeBuoy,
   Check, ArrowRight, Star, TrendingUp, Clock, Award,
@@ -110,7 +111,10 @@ const plans = [
   },
 ];
 
-const testimonials = [
+const testimonials: {
+  name: string; role: string; quote: string; rating: number;
+  audio?: { src: string; transcript: string };
+}[] = [
   {
     name: 'Sarah K.',
     role: 'Director, HealthCare NGO',
@@ -404,6 +408,7 @@ export default function HomePage() {
                   <div className="font-semibold text-white text-sm">{t.name}</div>
                   <div className="text-xs text-slate-500">{t.role}</div>
                 </div>
+                <AudioTestimonial src={t.audio?.src} transcript={t.audio?.transcript} name={t.name} />
               </div>
             ))}
           </div>

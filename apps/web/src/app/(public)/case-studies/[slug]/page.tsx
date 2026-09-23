@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowRight, TrendingUp, Shield, Zap, Clock, Check } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -9,6 +10,8 @@ const studies: Record<string, {
   challenge: string; approach: string[]; results: { icon: any; metric: string; label: string }[];
   quote: string; quoteName: string; quoteRole: string;
   timeline: string; teamSize: string;
+  /** Screenshot under /public. Hero renders unchanged until set. */
+  image?: string;
 }> = {
   'acacia-healthcare': {
     client: 'Acacia Healthcare Ltd', industry: 'Healthcare & Clinics',
@@ -99,6 +102,18 @@ export default function CaseStudyPage({ params }: { params: { slug: string } }) 
             <span>·</span>
             <a href={`https://${s.website}`} target="_blank" rel="noopener noreferrer" className="text-[#14B8A6] hover:underline">{s.website}</a>
           </div>
+          {s.image && (
+            <figure className="mt-8 rounded-2xl overflow-hidden border border-white/10">
+              <Image
+                src={s.image}
+                alt={`${s.client} website screenshot after BazionWeb redesign`}
+                width={1600}
+                height={900}
+                className="w-full h-auto"
+              />
+              <figcaption className="sr-only">{s.client} website after redesign</figcaption>
+            </figure>
+          )}
         </div>
       </section>
 

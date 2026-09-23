@@ -44,7 +44,10 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const decoded = await this.verifyToken(token);
-      request.user = this.mapKeycloakUser(decoded);
+      (request as any).rawJwtPayload = decoded;
+      request.user = decoded.iss === 'bazionweb'
+        ? this.mapLocalUser(decoded)
+        : this.mapKeycloakUser(decoded);
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }
@@ -70,6 +73,23 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   private verifyToken(token: string): Promise<any> {
+    // Local BazionWeb tokens (HS256) first; Keycloak RS256 only when configured.
+    const unverified = jwt.decode(token) as { iss?: string } | null;
+    if (unverified?.iss === 'bazionweb') {
+      return new Promise((resolve, reject) => {
+        jwt.verify(
+          token,
+          this.config.get<string>('JWT_SECRET') ?? '',
+          { algorithms: ['HS256'], issuer: 'bazionweb' },
+          (err, decoded) => (err ? reject(err) : resolve(decoded)),
+        );
+      });
+    }
+
+    const keycloakUrl = this.config.get<string>('KEYCLOAK_URL');
+    if (!keycloakUrl) {
+      return Promise.reject(new Error('No local issuer and Keycloak is not configured'));
+    }
     return new Promise((resolve, reject) => {
       jwt.verify(
         token,
@@ -86,6 +106,17 @@ export class JwtAuthGuard implements CanActivate {
         (err, decoded) => (err ? reject(err) : resolve(decoded)),
       );
     });
+  }
+
+  private mapLocalUser(decoded: any) {
+    return {
+      id: decoded.sub,
+      email: decoded.email,
+      firstName: decoded.given_name,
+      lastName: decoded.family_name,
+      roles: decoded.realm_access?.roles ?? [],
+      keycloakId: undefined,
+    };
   }
 
   private mapKeycloakUser(decoded: any) {

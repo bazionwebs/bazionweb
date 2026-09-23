@@ -54,9 +54,10 @@ export class MfaGuard implements CanActivate {
       return true; // Token issued after MFA step
     }
 
-    // Fallback: check DB flag (set during Keycloak post-login webhook)
+    // Fallback: check DB flag. Local users are looked up by id,
+    // Keycloak users by keycloakId.
     const dbUser = await this.prisma.user.findUnique({
-      where:  { keycloakId: user.keycloakId },
+      where:  user.keycloakId ? { keycloakId: user.keycloakId } : { id: user.id },
       select: { mfaEnabled: true, role: true },
     });
 

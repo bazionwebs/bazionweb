@@ -302,7 +302,7 @@ export default function SubscriptionCheckout({
         {/* Security Badge */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-3 text-xs text-slate-400">
           <Lock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>256-Bit SSL Encrypted Checkout. Backed by Safaricom M-Pesa, IntaSend, and Wise API.</span>
+          <span>256-Bit SSL Encrypted Checkout. Backed by IntaSend (mobile money + cards) and Wise (bank transfer) APIs.</span>
         </div>
       </div>
 
@@ -326,7 +326,8 @@ export default function SubscriptionCheckout({
               }`}
             >
               <Smartphone className="w-4 h-4" />
-              <span>M-Pesa</span>
+              <span>Mobile Money</span>
+              <span className="text-[10px] font-normal opacity-70">via M-Pesa</span>
             </button>
 
             <button
@@ -368,17 +369,17 @@ export default function SubscriptionCheckout({
             </div>
           )}
 
-          {/* Tab 1: M-Pesa Express */}
+          {/* Tab 1: Mobile Money (M-Pesa Express) */}
           {activeTab === 'MPESA' && (
             <form onSubmit={handleMpesaPay} className="space-y-4">
               <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400 text-xs font-medium">Payable via M-Pesa</span>
+                <span className="text-slate-400 text-xs font-medium">Payable via mobile money (M-Pesa)</span>
                 <span className="text-xl font-bold text-emerald-400 font-mono">KES {currentPriceKes.toLocaleString()}</span>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
-                  Safaricom M-Pesa Phone Number
+                  Mobile-money phone number
                 </label>
                 <input
                   type="tel"
@@ -398,7 +399,7 @@ export default function SubscriptionCheckout({
                 disabled={loading}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 text-sm"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Send M-Pesa STK Prompt <ArrowRight className="w-4 h-4" /></>}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Send mobile-money prompt <ArrowRight className="w-4 h-4" /></>}
               </button>
             </form>
           )}
