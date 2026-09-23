@@ -32,7 +32,7 @@ export default function PortalLoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Logo variant="light" markClassName="h-10 w-auto" className="mb-6" />
+          <Logo variant="light" markClassName="h-20 w-auto" className="mb-6" />
           <h1 className="text-2xl font-bold text-[#0F172A]">Sign in to your portal</h1>
           <p className="text-slate-500 text-sm mt-1">Manage your website, tickets, and invoices</p>
         </div>

@@ -83,7 +83,7 @@ export default function AdminDashboardClient() {
         {/* Logo + badge */}
         <div className="px-5 py-5 border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Logo variant="dark" wordmark={false} markClassName="h-8 w-auto" />
+            <Logo variant="dark" markClassName="h-14 w-auto" />
             <div>
               <div className="font-bold text-white text-sm">BazionWeb</div>
               <div className="text-xs text-[#EF4444] font-semibold">Admin Portal</div>

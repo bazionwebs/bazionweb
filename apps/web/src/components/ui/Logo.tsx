@@ -3,11 +3,14 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 type LogoProps = {
-  /** light = dark wordmark for white backgrounds; dark = white wordmark for dark backgrounds */
+  /** light = for white/light backgrounds; dark = for dark backgrounds (same image, no change needed) */
   variant?: 'light' | 'dark';
   /** Link target. Pass null to render a plain span (e.g. inside another link). */
   href?: string | null;
-  /** Show the "BazionWeb" wordmark next to the mark. */
+  /**
+   * wordmark is kept for API compatibility but no longer has an effect —
+   * the full logo image already contains the wordmark text.
+   */
   wordmark?: boolean;
   className?: string;
   markClassName?: string;
@@ -24,36 +27,36 @@ export default function Logo({
   textClassName,
   priority = false,
 }: LogoProps) {
+  // Suppress unused-variable lint warnings while keeping the prop signature stable
+  void variant;
+  void wordmark;
+  void textClassName;
+
   const content = (
-    <>
-      <Image
-        src="/brand/logo-mark.png"
-        alt="BazionWeb logo"
-        width={512}
-        height={282}
-        priority={priority}
-        className={cn('h-9 w-auto shrink-0', markClassName)}
-      />
-      {wordmark && (
-        <span
-          className={cn(
-            'font-bold text-lg tracking-tight',
-            variant === 'light' ? 'text-[#0F172A]' : 'text-white',
-            textClassName,
-          )}
-        >
-          BazionWeb
-        </span>
-      )}
-    </>
+    <Image
+      src="/brand/logo-full.png"
+      alt="BazionWeb – Build, Host n Grow"
+      width={1080}
+      height={1080}
+      priority={priority}
+      className={cn('h-14 w-auto shrink-0 object-contain', markClassName)}
+    />
   );
 
   if (href === null) {
-    return <span className={cn('inline-flex items-center gap-2', className)}>{content}</span>;
+    return (
+      <span className={cn('inline-flex items-center shrink-0', className)}>
+        {content}
+      </span>
+    );
   }
 
   return (
-    <Link href={href} aria-label="BazionWeb home" className={cn('inline-flex items-center gap-2 shrink-0', className)}>
+    <Link
+      href={href}
+      aria-label="BazionWeb home"
+      className={cn('inline-flex items-center shrink-0', className)}
+    >
       {content}
     </Link>
   );

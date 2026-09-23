@@ -106,7 +106,7 @@ export default function PortalDashboard() {
       >
         {/* Logo */}
         <div className="px-5 py-5 border-b border-white/5 flex items-center justify-between">
-          <Logo variant="dark" textClassName="text-sm" markClassName="h-8 w-auto" />
+          <Logo variant="dark" markClassName="h-14 w-auto" />
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
           </button>

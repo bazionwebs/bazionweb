@@ -7,7 +7,7 @@ export default function NotFound() {
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center px-4">
       <div className="text-center max-w-lg">
         {/* Logo */}
-        <Logo variant="dark" wordmark={false} markClassName="h-14 w-auto" className="justify-center mb-8" />
+        <Logo variant="dark" markClassName="h-24 w-auto" className="justify-center mb-8" />
 
         {/* 404 */}
         <div className="text-8xl font-black text-white/10 mb-2 leading-none">404</div>

@@ -37,7 +37,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
           {/* Brand column */}
           <div className="lg:col-span-2">
-            <Logo variant="dark" textClassName="text-xl" className="mb-6" />
+            <Logo variant="dark" markClassName="h-20 w-auto" className="mb-6" />
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm mb-6">
               Complete website lifecycle management for growing businesses.
               One provider, one invoice — development, hosting, security, and 24/7 support.
