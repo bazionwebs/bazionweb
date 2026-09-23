@@ -43,6 +43,12 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=deps    --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/dist         ./dist
 
+# Generated Prisma Client — `prisma generate` runs in the builder stage, but
+# the production-only node_modules above comes from deps (no generate there
+# and no Prisma CLI in production deps). Without this copy the app crashes
+# at boot with "Cannot find module '.prisma/client/default'".
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+
 # Prisma schema needed for migrations at runtime
 COPY --chown=nestjs:nodejs prisma.schema.prisma ./prisma/schema.prisma
 
