@@ -1,38 +1,10 @@
 import Link from 'next/link';
-import { ArrowRight, MapPin, Clock, Briefcase } from 'lucide-react';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Careers',
   description: 'Join the BazionWeb team. We\'re building the best managed web services company in Africa.',
 };
-
-const openRoles = [
-  {
-    title: 'Full-Stack Engineer (Next.js + NestJS)',
-    type: 'Full-time',
-    location: 'Nairobi / Remote',
-    team: 'Engineering',
-    desc: 'Build and maintain our web platform, client portal, and API. Strong TypeScript required. Familiarity with Docker and Prisma a big plus.',
-    skills: ['TypeScript', 'Next.js', 'NestJS', 'PostgreSQL', 'Docker'],
-  },
-  {
-    title: 'Support Engineer (Junior)',
-    type: 'Part-time',
-    location: 'Nairobi',
-    team: 'Support',
-    desc: 'Handle client tickets (P2–P4), run monthly maintenance tasks, monitor infrastructure alerts, and escalate P1 issues. Linux fundamentals required.',
-    skills: ['Linux', 'Nginx', 'WordPress', 'cPanel', 'Tickets'],
-  },
-  {
-    title: 'Sales & Business Development',
-    type: 'Commission + Retainer',
-    location: 'Nairobi',
-    team: 'Growth',
-    desc: 'Own the outbound pipeline: identify ICP prospects, run discovery calls, deliver proposals, and close. SaaS or IT services background preferred.',
-    skills: ['B2B Sales', 'CRM', 'Proposals', 'Managed Services'],
-  },
-];
 
 const values = [
   { emoji: '🏗️', title: 'Build something real', desc: 'We\'re building production infrastructure used by real businesses. Your work ships fast and matters.' },
@@ -77,50 +49,18 @@ export default function CareersPage() {
       {/* Open roles */}
       <section className="section bg-[#F8FAFC]">
         <div className="container-default">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8">
             <span className="eyebrow">Open Roles</span>
             <h2 className="text-3xl font-bold text-[#0F172A]">
-              {openRoles.length} open position{openRoles.length !== 1 ? 's' : ''}
+              No open positions right now
             </h2>
           </div>
 
-          <div className="space-y-5 max-w-3xl mx-auto">
-            {openRoles.map(role => (
-              <div key={role.title} className="card p-7">
-                <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                  <div>
-                    <h3 className="font-bold text-[#0F172A] text-lg mb-1">{role.title}</h3>
-                    <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <Briefcase className="w-3.5 h-3.5" /> {role.team}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" /> {role.type}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5" /> {role.location}
-                      </span>
-                    </div>
-                  </div>
-                  <Link
-                    href={`mailto:careers@bazionweb.com?subject=Application: ${encodeURIComponent(role.title)}`}
-                    className="btn-primary text-sm py-2 px-5 shrink-0"
-                  >
-                    Apply <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-                <p className="text-slate-500 text-sm mb-4 leading-relaxed">{role.desc}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {role.skills.map(s => (
-                    <span key={s} className="badge-slate text-xs">{s}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-center mt-10">
-            <p className="text-slate-500 text-sm mb-3">Don't see your role? We always want to hear from great people.</p>
+          <div className="text-center max-w-xl mx-auto">
+            <p className="text-slate-500 text-sm mb-6">
+              Our team is complete for now — but great people are always welcome.
+              Send an open application and we&apos;ll reach out when a fitting role opens.
+            </p>
             <Link href="mailto:careers@bazionweb.com" className="btn-secondary">
               Send an open application
             </Link>
