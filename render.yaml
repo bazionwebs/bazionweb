@@ -57,13 +57,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # TODO: replace with the real api URL after first deploy, e.g.
-      # https://bazionweb-api-xxxx.onrender.com/api/v1
+      # Production value (custom domain verified in Render + Cloudflare DNS).
       - key: NEXT_PUBLIC_API_URL
-        value: https://bazionweb-api.onrender.com/api/v1
-      # TODO: replace with the real web URL / custom domain after first deploy
+        value: https://api.bazionweb.com/api/v1
+      # Production value (custom domain verified in Render + Cloudflare DNS).
       - key: NEXT_PUBLIC_APP_URL
-        value: https://bazionweb-web.onrender.com
+        value: https://bazionweb.com
       - key: NEXT_PUBLIC_GA_MEASUREMENT_ID
         sync: false
 
