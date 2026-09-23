@@ -19,7 +19,7 @@ const phases = [
     duration: 'Week 1',
     desc: 'We start with a free assessment of your current site (or idea): goals, competitors, must-have features, and budget. You get a fixed-scope proposal with a timeline — no hourly billing surprises.',
     points: ['Free website assessment', 'Competitor & goals review', 'Fixed scope, timeline, and price'],
-    doneWhen: 'This phase is done when you approve a fixed proposal.',
+    doneWhen: 'You approve a fixed proposal.',
   },
   {
     id: 'design',
@@ -29,7 +29,7 @@ const phases = [
     duration: 'Weeks 1–2',
     desc: 'We design a full mockup of your new site — layout, colors, typography, and key pages. You see everything before a single line of code is written, and we revise until you approve it.',
     points: ['Hi-fi mockups of all key pages', 'Your branding, content, and feedback baked in', 'Unlimited revisions on the initial mockup'],
-    doneWhen: 'This phase is done when you approve the mockup.',
+    doneWhen: 'You approve the mockup.',
   },
   {
     id: 'build',
@@ -39,7 +39,7 @@ const phases = [
     duration: 'Weeks 2–6',
     desc: 'We build the approved design on a private staging site: responsive pages, CMS integration, forms, and any custom programming. You can watch progress live and request changes as we go.',
     points: ['Private staging URL from day one', 'Responsive + CMS-integrated build', 'Content loaded and formatted'],
-    doneWhen: 'This phase is done when the staging site is complete and approved.',
+    doneWhen: 'The staging site is complete and approved.',
   },
   {
     id: 'testing',
@@ -49,7 +49,7 @@ const phases = [
     duration: 'Final week',
     desc: 'Every link, form, and page is tested across browsers and devices. We configure titles, meta tags, sitemaps, and structured data — and for redesigns, we preserve your URL structure so rankings survive the move.',
     points: ['Cross-browser & mobile testing', 'Speed pass (Lighthouse 95+ target)', 'SEO setup + ranking preservation'],
-    doneWhen: 'This phase is done when the QA checklist is green and you approve the launch.',
+    doneWhen: 'The QA checklist is green and you approve the launch.',
   },
   {
     id: 'launch',
@@ -59,7 +59,7 @@ const phases = [
     duration: 'Launch day',
     desc: 'We cut over to the new site without downtime: DNS, SSL, monitoring, and backups switched on and verified. You get a walkthrough of everything that changed.',
     points: ['DNS + SSL cutover handled for you', 'Monitoring and backups live from minute one', 'Launch walkthrough call'],
-    doneWhen: 'This phase is done when the site is live, verified, and handed over.',
+    doneWhen: 'The site is live, verified, and handed over.',
   },
   {
     id: 'management',
@@ -69,7 +69,7 @@ const phases = [
     duration: 'Every month',
     desc: 'A website without a manager decays. Under a management plan we handle updates, security, backups, content changes, and monthly reporting — so the site keeps improving instead of rotting.',
     points: ['Updates, security, backups, monitoring', 'Content changes included', 'Monthly report in plain language'],
-    doneWhen: 'This phase never ends — it repeats every month under your plan.',
+    doneWhen: 'Never — it repeats every month under your plan.',
   },
 ];
 
@@ -137,7 +137,7 @@ export default function ProcessPage() {
                 </ul>
                 <div className="rounded-xl bg-[#F8FAFC] border border-slate-100 px-4 py-3 text-sm">
                   <span className="font-semibold text-[#0F172A]">Done when: </span>
-                  <span className="text-slate-600">{p.doneWhen.replace(/^This phase (is done when|never ends) /, '')}</span>
+                  <span className="text-slate-600">{p.doneWhen}</span>
                 </div>
               </article>
 

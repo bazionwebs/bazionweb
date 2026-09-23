@@ -235,6 +235,11 @@ export default function PricingPage() {
               </div>
             ))}
           </div>
+          <div className="text-center mt-10">
+            <a href="#compare" className="text-sm font-semibold text-[#2563EB] hover:underline">
+              Compare all features in detail ↓
+            </a>
+          </div>
         </div>
       </section>
 
