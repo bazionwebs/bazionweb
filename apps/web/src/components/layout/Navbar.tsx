@@ -41,7 +41,7 @@ export default function Navbar() {
       <nav className="container-default flex items-center justify-between h-16 md:h-18">
 
         {/* ── Logo ── */}
-        <Logo lockup="horizontal" priority />
+        <Logo variant="light" priority />
 
         {/* ── Desktop Links ── */}
         <div className="hidden lg:flex items-center gap-1">
