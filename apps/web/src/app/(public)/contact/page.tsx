@@ -5,6 +5,7 @@ import { Mail, Phone, MapPin, Clock, MessageSquare, Calendar } from 'lucide-reac
 export const metadata: Metadata = {
   title: 'Contact',
   description: 'Get a free website assessment or quote. Our team responds within 24 hours.',
+  alternates: { canonical: 'https://bazionweb.com/contact' },
 };
 
 const contactMethods = [

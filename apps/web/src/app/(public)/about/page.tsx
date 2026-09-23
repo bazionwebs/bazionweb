@@ -6,6 +6,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'About',
   description: 'BazionWeb is a managed website lifecycle company built for SMEs in Kenya and East Africa.',
+  alternates: { canonical: 'https://bazionweb.com/about' },
 };
 
 const values = [

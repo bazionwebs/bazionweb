@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { Globe, Check, ArrowRight, Code, Figma, Zap, Search, Smartphone, Database } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Website Development',
   description: 'Custom, responsive websites built on Next.js. Lighthouse 95+ from day one. CMS-integrated, SEO-ready, and built to last.',
+  alternates: { canonical: 'https://bazionweb.com/services/development' },
 };
 
 const deliverables = [
@@ -30,6 +32,7 @@ export default function WebDevPage() {
     <>
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: 'Website Development' }]} />
           <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center mb-6">
             <Globe className="w-6 h-6 text-[#2563EB]" />
           </div>

@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, TrendingUp, Shield, Zap, Clock, Check } from 'lucide-react';
+import { ArrowRight, TrendingUp, Shield, Zap, Clock, Check } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 const studies: Record<string, {
   client: string; industry: string; plan: string; website: string;
@@ -65,6 +66,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   return {
     title: `${s.client} — Case Study`,
     description: s.challenge.slice(0, 160),
+    alternates: { canonical: `https://bazionweb.com/case-studies/${params.slug}` },
   };
 }
 
@@ -76,9 +78,7 @@ export default function CaseStudyPage({ params }: { params: { slug: string } }) 
     <>
       <section className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-4xl">
-          <Link href="/case-studies" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm mb-8">
-            <ArrowLeft className="w-4 h-4" /> All case studies
-          </Link>
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Case Studies', href: '/case-studies' }, { name: s.client }]} />
           <div className="flex items-center gap-3 mb-5">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#2563EB] to-[#14B8A6] flex items-center justify-center text-white font-black text-xl shadow">
               {s.client[0]}

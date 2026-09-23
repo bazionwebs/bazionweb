@@ -138,6 +138,9 @@ export default function Navbar() {
             <Link href="/portal" className="px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50">
               Client Portal
             </Link>
+            <a href="tel:+254721287053" className="px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50">
+              Call +254 721 287 053
+            </a>
             <Link href="/contact" className="btn-primary mt-2 w-full justify-center">
               Get Free Quote
             </Link>

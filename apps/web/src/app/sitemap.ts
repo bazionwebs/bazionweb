@@ -26,6 +26,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/legal/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${BASE}/legal/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${BASE}/legal/sla`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${BASE}/legal/cookies`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${BASE}/faq`, lastModified: now, changeFrequency: 'weekly', priority: 0.7 },
+    // Static-generated dynamic routes (see generateStaticParams in each template)
+    { url: `${BASE}/blog/why-smes-need-managed-website-services`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${BASE}/blog/core-web-vitals-guide-2025`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${BASE}/case-studies/acacia-healthcare`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${BASE}/case-studies/parkview-law`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
   ];
 
   // TODO: Add dynamic blog post and case study routes from Strapi CMS

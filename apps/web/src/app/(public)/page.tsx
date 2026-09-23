@@ -1,9 +1,17 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import {
   Globe, Shield, Wrench, Server, Zap, LifeBuoy,
   Check, ArrowRight, Star, TrendingUp, Clock, Award,
   ChevronRight, Users, HeartHandshake
 } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Managed Website Services for Growing Businesses',
+  description:
+    'Complete website lifecycle management: custom development, managed hosting, security, maintenance and 24/7 support — one provider, one invoice.',
+  alternates: { canonical: 'https://bazionweb.com/' },
+};
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 

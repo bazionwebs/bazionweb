@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { Check, X, ArrowRight, HelpCircle, Shield, Zap, Server, Globe } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Pricing',
   description: 'Simple, transparent pricing for complete website lifecycle management. Starter from $49/mo. No hidden fees.',
+  alternates: { canonical: 'https://bazionweb.com/pricing' },
 };
 
 const plans = [
@@ -154,6 +156,9 @@ export default function PricingPage() {
       {/* Header */}
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default text-center">
+          <div className="flex justify-center">
+            <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Pricing' }]} />
+          </div>
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
             Pricing
           </span>

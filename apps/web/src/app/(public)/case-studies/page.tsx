@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Case Studies',
   description: 'Real results from real clients. See how BazionWeb transformed website management for businesses across Kenya.',
+  alternates: { canonical: 'https://bazionweb.com/case-studies' },
 };
 
 const studies = [

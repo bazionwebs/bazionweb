@@ -5,6 +5,7 @@ export const metadata: Metadata = {
     default: 'Client Portal | BazionWeb',
     template: '%s | Portal — BazionWeb',
   },
+  robots: { index: false, follow: false },
 };
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {

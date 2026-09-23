@@ -4,10 +4,12 @@ import {
   ArrowRight, Check
 } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Services',
   description: 'Complete website lifecycle management: development, hosting, maintenance, security, performance, and 24/7 support.',
+  alternates: { canonical: 'https://bazionweb.com/services' },
 };
 
 const services = [
@@ -134,6 +136,7 @@ export default function ServicesPage() {
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default">
           <div className="max-w-2xl">
+            <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services' }]} />
             <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
               Our Services
             </span>

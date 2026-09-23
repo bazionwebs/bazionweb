@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { Shield, Check, ArrowRight, Lock, Eye, AlertTriangle, FileSearch, RefreshCw, Bell } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Security Management',
   description: 'Proactive WAF, malware scanning, SSL monitoring, and security audits. We manage your website security before it becomes a crisis.',
+  alternates: { canonical: 'https://bazionweb.com/services/security' },
 };
 
 const layers = [
@@ -22,6 +24,7 @@ export default function SecurityPage() {
     <>
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: 'Security Management' }]} />
           <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center mb-6">
             <Shield className="w-6 h-6 text-red-400" />
           </div>

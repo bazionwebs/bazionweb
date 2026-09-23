@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { Wrench, Check, ArrowRight, RefreshCw, FileText, AlertCircle, Edit3, Activity, Package } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Website Maintenance',
   description: 'Monthly CMS updates, security patches, content changes, and health checks — all documented and delivered in a monthly report.',
+  alternates: { canonical: 'https://bazionweb.com/services/maintenance' },
 };
 
 const tasks = [
@@ -32,6 +34,7 @@ export default function MaintenancePage() {
     <>
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: 'Website Maintenance' }]} />
           <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-6">
             <Wrench className="w-6 h-6 text-purple-400" />
           </div>

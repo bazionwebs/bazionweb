@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { Server, ArrowRight, Shield, RefreshCw, Activity, Clock, HardDrive, Globe2 } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Managed Cloud Hosting',
   description: 'Enterprise cloud hosting with 99.95% uptime SLA, Cloudflare CDN, auto SSL, and daily encrypted backups. Fully managed — zero config required.',
+  alternates: { canonical: 'https://bazionweb.com/services/hosting' },
 };
 
 const features = [
@@ -34,6 +36,7 @@ export default function HostingPage() {
     <>
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: 'Managed Cloud Hosting' }]} />
           <div className="w-12 h-12 rounded-xl bg-teal-500/20 flex items-center justify-center mb-6">
             <Server className="w-6 h-6 text-[#14B8A6]" />
           </div>

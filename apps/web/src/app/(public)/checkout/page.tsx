@@ -7,6 +7,7 @@ import Link from 'next/link';
 export const metadata: Metadata = {
   title: 'Secure Checkout | BazionWeb',
   description: 'Complete your subscription for BazionWeb managed website lifecycle, hosting, and enterprise maintenance.',
+  robots: { index: false, follow: true },
 };
 
 function CheckoutContent({ searchParams }: { searchParams: { plan?: string; cycle?: string } }) {

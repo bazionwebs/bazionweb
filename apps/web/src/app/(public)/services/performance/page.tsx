@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { Zap, ArrowRight, TrendingUp, Image, Database, Globe, BarChart2, Server } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Performance Optimization',
   description: 'Core Web Vitals improvements, Lighthouse 95+ scores, image optimization, CDN tuning. Measurable performance with before/after reports.',
+  alternates: { canonical: 'https://bazionweb.com/services/performance' },
 };
 
 const optimizations = [
@@ -30,6 +32,7 @@ export default function PerformancePage() {
     <>
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: 'Performance Optimization' }]} />
           <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center mb-6">
             <Zap className="w-6 h-6 text-yellow-400" />
           </div>

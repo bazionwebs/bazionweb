@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { ArrowLeft, Clock, ArrowRight } from 'lucide-react';
+import { Clock, ArrowRight } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 // In production these come from Strapi CMS via API
 // Static content here for build-time generation and SEO
@@ -144,6 +145,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   return {
     title: post.title,
     description: post.excerpt,
+    alternates: { canonical: `https://bazionweb.com/blog/${params.slug}` },
     openGraph: { title: post.title, description: post.excerpt, type: 'article' },
   };
 }
@@ -166,9 +168,7 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
     <>
       <section className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-3xl">
-          <Link href="/blog" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm mb-8">
-            <ArrowLeft className="w-4 h-4" /> Back to blog
-          </Link>
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Blog', href: '/blog' }, { name: post.title }]} />
           <span className={`badge mb-4 ${post.category === 'Security' ? 'badge-red' : post.category === 'Performance' ? 'badge-yellow' : 'badge-blue'}`}>
             {post.category}
           </span>

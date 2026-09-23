@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Blog',
   description: 'Insights on website management, security, performance, and managed services for growing businesses.',
+  alternates: { canonical: 'https://bazionweb.com/blog' },
 };
 
 const posts = [

@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { LifeBuoy, ArrowRight, Clock, Users, FileText, AlertTriangle, CheckCircle, MessageSquare } from 'lucide-react';
 import type { Metadata } from 'next';
+import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: '24/7 Technical Support',
   description: 'SLA-backed technical support with real engineers. P1 responses from 5–60 minutes depending on your plan. No bots, no runarounds.',
+  alternates: { canonical: 'https://bazionweb.com/services/support' },
 };
 
 const priorities = [
@@ -29,6 +31,7 @@ export default function SupportPage() {
     <>
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: '24/7 Technical Support' }]} />
           <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center mb-6">
             <LifeBuoy className="w-6 h-6 text-green-400" />
           </div>
