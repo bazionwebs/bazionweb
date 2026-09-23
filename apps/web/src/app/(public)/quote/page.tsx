@@ -12,23 +12,23 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const PAGE_TYPES = [
-  { id: 'simple', label: 'Simple page', desc: 'About, Contact, FAQ, Legal', rate: 150, icon: Globe },
-  { id: 'standard', label: 'Standard page', desc: 'Services, Portfolio, Blog list', rate: 250, icon: Layers },
-  { id: 'complex', label: 'Complex page', desc: 'Homepage, Landing, Dashboard', rate: 450, icon: Database },
+  { id: 'simple', label: 'Simple page', desc: 'About, Contact, FAQ, Legal', rate: 59, icon: Globe },
+  { id: 'standard', label: 'Standard page', desc: 'Services, Portfolio, Blog list', rate: 119, icon: Layers },
+  { id: 'complex', label: 'Complex page', desc: 'Homepage, Landing, Dashboard', rate: 219, icon: Database },
 ];
 
 const PLAN_OPTIONS = [
-  { id: 'starter', label: 'Starter', price: 49, desc: 'Hosting, SSL, backups, monitoring', uptime: '99.9%' },
-  { id: 'growth', label: 'Growth', price: 99, desc: '+ Maintenance, security management', uptime: '99.95%', recommended: false },
-  { id: 'business', label: 'Business', price: 199, desc: '+ Performance, unlimited updates', uptime: '99.95%', recommended: true },
+  { id: 'starter', label: 'Starter', price: 29, desc: 'Hosting, SSL, backups, monitoring', uptime: '99.9%' },
+  { id: 'growth', label: 'Growth', price: 59, desc: '+ Maintenance, security management', uptime: '99.95%', recommended: true },
+  { id: 'business', label: 'Business', price: 119, desc: '+ Performance, unlimited updates', uptime: '99.95%', recommended: false },
   { id: 'enterprise', label: 'Enterprise', price: 0, desc: 'Custom SLA, dedicated AM', uptime: '99.99%' },
 ];
 
 const ADD_ONS = [
-  { id: 'hasCms', label: 'CMS Integration', desc: 'Strapi — manage content without code', cost: 300, icon: Database },
-  { id: 'hasEcommerce', label: 'E-commerce', desc: 'Stripe checkout, product catalogue', cost: 800, icon: ShoppingCart },
-  { id: 'needsMigration', label: 'Site Migration', desc: 'Zero-downtime transfer from current host', cost: 150, icon: Truck },
-  { id: 'customDesign', label: 'Custom UI/UX Design', desc: 'Full Figma design system before build', cost: 400, icon: Palette },
+  { id: 'hasCms', label: 'CMS Integration', desc: 'Strapi — manage content without code', cost: 179, icon: Database },
+  { id: 'hasEcommerce', label: 'E-commerce', desc: 'Stripe checkout, product catalogue', cost: 399, icon: ShoppingCart },
+  { id: 'needsMigration', label: 'Site Migration', desc: 'Zero-downtime transfer from current host', cost: 79, icon: Truck },
+  { id: 'customDesign', label: 'Custom UI/UX Design', desc: 'Full Figma design system before build', cost: 199, icon: Palette },
 ];
 
 interface Pages {
@@ -47,7 +47,7 @@ interface Config {
 const initial: Config = {
   pages: { simple: 2, standard: 2, complex: 1 },
   addOns: { hasCms: false, hasEcommerce: false, needsMigration: false, customDesign: false },
-  plan: 'business',
+  plan: 'growth',
   billing: 'monthly',
 };
 
@@ -55,9 +55,9 @@ const initial: Config = {
 
 function calculate(config: Config) {
   const pageCost =
-    config.pages.simple * 150 +
-    config.pages.standard * 250 +
-    config.pages.complex * 450;
+    config.pages.simple * 59 +
+    config.pages.standard * 119 +
+    config.pages.complex * 219;
 
   const addOnCost = ADD_ONS.filter(a => config.addOns[a.id]).reduce((s, a) => s + a.cost, 0);
   const buildTotal = pageCost + addOnCost;

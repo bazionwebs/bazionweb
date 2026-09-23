@@ -104,7 +104,7 @@ export default function SupportPage() {
       <section className="section-sm bg-[#0F172A]">
         <div className="container-default text-center max-w-xl mx-auto">
           <h2 className="text-2xl font-bold text-white mb-3">Support is included in every plan</h2>
-          <p className="text-slate-400 mb-6 text-sm">Starting from $49/mo — email support on Starter, priority ticket support on Business+.</p>
+          <p className="text-slate-400 mb-6 text-sm">Starting from $29/mo — email support on Starter, priority ticket support on Growth+.</p>
           <div className="flex gap-3 justify-center">
             <Link href="/pricing" className="btn-primary px-7">View SLA by plan <ArrowRight className="w-4 h-4" /></Link>
             <Link href="/contact" className="inline-flex items-center gap-2 px-7 py-3 rounded-xl border border-white/15 text-white font-semibold hover:bg-white/5 transition-all">Submit a ticket</Link>

@@ -78,7 +78,7 @@ const services = [
 const plans = [
   {
     name: 'Starter',
-    price: '$49',
+    price: '$29',
     per: '/mo',
     desc: 'Hosting, SSL, backups, and monitoring. Everything you need to stay online.',
     uptime: '99.9%',
@@ -89,7 +89,7 @@ const plans = [
   },
   {
     name: 'Growth',
-    price: '$99',
+    price: '$59',
     per: '/mo',
     desc: 'Add monthly maintenance, full security, and priority support to your hosting.',
     uptime: '99.95%',
@@ -101,7 +101,7 @@ const plans = [
   },
   {
     name: 'Business',
-    price: '$199',
+    price: '$119',
     per: '/mo',
     desc: 'Full lifecycle management with performance optimization and unlimited minor updates.',
     uptime: '99.95%',

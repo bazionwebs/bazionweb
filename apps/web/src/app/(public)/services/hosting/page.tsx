@@ -98,7 +98,7 @@ export default function HostingPage() {
       <section className="section-sm bg-[#0F172A]">
         <div className="container-default text-center max-w-xl mx-auto">
           <h2 className="text-2xl font-bold text-white mb-3">Hosting is included in every plan</h2>
-          <p className="text-slate-400 mb-6 text-sm">Starting from $49/mo — no setup fees, cancel any time.</p>
+          <p className="text-slate-400 mb-6 text-sm">Starting from $29/mo — no setup fees, cancel any time.</p>
           <Link href="/pricing" className="btn-primary px-8">See pricing <ArrowRight className="w-4 h-4" /></Link>
         </div>
       </section>

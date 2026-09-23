@@ -273,10 +273,10 @@ export default function AdminDashboardClient() {
                 <h2 className="font-bold text-[#0F172A] mb-5">MRR by plan</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { plan: 'Starter ($49)', count: 8, mrr: 392, color: 'bg-slate-200' },
-                    { plan: 'Growth ($99)', count: 21, mrr: 2079, color: 'bg-blue-200' },
-                    { plan: 'Business ($199)', count: 15, mrr: 2985, color: 'bg-teal-200' },
-                    { plan: 'Enterprise', count: 3, mrr: 784, color: 'bg-purple-200' },
+                    { plan: 'Starter ($29)', count: 8, mrr: 232, color: 'bg-slate-200' },
+                    { plan: 'Growth ($59)', count: 21, mrr: 1239, color: 'bg-blue-200' },
+                    { plan: 'Business ($119)', count: 15, mrr: 1785, color: 'bg-teal-200' },
+                    { plan: 'Enterprise', count: 3, mrr: 897, color: 'bg-purple-200' },
                   ].map(p => (
                     <div key={p.plan} className="text-center p-4 rounded-xl bg-slate-50 border border-slate-100">
                       <div className={`w-10 h-10 rounded-xl ${p.color} mx-auto mb-3`} />

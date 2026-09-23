@@ -5,14 +5,14 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: 'Simple, transparent pricing for complete website lifecycle management. Starter from $49/mo. No hidden fees.',
+  description: 'Simple, transparent pricing for complete website lifecycle management. Starter from $29/mo. No hidden fees.',
   alternates: { canonical: 'https://bazionweb.com/pricing' },
 };
 
 const plans = [
   {
     name: 'Starter',
-    price: 49,
+    price: 29,
     desc: 'Hosting, SSL, backups, and monitoring. Everything to stay online reliably.',
     uptime: '99.9%',
     downtime: '43.8 min/mo',
@@ -24,7 +24,7 @@ const plans = [
   },
   {
     name: 'Growth',
-    price: 99,
+    price: 59,
     desc: 'Adds full maintenance, security management and priority support to your stack.',
     uptime: '99.95%',
     downtime: '21.9 min/mo',
@@ -36,7 +36,7 @@ const plans = [
   },
   {
     name: 'Business',
-    price: 199,
+    price: 119,
     desc: 'Complete lifecycle management. Performance optimization, unlimited updates, strategy calls.',
     uptime: '99.95%',
     downtime: '21.9 min/mo',
@@ -297,10 +297,10 @@ export default function PricingPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
             {[
-              { icon: Globe, name: 'Website Build', price: 'From $800', desc: 'Custom Next.js website with CMS' },
-              { icon: Server, name: 'Site Migration', price: 'From $150', desc: 'Zero-downtime transfer to our infra' },
-              { icon: Zap, name: 'Performance Audit', price: 'From $120', desc: 'Full Lighthouse + CWV audit report' },
-              { icon: Shield, name: 'Security Audit', price: 'From $200', desc: 'OWASP scan + remediation report' },
+              { icon: Globe, name: 'Website Build', price: 'From $499', desc: 'Custom Next.js website with CMS' },
+              { icon: Server, name: 'Site Migration', price: 'From $79', desc: 'Zero-downtime transfer to our infra' },
+              { icon: Zap, name: 'Performance Audit', price: 'From $69', desc: 'Full Lighthouse + CWV audit report' },
+              { icon: Shield, name: 'Security Audit', price: 'From $99', desc: 'OWASP scan + remediation report' },
             ].map(a => (
               <div key={a.name} className="card p-5">
                 <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center mb-3">

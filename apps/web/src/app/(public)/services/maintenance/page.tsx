@@ -104,7 +104,7 @@ export default function MaintenancePage() {
             <div className="flex flex-col md:flex-row md:items-center gap-6 justify-between">
               <div>
                 <h3 className="font-bold text-[#0F172A] text-lg mb-1">Maintenance is included in Growth+ plans</h3>
-                <p className="text-sm text-slate-500">From $99/mo. No setup fees. Monthly rolling contract.</p>
+                <p className="text-sm text-slate-500">From $59/mo. No setup fees. Monthly rolling contract.</p>
               </div>
               <div className="flex gap-3 shrink-0">
                 <Link href="/pricing" className="btn-primary px-6">See plans <ArrowRight className="w-4 h-4" /></Link>

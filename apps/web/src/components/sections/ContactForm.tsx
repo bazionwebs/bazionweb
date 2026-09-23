@@ -126,9 +126,9 @@ export default function ContactForm() {
             <label htmlFor="plan" className="label">Plan interest</label>
             <select id="plan" {...field('plan')}>
               <option value="">Select a plan…</option>
-              <option value="starter">Starter — $49/mo</option>
-              <option value="growth">Growth — $99/mo</option>
-              <option value="business">Business — $199/mo</option>
+              <option value="starter">Starter — $29/mo</option>
+              <option value="growth">Growth — $59/mo</option>
+              <option value="business">Business — $119/mo</option>
               <option value="enterprise">Enterprise — Custom</option>
               <option value="unsure">Not sure yet</option>
             </select>
