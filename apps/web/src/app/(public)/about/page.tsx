@@ -167,22 +167,19 @@ export default function AboutPage() {
               </div>
             </div>
             <div className="bg-[#0F172A] rounded-3xl p-8 md:p-10 text-white">
-              <h3 className="text-xl font-bold mb-6 text-[#14B8A6]">Year 1 targets</h3>
+              <h3 className="text-xl font-bold mb-6 text-[#14B8A6]">Our commitments to you</h3>
               <div className="space-y-5">
                 {[
-                  ['100', 'Active paying clients'],
-                  ['$10,000', 'Monthly Recurring Revenue'],
                   ['99.95%', 'Hosting uptime guarantee'],
-                  ['95%+', 'Annual client retention'],
-                  ['&lt;15 min', 'P1 response time (Business)'],
+                  ['<15 min', 'P1 response time (Business)'],
                   ['95+', 'Lighthouse score on all sites'],
+                  ['24/7', 'Real-engineer support'],
+                  ['30-day', 'Money-back guarantee'],
+                  ['1', 'Provider, one invoice'],
                 ].map(([val, label]) => (
                   <div key={label} className="flex items-center justify-between border-b border-white/8 pb-4 last:border-0 last:pb-0">
                     <span className="text-slate-400 text-sm">{label}</span>
-                    <span
-                      className="text-xl font-black text-white"
-                      dangerouslySetInnerHTML={{ __html: val }}
-                    />
+                    <span className="text-xl font-black text-white">{val}</span>
                   </div>
                 ))}
               </div>
