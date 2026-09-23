@@ -239,7 +239,7 @@ export default function PricingPage() {
       </section>
 
       {/* Feature comparison table */}
-      <section className="section bg-white">
+      <section id="compare" className="section bg-white scroll-mt-24">
         <div className="container-default">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-3">Full feature comparison</h2>
@@ -315,6 +315,13 @@ export default function PricingPage() {
         <div className="container-default max-w-3xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-3">Frequently asked questions</h2>
+            <p className="text-sm text-slate-500">
+              Looking for more answers? Visit our full{' '}
+              <Link href="/faq" className="text-[#2563EB] font-semibold hover:underline">
+                FAQ page
+              </Link>
+              .
+            </p>
           </div>
           <div className="space-y-4">
             {faqs.map(f => (
