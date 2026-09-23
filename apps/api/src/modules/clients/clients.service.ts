@@ -27,7 +27,7 @@ export class ClientsService {
         contactName: dto.contactName,
         email: dto.email,
         phone: dto.phone,
-        country: dto.country ?? 'KE',
+        country: dto.country ?? null,
         plan: { connect: { id: plan.id } },
         status: 'TRIAL',
         user: {

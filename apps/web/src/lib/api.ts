@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { ApiResponse, QuoteRequest } from '@/types';
+import { useAuthStore } from '@/store/auth.store';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'https://api.bazionweb.com/api/v1',
@@ -9,23 +10,50 @@ const api = axios.create({
   timeout: 15_000,
 });
 
-// ─── Request interceptor: attach JWT ────────────────────────────────────────
+// ─── Request interceptor: attach JWT from the auth store ─────────────────────
 api.interceptors.request.use(config => {
-  if (typeof window !== 'undefined') {
-    const token = sessionStorage.getItem('bazionweb_access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+  const token = useAuthStore.getState().accessToken;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// ─── Response interceptor: handle 401 ───────────────────────────────────────
+// ─── Response interceptor: refresh once, then sign out ──────────────────────
+function onProtectedRoute() {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname;
+  if (path.startsWith('/portal/login')) return false;
+  return /^\/(portal|admin)(\/|$)/.test(path);
+}
+
 api.interceptors.response.use(
   res => res,
   async error => {
-    if (error.response?.status === 401 && typeof window !== 'undefined') {
-      sessionStorage.removeItem('bazionweb_access_token');
+    const original = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
+    if (error.response?.status !== 401 || typeof window === 'undefined' || !original) {
+      return Promise.reject(error);
+    }
+
+    // Single silent refresh attempt (no interceptor recursion — plain axios).
+    if (!original._retry && onProtectedRoute()) {
+      original._retry = true;
+      try {
+        const { user, refreshToken, setSession } = useAuthStore.getState();
+        if (user && refreshToken) {
+          const res = await axios.post(`${api.defaults.baseURL}/auth/refresh`, { refreshToken });
+          const { accessToken, refreshToken: rt, expiresIn } = res.data.data;
+          setSession(user, accessToken, rt, expiresIn);
+          original.headers.Authorization = `Bearer ${accessToken}`;
+          return api(original);
+        }
+      } catch {
+        // Fall through to sign-out below.
+      }
+    }
+
+    useAuthStore.getState().clearSession();
+    if (onProtectedRoute()) {
       window.location.href = '/portal/login';
     }
     return Promise.reject(error);

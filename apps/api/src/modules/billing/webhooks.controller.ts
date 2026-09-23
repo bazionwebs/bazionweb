@@ -28,6 +28,44 @@ export class WebhooksController {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  // ── Webhook signature helpers ─────────────────────────────────────────────
+  // Fail CLOSED in production: when a real secret is configured, a missing or
+  // invalid signature is rejected. Placeholder/unset secrets log a warning and
+  // accept (dev/sandbox only) so local testing is not blocked.
+
+  private isSecretConfigured(secret: string): boolean {
+    return !!secret && !secret.toLowerCase().includes('placeholder');
+  }
+
+  private signaturesMatch(provided: string, expectedHex: string): boolean {
+    const a = Buffer.from(provided, 'utf8');
+    const b = Buffer.from(expectedHex, 'utf8');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+
+  private requireValidSignature(
+    rawBody: string,
+    signature: string | undefined,
+    secret: string,
+    provider: string,
+  ): void {
+    if (!this.isSecretConfigured(secret)) {
+      this.logger.warn(
+        `${provider} webhook secret not configured — accepting unsigned payload (dev/sandbox only)`,
+      );
+      return;
+    }
+    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+    if (!signature || !this.signaturesMatch(signature, expected)) {
+      this.logger.warn(`${provider} signature verification failed`);
+      throw new UnauthorizedException(`Invalid ${provider} webhook signature`);
+    }
+  }
+
+  private rawBody(req: Request): string {
+    return typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+  }
+
   /**
    * IntaSend IPN (Instant Payment Notification) Webhook
    */
@@ -57,19 +95,7 @@ export class WebhooksController {
 
     const secretKey = process.env.INTASEND_SECRET_KEY || '';
 
-    // Signature verification if provided in headers
-    if (signature && secretKey && secretKey !== 'ISSecretKey_sandbox_placeholder') {
-      const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-      const expectedSignature = crypto
-        .createHmac('sha256', secretKey)
-        .update(rawBody)
-        .digest('hex');
-
-      if (signature !== expectedSignature) {
-        this.logger.warn('IntaSend signature verification mismatch');
-        throw new UnauthorizedException('Invalid webhook signature');
-      }
-    }
+    this.requireValidSignature(this.rawBody(req), signature, secretKey, 'IntaSend');
 
     this.logger.log(`Received IntaSend webhook: Invoice = ${invoiceNumber || invoice_id}, State = ${state}`);
 
@@ -96,6 +122,17 @@ export class WebhooksController {
     if (!invoice) {
       this.logger.warn(`IntaSend Webhook: No matching invoice found for api_ref ${invoiceNumber}`);
       return { status: 'ORPHAN_TRANSACTION_RECORDED' };
+    }
+
+    // Amount integrity: never mark PAID on a short payment. Tolerates minor
+    // rounding (0.01); a missing amount falls back to the invoice total below.
+    const paidAmount = Number(amount);
+    const expectedAmount = Number(invoice.amount);
+    if (amount !== undefined && amount !== null && amount !== '' && !Number.isNaN(paidAmount) && paidAmount < expectedAmount - 0.01) {
+      this.logger.warn(
+        `IntaSend Webhook: amount mismatch for ${invoiceNumber} (paid ${paidAmount} < invoiced ${expectedAmount})`,
+      );
+      return { status: 'AMOUNT_MISMATCH' };
     }
 
     if (state === 'COMPLETE' || state === 'SUCCESSFUL') {
@@ -193,17 +230,7 @@ export class WebhooksController {
   ) {
     const wiseWebhookSecret = process.env.WISE_WEBHOOK_SECRET || '';
 
-    if (signature && wiseWebhookSecret && wiseWebhookSecret !== 'whsec_placeholder') {
-      const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-      const calculatedSig = crypto
-        .createHmac('sha256', wiseWebhookSecret)
-        .update(rawBody)
-        .digest('hex');
-
-      if (signature !== calculatedSig) {
-        throw new UnauthorizedException('Wise signature verification failed');
-      }
-    }
+    this.requireValidSignature(this.rawBody(req), signature, wiseWebhookSecret, 'Wise');
 
     const { event_type, data } = req.body;
     this.logger.log(`Wise Webhook: Event = ${event_type}, Ref = ${data?.payment_reference || data?.resource?.id}`);
@@ -227,7 +254,17 @@ export class WebhooksController {
         return { status: 'UNMATCHED_REFERENCE' };
       }
 
-      const idempotencyKey = `WISE_CREDIT_${data?.id || data?.resource?.id || Date.now()}`;
+      // Amount integrity: never grant a year of service on a short payment.
+      const expectedAmount = Number(receivingAccount.invoice.amount);
+      if (creditAmount > 0 && creditAmount < expectedAmount - 0.01) {
+        this.logger.warn(
+          `Wise Webhook: amount mismatch for ${paymentRef} (credited ${creditAmount} < invoiced ${expectedAmount})`,
+        );
+        return { status: 'AMOUNT_MISMATCH' };
+      }
+
+      // Deterministic key (no Date.now fallback) so redeliveries dedupe.
+      const idempotencyKey = `WISE_CREDIT_${paymentRef}_${event_type}_${creditAmount || 'na'}`;
 
       await this.prisma.$transaction(async (tx) => {
         // Mark Invoice as PAID
@@ -262,9 +299,10 @@ export class WebhooksController {
           });
         }
 
-        // Record payment log
-        await tx.paymentLog.create({
-          data: {
+        // Record payment log (upsert: redeliveries dedupe on the unique key)
+        await tx.paymentLog.upsert({
+          where: { idempotencyKey },
+          create: {
             idempotencyKey,
             provider: PaymentProvider.WISE,
             providerRef: String(data?.id || data?.resource?.id || paymentRef),
@@ -276,6 +314,7 @@ export class WebhooksController {
             invoiceId: receivingAccount.invoiceId,
             rawPayload: req.body,
           },
+          update: { status: PaymentStatus.SUCCESS, rawPayload: req.body },
         });
       });
 

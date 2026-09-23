@@ -192,6 +192,26 @@ export class AuthService {
     }
   }
 
+  /**
+   * Staff provisioning: set (or rotate) a user's local password.
+   * Returns null when the user does not exist or is soft-deleted.
+   */
+  async setUserPassword(userId: string, newPassword: string): Promise<{ id: string } | null> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.deletedAt) return null;
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await hashPassword(newPassword) },
+      select: { id: true },
+    });
+    // Invalidate existing sessions so the new password takes effect cleanly
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return updated;
+  }
+
   // ── Token issuance (Keycloak-claim-compatible for the existing frontend) ──
   private async issueTokenPair(user: {
     id: string; email: string; firstName: string | null;

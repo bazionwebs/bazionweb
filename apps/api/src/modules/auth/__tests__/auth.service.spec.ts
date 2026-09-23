@@ -226,3 +226,55 @@ describe('AuthService (keycloak provider)', () => {
     await expect(service.logout('token')).resolves.toBeUndefined();
   });
 });
+
+describe('AuthService.setUserPassword()', () => {
+  let service: AuthService;
+  let prisma: {
+    user: { findUnique: jest.Mock; update: jest.Mock };
+    refreshToken: { updateMany: jest.Mock };
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      user: { findUnique: jest.fn(), update: jest.fn() },
+      refreshToken: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: ConfigService, useValue: localConfig() },
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    service = module.get<AuthService>(AuthService);
+  });
+
+  it('hashes the new password, updates the user, and revokes sessions', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'u-1', deletedAt: null });
+    prisma.user.update.mockImplementation(({ data }) => Promise.resolve({ id: 'u-1' }));
+
+    const result = await service.setUserPassword('u-1', 'NewStrongPass123!');
+
+    expect(result).toEqual({ id: 'u-1' });
+    const hash = prisma.user.update.mock.calls[0][0].data.passwordHash as string;
+    expect(hash).toMatch(/^scrypt\$16384\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{128}$/);
+    expect(hash).not.toContain('NewStrongPass123!');
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u-1', revokedAt: null } }),
+    );
+
+    // The stored hash must verify against the new password
+    const { verifyPassword } = jest.requireActual('../auth.service') as typeof import('../auth.service');
+    await expect(verifyPassword('NewStrongPass123!', hash)).resolves.toBe(true);
+    await expect(verifyPassword('WrongPass123!', hash)).resolves.toBe(false);
+  });
+
+  it('returns null for unknown or deleted users', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.setUserPassword('ghost', 'NewStrongPass123!')).resolves.toBeNull();
+
+    prisma.user.findUnique.mockResolvedValue({ id: 'u-2', deletedAt: new Date() });
+    await expect(service.setUserPassword('u-2', 'NewStrongPass123!')).resolves.toBeNull();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});

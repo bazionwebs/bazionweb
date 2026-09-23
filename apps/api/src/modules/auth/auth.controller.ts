@@ -1,12 +1,13 @@
 import {
-  Controller, Post, Body, Headers, HttpCode,
-  HttpStatus, UnauthorizedException, Logger,
+  Controller, Post, Body, Headers, HttpCode, UseGuards,
+  HttpStatus, UnauthorizedException, Logger, NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, IsUUID, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { Public } from '../../common/guards/jwt-auth.guard';
+import { Public, Roles, JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 class LoginDto {
   @ApiProperty({ example: 'client@example.com' })
@@ -25,6 +26,18 @@ class RefreshDto {
   refreshToken: string;
 }
 
+class SetPasswordDto {
+  @ApiProperty({ description: 'Target user id (staff only)' })
+  @IsUUID()
+  userId: string;
+
+  @ApiProperty({ minLength: 12, maxLength: 128 })
+  @IsString()
+  @MinLength(12)
+  @MaxLength(128)
+  newPassword: string;
+}
+
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
@@ -39,6 +52,7 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Login — exchange credentials for JWT tokens' })
   async login(@Body() dto: LoginDto) {
     try {
@@ -67,6 +81,7 @@ export class AuthController {
   @Post('refresh')
   @Public()
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Refresh — exchange refresh token for new access token' })
   async refresh(@Body() dto: RefreshDto) {
     try {
@@ -74,5 +89,21 @@ export class AuthController {
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
+  }
+
+  /**
+   * Set (or rotate) a user's local password. Staff-only provisioning path —
+   * this is how client/staff accounts created without credentials get theirs.
+   * POST /api/v1/auth/admin/set-password
+   */
+  @Post('admin/set-password')
+  @UseGuards(JwtAuthGuard)
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Admin — set a user local password' })
+  async setPassword(@Body() dto: SetPasswordDto) {
+    const user = await this.authService.setUserPassword(dto.userId, dto.newPassword);
+    if (!user) throw new NotFoundException('User not found');
+    return { data: { userId: user.id } };
   }
 }

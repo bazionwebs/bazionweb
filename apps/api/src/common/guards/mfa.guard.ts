@@ -67,7 +67,7 @@ export class MfaGuard implements CanActivate {
     if (this.STAFF_ROLES.includes(dbUser.role) && !dbUser.mfaEnabled) {
       throw new ForbiddenException(
         'Multi-factor authentication is required for staff accounts. ' +
-        'Please enable MFA at https://auth.bazionweb.com/realms/bazionweb/account/totp',
+        'Please contact your administrator to enable MFA.',
       );
     }
 

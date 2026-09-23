@@ -253,7 +253,7 @@ model Client {
   email                String       @unique
   phone                String?
   address              String?
-  country              String       @default("KE")
+  country              String?
   taxPin               String?      @map("tax_pin")
   intasendCustomerId   String?      @unique @map("intasend_customer_id")
   wiseProfileId        String?      @map("wise_profile_id")
