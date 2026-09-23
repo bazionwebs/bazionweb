@@ -48,6 +48,13 @@ const team = [
     color: 'from-[#2563EB] to-[#14B8A6]',
     photo: '/team/joseph-m.jpg',
   },
+  {
+    name: 'Mary Mbuiya Kimani',
+    role: 'Sales & Business Development',
+    desc: 'Owns the outbound pipeline and client relationships — from discovery calls and proposals to onboarding and growth.',
+    initials: 'MK',
+    color: 'from-[#14B8A6] to-[#2563EB]',
+  },
 ];
 
 const targetMarkets = [
@@ -223,7 +230,7 @@ export default function AboutPage() {
             <h2 className="text-3xl font-bold text-[#0F172A] mb-3">People behind BazionWeb</h2>
             <p className="text-slate-500">A lean, expert team with a single focus: keeping your website healthy.</p>
           </div>
-          <div className="flex justify-center">
+          <div className="flex flex-wrap justify-center gap-6">
             {team.map(t => (
               <div key={t.name} className="card p-8 text-center max-w-xs">
                 {'photo' in t && t.photo ? (
