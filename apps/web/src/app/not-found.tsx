@@ -1,14 +1,13 @@
 import Link from 'next/link';
 import { ArrowLeft, Home } from 'lucide-react';
+import Logo from '@/components/ui/Logo';
 
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center px-4">
       <div className="text-center max-w-lg">
         {/* Logo */}
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#2563EB] to-[#14B8A6] flex items-center justify-center mx-auto mb-8 shadow-lg">
-          <span className="text-white font-black text-xl">B</span>
-        </div>
+        <Logo variant="dark" wordmark={false} markClassName="h-14 w-auto" className="justify-center mb-8" />
 
         {/* 404 */}
         <div className="text-8xl font-black text-white/10 mb-2 leading-none">404</div>

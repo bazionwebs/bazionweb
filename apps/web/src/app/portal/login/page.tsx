@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import Logo from '@/components/ui/Logo';
 
 export default function PortalLoginPage() {
   const { login } = useAuth();
@@ -31,12 +32,7 @@ export default function PortalLoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563EB] to-[#14B8A6] flex items-center justify-center shadow-md">
-              <span className="text-white font-black text-base">B</span>
-            </div>
-            <span className="font-bold text-xl text-[#0F172A]">BazionWeb</span>
-          </Link>
+          <Logo variant="light" markClassName="h-10 w-auto" className="mb-6" />
           <h1 className="text-2xl font-bold text-[#0F172A]">Sign in to your portal</h1>
           <p className="text-slate-500 text-sm mt-1">Manage your website, tickets, and invoices</p>
         </div>

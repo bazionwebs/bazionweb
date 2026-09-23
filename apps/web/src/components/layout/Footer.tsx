@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Globe, Shield, Wrench, Server, Zap, LifeBuoy, Twitter, Linkedin, Github, Mail, Phone, MapPin } from 'lucide-react';
+import Logo from '@/components/ui/Logo';
 
 const services = [
   { name: 'Website Development', href: '/services/development', icon: Globe },
@@ -36,12 +37,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
           {/* Brand column */}
           <div className="lg:col-span-2">
-            <Link href="/" className="flex items-center gap-2 mb-6">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#2563EB] to-[#14B8A6] flex items-center justify-center shadow-lg">
-                <span className="text-white font-black text-base">B</span>
-              </div>
-              <span className="font-bold text-xl tracking-tight text-white">BazionWeb</span>
-            </Link>
+            <Logo variant="dark" textClassName="text-xl" className="mb-6" />
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm mb-6">
               Complete website lifecycle management for growing businesses.
               One provider, one invoice — development, hosting, security, and 24/7 support.

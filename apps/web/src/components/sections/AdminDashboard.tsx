@@ -10,6 +10,7 @@ import {
   Filter, Download, RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Logo from '@/components/ui/Logo';
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -82,9 +83,7 @@ export default function AdminDashboardClient() {
         {/* Logo + badge */}
         <div className="px-5 py-5 border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#2563EB] to-[#14B8A6] flex items-center justify-center">
-              <span className="text-white font-black text-sm">B</span>
-            </div>
+            <Logo variant="dark" wordmark={false} markClassName="h-8 w-auto" />
             <div>
               <div className="font-bold text-white text-sm">BazionWeb</div>
               <div className="text-xs text-[#EF4444] font-semibold">Admin Portal</div>

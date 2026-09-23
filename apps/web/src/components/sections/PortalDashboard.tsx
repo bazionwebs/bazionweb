@@ -9,6 +9,7 @@ import {
   ChevronRight, Zap, Download, Plus, X, Menu, Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Logo from '@/components/ui/Logo';
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -105,12 +106,7 @@ export default function PortalDashboard() {
       >
         {/* Logo */}
         <div className="px-5 py-5 border-b border-white/5 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#2563EB] to-[#14B8A6] flex items-center justify-center">
-              <span className="text-white font-black text-sm">B</span>
-            </div>
-            <span className="font-bold text-white text-sm">BazionWeb</span>
-          </Link>
+          <Logo variant="dark" textClassName="text-sm" markClassName="h-8 w-auto" />
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
           </button>
