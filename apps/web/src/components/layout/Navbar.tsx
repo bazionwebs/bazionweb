@@ -38,11 +38,10 @@ export default function Navbar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-100">
-      <nav className="container-default flex items-center justify-between h-16 md:h-18">
+      <nav className="container-default flex items-center justify-between h-20 md:h-24">
 
         {/* ── Logo ── */}
-        <Logo variant="light" priority markClassName="h-12" />
-
+        <Logo variant="light" priority markClassName="h-16" textClassName="text-2xl" />
 
         {/* ── Desktop Links ── */}
         <div className="hidden lg:flex items-center gap-1">
