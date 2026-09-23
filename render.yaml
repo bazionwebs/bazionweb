@@ -50,7 +50,9 @@ services:
     plan: free
     region: frankfurt
     dockerfilePath: ./apps/web/Dockerfile
-    dockerContext: ./apps/web
+    # NOTE: dockerContext intentionally omitted — Render resolves the Dockerfile
+    # relative to the context when both are set (apps/web + apps/web/Dockerfile
+    # breaks). Default context = the Dockerfile's own directory (apps/web).
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -72,7 +74,7 @@ services:
     plan: free
     region: frankfurt
     dockerfilePath: ./apps/api/Dockerfile
-    dockerContext: ./apps/api
+    # NOTE: dockerContext intentionally omitted — see web service above.
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
