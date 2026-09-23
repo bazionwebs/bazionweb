@@ -143,9 +143,8 @@ export default function AboutPage() {
       {/* The problem we solve */}
       <section className="section bg-white">
         <div className="container-default">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <span className="eyebrow">The Problem We Solve</span>
+          <div className="max-w-3xl">
+            <span className="eyebrow">The Problem We Solve</span>
               <h2 className="text-3xl md:text-4xl font-bold text-[#0F172A] mb-6">
                 Most SMEs deal with the same website nightmare
               </h2>
@@ -165,25 +164,6 @@ export default function AboutPage() {
                   </div>
                 ))}
               </div>
-            </div>
-            <div className="bg-[#0F172A] rounded-3xl p-8 md:p-10 text-white">
-              <h3 className="text-xl font-bold mb-6 text-[#14B8A6]">Our commitments to you</h3>
-              <div className="space-y-5">
-                {[
-                  ['99.95%', 'Hosting uptime guarantee'],
-                  ['<15 min', 'P1 response time (Business)'],
-                  ['95+', 'Lighthouse score on all sites'],
-                  ['24/7', 'Real-engineer support'],
-                  ['30-day', 'Money-back guarantee'],
-                  ['1', 'Provider, one invoice'],
-                ].map(([val, label]) => (
-                  <div key={label} className="flex items-center justify-between border-b border-white/8 pb-4 last:border-0 last:pb-0">
-                    <span className="text-slate-400 text-sm">{label}</span>
-                    <span className="text-xl font-black text-white">{val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </section>
