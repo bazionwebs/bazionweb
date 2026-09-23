@@ -19,6 +19,7 @@ const company = [
   { name: 'Case Studies', href: '/case-studies' },
   { name: 'Blog', href: '/blog' },
   { name: 'Careers', href: '/careers' },
+  { name: 'System Status', href: 'https://status.bazionweb.com' },
 ];
 
 const legal = [
@@ -97,13 +98,28 @@ export default function Footer() {
             <ul className="flex flex-col gap-2.5">
               {company.map(l => (
                 <li key={l.name}>
-                  <Link href={l.href} className="text-sm text-slate-400 hover:text-white transition-colors">
-                    {l.name}
-                  </Link>
+                  {l.href.startsWith('http') ? (
+                    <a
+                      href={l.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
+                    >
+                      {l.name}
+                      {l.name === 'System Status' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] inline-block animate-pulse" />
+                      )}
+                    </a>
+                  ) : (
+                    <Link href={l.href} className="text-sm text-slate-400 hover:text-white transition-colors">
+                      {l.name}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
+
 
           {/* Legal */}
           <div>
@@ -121,16 +137,19 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Status bar */}
+      {/* Bottom bar */}
       <div className="border-t border-white/5">
         <div className="container-default py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <a
+            href="https://status.bazionweb.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors group"
+          >
             <span className="w-2 h-2 rounded-full bg-[#22C55E] inline-block animate-pulse" />
-            All systems operational —{' '}
-            <a href="https://status.bazionweb.com" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white transition-colors">
-              status.bazionweb.com
-            </a>
-          </div>
+            All systems operational
+            <span className="text-slate-600 group-hover:text-slate-400 transition-colors">· status.bazionweb.com</span>
+          </a>
           <p className="text-xs text-slate-500">
             © {new Date().getFullYear()} BazionWeb. All rights reserved.
           </p>
