@@ -81,6 +81,24 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
 
 type PaymentTab = 'MPESA' | 'CARD' | 'WISE';
 
+export interface WiseBankAccount {
+  status?: string;
+  invoiceNumber: string;
+  amount?: number;
+  currency?: string;
+  dueDate?: string;
+  paymentReference?: string;
+  bankTransferDetails: {
+    beneficiary: string;
+    accountNumber?: string;
+    routingNumber?: string;
+    iban?: string;
+    swiftBic?: string;
+    bankAddress?: string;
+    referenceNote?: string;
+  };
+}
+
 export default function SubscriptionCheckout({
   initialPlanSlug = 'growth',
   initialCycle = 'MONTHLY',
@@ -97,7 +115,7 @@ export default function SubscriptionCheckout({
   
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-  const [wiseAccount, setWiseAccount] = useState<Record<string, string> | null>(null);
+  const [wiseAccount, setWiseAccount] = useState<WiseBankAccount | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const currentPlan = AVAILABLE_PLANS[selectedPlanSlug] || AVAILABLE_PLANS['growth'];
@@ -500,7 +518,7 @@ export default function SubscriptionCheckout({
                       { label: 'Routing / ABA / Sort Code', value: wiseAccount.bankTransferDetails.routingNumber },
                       { label: 'SWIFT / BIC', value: wiseAccount.bankTransferDetails.swiftBic },
                       { label: 'Mandatory Payment Reference', value: wiseAccount.paymentReference },
-                    ].filter(item => Boolean(item.value)).map((item, idx) => (
+                    ].filter((item): item is { label: string; value: string } => Boolean(item.value)).map((item, idx) => (
                       <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-800/80 last:border-0">
                         <span className="text-slate-400">{item.label}</span>
                         <div className="flex items-center gap-2">
@@ -524,9 +542,11 @@ export default function SubscriptionCheckout({
                     </div>
                   )}
 
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs leading-relaxed">
-                    {wiseAccount.bankTransferDetails.referenceNote}
-                  </div>
+                  {wiseAccount.bankTransferDetails.referenceNote && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs leading-relaxed">
+                      {wiseAccount.bankTransferDetails.referenceNote}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
