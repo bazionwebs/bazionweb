@@ -3,7 +3,7 @@ import {
   Globe,
   ShoppingCart,
   Cpu,
-  Server,
+  Wrench,
   ArrowRight,
   Check,
   Building2,
@@ -18,7 +18,7 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 export const metadata: Metadata = {
   title: 'Digital Engineering Services — Websites, E-Commerce & Systems | BazionWeb',
   description:
-    'Complete website & system lifecycle: custom development, e-commerce, custom web applications, managed cloud hosting, security, and ongoing care plans.',
+    'Complete website & system lifecycle: custom development, e-commerce, custom web applications, security, and ongoing care plans.',
   alternates: { canonical: 'https://bazionweb.com/services' },
 };
 
@@ -84,14 +84,14 @@ const productFamilies = [
     pricingHref: '/pricing?tab=custom',
   },
   {
-    id: 'hosting-care',
-    icon: Server,
-    name: 'Managed Cloud Hosting & Ongoing Care',
-    tagline: 'Zero-downtime infrastructure and proactive software maintenance.',
-    desc: 'BazionWeb is not just selling raw server space; we sell managed peace of mind. We handle server configuration, weekly security patches, offsite backups, uptime alerts, and priority bug fixes.',
-    startingPrice: 'Hosting from KSh 4,500/yr ($60) · Care from KSh 5,000/mo ($75)',
+    id: 'care',
+    icon: Wrench,
+    name: 'Website Care & Ongoing Maintenance',
+    tagline: 'Proactive software maintenance, updates, and digital health monitoring.',
+    desc: 'Protect your digital investment. We handle monthly CMS updates, security patches, offsite backups, continuous uptime checks, and priority technical support so your site is always fast, secure, and operational.',
+    startingPrice: 'Care from KSh 5,000/mo ($75)',
     deliverables: [
-      'Containerized high-speed cloud environments',
+      'Proactive CMS & security patch management',
       'Automated daily/weekly offsite encrypted backups',
       'Web Application Firewall (WAF) & malware defense',
       'Core Web Vitals telemetry & speed monitoring',
@@ -101,7 +101,7 @@ const productFamilies = [
     accent: '#22C55E',
     bg: 'bg-green-50',
     textColor: 'text-green-600',
-    pricingHref: '/pricing?tab=hosting-care',
+    pricingHref: '/pricing?tab=care',
   },
 ];
 
@@ -149,7 +149,7 @@ export default function ServicesPage() {
             Websites, Digital Systems & Managed Technology
           </h1>
           <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed mb-8">
-            We design, develop, host, and maintain professional digital solutions for businesses, organizations, and institutions in Kenya and worldwide.
+            We design, develop, secure, and maintain professional digital solutions for businesses, organizations, and institutions in Kenya and worldwide.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/pricing" className="btn-primary text-xs px-6 py-3">
@@ -284,7 +284,7 @@ export default function ServicesPage() {
             One engineering team, zero vendor finger-pointing
           </h2>
           <p className="text-slate-300 text-sm md:text-base leading-relaxed mb-10">
-            When you build with BazionWeb, your designers, developers, hosting engineers, and security specialists sit at the same table. No juggling hosting tickets while waiting for a freelancer to respond.
+            When you build with BazionWeb, your designers, developers, maintenance specialists, and security engineers sit at the same table. No juggling disparate platforms while waiting for a freelancer to respond.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/pricing" className="btn-primary px-8 py-3.5 text-xs">

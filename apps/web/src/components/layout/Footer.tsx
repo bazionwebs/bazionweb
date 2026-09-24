@@ -6,7 +6,7 @@ import Logo from '@/components/ui/Logo';
 
 const services = [
   { name: 'Website Development', href: '/services/development', icon: Globe },
-  { name: 'Managed Hosting', href: '/services/hosting', icon: Server },
+  { name: 'Custom Systems & Portals', href: '/services#custom-systems', icon: Server },
   { name: 'Maintenance', href: '/services/maintenance', icon: Wrench },
   { name: 'Security Management', href: '/services/security', icon: Shield },
   { name: 'Performance Optim.', href: '/services/performance', icon: Zap },
@@ -43,7 +43,7 @@ export default function Footer() {
             <Logo variant="dark" markClassName="h-20 w-auto" className="mb-6" />
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm mb-6">
               Complete website lifecycle management for growing businesses.
-              One provider, one invoice — development, hosting, security, and 24/7 support.
+              One provider, one invoice — development, custom systems, security, and ongoing support.
             </p>
             <div className="flex flex-col gap-2 mb-8">
               <a href="mailto:hello@bazionweb.com" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm">

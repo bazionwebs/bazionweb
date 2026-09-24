@@ -91,7 +91,7 @@ export default function HomepagePricingPreview() {
           href={`/pricing?market=${market}`}
           className="text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] inline-flex items-center gap-1"
         >
-          View all packages (including E-Commerce, Custom Systems & Hosting)
+          View all packages (including E-Commerce, Custom Systems & Care Plans)
           <ChevronRight className="w-4 h-4" />
         </Link>
         <span className="hidden sm:inline text-slate-300">·</span>

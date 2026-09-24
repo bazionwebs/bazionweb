@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import AudioTestimonial from '@/components/testimonials/AudioTestimonial';
+import JsonLd from '@/components/seo/JsonLd';
 import HomepagePricingPreview from '@/components/pricing/HomepagePricingPreview';
 import {
-  Globe, Shield, Wrench, Server, Zap, LifeBuoy,
+  Globe, Shield, Wrench, Zap, LifeBuoy,
   Check, ArrowRight, Star, TrendingUp, Clock, Award,
   ChevronRight, Users, HeartHandshake, RotateCcw,
   Laptop, FileText, CheckCircle2
@@ -12,18 +13,11 @@ import {
 export const metadata: Metadata = {
   title: 'Websites, Digital Systems & Managed Technology | BazionWeb',
   description:
-    'We design, develop, host and maintain professional digital solutions for businesses, organizations, and institutions in Kenya and worldwide.',
+    'We design, develop, host and maintain professional digital solutions for businesses, organizations, and institutions worldwide.',
   alternates: { canonical: 'https://bazionweb.com/' },
 };
 
 // ─── Data ────────────────────────────────────────────────────────────────────
-
-const stats = [
-  { value: '99.95%', label: 'Uptime SLA', sub: 'Guaranteed in every plan' },
-  { value: '<15 min', label: 'P1 Response', sub: 'Business plan and above' },
-  { value: '100+', label: 'Managed Sites', sub: 'Target: Year 1' },
-  { value: '95%', label: 'Retention Rate', sub: 'Annual client renewal' },
-];
 
 const services = [
   {
@@ -33,22 +27,6 @@ const services = [
     desc: 'Custom, responsive websites built on modern Next.js with CMS integration, SEO-ready architecture, and defect warranties.',
     tags: ['Next.js', 'Tailwind', 'CMS Integration', 'SEO Ready'],
     accent: 'bg-blue-50 text-blue-600',
-  },
-  {
-    icon: Server,
-    name: 'Managed Cloud Hosting',
-    href: '/services#hosting-care',
-    desc: 'High-speed cloud infrastructure with automated SSL, daily backups, WAF firewall, and 24/7 uptime monitoring.',
-    tags: ['Cloud Infrastructure', 'Auto SSL', 'Daily Backups', 'WAF'],
-    accent: 'bg-teal-50 text-teal-600',
-  },
-  {
-    icon: Wrench,
-    name: 'Website Care & Maintenance',
-    href: '/services#hosting-care',
-    desc: 'Weekly updates, security patches, SEO health checks, and included dedicated engineering support hours.',
-    tags: ['CMS Updates', 'Core Web Vitals', 'Monthly Reports', 'Support Hours'],
-    accent: 'bg-purple-50 text-purple-600',
   },
   {
     icon: Shield,
@@ -67,15 +45,22 @@ const services = [
     accent: 'bg-indigo-50 text-indigo-600',
   },
   {
+    icon: Wrench,
+    name: 'Website Care & Maintenance',
+    href: '/services#care',
+    desc: 'Weekly updates, security patches, SEO health checks, and included dedicated engineering support hours.',
+    tags: ['CMS Updates', 'Core Web Vitals', 'Monthly Reports', 'Support Hours'],
+    accent: 'bg-purple-50 text-purple-600',
+  },
+  {
     icon: LifeBuoy,
-    name: '24/7 SLA Technical Support',
+    name: 'Technical Support & Incident Response',
     href: '/services/support',
-    desc: 'Real systems engineers, financial uptime SLAs, and sub-15 minute emergency response for business-critical platforms.',
-    tags: ['SLA Backed', 'Sub-15m P1', 'Direct Hotline', 'Incident Post-Mortems'],
+    desc: 'Real systems engineers, proactive monitoring, and urgent response for business-critical digital platforms.',
+    tags: ['Direct Escalation', 'Fast Response', 'Direct Hotline', 'Security Audits'],
     accent: 'bg-amber-50 text-amber-600',
   },
 ];
-
 
 const testimonials: {
   name: string; role: string; quote: string; rating: number;
@@ -90,7 +75,7 @@ const testimonials: {
   {
     name: 'Michael O.',
     role: 'CEO, Professional Services Firm',
-    quote: 'I used to juggle three vendors for hosting, maintenance, and support. Now it\'s one invoice, one team. I haven\'t thought about my website in months — that\'s exactly what I wanted.',
+    quote: 'I used to juggle multiple vendors for development, maintenance, and support. Now it\'s one invoice, one team. I haven\'t thought about my website in months — that\'s exactly what I wanted.',
     rating: 5,
   },
   {
@@ -109,13 +94,13 @@ const painPoints = [
   },
   {
     icon: TrendingUp,
-    pain: 'Surprise hosting costs',
+    pain: 'Hidden fees & scope creep',
     solution: 'Transparent, all-inclusive pricing',
   },
   {
     icon: Clock,
     pain: 'No real technical support',
-    solution: 'SLA-backed engineers, not bots',
+    solution: 'Dedicated engineers, not bots',
   },
   {
     icon: Award,
@@ -128,75 +113,68 @@ const reasons = [
   {
     num: '01',
     title: 'Single Point of Accountability',
-    desc: 'Development, cloud hosting, security, patches, and support from one team. No more finger-pointing between separate hosting companies, web developers, and domain registrars.',
+    desc: 'Development, security patches, performance optimization, and ongoing maintenance from one dedicated team. No more finger-pointing between separate contractors, web developers, and domain registrars.',
     icon: Users,
     highlight: 'One contract, one invoice',
   },
   {
     num: '02',
-    title: 'Financially Backed 99.95% Uptime SLA',
-    desc: 'Our uptime commitment is not just a marketing claim — it is written into our legal Service Level Agreement with automated fee credits if we ever fall short.',
-    icon: Server,
-    highlight: 'Guaranteed in every tier',
+    title: 'Sub-15 Minute P1 Emergency Response',
+    desc: 'When an unexpected outage or critical issue occurs, real systems engineers triage and resolve it rapidly. No chatbots, ticket black holes, or days of waiting.',
+    icon: Clock,
+    highlight: 'Rapid engineer escalation',
   },
   {
     num: '03',
-    title: 'Sub-15 Minute P1 Emergency Response',
-    desc: 'When an unexpected outage or critical issue occurs, real systems engineers triage and resolve it 24/7. No chatbots, ticket black holes, or days of waiting.',
-    icon: Clock,
-    highlight: '24/7 engineer escalation',
-  },
-  {
-    num: '04',
     title: '100% Client Asset Ownership',
     desc: 'You retain complete, unencumbered ownership of your domain names, code repositories, design assets, and content. Zero proprietary platform lock-in.',
     icon: Award,
     highlight: 'Your assets stay yours',
   },
   {
-    num: '05',
+    num: '04',
     title: 'No Lock-in Contracts & 30-Day Guarantee',
     desc: 'All plans operate on simple, predictable monthly subscriptions. You can cancel with 30 days notice anytime, backed by a 30-day money-back guarantee for new clients.',
     icon: HeartHandshake,
     highlight: 'Zero risk to start',
   },
   {
-    num: '06',
+    num: '05',
     title: 'Proactive Security & WAF Protection',
     desc: 'Every client website is protected by an enterprise Web Application Firewall, automated malware scanning, SSL management, and proactive vulnerability patching.',
     icon: Shield,
     highlight: 'Threats stopped before impact',
   },
   {
-    num: '07',
+    num: '06',
     title: 'Lighthouse 95+ Performance Target',
     desc: 'Built on modern Next.js 14 and routed through global edge CDNs. We optimize for Core Web Vitals (LCP, CLS, INP) to maximize Google search rank and conversion.',
     icon: Zap,
     highlight: 'Blazing fast load times',
   },
   {
-    num: '08',
+    num: '07',
     title: 'Automated Daily & Verified Backups',
     desc: 'Your database and assets are automatically encrypted and snapshotted offsite daily, with regular restore drills to ensure instant disaster recovery.',
     icon: RotateCcw,
     highlight: 'Disaster recovery ready',
   },
   {
-    num: '09',
+    num: '08',
     title: 'Private Staging Environments',
     desc: 'Never test in production. Every update, design refinement, and new feature is deployed to a private staging URL for your explicit review and sign-off.',
     icon: Laptop,
     highlight: 'Approve before launch',
   },
   {
-    num: '10',
+    num: '09',
     title: 'Plain-Language Monthly Reports',
     desc: 'Receive transparent monthly summaries detailing updates completed, security scans passed, uptime records, and site speed benchmarks in plain business English.',
     icon: FileText,
     highlight: 'Transparent accountability',
   },
   {
-    num: '11',
+    num: '10',
     title: 'Unified Client Portal & Helpdesk',
     desc: 'Log in anytime to submit tickets, track milestone deliveries, view invoices, and monitor system health and uptime stats in real time.',
     icon: CheckCircle2,
@@ -216,6 +194,41 @@ const reasons = [
 export default function HomePage() {
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'Organization',
+              '@id': 'https://bazionweb.com/#organization',
+              name: 'BazionWeb',
+              url: 'https://bazionweb.com/',
+              logo: 'https://bazionweb.com/brand/logo.png',
+              description:
+                'Managed website lifecycle platform: custom development, managed hosting, security, maintenance and 24/7 support for growing businesses worldwide.',
+              email: 'hello@bazionweb.com',
+              sameAs: [
+                'https://twitter.com/bazionweb',
+                'https://linkedin.com/company/bazionweb',
+                'https://github.com/bazionweb',
+              ],
+              contactPoint: {
+                '@type': 'ContactPoint',
+                email: 'hello@bazionweb.com',
+                contactType: 'sales',
+                availableLanguage: 'English',
+              },
+            },
+            {
+              '@type': 'WebSite',
+              '@id': 'https://bazionweb.com/#website',
+              url: 'https://bazionweb.com/',
+              name: 'BazionWeb',
+              publisher: { '@id': 'https://bazionweb.com/#organization' },
+            },
+          ],
+        }}
+      />
       {/* ── Hero ── */}
       <section className="relative min-h-screen bg-[#0F172A] flex items-center overflow-hidden">
         {/* Ambient gradient orbs */}
@@ -251,8 +264,8 @@ export default function HomePage() {
             </h1>
 
             <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-10 leading-relaxed">
-              Development, hosting, maintenance, security, and 24/7 support — one trusted provider, one monthly invoice.
-              Stop managing your website. Start growing your business.
+              Development, bespoke systems, ongoing maintenance, and dedicated engineering support — one trusted partner, one clear invoice.
+              Stop worrying about technical headaches. Start growing your business.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 mb-16">
@@ -281,21 +294,6 @@ export default function HomePage() {
         {/* Scroll cue */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-40">
           <div className="w-px h-12 bg-gradient-to-b from-transparent to-white" />
-        </div>
-      </section>
-
-      {/* ── Stats bar ── */}
-      <section className="bg-white border-b border-slate-100 py-8">
-        <div className="container-default">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 divide-x divide-slate-100">
-            {stats.map(s => (
-              <div key={s.value} className="text-center px-4 first:pl-0">
-                <div className="text-3xl md:text-4xl font-black text-[#0F172A] mb-1">{s.value}</div>
-                <div className="text-sm font-semibold text-[#0F172A] mb-0.5">{s.label}</div>
-                <div className="text-xs text-slate-400">{s.sub}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 

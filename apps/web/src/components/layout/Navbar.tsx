@@ -9,7 +9,7 @@ import Logo from '@/components/ui/Logo';
 
 const services = [
   { name: 'Website Development', href: '/services/development', icon: Globe, desc: 'Custom, responsive websites' },
-  { name: 'Managed Hosting',     href: '/services/hosting',     icon: Server, desc: 'Fast, reliable cloud hosting' },
+  { name: 'Custom Systems & Portals', href: '/services#custom-systems', icon: Server, desc: 'Bespoke web applications & CRMs' },
   { name: 'Maintenance',         href: '/services/maintenance', icon: Wrench, desc: 'Updates, patches, health checks' },
   { name: 'Security Management', href: '/services/security',    icon: Shield, desc: 'WAF, SSL, malware protection' },
   { name: 'Performance Optim.', href: '/services/performance', icon: Zap,    desc: 'Core Web Vitals & speed' },

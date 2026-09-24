@@ -48,18 +48,6 @@ export interface CustomSystemTier {
   examples: string[];
 }
 
-export interface HostingPlan {
-  id: string;
-  name: string;
-  badge?: string;
-  popular?: boolean;
-  kenyaPrice: string;
-  intlPrice: string;
-  description: string;
-  features: string[];
-  ctaHref: string;
-}
-
 export interface CarePlan {
   id: string;
   name: string;
@@ -309,80 +297,6 @@ export const CUSTOM_SYSTEM_TIERS: CustomSystemTier[] = [
     intlStarting: 'From $10,000 – $20,000+',
     description: 'Multi-tenant software-as-a-service platforms, automated billing engines, and cross-department enterprise operational systems.',
     examples: ['SaaS Minimum Viable Products (MVP)', 'Custom ERP Modules', 'Supply Chain Portals', 'Financial Transaction Platforms'],
-  },
-];
-
-export const HOSTING_PLANS: HostingPlan[] = [
-  {
-    id: 'host-essential',
-    name: 'Host Essential',
-    kenyaPrice: 'KSh 4,500/year',
-    intlPrice: '$60/year',
-    description: 'Managed infrastructure for brochure and starter websites. Far beyond basic unmanaged cPanel.',
-    features: [
-      'High-speed cloud hosting',
-      'Automated Let\'s Encrypt SSL',
-      'DNS management & Cloudflare CDN setup',
-      'Weekly automated offsite backups',
-      '24/7 uptime monitoring & alerting',
-      'Basic security hardening',
-      'Standard technical support',
-    ],
-    ctaHref: '/checkout?plan=host-essential',
-  },
-  {
-    id: 'host-business',
-    name: 'Host Business',
-    badge: 'Recommended',
-    popular: true,
-    kenyaPrice: 'KSh 8,500/year',
-    intlPrice: '$120/year',
-    description: 'High-resource hosting for SMEs and active business sites that cannot afford downtime.',
-    features: [
-      'Enhanced CPU & RAM allocations',
-      'Business email accounts setup',
-      'Auto SSL & DNS routing',
-      'Daily automated backups (30-day retention)',
-      'Security vulnerability checks & WAF rules',
-      'Performance monitoring & caching',
-      'Zero-downtime migration assistance',
-      'Priority ticket & email response',
-    ],
-    ctaHref: '/checkout?plan=host-business',
-  },
-  {
-    id: 'host-pro',
-    name: 'Host Professional',
-    kenyaPrice: 'KSh 15,000/year',
-    intlPrice: '$240/year',
-    description: 'Premium cloud resources with staging environments and enhanced database capacity.',
-    features: [
-      'High-traffic allocation & multi-core resources',
-      'Staging environment for previewing updates',
-      'Daily backups with instant one-click rollbacks',
-      'Proactive security & malware intrusion prevention',
-      'Core Web Vitals telemetry monitoring',
-      'Dedicated migration & onboarding engineer',
-      'Priority technical support queue',
-    ],
-    ctaHref: '/checkout?plan=host-pro',
-  },
-  {
-    id: 'host-cloud',
-    name: 'Managed Cloud & App Hosting',
-    kenyaPrice: 'From KSh 30,000/year',
-    intlPrice: 'From $300/year',
-    description: 'Containerized, scalable cloud environments for Next.js, Node.js APIs, portals, and SaaS platforms.',
-    features: [
-      'Dedicated cloud instance (Render / AWS / DigitalOcean)',
-      'Managed PostgreSQL database with automatic point-in-time recovery',
-      'Continuous deployment (CI/CD) pipelines',
-      'Global edge caching & asset CDN',
-      'Real-time error tracking (Sentry / Kuma)',
-      'Custom environment variables & secrets management',
-      'Direct DevOps engineer access',
-    ],
-    ctaHref: '/contact?service=managed-cloud',
   },
 ];
 

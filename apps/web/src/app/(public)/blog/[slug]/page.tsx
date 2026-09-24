@@ -3,6 +3,7 @@ import { Clock, ArrowRight } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 // In production these come from Strapi CMS via API
 // Static content here for build-time generation and SEO
@@ -166,6 +167,31 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
 
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'BlogPosting',
+          headline: post.title,
+          description: post.excerpt,
+          image: 'https://bazionweb.com/og-image.png',
+          datePublished: new Date(post.date).toISOString(),
+          author: {
+            '@type': 'Organization',
+            '@id': 'https://bazionweb.com/#organization',
+            name: 'BazionWeb',
+            url: 'https://bazionweb.com/',
+          },
+          publisher: {
+            '@type': 'Organization',
+            '@id': 'https://bazionweb.com/#organization',
+            name: 'BazionWeb',
+            url: 'https://bazionweb.com/',
+            logo: 'https://bazionweb.com/brand/logo.png',
+          },
+          mainEntityOfPage: `https://bazionweb.com/blog/${params.slug}`,
+          keywords: post.tags.join(', '),
+        }}
+      />
       <section className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-3xl">
           <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Blog', href: '/blog' }, { name: post.title }]} />

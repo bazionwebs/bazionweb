@@ -5,6 +5,7 @@ import { ArrowRight, TrendingUp, Shield, Zap, Clock, Check } from 'lucide-react'
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 const studies: Record<string, {
   client: string; industry: string; plan: string; website: string;
@@ -20,15 +21,15 @@ const studies: Record<string, {
     teamSize: '6 managed sites',
     challenge: 'A 6-site healthcare network with slow pages, three different hosting providers, no unified monitoring, and SSL certificates expiring without warning. Their IT manager had left, and the remaining staff had no technical capacity to manage the websites. Patients were complaining about the booking form being unreliable.',
     approach: [
-      'Migrated all 6 sites to a unified hosting environment with zero downtime using a staged DNS cutover strategy.',
+      'Migrated all 6 sites to a unified cloud environment with zero downtime using a staged DNS cutover strategy.',
       'Deployed Cloudflare CDN across all domains — reducing average page load time from 4.8s to 1.3s.',
       'Implemented WAF rules, Fail2Ban, and malware scanning across the full estate.',
-      'Set up Uptime Kuma monitoring for all 6 domains with PagerDuty alerting to our on-call engineer.',
+      'Set up continuous uptime monitoring for all 6 domains with alerting to our on-call team.',
       'Fixed the broken booking form and implemented end-to-end form testing in the monthly maintenance cycle.',
       'Enrolled all sites in monthly maintenance — all CMS and plugin updates applied to staging first.',
     ],
     results: [
-      { icon: TrendingUp, metric: '99.98%', label: '30-day uptime (all 6 sites)' },
+      { icon: TrendingUp, metric: '3.7×',   label: 'Page load speed improvement' },
       { icon: Zap,        metric: '97',     label: 'Average Lighthouse score' },
       { icon: Clock,      metric: '1.3s',   label: 'Average page load time (was 4.8s)' },
       { icon: Shield,     metric: '0',      label: 'Security incidents since migration' },
@@ -80,6 +81,29 @@ export default function CaseStudyPage({ params }: { params: { slug: string } }) 
 
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: `How we transformed ${s.client}'s website management`,
+          description: s.challenge.slice(0, 200),
+          image: 'https://bazionweb.com/og-image.png',
+          author: {
+            '@type': 'Organization',
+            '@id': 'https://bazionweb.com/#organization',
+            name: 'BazionWeb',
+            url: 'https://bazionweb.com/',
+          },
+          publisher: {
+            '@type': 'Organization',
+            '@id': 'https://bazionweb.com/#organization',
+            name: 'BazionWeb',
+            url: 'https://bazionweb.com/',
+            logo: 'https://bazionweb.com/brand/logo.png',
+          },
+          mainEntityOfPage: `https://bazionweb.com/case-studies/${params.slug}`,
+        }}
+      />
       <section className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-4xl">
           <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Case Studies', href: '/case-studies' }, { name: s.client }]} />

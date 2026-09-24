@@ -24,8 +24,8 @@ interface QuoteConfig {
   extraPages: number;
   selectedAddOns: string[];
   rushDelivery: boolean;
-  hosting: string; // 'none' | 'host-essential' | 'host-business' | 'host-pro'
   care: string; // 'none' | 'care-essential' | 'care-business' | 'care-professional'
+  hosting: string; // hosting option id, 'none' = self-managed
 }
 
 const PACKAGE_DEFAULTS = {
@@ -47,8 +47,8 @@ function QuoteCalculatorContent() {
     extraPages: 0,
     selectedAddOns: [],
     rushDelivery: false,
-    hosting: 'host-business',
     care: 'none',
+    hosting: 'none',
   });
 
   useEffect(() => {
@@ -91,16 +91,21 @@ function QuoteCalculatorContent() {
   const rushCost = Math.round(subtotalBuild * rushMultiplier);
   const totalBuild = subtotalBuild + rushCost;
 
-  // Hosting & Care recurring costs
-  let annualHosting = 0;
-  if (config.hosting === 'host-essential') annualHosting = config.market === 'kenya' ? 4500 : 60;
-  else if (config.hosting === 'host-business') annualHosting = config.market === 'kenya' ? 8500 : 120;
-  else if (config.hosting === 'host-pro') annualHosting = config.market === 'kenya' ? 15000 : 240;
-
+  // Care recurring costs
   let monthlyCare = 0;
   if (config.care === 'care-essential') monthlyCare = config.market === 'kenya' ? 5000 : 75;
   else if (config.care === 'care-business') monthlyCare = config.market === 'kenya' ? 10000 : 150;
   else if (config.care === 'care-professional') monthlyCare = config.market === 'kenya' ? 20000 : 300;
+
+  // Annual hosting cost (mirrors the hosting options card prices)
+  const HOSTING_ANNUAL: Record<string, { kenya: number; intl: number }> = {
+    'host-essential': { kenya: 4500, intl: 60 },
+    'host-business': { kenya: 8500, intl: 120 },
+    'host-pro': { kenya: 15000, intl: 240 },
+    none: { kenya: 0, intl: 0 },
+  };
+  const annualHosting =
+    (HOSTING_ANNUAL[config.hosting] ?? HOSTING_ANNUAL.none)[config.market === 'kenya' ? 'kenya' : 'intl'];
 
   const totalYearOne = totalBuild + annualHosting + (monthlyCare * 12);
 
@@ -121,8 +126,8 @@ function QuoteCalculatorContent() {
 * Extra Pages: ${config.extraPages} (+${currencySymbol} ${extraPagesCost.toLocaleString()})
 * Add-ons: ${config.selectedAddOns.join(', ') || 'None'} (+${currencySymbol} ${addOnsCost.toLocaleString()})
 ${config.rushDelivery ? '* Priority Rush Delivery: YES (+35%)\n' : ''}* Estimated One-Time Build: ${currencySymbol} ${totalBuild.toLocaleString()}
-* Managed Hosting: ${config.hosting} (${currencySymbol} ${annualHosting.toLocaleString()}/yr)
 * Maintenance Care: ${config.care} (${currencySymbol} ${monthlyCare.toLocaleString()}/mo)
+* Hosting: ${config.hosting} (${currencySymbol} ${annualHosting.toLocaleString()}/yr)
 * Total Year 1 Estimate: ${currencySymbol} ${totalYearOne.toLocaleString()}
 
 Please confirm availability and discuss next steps.`;
@@ -160,7 +165,7 @@ Please confirm availability and discuss next steps.`;
           {[
             { num: 1, label: 'Core Package & Pages' },
             { num: 2, label: 'Add-Ons & Integrations' },
-            { num: 3, label: 'Hosting & Care' },
+            { num: 3, label: 'Care & Maintenance' },
           ].map(s => {
             const active = step === s.num;
             const done = step > s.num;
@@ -375,55 +380,22 @@ Please confirm availability and discuss next steps.`;
                     onClick={() => setStep(3)}
                     className="btn-primary text-xs px-6 py-3"
                   >
-                    Next: Hosting & Care <ArrowRight className="w-4 h-4" />
+                    Next: Care & Maintenance <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* STEP 3: Hosting & Care */}
+            {/* STEP 3: Care & Maintenance */}
             {step === 3 && (
               <div className="card p-6 md:p-8 bg-white border border-slate-200 shadow-sm space-y-8">
                 <div>
                   <h2 className="text-xl font-bold text-[#0F172A] mb-1">
-                    3. Managed Cloud Hosting & Ongoing Care
+                    3. Website Care & Ongoing Maintenance
                   </h2>
                   <p className="text-xs text-slate-500 mb-6">
-                    Choose ongoing infrastructure and maintenance plans for your website after launch.
+                    Choose monthly proactive maintenance, software updates, security scanning, and developer support for your website after launch.
                   </p>
-
-                  {/* Hosting options */}
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-                    Managed Cloud Hosting (Annual):
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-                    {[
-                      { id: 'host-essential', name: 'Host Essential', price: config.market === 'kenya' ? 'KSh 4,500/yr' : '$60/yr', desc: 'SSL, DNS, Backups & Uptime Alerts' },
-                      { id: 'host-business', name: 'Host Business', price: config.market === 'kenya' ? 'KSh 8,500/yr' : '$120/yr', desc: 'Priority Resources, Email, WAF & Backups', rec: true },
-                      { id: 'host-pro', name: 'Host Professional', price: config.market === 'kenya' ? 'KSh 15,000/yr' : '$240/yr', desc: 'Staging, High Traffic & Rollback Snapshots' },
-                      { id: 'none', name: 'I have my own hosting', price: 'Free / Self-Managed', desc: 'Deploy to your existing server or cloud' },
-                    ].map(h => (
-                      <button
-                        key={h.id}
-                        type="button"
-                        onClick={() => setConfig(prev => ({ ...prev, hosting: h.id }))}
-                        className={`text-left p-4 rounded-xl border-2 transition-all relative ${
-                          config.hosting === h.id
-                            ? 'border-[#2563EB] bg-blue-50/40'
-                            : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        {h.rec && (
-                          <span className="absolute -top-2.5 right-3 bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            Recommended
-                          </span>
-                        )}
-                        <div className="font-bold text-sm text-[#0F172A]">{h.name}</div>
-                        <div className="text-xs text-slate-500 mb-1">{h.desc}</div>
-                        <div className="text-sm font-extrabold text-[#2563EB]">{h.price}</div>
-                      </button>
-                    ))}
-                  </div>
 
                   {/* Monthly Care options */}
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
@@ -534,12 +506,6 @@ Please confirm availability and discuss next steps.`;
                   Recurring Services:
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Hosting</span>
-                  <span className="font-semibold text-[#0F172A]">
-                    {annualHosting > 0 ? `${currencySymbol} ${annualHosting.toLocaleString()}/yr` : 'Self-hosted'}
-                  </span>
-                </div>
-                <div className="flex justify-between text-slate-600">
                   <span>Care Maintenance</span>
                   <span className="font-semibold text-[#0F172A]">
                     {monthlyCare > 0 ? `${currencySymbol} ${monthlyCare.toLocaleString()}/mo` : 'Warranty only'}
@@ -556,7 +522,7 @@ Please confirm availability and discuss next steps.`;
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Includes one-time build + 12 months hosting & care
+                  {monthlyCare > 0 ? 'Includes one-time build + 12 months ongoing care' : 'Includes one-time build + included defect warranty'}
                 </p>
               </div>
 

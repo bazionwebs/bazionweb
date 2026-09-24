@@ -7,7 +7,6 @@ import {
   WEBSITE_PACKAGES,
   ECOMMERCE_PACKAGES,
   CUSTOM_SYSTEM_TIERS,
-  HOSTING_PLANS,
   CARE_PLANS,
 } from '@/lib/pricingData';
 import MarketToggle from '@/components/ui/MarketToggle';
@@ -20,12 +19,11 @@ import {
   Globe,
   ShoppingCart,
   Cpu,
-  Server,
   Wrench,
   HelpCircle,
 } from 'lucide-react';
 
-type TabKey = 'websites' | 'ecommerce' | 'custom' | 'hosting-care' | 'addons';
+type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'addons';
 
 export default function PricingView() {
   const [market, setMarket] = useState<Market>('kenya');
@@ -66,7 +64,7 @@ export default function PricingView() {
               { id: 'websites', label: 'Websites', icon: Globe },
               { id: 'ecommerce', label: 'E-Commerce', icon: ShoppingCart },
               { id: 'custom', label: 'Custom Digital Systems', icon: Cpu },
-              { id: 'hosting-care', label: 'Managed Hosting & Care', icon: Server },
+              { id: 'care', label: 'Website Care & Maintenance', icon: Wrench },
               { id: 'addons', label: 'Add-On Price Card', icon: Wrench },
             ].map(tab => {
               const Icon = tab.icon;
@@ -375,124 +373,63 @@ export default function PricingView() {
             </div>
           )}
 
-          {/* TAB 4: HOSTING & CARE */}
-          {activeTab === 'hosting-care' && (
-            <div className="space-y-16">
-              {/* Part A: Managed Cloud Hosting */}
-              <div className="space-y-8">
-                <div className="text-center max-w-2xl mx-auto">
-                  <span className="text-xs font-bold uppercase tracking-widest text-[#14B8A6] mb-1 block">
-                    Zero Server Stress
-                  </span>
-                  <h2 className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-2">
-                    Managed Cloud Hosting
-                  </h2>
-                  <p className="text-xs md:text-sm text-slate-500">
-                    We do not resell cheap cPanel shared accounts. We manage the infrastructure: configuration, security checks, SSL renewals, automated offsite backups, and uptime monitoring.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {HOSTING_PLANS.map(plan => {
-                    const price = market === 'kenya' ? plan.kenyaPrice : plan.intlPrice;
-                    return (
-                      <div
-                        key={plan.id}
-                        className={`bg-white rounded-2xl border-2 p-6 flex flex-col ${
-                          plan.popular ? 'border-[#2563EB] shadow-md' : 'border-slate-200/80'
-                        }`}
-                      >
-                        {plan.badge && (
-                          <span className="inline-block self-start text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
-                            {plan.badge}
-                          </span>
-                        )}
-                        <h3 className="font-bold text-[#0F172A] text-base mb-1">{plan.name}</h3>
-                        <div className="text-2xl font-black text-[#0F172A] mb-2">{price}</div>
-                        <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
-                          {plan.description}
-                        </p>
-
-                        <div className="mb-6">
-                          <Link
-                            href={`${plan.ctaHref}&market=${market}`}
-                            className={plan.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
-                          >
-                            Select Hosting
-                          </Link>
-                        </div>
-
-                        <div className="space-y-2 border-t border-slate-100 pt-4 flex-1">
-                          {plan.features.map((feat, i) => (
-                            <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                              <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
-                              <span>{feat}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+          {/* TAB 4: WEBSITE CARE & MAINTENANCE */}
+          {activeTab === 'care' && (
+            <div className="space-y-12">
+              <div className="text-center max-w-2xl mx-auto">
+                <span className="text-xs font-bold uppercase tracking-widest text-[#2563EB] mb-1 block">
+                  Recurring Peace of Mind
+                </span>
+                <h2 className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-2">
+                  Website Care & Ongoing Maintenance
+                </h2>
+                <p className="text-xs md:text-sm text-slate-500">
+                  Websites are living software. Our monthly care plans guarantee updates, daily backups, WAF defense, SEO health checks, and included engineering support hours.
+                </p>
               </div>
 
-              {/* Part B: Website Care & Maintenance */}
-              <div className="space-y-8 pt-8 border-t border-slate-200">
-                <div className="text-center max-w-2xl mx-auto">
-                  <span className="text-xs font-bold uppercase tracking-widest text-[#2563EB] mb-1 block">
-                    Recurring Peace of Mind
-                  </span>
-                  <h2 className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-2">
-                    BazionWeb Care & Ongoing Maintenance
-                  </h2>
-                  <p className="text-xs md:text-sm text-slate-500">
-                    Websites are living software. Our monthly care plans guarantee updates, daily backups, WAF defense, SEO health checks, and included engineering support hours.
-                  </p>
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {CARE_PLANS.map(care => {
+                  const price = market === 'kenya' ? care.kenyaPrice : care.intlPrice;
+                  return (
+                    <div
+                      key={care.id}
+                      className={`bg-white rounded-2xl border-2 p-6 flex flex-col ${
+                        care.popular ? 'border-[#2563EB] shadow-md' : 'border-slate-200/80'
+                      }`}
+                    >
+                      {care.badge && (
+                        <span className="inline-block self-start text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
+                          {care.badge}
+                        </span>
+                      )}
+                      <h3 className="font-bold text-[#0F172A] text-base mb-1">{care.name}</h3>
+                      <div className="text-2xl font-black text-[#0F172A] mb-1">{price}</div>
+                      <div className="text-xs font-bold text-[#14B8A6] mb-3">{care.hours}</div>
+                      <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
+                        {care.description}
+                      </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {CARE_PLANS.map(care => {
-                    const price = market === 'kenya' ? care.kenyaPrice : care.intlPrice;
-                    return (
-                      <div
-                        key={care.id}
-                        className={`bg-white rounded-2xl border-2 p-6 flex flex-col ${
-                          care.popular ? 'border-[#2563EB] shadow-md' : 'border-slate-200/80'
-                        }`}
-                      >
-                        {care.badge && (
-                          <span className="inline-block self-start text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
-                            {care.badge}
-                          </span>
-                        )}
-                        <h3 className="font-bold text-[#0F172A] text-base mb-1">{care.name}</h3>
-                        <div className="text-2xl font-black text-[#0F172A] mb-1">{price}</div>
-                        <div className="text-xs font-bold text-[#14B8A6] mb-3">{care.hours}</div>
-                        <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
-                          {care.description}
-                        </p>
-
-                        <div className="mb-6">
-                          <Link
-                            href={`${care.ctaHref}&market=${market}`}
-                            className={care.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
-                          >
-                            Subscribe to Care
-                          </Link>
-                        </div>
-
-                        <div className="space-y-2 border-t border-slate-100 pt-4 flex-1">
-                          {care.features.map((feat, i) => (
-                            <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                              <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
-                              <span>{feat}</span>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="mb-6">
+                        <Link
+                          href={`${care.ctaHref}&market=${market}`}
+                          className={care.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
+                        >
+                          Subscribe to Care
+                        </Link>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="space-y-2 border-t border-slate-100 pt-4 flex-1">
+                        {care.features.map((feat, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                            <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
+                            <span>{feat}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -588,7 +525,7 @@ export default function PricingView() {
             Need an accurate, itemized quotation?
           </h2>
           <p className="text-slate-300 text-sm md:text-base mb-8 leading-relaxed">
-            Use our interactive quote calculator to configure your exact page count, add-ons, and hosting tier, or book a free discovery consultation with our engineers.
+            Use our interactive quote calculator to configure your exact page count, add-ons, and care plan, or book a free discovery consultation with our engineers.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href={`/quote?market=${market}`} className="btn-primary px-8 py-3.5 text-sm">
