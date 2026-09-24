@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   MessageSquare,
   ShieldCheck,
+  UserPlus,
 } from 'lucide-react';
 
 interface QuoteConfig {
@@ -440,22 +441,47 @@ Please confirm availability and discuss next steps.`;
                   </div>
                 </div>
 
-                <div className="flex justify-between pt-6 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    className="btn-secondary text-xs px-5 py-2.5 flex items-center gap-2"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" /> Back
-                  </button>
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary text-xs px-6 py-3 flex items-center gap-2 bg-[#22C55E] hover:bg-[#16A34A]"
-                  >
-                    <MessageSquare className="w-4 h-4" /> Send to WhatsApp
-                  </a>
+                <div className="space-y-3 pt-6 border-t border-slate-200">
+                  {/* Primary CTA: Get Started */}
+                  {config.care !== 'none' && (
+                    <div className="rounded-2xl bg-gradient-to-br from-[#2563EB] to-indigo-700 p-5 text-white">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Ready to activate?</p>
+                          <h3 className="text-base font-extrabold mt-0.5">Create your account &amp; subscribe</h3>
+                          <p className="text-xs text-blue-200 mt-1">
+                            Account first — pay from your dashboard. No commitment until you confirm.
+                          </p>
+                        </div>
+                        <UserPlus className="w-8 h-8 text-blue-300 shrink-0 ml-2" />
+                      </div>
+                      <Link
+                        href={`/portal/register?plan=${config.care}`}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white text-[#2563EB] text-sm font-extrabold hover:bg-blue-50 transition-colors shadow"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Get Started — Create Account
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="btn-secondary text-xs px-5 py-2.5 flex items-center gap-2"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" /> Back
+                    </button>
+                    <a
+                      href={whatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary text-xs px-6 py-3 flex items-center gap-2 bg-[#22C55E] hover:bg-[#16A34A]"
+                    >
+                      <MessageSquare className="w-4 h-4" /> Send to WhatsApp
+                    </a>
+                  </div>
                 </div>
               </div>
             )}
@@ -537,6 +563,24 @@ Please confirm availability and discuss next steps.`;
 
               {/* Action Buttons */}
               <div className="space-y-2 mt-6">
+                {/* Get Started CTA — visible when a care plan is chosen */}
+                {config.care !== 'none' ? (
+                  <Link
+                    href={`/portal/register?plan=${config.care}`}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm"
+                  >
+                    <UserPlus className="w-4 h-4" /> Get Started — Create Account
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                ) : (
+                  <Link
+                    href="/pricing#care"
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm"
+                  >
+                    <UserPlus className="w-4 h-4" /> Choose a Care Plan to Subscribe
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
                 <a
                   href={whatsappHref}
                   target="_blank"
@@ -547,7 +591,7 @@ Please confirm availability and discuss next steps.`;
                 </a>
                 <Link
                   href={`/contact?source=quote-calculator&package=${config.packageType}`}
-                  className="btn-primary w-full justify-center text-xs py-3"
+                  className="btn-secondary w-full justify-center text-xs py-3"
                 >
                   Book Free Consultation <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
