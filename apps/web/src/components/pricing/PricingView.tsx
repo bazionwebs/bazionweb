@@ -3,13 +3,14 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  Market,
   WEBSITE_PACKAGES,
   ECOMMERCE_PACKAGES,
   CUSTOM_SYSTEM_TIERS,
   CARE_PLANS,
 } from '@/lib/pricingData';
 import MarketToggle from '@/components/ui/MarketToggle';
+import MarketSuggestBanner from '@/components/pricing/MarketSuggestBanner';
+import { useMarketPreference } from '@/hooks/useMarketPreference';
 import AddonPriceCard from '@/components/pricing/AddonPriceCard';
 import PricingPrinciplesSection from '@/components/pricing/PricingPrinciplesSection';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -26,7 +27,7 @@ import {
 type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'addons';
 
 export default function PricingView() {
-  const [market, setMarket] = useState<Market>('kenya');
+  const { market, setMarket, suggestKenya } = useMarketPreference();
   const [activeTab, setActiveTab] = useState<TabKey>('websites');
 
   return (
@@ -53,6 +54,11 @@ export default function PricingView() {
 
           {/* Interactive Market Switcher */}
           <MarketToggle currentMarket={market} onChange={setMarket} className="mb-6" />
+          <MarketSuggestBanner
+            visible={suggestKenya}
+            onSelect={setMarket}
+            onDismiss={() => setMarket(market)}
+          />
         </div>
       </section>
 

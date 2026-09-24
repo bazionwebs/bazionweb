@@ -1,17 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { Market, WEBSITE_PACKAGES } from '@/lib/pricingData';
+import { WEBSITE_PACKAGES } from '@/lib/pricingData';
 import MarketToggle from '@/components/ui/MarketToggle';
+import MarketSuggestBanner from '@/components/pricing/MarketSuggestBanner';
+import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { Check, ArrowRight, ChevronRight } from 'lucide-react';
 
 export default function HomepagePricingPreview() {
-  const [market, setMarket] = useState<Market>('kenya');
+  const { market, setMarket, suggestKenya } = useMarketPreference();
 
   return (
     <div className="space-y-10">
       <MarketToggle currentMarket={market} onChange={setMarket} className="mb-4" />
+      <MarketSuggestBanner
+        visible={suggestKenya}
+        onSelect={setMarket}
+        onDismiss={() => setMarket(market)}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
         {WEBSITE_PACKAGES.slice(0, 3).map(pkg => {

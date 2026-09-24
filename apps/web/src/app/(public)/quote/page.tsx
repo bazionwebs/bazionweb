@@ -8,6 +8,7 @@ import {
   ADD_ON_RATE_CARD,
 } from '@/lib/pricingData';
 import MarketToggle from '@/components/ui/MarketToggle';
+import { readStoredMarket, detectMarket, MARKET_STORAGE_KEY } from '@/hooks/useMarketPreference';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import {
   Check,
@@ -42,7 +43,7 @@ function QuoteCalculatorContent() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [config, setConfig] = useState<QuoteConfig>({
-    market: (searchParams.get('market') === 'international' ? 'international' : 'kenya'),
+    market: (searchParams.get('market') === 'kenya' ? 'kenya' : 'international'),
     packageType: (searchParams.get('package') as QuoteConfig['packageType']) || 'business',
     extraPages: 0,
     selectedAddOns: [],
@@ -70,6 +71,21 @@ function QuoteCalculatorContent() {
       }));
     }
   }, [searchParams]);
+
+  // Returning visitors: stored market wins unless a deep-link ?market= is present.
+  // New visitors: East-African timezones start on Kenya pricing (same URL, no redirect).
+  useEffect(() => {
+    if (searchParams.get('market')) return;
+    const stored = readStoredMarket();
+    if (stored) {
+      setConfig(prev => (prev.market === stored ? prev : { ...prev, market: stored }));
+      return;
+    }
+    if (detectMarket() === 'kenya') {
+      setConfig(prev => (prev.market === 'kenya' ? prev : { ...prev, market: 'kenya' }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const currencySymbol = config.market === 'kenya' ? 'KSh' : '$';
   const pkgInfo = PACKAGE_DEFAULTS[config.packageType] || PACKAGE_DEFAULTS.business;
@@ -153,7 +169,10 @@ Please confirm availability and discuss next steps.`;
 
           <MarketToggle
             currentMarket={config.market}
-            onChange={m => setConfig(prev => ({ ...prev, market: m }))}
+            onChange={m => {
+              try { window.localStorage.setItem(MARKET_STORAGE_KEY, m); } catch { /* preference won't persist */ }
+              setConfig(prev => ({ ...prev, market: m }));
+            }}
             className="items-start"
           />
         </div>
