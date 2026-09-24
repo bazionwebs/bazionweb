@@ -7,8 +7,7 @@ import {
   Market,
   ADD_ON_RATE_CARD,
 } from '@/lib/pricingData';
-import MarketToggle from '@/components/ui/MarketToggle';
-import { readStoredMarket, detectMarket, MARKET_STORAGE_KEY } from '@/hooks/useMarketPreference';
+import { readStoredMarket, detectMarket, setMarketCookie, MARKET_STORAGE_KEY } from '@/hooks/useMarketPreference';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import {
   Check,
@@ -167,14 +166,28 @@ Please confirm availability and discuss next steps.`;
             Itemized transparency with zero hidden markups.
           </p>
 
-          <MarketToggle
-            currentMarket={config.market}
-            onChange={m => {
-              try { window.localStorage.setItem(MARKET_STORAGE_KEY, m); } catch { /* preference won't persist */ }
-              setConfig(prev => ({ ...prev, market: m }));
-            }}
-            className="items-start"
-          />
+          <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-xs text-slate-300">
+            <span>
+              Estimating in <strong className="text-white">{config.market === 'kenya' ? 'KES (Kenya / M-Pesa)' : 'USD (Global / Card)'}</strong>
+            </span>
+            <span className="text-slate-500">·</span>
+            <button
+              type="button"
+              onClick={() => {
+                const next = config.market === 'kenya' ? 'international' : 'kenya';
+                setMarketCookie(next);
+                try {
+                  window.localStorage.setItem(MARKET_STORAGE_KEY, next);
+                } catch {
+                  /* ignore */
+                }
+                setConfig(prev => ({ ...prev, market: next }));
+              }}
+              className="text-slate-400 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
+            >
+              Switch to {config.market === 'kenya' ? 'USD' : 'KES'}
+            </button>
+          </div>
         </div>
       </div>
 

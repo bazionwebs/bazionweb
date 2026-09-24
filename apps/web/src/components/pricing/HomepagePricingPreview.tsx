@@ -3,23 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { WEBSITE_PACKAGES } from '@/lib/pricingData';
-import MarketToggle from '@/components/ui/MarketToggle';
-import MarketSuggestBanner from '@/components/pricing/MarketSuggestBanner';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { Check, ArrowRight, ChevronRight } from 'lucide-react';
 
 export default function HomepagePricingPreview() {
-  const { market, setMarket, suggestKenya } = useMarketPreference();
+  const { market } = useMarketPreference();
 
   return (
     <div className="space-y-10">
-      <MarketToggle currentMarket={market} onChange={setMarket} className="mb-4" />
-      <MarketSuggestBanner
-        visible={suggestKenya}
-        onSelect={setMarket}
-        onDismiss={() => setMarket(market)}
-      />
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
         {WEBSITE_PACKAGES.slice(0, 3).map(pkg => {
           const price = market === 'kenya' ? pkg.kenyaPrice : pkg.intlPrice;
@@ -34,9 +25,11 @@ export default function HomepagePricingPreview() {
             >
               {pkg.badge && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap z-10">
-                  <span className={`inline-block whitespace-nowrap text-[10px] font-extrabold px-3.5 py-1 rounded-full uppercase tracking-wider shadow-xs ${
-                    pkg.popular ? 'bg-[#2563EB] text-white' : 'bg-[#0F172A] text-white'
-                  }`}>
+                  <span
+                    className={`inline-block whitespace-nowrap text-[10px] font-extrabold px-3.5 py-1 rounded-full uppercase tracking-wider shadow-xs ${
+                      pkg.popular ? 'bg-[#2563EB] text-white' : 'bg-[#0F172A] text-white'
+                    }`}
+                  >
                     {pkg.badge}
                   </span>
                 </div>
@@ -57,8 +50,12 @@ export default function HomepagePricingPreview() {
               {/* Primary Action Button (Positioned above pages line) */}
               <div className="mb-6">
                 <Link
-                  href={`/quote?package=${pkg.id}&market=${market}`}
-                  className={pkg.popular ? 'btn-primary w-full justify-center text-xs py-2.5 shadow-sm' : 'btn-secondary w-full justify-center text-xs py-2.5'}
+                  href={`/quote?package=${pkg.id}`}
+                  className={
+                    pkg.popular
+                      ? 'btn-primary w-full justify-center text-xs py-2.5 shadow-sm'
+                      : 'btn-secondary w-full justify-center text-xs py-2.5'
+                  }
                 >
                   {pkg.ctaText}
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -95,7 +92,7 @@ export default function HomepagePricingPreview() {
 
       <div className="text-center pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
         <Link
-          href={`/pricing?market=${market}`}
+          href="/pricing"
           className="text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] inline-flex items-center gap-1"
         >
           View all packages (including E-Commerce, Custom Systems & Care Plans)
@@ -103,7 +100,7 @@ export default function HomepagePricingPreview() {
         </Link>
         <span className="hidden sm:inline text-slate-300">·</span>
         <Link
-          href={`/quote?market=${market}`}
+          href="/quote"
           className="text-sm font-semibold text-slate-600 hover:text-[#0F172A] inline-flex items-center gap-1"
         >
           Open Quote Calculator <ArrowRight className="w-3.5 h-3.5" />

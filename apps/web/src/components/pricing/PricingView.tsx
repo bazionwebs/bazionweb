@@ -8,8 +8,6 @@ import {
   CUSTOM_SYSTEM_TIERS,
   CARE_PLANS,
 } from '@/lib/pricingData';
-import MarketToggle from '@/components/ui/MarketToggle';
-import MarketSuggestBanner from '@/components/pricing/MarketSuggestBanner';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import AddonPriceCard from '@/components/pricing/AddonPriceCard';
 import PricingPrinciplesSection from '@/components/pricing/PricingPrinciplesSection';
@@ -27,7 +25,7 @@ import {
 type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'addons';
 
 export default function PricingView() {
-  const { market, setMarket, suggestKenya } = useMarketPreference();
+  const { market, setMarket } = useMarketPreference();
   const [activeTab, setActiveTab] = useState<TabKey>('websites');
 
   return (
@@ -44,21 +42,12 @@ export default function PricingView() {
           </span>
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 tracking-tight">
-            Transparent pricing, tailored to your market
+            Transparent engineering pricing
           </h1>
 
-          <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Accessible professional development in Kenya and dedicated engineering partnerships globally.
-            Every quotation backed by transparent scope, client ownership, and post-launch warranties.
+          <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto mb-6 leading-relaxed">
+            Every project quotation is backed by verified client ownership, itemized deliverables, and post-launch warranties.
           </p>
-
-          {/* Interactive Market Switcher */}
-          <MarketToggle currentMarket={market} onChange={setMarket} className="mb-6" />
-          <MarketSuggestBanner
-            visible={suggestKenya}
-            onSelect={setMarket}
-            onDismiss={() => setMarket(market)}
-          />
         </div>
       </section>
 
@@ -544,6 +533,21 @@ export default function PricingView() {
             >
               Speak to a Consultant
             </Link>
+          </div>
+
+          {/* Discreet Billing Currency Preference */}
+          <div className="mt-12 pt-6 border-t border-white/10 text-xs text-slate-400 flex flex-wrap items-center justify-center gap-2">
+            <span>
+              Prices shown in <strong className="text-slate-200">{market === 'kenya' ? 'KES (Kenyan Shillings)' : 'USD (United States Dollar)'}</strong>
+            </span>
+            <span className="text-slate-600">·</span>
+            <button
+              type="button"
+              onClick={() => setMarket(market === 'kenya' ? 'international' : 'kenya')}
+              className="text-slate-400 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
+            >
+              Switch to {market === 'kenya' ? 'USD billing' : 'KES billing'}
+            </button>
           </div>
         </div>
       </section>
