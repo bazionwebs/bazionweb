@@ -41,8 +41,8 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
     priceMonthlyKes: 3800,
     priceAnnualUsd: 290,
     priceAnnualKes: 38000,
-    description: 'Hosting, SSL, daily backups, and monitoring. Everything to stay online reliably.',
-    features: ['Managed Cloud Hosting', 'Auto SSL Certificates', 'Daily Automated Backups', '99.9% SLA Guarantee', 'Email Support'],
+    description: 'SSL, daily backups, and continuous monitoring. Everything to stay online reliably.',
+    features: ['Cloud Deployment Configuration', 'Auto SSL Certificates', 'Daily Automated Backups', 'Continuous Uptime Checks', 'Email Support'],
   },
   growth: {
     id: '22222222-2222-2222-2222-222222222222',
@@ -53,7 +53,7 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
     priceAnnualUsd: 590,
     priceAnnualKes: 77000,
     description: 'Adds full maintenance, WAF security management, and priority response to your stack.',
-    features: ['Everything in Starter', 'Monthly Core & Plugin Updates', 'Web Application Firewall (WAF)', 'Malware Scanning & Cleanup', '30-Minute P1 Response SLA'],
+    features: ['Everything in Starter', 'Monthly Core & Plugin Updates', 'Web Application Firewall (WAF)', 'Malware Scanning & Cleanup', '30-Minute P1 Response Support'],
   },
   business: {
     id: '33333333-3333-3333-3333-333333333333',
@@ -64,7 +64,7 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
     priceAnnualUsd: 1190,
     priceAnnualKes: 155000,
     description: 'Complete lifecycle management. Performance optimization, unlimited updates, strategy calls.',
-    features: ['Everything in Growth', 'Unlimited Minor Content Updates', 'Core Web Vitals Optimization', 'Staging Environment Setup', '15-Minute P1 Response SLA'],
+    features: ['Everything in Growth', 'Unlimited Minor Content Updates', 'Core Web Vitals Optimization', 'Staging Environment Setup', '15-Minute P1 Response Support'],
   },
   enterprise: {
     id: '44444444-4444-4444-4444-444444444444',
@@ -74,8 +74,8 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
     priceMonthlyKes: 39000,
     priceAnnualUsd: 2990,
     priceAnnualKes: 390000,
-    description: 'Custom SLA, dedicated account manager, quarterly business reviews and penetration testing.',
-    features: ['Dedicated Technical Account Manager', 'Custom 99.99% Uptime SLA', 'Quarterly Security Penetration Tests', 'Annual Disaster Recovery Drills', '5-Minute Urgent Escalation'],
+    description: 'Custom coverage, dedicated account manager, quarterly reviews and security testing.',
+    features: ['Dedicated Technical Account Manager', 'Priority High-Availability Monitoring', 'Quarterly Security Reviews', 'Annual Disaster Recovery Drills', 'Fast Urgent Escalation'],
   },
 };
 

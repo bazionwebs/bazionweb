@@ -29,7 +29,7 @@ const studies: Study[] = [
     plan: 'Business',
     challenge: 'A 6-site healthcare network with slow pages, three different hosting providers, no unified monitoring, and SSL certificates expiring without warning.',
     results: [
-      { icon: TrendingUp, metric: '99.98%', label: 'Uptime achieved' },
+      { icon: TrendingUp, metric: '3.7×', label: 'Speed improvement' },
       { icon: Zap, metric: '97', label: 'Lighthouse score' },
       { icon: Clock, metric: '<15 min', label: 'P1 response time' },
       { icon: Shield, metric: '0', label: 'Security incidents' },
@@ -66,7 +66,7 @@ const studies: Study[] = [
       { icon: Zap, metric: '8s → 1.3s', label: 'Mobile load time' },
       { icon: TrendingUp, metric: '220%', label: 'Increase in donor conversions' },
       { icon: Shield, metric: 'A+', label: 'SSL Labs rating' },
-      { icon: Clock, metric: '99.9%', label: 'Uptime guaranteed' },
+      { icon: Clock, metric: '24/7', label: 'Availability monitoring' },
     ],
     quote: 'Our donation page finally works reliably. Within 30 days we had our best fundraising month ever.',
     quoteName: 'Amara N.',

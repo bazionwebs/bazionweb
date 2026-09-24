@@ -10,7 +10,7 @@ describe('Footer', () => {
   it('should render services links', () => {
     render(<Footer />);
     expect(screen.getByText('Services')).toBeInTheDocument();
-    expect(screen.getByText('Managed Hosting')).toBeInTheDocument();
+    expect(screen.getByText('Custom Systems & Portals')).toBeInTheDocument();
   });
 
   it('should render company links', () => {

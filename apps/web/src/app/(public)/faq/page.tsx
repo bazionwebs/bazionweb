@@ -46,8 +46,8 @@ const faqs: FaqItem[] = [
     a: 'Critical (P1) incidents get responses from 5 to 60 minutes depending on your plan, 24/7. Lower-priority tickets follow published SLA windows from 2 hours to 2 business days.',
   },
   {
-    q: 'Do you handle hosting, backups, and security too?',
-    a: 'Yes — that is the point of managed services. Hosting with 99.95% uptime SLA, daily encrypted backups, SSL management, WAF, and malware scanning are included in the relevant plans.',
+    q: 'Do you handle cloud deployment, backups, and security too?',
+    a: 'Yes — that is the core of our care services. We configure your cloud deployment on high-performance rented cloud platforms, handle daily encrypted backups, SSL management, WAF, malware scanning, and proactive updates in our care plans.',
   },
   {
     q: 'What does onboarding look like?',
@@ -59,7 +59,7 @@ const faqs: FaqItem[] = [
   },
   {
     q: 'How do I track what you are doing each month?',
-    a: 'Every plan includes a monthly report: updates applied, security scans, backups verified, uptime stats, and content changes — plus a client portal with tickets, invoices, and project tracking.',
+    a: 'Every care plan includes a monthly report: updates applied, security scans, backups verified, performance checks, and content changes — plus a client portal with tickets, invoices, and project tracking.',
   },
   {
     q: 'What happens if my website gets hacked?',

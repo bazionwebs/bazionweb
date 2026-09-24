@@ -19,7 +19,7 @@ const values = [
   {
     icon: TrendingUp,
     name: 'Reliability-first',
-    desc: '99.95% uptime is a promise in our SLA, not a marketing phrase. We monitor everything, 24/7.',
+    desc: 'Continuous monitoring, proactive updates, and robust cloud configurations keep your digital systems dependable and responsive 24/7.',
   },
   {
     icon: Users,
@@ -38,7 +38,7 @@ const milestones = [
   { year: 'Q1 2025', event: 'MVP platform launched — first 10 clients onboarded' },
   { year: 'Q2 2025', event: 'Reached 30 managed websites worldwide' },
   { year: 'Q3 2025', event: 'Launched security management and performance optimization tiers' },
-  { year: 'Q4 2025', event: 'Scaling toward 100-client milestone on Hetzner infrastructure' },
+  { year: 'Q4 2025', event: 'Scaling client operations and expanding website care and maintenance plans' },
 ];
 
 const team = [
@@ -108,7 +108,7 @@ export default function AboutPage() {
                 To provide enterprise-grade website lifecycle management for small and medium enterprises through transparent pricing, exceptional support, and complete lifecycle ownership.
               </p>
               <p className="text-slate-500 leading-relaxed">
-                That means a single provider who builds your site, hosts it, secures it, maintains it, and supports you when something goes wrong — on one predictable monthly invoice.
+                That means a single provider who builds your site, secures it, maintains it, and supports you when something goes wrong — on one predictable invoice.
               </p>
             </div>
             <div>
