@@ -7,7 +7,7 @@ import {
   Market,
   ADD_ON_RATE_CARD,
 } from '@/lib/pricingData';
-import { readStoredMarket, detectMarket, setMarketCookie, MARKET_STORAGE_KEY } from '@/hooks/useMarketPreference';
+import { readStoredMarket, detectMarket } from '@/hooks/useMarketPreference';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import {
   Check,
@@ -161,33 +161,10 @@ Please confirm availability and discuss next steps.`;
           <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
             Build your custom project estimate
           </h1>
-          <p className="text-slate-300 text-sm md:text-base max-w-2xl leading-relaxed mb-6">
+          <p className="text-slate-300 text-sm md:text-base max-w-2xl leading-relaxed mb-4">
             Configure your website tier, extra pages, payment integrations, and managed care plans.
             Itemized transparency with zero hidden markups.
           </p>
-
-          <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-xs text-slate-300">
-            <span>
-              Estimating in <strong className="text-white">{config.market === 'kenya' ? 'KES (Kenya / M-Pesa)' : 'USD (Global / Card)'}</strong>
-            </span>
-            <span className="text-slate-500">·</span>
-            <button
-              type="button"
-              onClick={() => {
-                const next = config.market === 'kenya' ? 'international' : 'kenya';
-                setMarketCookie(next);
-                try {
-                  window.localStorage.setItem(MARKET_STORAGE_KEY, next);
-                } catch {
-                  /* ignore */
-                }
-                setConfig(prev => ({ ...prev, market: next }));
-              }}
-              className="text-slate-400 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
-            >
-              Switch to {config.market === 'kenya' ? 'USD' : 'KES'}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -569,7 +546,7 @@ Please confirm availability and discuss next steps.`;
                   <MessageSquare className="w-4 h-4" /> Send Quote to WhatsApp
                 </a>
                 <Link
-                  href={`/contact?source=quote-calculator&market=${config.market}&package=${config.packageType}`}
+                  href={`/contact?source=quote-calculator&package=${config.packageType}`}
                   className="btn-primary w-full justify-center text-xs py-3"
                 >
                   Book Free Consultation <ArrowRight className="w-3.5 h-3.5" />

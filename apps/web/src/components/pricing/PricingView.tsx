@@ -25,7 +25,7 @@ import {
 type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'addons';
 
 export default function PricingView() {
-  const { market, setMarket } = useMarketPreference();
+  const { market } = useMarketPreference();
   const [activeTab, setActiveTab] = useState<TabKey>('websites');
 
   return (
@@ -135,7 +135,7 @@ export default function PricingView() {
                       {/* Primary Action Button (Positioned above pages line) */}
                       <div className="mb-6">
                         <Link
-                          href={`${pkg.ctaHref}&market=${market}`}
+                          href={pkg.ctaHref}
                           className={pkg.popular ? 'btn-primary w-full justify-center text-xs py-2.5 shadow-sm' : 'btn-secondary w-full justify-center text-xs py-2.5'}
                         >
                           {pkg.ctaText}
@@ -231,7 +231,7 @@ export default function PricingView() {
                       {/* Primary Action Button (Positioned above scale line) */}
                       <div className="mb-6">
                         <Link
-                          href={`${pkg.ctaHref}&market=${market}`}
+                          href={pkg.ctaHref}
                           className={pkg.popular ? 'btn-primary w-full justify-center text-xs py-2.5 shadow-sm' : 'btn-secondary w-full justify-center text-xs py-2.5'}
                         >
                           {pkg.ctaText}
@@ -309,7 +309,7 @@ export default function PricingView() {
                       *100% credited toward development
                     </div>
                     <Link
-                      href={`/contact?service=discovery&market=${market}`}
+                      href="/contact?service=discovery"
                       className="btn-primary text-xs px-6 py-2.5 w-full justify-center"
                     >
                       Book Discovery Session
@@ -355,7 +355,7 @@ export default function PricingView() {
                           Individually scoped & quoted
                         </span>
                         <Link
-                          href={`/contact?service=custom-systems&tier=${encodeURIComponent(tier.category)}&market=${market}`}
+                          href={`/contact?service=custom-systems&tier=${encodeURIComponent(tier.category)}`}
                           className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2563EB] hover:text-blue-800"
                         >
                           Request Scope Call <ArrowRight className="w-3.5 h-3.5" />
@@ -407,7 +407,7 @@ export default function PricingView() {
 
                       <div className="mb-6">
                         <Link
-                          href={`${care.ctaHref}&market=${market}`}
+                          href={care.ctaHref}
                           className={care.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
                         >
                           Subscribe to Care
@@ -523,31 +523,16 @@ export default function PricingView() {
             Use our interactive quote calculator to configure your exact page count, add-ons, and care plan, or book a free discovery consultation with our engineers.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href={`/quote?market=${market}`} className="btn-primary px-8 py-3.5 text-sm">
+            <Link href="/quote" className="btn-primary px-8 py-3.5 text-sm">
               Open Interactive Quote Calculator
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
-              href={`/contact?market=${market}`}
+              href="/contact"
               className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl border border-white/20 text-white font-semibold hover:bg-white/10 transition-colors text-sm"
             >
               Speak to a Consultant
             </Link>
-          </div>
-
-          {/* Discreet Billing Currency Preference */}
-          <div className="mt-12 pt-6 border-t border-white/10 text-xs text-slate-400 flex flex-wrap items-center justify-center gap-2">
-            <span>
-              Prices shown in <strong className="text-slate-200">{market === 'kenya' ? 'KES (Kenyan Shillings)' : 'USD (United States Dollar)'}</strong>
-            </span>
-            <span className="text-slate-600">·</span>
-            <button
-              type="button"
-              onClick={() => setMarket(market === 'kenya' ? 'international' : 'kenya')}
-              className="text-slate-400 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
-            >
-              Switch to {market === 'kenya' ? 'USD billing' : 'KES billing'}
-            </button>
           </div>
         </div>
       </section>

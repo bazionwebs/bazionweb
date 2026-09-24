@@ -69,7 +69,7 @@ export default function AddonPriceCard({ market }: AddonPriceCardProps) {
                   {item.category}
                 </span>
                 <Link
-                  href={`/quote?addon=${item.id}&market=${market}`}
+                  href={`/quote?addon=${item.id}`}
                   className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB] hover:text-blue-800 transition-colors"
                 >
                   Configure in Quote <ArrowRight className="w-3.5 h-3.5" />
@@ -110,7 +110,7 @@ export default function AddonPriceCard({ market }: AddonPriceCardProps) {
           </div>
           <p className="text-[11px] text-slate-400 mb-3">Billed per engineer hour with live time logs</p>
           <Link
-            href={`/contact?service=hourly-support&market=${market}`}
+            href="/contact?service=hourly-support"
             className="btn-primary text-xs px-5 py-2.5 w-full md:w-auto justify-center"
           >
             Request Support Hours

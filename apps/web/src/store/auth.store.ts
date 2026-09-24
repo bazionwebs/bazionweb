@@ -8,6 +8,10 @@ export interface AuthUser {
   lastName: string;
   roles: string[];
   keycloakId: string;
+  company?: string;
+  phone?: string;
+  website?: string;
+  subscriptionStatus?: 'ACTIVE' | 'PENDING' | 'NONE';
 }
 
 interface AuthState {
@@ -15,10 +19,12 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   expiresAt: number | null;   // Unix ms
+  pendingPlan: string | null; // plan slug selected during registration
 
   // Actions
   setSession: (user: AuthUser, accessToken: string, refreshToken: string, expiresIn: number) => void;
   clearSession: () => void;
+  setPendingPlan: (planSlug: string | null) => void;
   isAuthenticated: () => boolean;
   hasRole: (role: string) => boolean;
   isTokenExpired: () => boolean;
@@ -31,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
       accessToken:  null,
       refreshToken: null,
       expiresAt:    null,
+      pendingPlan:  null,
 
       setSession: (user, accessToken, refreshToken, expiresIn) => {
         set({
@@ -42,7 +49,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       clearSession: () => {
-        set({ user: null, accessToken: null, refreshToken: null, expiresAt: null });
+        set({ user: null, accessToken: null, refreshToken: null, expiresAt: null, pendingPlan: null });
+      },
+
+      setPendingPlan: (planSlug) => {
+        set({ pendingPlan: planSlug });
       },
 
       isAuthenticated: () => {
@@ -70,7 +81,9 @@ export const useAuthStore = create<AuthState>()(
         accessToken:  state.accessToken,
         refreshToken: state.refreshToken,
         expiresAt:    state.expiresAt,
+        pendingPlan:  state.pendingPlan,
       }),
     },
   ),
 );
+

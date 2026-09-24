@@ -317,7 +317,7 @@ export const CARE_PLANS: CarePlan[] = [
       '1 hour allocated for content edits or support',
       'Monthly digital health summary report',
     ],
-    ctaHref: '/checkout?plan=care-essential',
+    ctaHref: '/portal/register?plan=care-essential',
   },
   {
     id: 'care-business',
@@ -339,7 +339,7 @@ export const CARE_PLANS: CarePlan[] = [
       'Up to 2 support hours for content & enhancements',
       'Same-day priority support response',
     ],
-    ctaHref: '/checkout?plan=care-business',
+    ctaHref: '/portal/register?plan=care-business',
   },
   {
     id: 'care-professional',
@@ -360,7 +360,7 @@ export const CARE_PLANS: CarePlan[] = [
       'Quarterly digital strategy & performance call',
       'Priority emergency response channel (WhatsApp & phone)',
     ],
-    ctaHref: '/checkout?plan=care-professional',
+    ctaHref: '/portal/register?plan=care-professional',
   },
   {
     id: 'care-enterprise',
