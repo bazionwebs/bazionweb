@@ -6,9 +6,9 @@ import JsonLd from '@/components/seo/JsonLd';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'FAQ',
+  title: 'Frequently Asked Questions (FAQ) | BazionWeb',
   description:
-    'Answers about managed website services: timelines, ownership, pricing, SEO guarantees, support response times, and cancellation.',
+    'Clear answers about BazionWeb web development, e-commerce, custom systems, timelines, pricing, code ownership, M-Pesa integration, and care plans.',
   alternates: { canonical: 'https://bazionweb.com/faq' },
 };
 

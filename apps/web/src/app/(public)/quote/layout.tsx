@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Instant Quote Calculator',
+  title: 'Instant Website & Systems Quote Calculator',
   description:
-    'Calculate your instant website development, managed cloud hosting, maintenance, and security quote with BazionWeb.',
+    'Calculate your instant website development, e-commerce store, custom software, and monthly care plan estimate with BazionWeb.',
   alternates: { canonical: 'https://bazionweb.com/quote' },
 };
 

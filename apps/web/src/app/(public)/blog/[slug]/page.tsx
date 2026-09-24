@@ -134,6 +134,44 @@ After auditing dozens of business websites, the highest-ROI fixes are almost alw
 None of these require a full rebuild. They require someone who knows what they're doing to implement them correctly.
     `.trim(),
   },
+  'ssl-certificate-management-guide': {
+    title:    'SSL Certificate Management: The Complete Guide for Non-Technical Business Owners',
+    category: 'Security',
+    date:     'May 15, 2025',
+    readTime: '5 min read',
+    tags:     ['Security', 'SSL', 'HTTPS'],
+    excerpt:  'SSL expiry is one of the most avoidable causes of website downtime. Here\'s everything you need to know — without the technical jargon.',
+    content:  `
+Every day, thousands of business websites go dark or display terrifying browser security warnings because of a single overlooked detail: an expired SSL certificate.
+
+When your SSL expires, modern browsers like Google Chrome and Safari don't gently suggest that something might be wrong. They present full-screen, red warnings saying **"Your connection is not private"** or **"Potential Security Risk Ahead"**. For an e-commerce store or corporate brand, this instantly destroys conversion and trust.
+
+## What is an SSL Certificate?
+
+SSL (Secure Sockets Layer), now technically TLS, is a cryptographic protocol that creates an encrypted link between a visitor's web browser and your website's server.
+
+It ensures that sensitive information — credit card details, passwords, contact forms, and client enquiries — cannot be intercepted by eavesdroppers on public Wi-Fi or compromised networks.
+
+## Why Certificates Expire
+
+Certificates are deliberately given short lifespans (currently 90 days for Let's Encrypt certificates, and typically 1 year for commercial paid certificates) to ensure that cryptographic keys are rotated regularly and rogue certificates can be revoked.
+
+The problem isn't the lifespan; it's **manual management**. When businesses rely on someone remembering a calendar reminder 12 months down the road, failure is practically guaranteed.
+
+## How to Guarantee Zero SSL Downtime
+
+To ensure your website never drops its HTTPS lock icon:
+
+1. **Automate Certificate Issuance**: Use ACME protocol bots (such as Let's Encrypt with Certbot or cloud providers) that automatically request and renew certificates 30 days before expiration.
+2. **Dual-Layer CDN Termination**: Employing Cloudflare Universal SSL in front of your origin server provides seamless SSL termination with zero manual certificate swapping.
+3. **Continuous 24/7 Certificate Telemetry**: Automated monitoring tools should check certificate expiration dates every 24 hours and trigger alerts if a renewal hasn't registered 14 days prior to expiration.
+4. **Enforce Strict Transport Security (HSTS)**: Configure HTTP Strict Transport Security headers so browsers never attempt an insecure connection.
+
+## Complete Peace of Mind
+
+At BazionWeb, SSL management is never an optional extra or manual task. Every client site under our care is provisioned with automated renewal, redundant SSL termination, and proactive uptime alerts.
+    `.trim(),
+  },
 };
 
 export async function generateStaticParams() {
@@ -147,7 +185,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     title: post.title,
     description: post.excerpt,
     alternates: { canonical: `https://bazionweb.com/blog/${params.slug}` },
-    openGraph: { title: post.title, description: post.excerpt, type: 'article' },
+    openGraph: {
+      title: post.title,
+      description: post.excerpt,
+      type: 'article',
+      url: `https://bazionweb.com/blog/${params.slug}`,
+      images: [{ url: '/og-image.png', width: 1200, height: 630, alt: post.title }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt,
+      images: ['/og-image.png'],
+    },
   };
 }
 

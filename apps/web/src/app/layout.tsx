@@ -12,23 +12,73 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://bazionweb.com'),
-  title: { default: 'BazionWeb — Build. Host. Grow.', template: '%s | BazionWeb' },
-  description: 'Complete website lifecycle management for growing businesses. Professional web development, managed hosting, security, maintenance & 24/7 support — one provider, one invoice.',
-  keywords: ['managed website hosting','custom website development','website maintenance service','managed web services','website security management','website lifecycle management'],
-  authors: [{ name: 'BazionWeb' }],
+  title: {
+    default: 'BazionWeb — Web Design, Custom Systems & E-Commerce Development',
+    template: '%s | BazionWeb',
+  },
+  description:
+    'Professional web design, custom Next.js development, e-commerce stores with M-Pesa integration, bespoke digital systems, and ongoing website care for businesses in Kenya and worldwide.',
+  keywords: [
+    'web design company Kenya',
+    'website development Nairobi',
+    'custom web application development',
+    'e-commerce website Kenya',
+    'M-Pesa STK push integration',
+    'Next.js web developers Kenya',
+    'website maintenance services',
+    'client portal development',
+    'corporate web design Kenya',
+    'BazionWeb',
+  ],
+  authors: [{ name: 'BazionWeb', url: 'https://bazionweb.com' }],
   creator: 'BazionWeb',
+  publisher: 'BazionWeb',
+  formatDetection: {
+    email: true,
+    address: true,
+    telephone: true,
+  },
   openGraph: {
-    type: 'website', locale: 'en_US', url: 'https://bazionweb.com', siteName: 'BazionWeb',
-    title: 'BazionWeb — Build. Host. Grow.',
-    description: 'Complete website lifecycle management. Development, hosting, maintenance, security & support — one trusted provider.',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'BazionWeb' }],
+    type: 'website',
+    locale: 'en_US',
+    alternateLocale: ['en_GB'],
+    url: 'https://bazionweb.com',
+    siteName: 'BazionWeb',
+    title: 'BazionWeb — Web Design, Custom Systems & E-Commerce Development',
+    description:
+      'Professional web design, custom Next.js development, e-commerce with M-Pesa integration, bespoke portals, and ongoing website care for businesses in Kenya and worldwide.',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'BazionWeb — Websites, E-Commerce & Custom Digital Systems' }],
   },
   twitter: {
-    card: 'summary_large_image', title: 'BazionWeb — Build. Host. Grow.',
-    description: 'Complete website lifecycle management for growing businesses.', images: ['/og-image.png'],
+    card: 'summary_large_image',
+    title: 'BazionWeb — Web Design, Custom Systems & E-Commerce Development',
+    description:
+      'Professional web design, custom Next.js development, e-commerce with M-Pesa, bespoke systems, and ongoing website care.',
+    images: ['/og-image.png'],
+    creator: '@bazionweb',
   },
-  robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large' } },
-  icons: { icon: '/favicon.ico', shortcut: '/favicon-16x16.png', apple: '/apple-touch-icon.png' },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+  },
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
   manifest: '/site.webmanifest',
 };
 

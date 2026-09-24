@@ -4,9 +4,9 @@ import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Our Process',
+  title: 'Our Engineering & Delivery Process',
   description:
-    'How we work: six phases from free assessment to launch and ongoing management — with a clear done-when definition and your approval at every step.',
+    'From initial discovery and wireframing to Next.js development, rigorous QA testing, launch, and proactive care — explore our 6-phase engineering lifecycle.',
   alternates: { canonical: 'https://bazionweb.com/process' },
 };
 

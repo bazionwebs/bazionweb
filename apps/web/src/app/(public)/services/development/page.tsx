@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { Globe, Check, ArrowRight, Code, Figma, Zap, Search, Smartphone, Database } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: 'Website Development',
-  description: 'Custom, responsive websites built on Next.js. Lighthouse 95+ from day one. CMS-integrated, SEO-ready, and built to last.',
+  title: 'Custom Next.js Web Development & Systems',
+  description: 'Custom, responsive websites and web applications engineered on modern Next.js. CMS-integrated, SEO architecture, mobile UX, and high conversion.',
   alternates: { canonical: 'https://bazionweb.com/services/development' },
 };
 
@@ -30,6 +31,21 @@ const process = [
 export default function WebDevPage() {
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Service',
+          name: 'Custom Website Design & Development',
+          description: 'Custom, responsive websites and web applications engineered on modern Next.js. CMS-integrated, mobile-first, SEO-ready, and built to convert visitors into clients.',
+          url: 'https://bazionweb.com/services/development',
+          provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
+          areaServed: ['Kenya', 'Worldwide'],
+          offers: [
+            { '@type': 'Offer', name: 'Launch Website (Kenya)', price: '25000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
+            { '@type': 'Offer', name: 'Launch Website (International)', price: '495', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+          ],
+        }}
+      />
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
           <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: 'Website Development' }]} />

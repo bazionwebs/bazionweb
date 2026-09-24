@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { ArrowRight, Clock } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: 'Blog',
-  description: 'Insights on website management, security, performance, and managed services for growing businesses.',
+  title: 'Engineering Blog & Technical Insights | BazionWeb',
+  description: 'Actionable guides and technical insights on Core Web Vitals, modern Next.js development, e-commerce optimization, SSL security, and managed website services.',
   alternates: { canonical: 'https://bazionweb.com/blog' },
 };
 
@@ -18,6 +19,7 @@ const posts = [
     readTime: '6 min read',
     date: 'June 5, 2025',
     featured: true,
+    published: true,
     tags: ['Managed Services', 'SME', 'Hosting'],
   },
   {
@@ -28,6 +30,7 @@ const posts = [
     readTime: '8 min read',
     date: 'May 28, 2025',
     featured: false,
+    published: true,
     tags: ['Performance', 'SEO', 'Core Web Vitals'],
   },
   {
@@ -38,6 +41,7 @@ const posts = [
     readTime: '5 min read',
     date: 'May 15, 2025',
     featured: false,
+    published: true,
     tags: ['Security', 'SSL', 'Uptime'],
   },
   {
@@ -48,6 +52,7 @@ const posts = [
     readTime: '7 min read',
     date: 'May 2, 2025',
     featured: false,
+    published: false,
     tags: ['Maintenance', 'Checklist', 'Best Practices'],
   },
   {
@@ -58,6 +63,7 @@ const posts = [
     readTime: '5 min read',
     date: 'April 18, 2025',
     featured: false,
+    published: false,
     tags: ['Security', 'WAF', 'Infrastructure'],
   },
   {
@@ -68,17 +74,44 @@ const posts = [
     readTime: '6 min read',
     date: 'April 5, 2025',
     featured: false,
+    published: false,
     tags: ['Managed Services', 'Buying Guide'],
   },
 ];
+
 
 const categories = ['All', 'Managed Services', 'Security', 'Performance', 'Maintenance'];
 
 export default function BlogPage() {
   const [featured, ...rest] = posts;
+  const staticPosts = posts.filter(p =>
+    ['why-smes-need-managed-website-services', 'core-web-vitals-guide-2025', 'ssl-certificate-management-guide'].includes(p.slug)
+  );
 
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Blog',
+          '@id': 'https://bazionweb.com/blog',
+          name: 'BazionWeb Engineering Blog',
+          description: 'Practical guides on website maintenance, security, performance, and managed web services for business owners in Kenya and worldwide.',
+          url: 'https://bazionweb.com/blog',
+          publisher: {
+            '@type': 'Organization',
+            '@id': 'https://bazionweb.com/#organization',
+            name: 'BazionWeb',
+          },
+          blogPost: staticPosts.map(p => ({
+            '@type': 'BlogPosting',
+            headline: p.title,
+            description: p.excerpt,
+            url: `https://bazionweb.com/blog/${p.slug}`,
+            keywords: p.tags.join(', '),
+          })),
+        }}
+      />
       {/* Header */}
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default">
@@ -145,30 +178,50 @@ export default function BlogPage() {
 
           {/* Post grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {rest.map(post => (
-              <Link key={post.slug} href={`/blog/${post.slug}`} className="card-interactive p-6 flex flex-col">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className={`badge ${
-                    post.category === 'Security' ? 'badge-red' :
-                    post.category === 'Performance' ? 'badge-yellow' :
-                    post.category === 'Maintenance' ? 'badge-teal' : 'badge-blue'
-                  }`}>
-                    {post.category}
-                  </span>
+            {rest.map(post =>
+              post.published ? (
+                <Link key={post.slug} href={`/blog/${post.slug}`} className="card-interactive p-6 flex flex-col">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className={`badge ${
+                      post.category === 'Security' ? 'badge-red' :
+                      post.category === 'Performance' ? 'badge-yellow' :
+                      post.category === 'Maintenance' ? 'badge-teal' : 'badge-blue'
+                    }`}>
+                      {post.category}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-[#0F172A] mb-2 leading-snug group-hover:text-[#2563EB] transition-colors">
+                    {post.title}
+                  </h3>
+                  <p className="text-sm text-slate-500 leading-relaxed mb-5 flex-1">{post.excerpt}</p>
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" /> {post.readTime}
+                    </span>
+                    <span>{post.date}</span>
+                  </div>
+                </Link>
+              ) : (
+                <div key={post.slug} className="card p-6 flex flex-col opacity-60">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className={`badge ${
+                      post.category === 'Security' ? 'badge-red' :
+                      post.category === 'Performance' ? 'badge-yellow' :
+                      post.category === 'Maintenance' ? 'badge-teal' : 'badge-blue'
+                    }`}>{post.category}</span>
+                    <span className="badge-slate text-xs">Coming soon</span>
+                  </div>
+                  <h3 className="font-bold text-[#0F172A] mb-2 leading-snug">{post.title}</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed mb-5 flex-1">{post.excerpt}</p>
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {post.readTime}</span>
+                    <span>{post.date}</span>
+                  </div>
                 </div>
-                <h3 className="font-bold text-[#0F172A] mb-2 leading-snug group-hover:text-[#2563EB] transition-colors">
-                  {post.title}
-                </h3>
-                <p className="text-sm text-slate-500 leading-relaxed mb-5 flex-1">{post.excerpt}</p>
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> {post.readTime}
-                  </span>
-                  <span>{post.date}</span>
-                </div>
-              </Link>
-            ))}
+              )
+            )}
           </div>
+
 
           {/* CMS note */}
           <p className="text-center text-xs text-slate-400 mt-10">

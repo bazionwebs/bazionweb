@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { Zap, ArrowRight, TrendingUp, Image, Database, Globe, BarChart2, Server } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: 'Performance Optimization',
-  description: 'Core Web Vitals improvements, Lighthouse 95+ scores, image optimization, CDN tuning. Measurable performance with before/after reports.',
+  title: 'Website Performance & Core Web Vitals Optimization',
+  description: 'Core Web Vitals tuning, Lighthouse 95+ performance optimization, image compression, CDN caching, and database query optimization.',
   alternates: { canonical: 'https://bazionweb.com/services/performance' },
 };
 
@@ -30,9 +31,25 @@ const targets = [
 export default function PerformancePage() {
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Service',
+          name: 'Website Performance & Core Web Vitals Optimization',
+          description: 'Core Web Vitals tuning, Lighthouse 95+ targets, image compression, CDN caching, and database query optimization for faster Google rankings.',
+          url: 'https://bazionweb.com/services/performance',
+          provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
+          areaServed: ['Kenya', 'Worldwide'],
+          offers: [
+            { '@type': 'Offer', name: 'Performance Audit & Fix (Kenya)', price: '15000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
+            { '@type': 'Offer', name: 'Performance Audit & Fix (International)', price: '149', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+          ],
+        }}
+      />
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
           <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: 'Performance Optimization' }]} />
+
           <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center mb-6">
             <Zap className="w-6 h-6 text-yellow-400" />
           </div>

@@ -11,9 +11,9 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Websites, Digital Systems & Managed Technology | BazionWeb',
+  title: 'Web Design, Custom Systems & E-Commerce Development | BazionWeb',
   description:
-    'We design, develop, host and maintain professional digital solutions for businesses, organizations, and institutions worldwide.',
+    'Custom Next.js websites, e-commerce stores with M-Pesa STK Push, bespoke portals, and proactive website care. Engineered for Kenya and international businesses.',
   alternates: { canonical: 'https://bazionweb.com/' },
 };
 
@@ -199,14 +199,24 @@ export default function HomePage() {
           '@context': 'https://schema.org',
           '@graph': [
             {
-              '@type': 'Organization',
+              '@type': ['Organization', 'ProfessionalService'],
               '@id': 'https://bazionweb.com/#organization',
               name: 'BazionWeb',
+              alternateName: 'Bazion Web Solutions',
               url: 'https://bazionweb.com/',
               logo: 'https://bazionweb.com/brand/logo.png',
+              image: 'https://bazionweb.com/og-image.png',
               description:
-                'Managed website lifecycle platform: custom development, managed hosting, security, maintenance and 24/7 support for growing businesses worldwide.',
+                'Professional web design, custom Next.js web application development, e-commerce with M-Pesa STK Push integration, bespoke portals, and ongoing website care for businesses in Kenya and worldwide.',
               email: 'hello@bazionweb.com',
+              telephone: '+254721287053',
+              priceRange: '$$',
+              address: {
+                '@type': 'PostalAddress',
+                addressLocality: 'Nairobi',
+                addressCountry: 'KE',
+              },
+              areaServed: ['Kenya', 'Worldwide'],
               sameAs: [
                 'https://twitter.com/bazionweb',
                 'https://linkedin.com/company/bazionweb',
@@ -215,8 +225,63 @@ export default function HomePage() {
               contactPoint: {
                 '@type': 'ContactPoint',
                 email: 'hello@bazionweb.com',
-                contactType: 'sales',
-                availableLanguage: 'English',
+                telephone: '+254721287053',
+                contactType: 'customer service',
+                availableLanguage: ['English', 'Swahili'],
+              },
+              hasOfferCatalog: {
+                '@type': 'OfferCatalog',
+                name: 'Digital Engineering Services',
+                itemListElement: [
+                  {
+                    '@type': 'Offer',
+                    itemOffered: {
+                      '@type': 'Service',
+                      name: 'Website Design & Development',
+                      description: 'Custom responsive websites built on modern Next.js with CMS integration and technical SEO.',
+                    },
+                    priceSpecification: [
+                      { '@type': 'PriceSpecification', price: '25000', priceCurrency: 'KES', description: 'Kenya Market' },
+                      { '@type': 'PriceSpecification', price: '495', priceCurrency: 'USD', description: 'International' },
+                    ],
+                  },
+                  {
+                    '@type': 'Offer',
+                    itemOffered: {
+                      '@type': 'Service',
+                      name: 'E-Commerce Solutions',
+                      description: 'Online stores with direct M-Pesa STK Push mobile checkout and global credit card gateways.',
+                    },
+                    priceSpecification: [
+                      { '@type': 'PriceSpecification', price: '90000', priceCurrency: 'KES', description: 'Kenya Market' },
+                      { '@type': 'PriceSpecification', price: '1500', priceCurrency: 'USD', description: 'International' },
+                    ],
+                  },
+                  {
+                    '@type': 'Offer',
+                    itemOffered: {
+                      '@type': 'Service',
+                      name: 'Custom Digital Systems & Portals',
+                      description: 'Bespoke client portals, booking engines, LMS platforms, and custom software systems.',
+                    },
+                    priceSpecification: [
+                      { '@type': 'PriceSpecification', price: '150000', priceCurrency: 'KES', description: 'Kenya Market' },
+                      { '@type': 'PriceSpecification', price: '2500', priceCurrency: 'USD', description: 'International' },
+                    ],
+                  },
+                  {
+                    '@type': 'Offer',
+                    itemOffered: {
+                      '@type': 'Service',
+                      name: 'Website Care & Ongoing Maintenance',
+                      description: 'Monthly CMS updates, security patches, automated backups, and dedicated engineering support.',
+                    },
+                    priceSpecification: [
+                      { '@type': 'PriceSpecification', price: '5000', priceCurrency: 'KES', description: 'Kenya Market' },
+                      { '@type': 'PriceSpecification', price: '49', priceCurrency: 'USD', description: 'International' },
+                    ],
+                  },
+                ],
               },
             },
             {
@@ -225,6 +290,11 @@ export default function HomePage() {
               url: 'https://bazionweb.com/',
               name: 'BazionWeb',
               publisher: { '@id': 'https://bazionweb.com/#organization' },
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: 'https://bazionweb.com/blog?q={search_term_string}',
+                'query-input': 'required name=search_term_string',
+              },
             },
           ],
         }}
@@ -332,7 +402,7 @@ export default function HomePage() {
               Everything your website needs, under one roof
             </h2>
             <p className="text-slate-500 text-lg">
-              Six service lines, one provider. From initial build to continuous optimization — we own it all.
+              Complete digital solutions, one provider. From initial architecture to continuous optimization — we handle it all.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

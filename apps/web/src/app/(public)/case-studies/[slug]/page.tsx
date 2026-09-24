@@ -59,6 +59,27 @@ const studies: Record<string, {
     quote: 'I used to juggle three vendors. Now it\'s one invoice, one team. I haven\'t thought about my website in months — and I\'m getting more leads than ever.',
     quoteName: 'Michael O.', quoteRole: 'Managing Partner, Parkview Law Associates',
   },
+  'grow-africa-ngo': {
+    client: 'GrowAfrica Initiative', industry: 'NGO & Non-profit',
+    plan: 'Starter', website: 'growafrica.org', timeline: '10 days to full deployment',
+    teamSize: '1 donor-facing portal + campaign pages',
+    challenge: 'An NGO running donor campaigns on a site with no CDN, 8-second load times on mobile, and a broken donation form that had cost them three months of contributions. Global donors were abandoning the checkout page due to slow speeds and security warnings.',
+    approach: [
+      'Comprehensive performance overhaul: implemented modern responsive image compression and global CDN edge routing.',
+      'Fixed and audited payment gateways: integrated smooth M-Pesa mobile giving alongside international card processing.',
+      'Configured automated Let\'s Encrypt SSL rotation and strict transport security (HSTS) earning an A+ SSL Labs rating.',
+      'Configured automated offsite cloud backups and continuous 24/7 uptime monitoring.',
+      'Enrolled team in regular health checks and donor portal maintenance.',
+    ],
+    results: [
+      { icon: Zap,        metric: '8s → 1.3s', label: 'Mobile load time' },
+      { icon: TrendingUp, metric: '220%',      label: 'Increase in donor conversions' },
+      { icon: Shield,     metric: 'A+',        label: 'SSL Labs security rating' },
+      { icon: Clock,      metric: '24/7',      label: 'Availability monitoring' },
+    ],
+    quote: 'Our donation page finally works reliably. Within 30 days of partnering with BazionWeb, we had our best fundraising month ever.',
+    quoteName: 'Amara N.', quoteRole: 'Executive Director, GrowAfrica Initiative',
+  },
 };
 
 export async function generateStaticParams() {
@@ -69,9 +90,22 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   const s = studies[params.slug];
   if (!s) return {};
   return {
-    title: `${s.client} — Case Study`,
+    title: `${s.client} — Client Case Study`,
     description: s.challenge.slice(0, 160),
     alternates: { canonical: `https://bazionweb.com/case-studies/${params.slug}` },
+    openGraph: {
+      title: `${s.client} — Client Case Study | BazionWeb`,
+      description: s.challenge.slice(0, 160),
+      type: 'article',
+      url: `https://bazionweb.com/case-studies/${params.slug}`,
+      images: [{ url: '/og-image.png', width: 1200, height: 630, alt: `${s.client} Case Study` }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${s.client} — Client Case Study | BazionWeb`,
+      description: s.challenge.slice(0, 160),
+      images: ['/og-image.png'],
+    },
   };
 }
 

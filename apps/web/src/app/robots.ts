@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/portal', '/admin', '/api', '/legal/dpa'],
+        disallow: ['/portal', '/portal/', '/admin', '/admin/', '/checkout', '/checkout/', '/api', '/api/', '/legal/dpa'],
       },
     ],
     sitemap: 'https://bazionweb.com/sitemap.xml',

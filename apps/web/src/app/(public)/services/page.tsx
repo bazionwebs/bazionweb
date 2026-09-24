@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
   title: 'Digital Engineering Services — Websites, E-Commerce & Systems | BazionWeb',
@@ -136,6 +137,31 @@ const industries = [
 export default function ServicesPage() {
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'ItemList',
+          name: 'BazionWeb Services',
+          itemListElement: productFamilies.map((family, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            item: {
+              '@type': 'Service',
+              name: family.name,
+              description: family.desc,
+              provider: {
+                '@type': 'Organization',
+                name: 'BazionWeb',
+                url: 'https://bazionweb.com',
+              },
+              offers: {
+                '@type': 'Offer',
+                description: family.startingPrice,
+              },
+            },
+          })),
+        }}
+      />
       {/* ─── Hero Header ─── */}
       <section className="section bg-[#0F172A] pt-32 pb-20 text-white">
         <div className="container-default max-w-4xl mx-auto text-center">

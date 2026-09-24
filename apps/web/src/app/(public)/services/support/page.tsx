@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { LifeBuoy, ArrowRight, Clock, Users, FileText, AlertTriangle, CheckCircle, MessageSquare } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: '24/7 Technical Support',
-  description: 'SLA-backed technical support with real engineers. P1 responses from 5–60 minutes depending on your plan. No bots, no runarounds.',
+  title: 'Technical Support & Incident Escalation Services',
+  description: 'Fast technical support with systems engineers. Urgent P1 incident response, direct communication channels, and proactive issue resolution.',
   alternates: { canonical: 'https://bazionweb.com/services/support' },
 };
 
@@ -29,6 +30,21 @@ export default function SupportPage() {
   const plans = ['Starter', 'Growth', 'Business', 'Enterprise'];
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Service',
+          name: 'Technical Support & Incident Response',
+          description: 'Real systems engineers, SLA-backed P1 emergency response, proactive monitoring, and direct escalation. No chatbots, no ticket black holes.',
+          url: 'https://bazionweb.com/services/support',
+          provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
+          areaServed: ['Kenya', 'Worldwide'],
+          offers: [
+            { '@type': 'Offer', name: 'Support – Growth Plan (Kenya)', price: '8000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
+            { '@type': 'Offer', name: 'Support – Growth Plan (International)', price: '79', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+          ],
+        }}
+      />
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default max-w-3xl">
           <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services', href: '/services' }, { name: '24/7 Technical Support' }]} />

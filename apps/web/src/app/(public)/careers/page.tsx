@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Careers',
-  description: 'Join the BazionWeb team. We\'re building the best managed web services company in the world.',
+  title: 'Careers & Engineering Opportunities',
+  description: 'Join the BazionWeb engineering team. We are building the most dependable web and digital systems partner for growing businesses worldwide.',
   alternates: { canonical: 'https://bazionweb.com/careers' },
 };
 

@@ -2,10 +2,11 @@ import type { Metadata } from 'next';
 import ContactForm from '@/components/sections/ContactForm';
 import { Mail, Phone, MapPin, Clock, MessageSquare, Calendar } from 'lucide-react';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: 'Contact',
-  description: 'Get a free website assessment or quote. Our team responds within 24 hours.',
+  title: 'Contact Our Engineering & Sales Team | BazionWeb',
+  description: 'Get in touch for a free website assessment, custom software consultation, or e-commerce quote. Based in Nairobi, Kenya, serving clients worldwide.',
   alternates: { canonical: 'https://bazionweb.com/contact' },
 };
 
@@ -36,6 +37,28 @@ const contactMethods = [
 export default function ContactPage() {
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'ContactPage',
+          name: 'Contact BazionWeb',
+          url: 'https://bazionweb.com/contact',
+          description: 'Get in touch for a free website assessment, custom software consultation, or e-commerce quote.',
+          mainEntity: {
+            '@type': 'Organization',
+            name: 'BazionWeb',
+            email: 'hello@bazionweb.com',
+            telephone: '+254721287053',
+            contactPoint: {
+              '@type': 'ContactPoint',
+              email: 'hello@bazionweb.com',
+              telephone: '+254721287053',
+              contactType: 'customer support and sales',
+              availableLanguage: ['English', 'Swahili'],
+            },
+          },
+        }}
+      />
       {/* Header */}
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default">
