@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth.store';
 import {
   Market,
   ADD_ON_RATE_CARD,
@@ -17,6 +18,11 @@ import {
   MessageSquare,
   ShieldCheck,
   UserPlus,
+  X,
+  Loader2,
+  Mail,
+  User,
+  Sparkles,
 } from 'lucide-react';
 
 interface QuoteConfig {
@@ -39,7 +45,10 @@ const PACKAGE_DEFAULTS = {
 };
 
 function QuoteCalculatorContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const setSession = useAuthStore(s => s.setSession);
+  const setPendingPlan = useAuthStore(s => s.setPendingPlan);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [config, setConfig] = useState<QuoteConfig>({
@@ -51,6 +60,13 @@ function QuoteCalculatorContent() {
     care: 'none',
     hosting: 'none',
   });
+
+  // Get Started Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [gName, setGName] = useState('');
+  const [gEmail, setGEmail] = useState('');
+  const [gCompany, setGCompany] = useState('');
+  const [gLoading, setGLoading] = useState(false);
 
   useEffect(() => {
     const marketParam = searchParams.get('market');
@@ -133,6 +149,70 @@ function QuoteCalculatorContent() {
         ? prev.selectedAddOns.filter(item => item !== id)
         : [...prev.selectedAddOns, id],
     }));
+  }
+
+  async function handleGetStarted(e: React.FormEvent) {
+    e.preventDefault();
+    if (!gName.trim() || !gEmail.trim()) return;
+
+    setGLoading(true);
+
+    try {
+      localStorage.setItem('bazion_saved_quote', JSON.stringify({
+        packageType: config.packageType,
+        packageName: pkgInfo.name,
+        market: config.market,
+        currencySymbol,
+        extraPages: config.extraPages,
+        selectedAddOns: config.selectedAddOns,
+        rushDelivery: config.rushDelivery,
+        care: config.care,
+        hosting: config.hosting,
+        baseCost,
+        extraPagesCost,
+        addOnsCost,
+        totalBuild,
+        monthlyCare,
+        annualHosting,
+        totalYearOne,
+        savedAt: new Date().toISOString(),
+      }));
+    } catch {
+      // ignore storage errors
+    }
+
+    const parts = gName.trim().split(' ');
+    const firstName = parts[0] || 'Client';
+    const lastName = parts.slice(1).join(' ') || '';
+
+    const chosenPlan = config.care !== 'none' ? config.care : null;
+    setPendingPlan(chosenPlan);
+
+    setSession(
+      {
+        id: `quote-${Date.now()}`,
+        email: gEmail.trim(),
+        firstName,
+        lastName,
+        company: gCompany.trim() || undefined,
+        roles: ['CLIENT'],
+        keycloakId: `quote-${Date.now()}`,
+        subscriptionStatus: 'PENDING',
+      },
+      'provisional-quote-token',
+      'provisional-quote-refresh',
+      86400 * 7,
+    );
+
+    await new Promise(r => setTimeout(r, 600));
+    setGLoading(false);
+    setShowModal(false);
+
+    if (chosenPlan) {
+      router.push(`/portal/onboarding?plan=${chosenPlan}`);
+    } else {
+      router.push('/portal');
+    }
   }
 
   // Pre-formatted message for WhatsApp or Form
@@ -442,30 +522,17 @@ Please confirm availability and discuss next steps.`;
                 </div>
 
                 <div className="space-y-3 pt-6 border-t border-slate-200">
-                  {/* Primary CTA: Get Started */}
-                  {config.care !== 'none' && (
-                    <div className="rounded-2xl bg-gradient-to-br from-[#2563EB] to-indigo-700 p-5 text-white">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Ready to activate?</p>
-                          <h3 className="text-base font-extrabold mt-0.5">Create your account &amp; subscribe</h3>
-                          <p className="text-xs text-blue-200 mt-1">
-                            Account first — pay from your dashboard. No commitment until you confirm.
-                          </p>
-                        </div>
-                        <UserPlus className="w-8 h-8 text-blue-300 shrink-0 ml-2" />
-                      </div>
-                      <Link
-                        href={`/portal/register?plan=${config.care}`}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white text-[#2563EB] text-sm font-extrabold hover:bg-blue-50 transition-colors shadow"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        Get Started — Create Account
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
+                  {/* Primary CTA: Get Started — always available, triggers modal */}
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(true)}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 active:scale-[0.98] text-white text-sm font-extrabold transition-all shadow-lg shadow-blue-900/30"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Get Started — Create Free Account
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <div className="flex justify-between gap-3">
                     <button
                       type="button"
                       onClick={() => setStep(2)}
@@ -562,36 +629,28 @@ Please confirm availability and discuss next steps.`;
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-2 mt-6">
-                {/* Get Started CTA — visible when a care plan is chosen */}
-                {config.care !== 'none' ? (
-                  <Link
-                    href={`/portal/register?plan=${config.care}`}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm"
-                  >
-                    <UserPlus className="w-4 h-4" /> Get Started — Create Account
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                ) : (
-                  <Link
-                    href="/pricing#care"
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm"
-                  >
-                    <UserPlus className="w-4 h-4" /> Choose a Care Plan to Subscribe
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                )}
+              <div className="space-y-2.5 mt-6">
+                {/* PRIMARY: Get Started — always visible, opens modal */}
+                <button
+                  type="button"
+                  onClick={() => setShowModal(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 active:scale-[0.98] text-white text-sm font-extrabold transition-all shadow-lg shadow-blue-900/30"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Get Started — Free Account
+                  <ArrowRight className="w-4 h-4" />
+                </button>
                 <a
                   href={whatsappHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-bold transition-colors shadow-sm"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-bold transition-colors"
                 >
                   <MessageSquare className="w-4 h-4" /> Send Quote to WhatsApp
                 </a>
                 <Link
                   href={`/contact?source=quote-calculator&package=${config.packageType}`}
-                  className="btn-secondary w-full justify-center text-xs py-3"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors"
                 >
                   Book Free Consultation <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
@@ -605,6 +664,112 @@ Please confirm availability and discuss next steps.`;
           </div>
         </div>
       </div>
+
+      {/* ── Get Started Modal Overlay ─────────────────────────────── */}
+      {showModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
+        >
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            {/* Modal header */}
+            <div className="bg-gradient-to-br from-[#2563EB] to-indigo-700 px-6 py-6 relative">
+              <button
+                onClick={() => setShowModal(false)}
+                className="absolute right-4 top-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Step 1 of 2</p>
+                  <h2 className="text-lg font-extrabold text-white">Create your free account</h2>
+                </div>
+              </div>
+              <p className="text-blue-200 text-xs leading-relaxed">
+                Your quote is saved automatically. Choose a care plan and pay from your dashboard — no payment needed now.
+              </p>
+            </div>
+
+            {/* Modal form */}
+            <form onSubmit={handleGetStarted} className="px-6 py-6 space-y-4">
+              <div>
+                <label htmlFor="gs-name" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="gs-name"
+                    type="text"
+                    required
+                    autoFocus
+                    value={gName}
+                    onChange={e => setGName(e.target.value)}
+                    placeholder="Jane Wanjiku"
+                    className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="gs-email" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Work Email
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    id="gs-email"
+                    type="email"
+                    required
+                    value={gEmail}
+                    onChange={e => setGEmail(e.target.value)}
+                    placeholder="jane@yourcompany.com"
+                    className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="gs-company" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Company <span className="text-slate-400 font-normal normal-case">(optional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="gs-company"
+                    type="text"
+                    value={gCompany}
+                    onChange={e => setGCompany(e.target.value)}
+                    placeholder="Acacia Healthcare Ltd"
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={gLoading || !gName.trim() || !gEmail.trim()}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-sm transition-all shadow-lg shadow-blue-900/30 mt-2"
+              >
+                {gLoading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Creating account…</>
+                ) : (
+                  <><UserPlus className="w-4 h-4" /> Create Account &amp; Enter Dashboard <ArrowRight className="w-4 h-4" /></>
+                )}
+              </button>
+
+              <p className="text-center text-[11px] text-slate-400 leading-relaxed pt-1">
+                No credit card required. Your quote is pre-loaded in the dashboard.
+                By continuing you agree to our{' '}
+                <a href="/legal/terms" className="text-[#2563EB] hover:underline">Terms</a>.
+              </p>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
