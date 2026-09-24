@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
@@ -176,8 +176,13 @@ export default function OnboardingPage() {
     router.push('/portal/login');
   }
 
+  useEffect(() => {
+    if (!user) {
+      router.replace('/portal/register');
+    }
+  }, [user, router]);
+
   if (!user) {
-    router.replace('/portal/register');
     return null;
   }
 
