@@ -1,174 +1,441 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Globe, Server, Ticket, FileText,
-  Bell, LogOut, Settings, TrendingUp, Shield, Wrench,
-  CheckCircle, BarChart2, ExternalLink,
-  ChevronRight, Zap, Download, Plus, X, Menu, Check
+  LayoutDashboard,
+  Globe,
+  Layers,
+  KeyRound,
+  Ticket,
+  FileText,
+  CheckCircle2,
+  ShieldCheck,
+  ExternalLink,
+  ChevronRight,
+  Download,
+  Plus,
+  X,
+  Menu,
+  Lock,
+  Copy,
+  Check,
+  Clock,
+  Smartphone,
+  Monitor,
+  Tablet,
+  ArrowUpRight,
+  LogOut,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Client Profile & Data Model ─────────────────────────────────────────────
+
+interface Milestone {
+  id: number;
+  title: string;
+  phase: string;
+  status: 'completed' | 'active' | 'pending';
+  progress: number;
+  estimatedDate: string;
+  deliverables: string[];
+}
 
 const mockClient = {
   name: 'Acacia Healthcare Ltd',
-  plan: 'Business',
-  contactName: 'Sarah Kamau',
-  domain: 'acaciahealthcare.com',
-  renewalDate: '2025-10-15',
+  contactName: 'Dr. Sarah Kamau',
+  role: 'Managing Director & Founder',
+  domain: 'acaciahealthcare.co.ke',
+  stagingUrl: 'https://staging-acacia.bazionweb.com',
+  productionUrl: 'https://acaciahealthcare.co.ke',
+  activePlan: 'Business Cloud Care',
+  slaGuarantee: '4-Hour Critical SLA',
+  nextRenewal: '2026-10-15',
+  renewalAmount: 'KES 25,000 / mo',
+  paymentMethod: 'M-Pesa Business Till #749210 (Auto-Renew)',
 };
 
-const stats = [
-  { label: 'Uptime (30d)', value: '99.98%', delta: '+0.03%', icon: TrendingUp, color: 'text-[#22C55E]', bg: 'bg-green-50' },
-  { label: 'Avg Load Time', value: '1.24s', delta: '-0.3s', icon: Zap, color: 'text-[#2563EB]', bg: 'bg-blue-50' },
-  { label: 'Lighthouse Score', value: '97', delta: '+2', icon: BarChart2, color: 'text-[#14B8A6]', bg: 'bg-teal-50' },
-  { label: 'Open Tickets', value: '1', delta: '', icon: Ticket, color: 'text-[#F59E0B]', bg: 'bg-yellow-50' },
-];
-
-const tickets = [
+const projectMilestones: Milestone[] = [
   {
-    id: 'TKT-0042',
-    subject: 'Contact form not sending emails',
-    status: 'In Progress',
-    priority: 'P2',
-    created: '2025-06-08',
-    statusColor: 'badge-yellow',
+    id: 1,
+    title: 'Discovery, Information Architecture & Scope Lock',
+    phase: 'Phase 1',
+    status: 'completed',
+    progress: 100,
+    estimatedDate: 'Aug 15, 2026',
+    deliverables: [
+      'Commercial scope & deliverables sign-off',
+      'Site structure & conversion pathway mapping',
+      'Stakeholder requirements interview',
+    ],
   },
   {
-    id: 'TKT-0039',
-    subject: 'Add new team member to About page',
-    status: 'Resolved',
-    priority: 'P4',
-    created: '2025-06-02',
-    statusColor: 'badge-green',
+    id: 2,
+    title: 'Figma UI/UX Prototypes & Design Token System',
+    phase: 'Phase 2',
+    status: 'completed',
+    progress: 100,
+    estimatedDate: 'Aug 29, 2026',
+    deliverables: [
+      'High-fidelity mobile & desktop wireframes',
+      'Brand palette, typography & asset kit',
+      'Interactive Figma review & stakeholder approval',
+    ],
   },
   {
-    id: 'TKT-0035',
-    subject: 'Monthly performance optimization — May',
-    status: 'Resolved',
-    priority: 'P3',
-    created: '2025-05-28',
-    statusColor: 'badge-green',
+    id: 3,
+    title: 'Next.js Frontend, Payment Rails & System Integrations',
+    phase: 'Phase 3',
+    status: 'active',
+    progress: 88,
+    estimatedDate: 'Sep 28, 2026',
+    deliverables: [
+      'Responsive Next.js 14 App Router implementation',
+      'M-Pesa Daraja STK Push & Stripe card gateway',
+      'Doctor appointment booking engine & database schema',
+    ],
+  },
+  {
+    id: 4,
+    title: 'Staging Sandbox Testing & Client Acceptance Audit',
+    phase: 'Phase 4',
+    status: 'pending',
+    progress: 15,
+    estimatedDate: 'Oct 05, 2026',
+    deliverables: [
+      'Cross-device responsive & retina QA',
+      'Core Web Vitals & speed optimization pass',
+      'Client UAT review & final sign-off',
+    ],
+  },
+  {
+    id: 5,
+    title: 'Production Cutover, DNS Delegation & 60-Day Warranty',
+    phase: 'Phase 5',
+    status: 'pending',
+    progress: 0,
+    estimatedDate: 'Oct 12, 2026',
+    deliverables: [
+      'Zero-downtime DNS cutover to Cloudflare Edge',
+      'SSL TLS 1.3 issuance & KRA eTIMS invoice generation',
+      'Commencement of 60-day defect liability warranty',
+    ],
   },
 ];
 
-const invoices = [
-  { id: 'INV-2025-06', period: 'June 2025', amount: '$199.00', status: 'Paid', date: '2025-06-01' },
-  { id: 'INV-2025-05', period: 'May 2025', amount: '$199.00', status: 'Paid', date: '2025-05-01' },
-  { id: 'INV-2025-04', period: 'April 2025', amount: '$199.00', status: 'Paid', date: '2025-04-01' },
+const webVitalsTelemetry = [
+  {
+    metric: 'LCP',
+    name: 'Largest Contentful Paint',
+    value: '0.84s',
+    rating: 'Good (Sub-1s)',
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200',
+  },
+  {
+    metric: 'FID',
+    name: 'First Input Delay',
+    value: '14ms',
+    rating: 'Instantaneous (<50ms)',
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200',
+  },
+  {
+    metric: 'CLS',
+    name: 'Cumulative Layout Shift',
+    value: '0.01',
+    rating: 'Stable Zero-Jitter',
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200',
+  },
+  {
+    metric: 'SEO & Speed',
+    name: 'Google Lighthouse Score',
+    value: '98 / 100',
+    rating: 'Top 1% Tier',
+    color: 'text-[#2563EB]',
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+  },
 ];
 
-const hostingStatus = {
-  domain: 'acaciahealthcare.com',
-  server: 'Oracle Cloud (Frankfurt)',
-  sslExpiry: '2026-03-12',
-  lastBackup: '2025-06-09 02:14 UTC',
-  backupSize: '840 MB',
-  cdnStatus: 'Active',
-  uptime: '99.98%',
-};
-
-const recentActivity = [
-  { icon: Shield, text: 'Security scan completed — 0 threats found', time: '2h ago', color: 'text-[#22C55E]' },
-  { icon: Wrench, text: 'CMS updated to v4.11.2', time: '1d ago', color: 'text-[#2563EB]' },
-  { icon: CheckCircle, text: 'Monthly backup verified successfully', time: '2d ago', color: 'text-[#14B8A6]' },
-  { icon: TrendingUp, text: 'Performance report for May delivered', time: '5d ago', color: 'text-[#F59E0B]' },
+const assetSovereigntyChecklist = [
+  {
+    asset: 'Domain Name & DNS Control',
+    status: 'Client Sovereign (Delegated Access)',
+    authority: 'Cloudflare / Safaricom Domains',
+    details: 'Owned directly by Acacia Healthcare Ltd. Bazion Web holds delegated engineering member rights.',
+    verified: true,
+  },
+  {
+    asset: 'SSL Certificate & Edge Security',
+    status: 'Active (Automated TLS 1.3)',
+    authority: 'Cloudflare Universal SSL',
+    details: 'Next auto-renewal: April 2027. Full HSTS and DDoS Edge Protection enabled.',
+    verified: true,
+  },
+  {
+    asset: 'Google Search Console & Analytics',
+    status: 'Verified Property Owner',
+    authority: 'Google Workspace',
+    details: 'Direct client ownership with bazion-dev service account mapped for sitemap submission.',
+    verified: true,
+  },
+  {
+    asset: 'Codebase & Intellectual Property',
+    status: '100% Client Owned',
+    authority: 'Bazion Commercial Deed',
+    details: 'Complete assignment of all custom code, assets, and databases upon milestone completion.',
+    verified: true,
+  },
 ];
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
-  { icon: Globe, label: 'My Website', id: 'website' },
-  { icon: Server, label: 'Hosting', id: 'hosting' },
-  { icon: Ticket, label: 'Support', id: 'tickets' },
-  { icon: FileText, label: 'Invoices', id: 'invoices' },
-  { icon: BarChart2, label: 'Reports', id: 'reports' },
-  { icon: Settings, label: 'Settings', id: 'settings' },
+const mockTickets = [
+  {
+    id: 'REQ-1082',
+    subject: 'Add emergency clinic contact number to mobile header',
+    priority: 'Urgent',
+    status: 'In Engineering',
+    category: 'Design Modification',
+    created: '2 hours ago',
+    slaRemaining: '1h 55m remaining',
+  },
+  {
+    id: 'REQ-1065',
+    subject: 'Integrate Dr. Kiptoo into dermatology services booking dropdown',
+    priority: 'Normal',
+    status: 'Resolved & Deployed',
+    category: 'Content Update',
+    created: '3 days ago',
+    slaRemaining: 'Met (Resolved in 1.4h)',
+  },
+  {
+    id: 'REQ-1040',
+    subject: 'Quarterly database backup verification and security patch run',
+    priority: 'Standard Care',
+    status: 'Completed',
+    category: 'Cloud Care Maintenance',
+    created: '1 week ago',
+    slaRemaining: 'Completed per schedule',
+  },
 ];
 
-// ─── Component ────────────────────────────────────────────────────────────────
+const mockInvoices = [
+  {
+    id: 'INV-2026-0924',
+    description: 'Phase 3 Milestone: Core Next.js Build & Payment Integrations',
+    amount: 'KES 80,000',
+    method: 'M-Pesa Business Till',
+    status: 'Paid',
+    date: 'Sep 20, 2026',
+    receiptNumber: 'QHJ78291KL',
+  },
+  {
+    id: 'INV-2026-0815',
+    description: 'Phase 1 & 2 Milestone: Discovery, Architecture & Figma Wireframes',
+    amount: 'KES 80,000',
+    method: 'M-Pesa Paybill #829102',
+    status: 'Paid',
+    date: 'Aug 15, 2026',
+    receiptNumber: 'QFB19482MC',
+  },
+  {
+    id: 'INV-2026-CARE-01',
+    description: 'Business Cloud Care Retainer — Advance Booking',
+    amount: 'KES 25,000',
+    method: 'Bank Wire / M-Pesa',
+    status: 'Scheduled',
+    date: 'Due Oct 15, 2026',
+    receiptNumber: 'Pending Launch',
+  },
+];
+
+type PortalTab = 'dashboard' | 'milestones' | 'assets' | 'vault' | 'support' | 'invoices';
 
 export default function PortalDashboard() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState<PortalTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showNewTicket, setShowNewTicket] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Staging frame device preview state
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [approvedSuccess, setApprovedSuccess] = useState(false);
+
+  // New Vault Secret state
+  const [vaultSecrets, setVaultSecrets] = useState([
+    { id: '1', key: 'M-Pesa Daraja Consumer Secret', preview: '••••••••••••••••94b2', env: 'Production API' },
+    { id: '2', key: 'Google Maps JavaScript API Key', preview: 'AIzaSyD••••••••••••••••kX02', env: 'Client Maps' },
+    { id: '3', key: 'SendGrid Transactional API Token', preview: 'SG.••••••••••••••••a821', env: 'Notification Mailer' },
+  ]);
+  const [newSecretKey, setNewSecretKey] = useState('');
+  const [newSecretVal, setNewSecretVal] = useState('');
+  const [showSecretModal, setShowSecretModal] = useState(false);
+
+  // Support Request state
+  const [supportRequests, setSupportRequests] = useState(mockTickets);
+  const [showNewTicketModal, setShowNewTicketModal] = useState(false);
+  const [newTicketSubject, setNewTicketSubject] = useState('');
+  const [newTicketPriority, setNewTicketPriority] = useState('Normal');
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(id);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handleAddSecret = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSecretKey || !newSecretVal) return;
+    setVaultSecrets(prev => [
+      ...prev,
+      {
+        id: String(Date.now()),
+        key: newSecretKey,
+        preview: '••••••••••••••••' + newSecretVal.slice(-4),
+        env: 'Encrypted Vault',
+      },
+    ]);
+    setNewSecretKey('');
+    setNewSecretVal('');
+    setShowSecretModal(false);
+  };
+
+  const handleCreateTicket = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTicketSubject) return;
+    const newReq = {
+      id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      subject: newTicketSubject,
+      priority: newTicketPriority,
+      status: 'Queued for Engineering',
+      category: 'Client Request',
+      created: 'Just now',
+      slaRemaining: '4h 00m remaining',
+    };
+    setSupportRequests([newReq, ...supportRequests]);
+    setNewTicketSubject('');
+    setShowNewTicketModal(false);
+  };
+
+  const navItems = [
+    { icon: LayoutDashboard, label: 'Mission Control', id: 'dashboard' as PortalTab },
+    { icon: Layers, label: 'Delivery Roadmap & Sandbox', id: 'milestones' as PortalTab },
+    { icon: Globe, label: 'Asset Sovereignty & DNS', id: 'assets' as PortalTab },
+    { icon: KeyRound, label: 'Encrypted Vault', id: 'vault' as PortalTab },
+    { icon: Ticket, label: 'Engineering Support', id: 'support' as PortalTab, count: 1 },
+    { icon: FileText, label: 'Invoices & Cloud Care', id: 'invoices' as PortalTab },
+  ];
 
   return (
     <div className="min-h-screen flex bg-[#F8FAFC]">
-      {/* Sidebar */}
+      {/* ─── Sidebar ─── */}
       <aside
         className={cn(
-          'fixed lg:static inset-y-0 left-0 z-40 w-64 bg-[#0F172A] flex flex-col transition-transform duration-300',
+          'fixed lg:static inset-y-0 left-0 z-40 w-72 bg-[#0F172A] flex flex-col transition-transform duration-300 border-r border-white/5',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-white/5 flex items-center justify-between">
-          <Logo variant="dark" markClassName="h-14 w-auto" />
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
-            <X className="w-4 h-4" />
+        {/* Brand Header */}
+        <div className="px-6 py-6 border-b border-white/10 flex items-center justify-between">
+          <Logo variant="dark" markClassName="h-12 w-auto" />
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-slate-400 hover:text-white p-1"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Client info */}
-        <div className="px-5 py-4 border-b border-white/5">
-          <div className="text-xs text-slate-500 mb-0.5 uppercase tracking-widest">Client</div>
-          <div className="text-sm font-semibold text-white truncate">{mockClient.name}</div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
-            <span className="text-xs text-slate-400">{mockClient.plan} Plan · Active</span>
+        {/* Client Co-Branded Card (Sense of Belonging) */}
+        <div className="px-6 py-5 border-b border-white/10 bg-white/[0.02]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563EB] to-[#14B8A6] flex items-center justify-center text-white font-bold text-sm shadow-md">
+              AH
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold text-white truncate">{mockClient.name}</div>
+              <div className="text-xs text-slate-400 truncate">{mockClient.contactName}</div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs">
+            <span className="text-slate-400 font-medium">Active SLA:</span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              4-Hour SLA
+            </span>
           </div>
         </div>
 
-        {/* Nav */}
+        {/* Navigation Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map(item => (
             <button
               key={item.id}
-              onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab(item.id);
+                setSidebarOpen(false);
+              }}
               className={cn(
-                activeTab === item.id ? 'sidebar-item-active' : 'sidebar-item',
-                'w-full text-left',
+                activeTab === item.id
+                  ? 'bg-[#2563EB] text-white shadow-md shadow-blue-600/30'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5',
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-left group',
               )}
             >
-              <item.icon className="w-4 h-4" />
-              {item.label}
-              {item.id === 'tickets' && (
-                <span className="ml-auto w-5 h-5 rounded-full bg-[#F59E0B] text-white text-xs flex items-center justify-center font-bold">
-                  1
+              <item.icon className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-white" />
+              <span className="flex-1">{item.label}</span>
+              {item.count && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30">
+                  {item.count}
                 </span>
               )}
             </button>
           ))}
         </nav>
 
-        {/* Bottom actions */}
-        <div className="px-3 py-4 border-t border-white/5 space-y-1">
-          <button className="sidebar-item w-full text-left">
-            <Bell className="w-4 h-4" />
-            Notifications
-          </button>
-          <Link href="/" className="sidebar-item block">
+        {/* Client Sovereignty Guarantee Badge */}
+        <div className="p-4 mx-3 mb-4 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300">
+          <div className="flex items-center gap-2 font-semibold text-white mb-1">
+            <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
+            <span>Asset Sovereignty</span>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            100% Client ownership of domain, code, and databases guaranteed by commercial SLA.
+          </p>
+        </div>
+
+        {/* Bottom Actions */}
+        <div className="px-4 py-4 border-t border-white/10 flex items-center justify-between">
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+          >
             <LogOut className="w-4 h-4" />
-            Sign Out
+            <span>Exit to Main Site</span>
           </Link>
+          <span className="text-[10px] text-slate-500 font-mono">v2.4.0</span>
         </div>
       </aside>
 
-      {/* Mobile overlay */}
+      {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Main */}
+      {/* ─── Main Content Canvas ─── */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+        {/* Top Header */}
+        <header className="bg-white border-b border-slate-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -177,223 +444,473 @@ export default function PortalDashboard() {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-base font-bold text-[#0F172A] capitalize">
+              <h1 className="text-base sm:text-lg font-bold text-[#0F172A]">
                 {navItems.find(n => n.id === activeTab)?.label}
               </h1>
               <p className="text-xs text-slate-400">
-                {mockClient.domain} · Last updated: just now
+                Connected Workspace: <strong className="text-slate-600">{mockClient.domain}</strong>
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 border border-green-100">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
-              <span className="text-xs font-semibold text-green-700">All systems operational</span>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#2563EB] to-[#14B8A6] flex items-center justify-center text-white text-xs font-bold">
-              SK
+            <a
+              href={mockClient.stagingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+              <span>Open Staging Preview</span>
+            </a>
+
+            <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold">
+                SK
+              </div>
             </div>
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        {/* ─── Tab Content ─── */}
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+          {/* ═════════ MISSION CONTROL (DASHBOARD) ═════════ */}
           {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              {/* Welcome */}
-              <div className="bg-gradient-to-r from-[#0F172A] to-[#1e3a5f] rounded-2xl p-6 text-white">
-                <p className="text-slate-400 text-sm mb-1">Welcome back,</p>
-                <h2 className="text-xl font-bold mb-1">{mockClient.contactName}</h2>
-                <p className="text-slate-400 text-sm">Your website is healthy. Next renewal: {mockClient.renewalDate}.</p>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {stats.map(s => (
-                  <div key={s.label} className="card p-5">
-                    <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center mb-3`}>
-                      <s.icon className={`w-4 h-4 ${s.color}`} />
-                    </div>
-                    <div className="text-2xl font-black text-[#0F172A] mb-0.5">{s.value}</div>
-                    <div className="text-xs text-slate-400">{s.label}</div>
-                    {s.delta && (
-                      <div className={`text-xs font-semibold mt-1 ${s.delta.startsWith('+') || s.delta.startsWith('-0') ? 'text-[#22C55E]' : 'text-slate-400'}`}>
-                        {s.delta} this month
-                      </div>
-                    )}
+            <div className="space-y-8">
+              {/* Hero Banner with belonging message */}
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] p-6 sm:p-8 text-white shadow-xl">
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-400 text-xs font-bold tracking-wider uppercase mb-3">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Active Engineering Sprint
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                      Welcome, {mockClient.contactName}
+                    </h2>
+                    <p className="text-slate-300 text-sm mt-1 max-w-xl leading-relaxed">
+                      Your Phase 3 engineering sprint is <strong className="text-white">88% complete</strong>. Payment gateways (M-Pesa + Stripe) are integrated and staging is available for client acceptance testing.
+                    </p>
                   </div>
-                ))}
-              </div>
 
-              {/* Two-column layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Recent activity */}
-                <div className="card p-6">
-                  <h3 className="font-bold text-[#0F172A] mb-4">Recent activity</h3>
-                  <div className="space-y-4">
-                    {recentActivity.map((a, i) => (
-                      <div key={i} className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
-                          <a.icon className={`w-3.5 h-3.5 ${a.color}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-600 leading-snug">{a.text}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">{a.time}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Hosting quick status */}
-                <div className="card p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-[#0F172A]">Hosting status</h3>
-                    <button onClick={() => setActiveTab('hosting')} className="text-xs text-[#2563EB] font-semibold hover:underline flex items-center gap-1">
-                      Full details <ChevronRight className="w-3 h-3" />
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => setActiveTab('milestones')}
+                      className="btn-primary text-xs py-2.5 px-4 shadow-lg shadow-blue-600/30 whitespace-nowrap"
+                    >
+                      Inspect Staging Sandbox
+                      <ArrowUpRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('support')}
+                      className="px-4 py-2.5 rounded-xl border border-white/20 text-white text-xs font-bold hover:bg-white/10 transition-colors whitespace-nowrap"
+                    >
+                      Request Sprint Change
                     </button>
                   </div>
-                  <div className="space-y-3">
-                    {[
-                      ['Domain', hostingStatus.domain],
-                      ['Server', hostingStatus.server],
-                      ['SSL Expires', hostingStatus.sslExpiry],
-                      ['Last Backup', hostingStatus.lastBackup],
-                      ['CDN', hostingStatus.cdnStatus],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex justify-between items-center text-sm">
-                        <span className="text-slate-400">{k}</span>
-                        <span className="font-medium text-[#0F172A] text-right">{v}</span>
-                      </div>
-                    ))}
+                </div>
+
+                {/* Background decorative glow */}
+                <div className="absolute -right-10 -bottom-10 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+              </div>
+
+              {/* Core Web Vitals & Real UX Telemetry */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-bold text-[#0F172A] text-lg">Core Web Vitals & Production Health</h3>
+                    <p className="text-xs text-slate-400">Continuous real-user performance monitoring powered by Cloudflare Edge</p>
                   </div>
                 </div>
-              </div>
 
-              {/* Open tickets */}
-              <div className="card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-[#0F172A]">Recent tickets</h3>
-                  <button
-                    onClick={() => setShowNewTicket(true)}
-                    className="btn-primary text-xs px-4 py-2"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    New Ticket
-                  </button>
-                </div>
-                <div className="table-wrapper">
-                  <table className="table-default">
-                    <thead>
-                      <tr>
-                        <th className="table-header">Ticket</th>
-                        <th className="table-header">Subject</th>
-                        <th className="table-header">Priority</th>
-                        <th className="table-header">Status</th>
-                        <th className="table-header">Created</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {tickets.map(t => (
-                        <tr key={t.id} className="hover:bg-slate-50/50 cursor-pointer">
-                          <td className="table-cell font-mono text-xs text-slate-400">{t.id}</td>
-                          <td className="table-cell font-medium text-[#0F172A]">{t.subject}</td>
-                          <td className="table-cell">
-                            <span className={`badge ${
-                              t.priority === 'P1' ? 'badge-red' :
-                              t.priority === 'P2' ? 'badge-yellow' :
-                              t.priority === 'P3' ? 'badge-blue' : 'badge-slate'
-                            }`}>
-                              {t.priority}
-                            </span>
-                          </td>
-                          <td className="table-cell">
-                            <span className={`badge ${t.statusColor}`}>{t.status}</span>
-                          </td>
-                          <td className="table-cell text-slate-400">{t.created}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ─── Hosting Tab ─────────────────────────────────────────────── */}
-          {activeTab === 'hosting' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="card p-5 text-center">
-                  <div className="text-3xl font-black text-[#22C55E] mb-1">{hostingStatus.uptime}</div>
-                  <div className="text-xs text-slate-400">30-day uptime</div>
-                </div>
-                <div className="card p-5 text-center">
-                  <div className="text-3xl font-black text-[#2563EB] mb-1">{hostingStatus.backupSize}</div>
-                  <div className="text-xs text-slate-400">Last backup size</div>
-                </div>
-                <div className="card p-5 text-center">
-                  <div className="text-3xl font-black text-[#14B8A6] mb-1">Active</div>
-                  <div className="text-xs text-slate-400">CDN status</div>
-                </div>
-              </div>
-
-              <div className="card p-6">
-                <h3 className="font-bold text-[#0F172A] mb-5">Infrastructure details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Object.entries(hostingStatus).map(([k, v]) => (
-                    <div key={k} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
-                      <div>
-                        <div className="text-xs text-slate-400 capitalize mb-0.5">{k.replace(/([A-Z])/g, ' $1').trim()}</div>
-                        <div className="text-sm font-semibold text-[#0F172A]">{v}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {webVitalsTelemetry.map(t => (
+                    <div
+                      key={t.metric}
+                      className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t.metric}</span>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${t.bg} ${t.color}`}>
+                          {t.rating}
+                        </span>
                       </div>
+                      <div className="text-3xl font-black text-[#0F172A] tracking-tight">{t.value}</div>
+                      <div className="text-xs text-slate-500 mt-1">{t.name}</div>
                     </div>
                   ))}
                 </div>
               </div>
+
+              {/* Delivery Progress & Quick Support Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Active Milestone Progress (2 Cols) */}
+                <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <h3 className="font-bold text-[#0F172A] text-base">Current Sprint Deliverables</h3>
+                      <p className="text-xs text-slate-400">Phase 3: Core Next.js Build & Payment Integrations</p>
+                    </div>
+                    <span className="text-sm font-extrabold text-[#2563EB]">88% Complete</span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden mb-6">
+                    <div className="h-full bg-gradient-to-r from-[#2563EB] to-[#14B8A6] rounded-full w-[88%]" />
+                  </div>
+
+                  <div className="space-y-3">
+                    {projectMilestones[2].deliverables.map((d, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-xs">
+                        <div className="flex items-center gap-2.5 font-medium text-slate-700">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span>{d}</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-500 text-[10px] font-semibold">
+                          Verified
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 pt-5 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs text-slate-400">Target Delivery Date: Sep 28, 2026</span>
+                    <button
+                      onClick={() => setActiveTab('milestones')}
+                      className="text-xs font-bold text-[#2563EB] hover:underline inline-flex items-center gap-1"
+                    >
+                      View All 5 Phases <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Verified SLA & Engineering Desk */}
+                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-[#0F172A] text-base mb-1">Dedicated Engineering Desk</h3>
+                    <p className="text-xs text-slate-400 mb-4">Direct access to your assigned lead engineers</p>
+
+                    <div className="space-y-3 mb-6">
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">
+                          Response Guarantee
+                        </div>
+                        <div className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-[#2563EB]" />
+                          <span>4-Hour Critical Response SLA</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">
+                          Lead Engineer
+                        </div>
+                        <div className="text-sm font-bold text-[#0F172A]">Peter Mwangi (Bazion Lead)</div>
+                        <div className="text-xs text-slate-400">peter@bazionweb.com</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('support');
+                      setShowNewTicketModal(true);
+                    }}
+                    className="btn-primary w-full justify-center text-xs py-2.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Submit Engineering Request
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* ─── Tickets Tab ─────────────────────────────────────────────── */}
-          {activeTab === 'tickets' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-slate-500">{tickets.length} total tickets</p>
-                <button onClick={() => setShowNewTicket(true)} className="btn-primary text-sm">
-                  <Plus className="w-4 h-4" />
-                  New Ticket
-                </button>
+          {/* ═════════ MILESTONES & STAGING SANDBOX ═════════ */}
+          {activeTab === 'milestones' && (
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-xl font-extrabold text-[#0F172A]">Project Delivery Roadmap & Staging Sandbox</h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Follow every development sprint from discovery to production cutover with 1-click deliverable sign-offs.
+                </p>
               </div>
-              <div className="card">
+
+              {/* Milestone Stepper */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {projectMilestones.map(m => (
+                    <div
+                      key={m.id}
+                      className={cn(
+                        'p-4 rounded-xl border transition-all',
+                        m.status === 'completed'
+                          ? 'border-emerald-200 bg-emerald-50/50'
+                          : m.status === 'active'
+                          ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/20'
+                          : 'border-slate-200 bg-slate-50/50 opacity-70',
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{m.phase}</span>
+                        {m.status === 'completed' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                            <Check className="w-3 h-3" /> Done
+                          </span>
+                        ) : m.status === 'active' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 animate-pulse">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-slate-400">Pending</span>
+                        )}
+                      </div>
+                      <div className="text-xs font-bold text-[#0F172A] leading-snug line-clamp-2 mb-2">{m.title}</div>
+                      <div className="text-[11px] text-slate-400">{m.estimatedDate}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Staging Sandbox Interactive Preview */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="bg-[#0F172A] text-white px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="font-bold text-sm">Live Staging Sandbox</span>
+                    <span className="text-xs text-slate-400 font-mono hidden sm:inline">{mockClient.stagingUrl}</span>
+                  </div>
+
+                  {/* Device selector */}
+                  <div className="flex items-center gap-2">
+                    <div className="inline-flex p-1 rounded-lg bg-white/10 border border-white/10 text-xs">
+                      <button
+                        onClick={() => setPreviewDevice('desktop')}
+                        className={cn(
+                          'p-1.5 rounded-md transition-colors',
+                          previewDevice === 'desktop' ? 'bg-[#2563EB] text-white' : 'text-slate-400 hover:text-white',
+                        )}
+                        title="Desktop View"
+                      >
+                        <Monitor className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setPreviewDevice('tablet')}
+                        className={cn(
+                          'p-1.5 rounded-md transition-colors',
+                          previewDevice === 'tablet' ? 'bg-[#2563EB] text-white' : 'text-slate-400 hover:text-white',
+                        )}
+                        title="Tablet View"
+                      >
+                        <Tablet className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setPreviewDevice('mobile')}
+                        className={cn(
+                          'p-1.5 rounded-md transition-colors',
+                          previewDevice === 'mobile' ? 'bg-[#2563EB] text-white' : 'text-slate-400 hover:text-white',
+                        )}
+                        title="Mobile View"
+                      >
+                        <Smartphone className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => setApprovalModalOpen(true)}
+                      className="btn-primary text-xs py-2 px-3.5 shadow-sm"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      1-Click Approval
+                    </button>
+                  </div>
+                </div>
+
+                {/* Staging Frame Container */}
+                <div className="p-6 bg-slate-100 flex justify-center items-center min-h-[460px]">
+                  <div
+                    className={cn(
+                      'transition-all duration-300 bg-white rounded-xl shadow-xl border border-slate-300 overflow-hidden flex flex-col',
+                      previewDevice === 'desktop' && 'w-full max-w-5xl h-[520px]',
+                      previewDevice === 'tablet' && 'w-[768px] h-[520px]',
+                      previewDevice === 'mobile' && 'w-[375px] h-[520px]',
+                    )}
+                  >
+                    {/* Simulated Browser Address Bar */}
+                    <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center gap-2 text-xs text-slate-500">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                      <div className="flex-1 mx-2 px-3 py-1 rounded bg-white border border-slate-200 font-mono text-[11px] truncate text-slate-600">
+                        🔒 {mockClient.stagingUrl}
+                      </div>
+                    </div>
+
+                    {/* Simulated Staging Content Frame */}
+                    <div className="flex-1 p-8 overflow-y-auto bg-white flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+                          <div className="text-lg font-black text-[#0F172A]">Acacia Healthcare</div>
+                          <div className="flex gap-4 text-xs font-semibold text-slate-500">
+                            <span>Services</span>
+                            <span>Doctors</span>
+                            <span>Appointments</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 max-w-md">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                            Staging Preview Active
+                          </span>
+                          <h4 className="text-2xl font-extrabold text-[#0F172A] leading-tight">
+                            Comprehensive Family & Specialized Medical Care in Nairobi
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Book appointments seamlessly with instant M-Pesa verification and digital patient scheduling.
+                          </p>
+                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#2563EB] text-white text-xs font-bold">
+                            Book Doctor Consultation
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Built with Next.js 14 App Router</span>
+                        <span>M-Pesa Express STK Active</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Approval Modal */}
+              {approvalModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-bold text-[#0F172A] mb-2">Formal Deliverable Sign-Off</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed mb-6">
+                      By approving, you verify that Phase 3 (Core Next.js Build & Payment Integrations) meets your acceptance criteria. An immutable audit record will be logged.
+                    </p>
+
+                    <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1 text-slate-600 mb-6">
+                      <div>Signee: <strong>{mockClient.contactName}</strong></div>
+                      <div>Organization: <strong>{mockClient.name}</strong></div>
+                      <div>Timestamp: <strong>{new Date().toLocaleString()}</strong></div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          setApprovedSuccess(true);
+                          setApprovalModalOpen(false);
+                          setTimeout(() => setApprovedSuccess(false), 5000);
+                        }}
+                        className="btn-primary flex-1 justify-center text-xs py-2.5"
+                      >
+                        Confirm Sign-Off
+                      </button>
+                      <button
+                        onClick={() => setApprovalModalOpen(false)}
+                        className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {approvedSuccess && (
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Deliverable successfully signed off and recorded in compliance audit log.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═════════ ASSET SOVEREIGNTY & DNS ═════════ */}
+          {activeTab === 'assets' && (
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-xl font-extrabold text-[#0F172A]">Asset Sovereignty & Infrastructure Hub</h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Transparent proof of client ownership for domains, DNS, SSL, and intellectual property.
+                </p>
+              </div>
+
+              {/* Ownership Guarantee Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {assetSovereigntyChecklist.map((item, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <h4 className="font-bold text-[#0F172A] text-sm">{item.asset}</h4>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0">
+                          <Check className="w-3 h-3" /> {item.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 leading-relaxed mb-4">{item.details}</p>
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                      <span>Registrar / Authority:</span>
+                      <strong className="text-slate-700">{item.authority}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* DNS Delegation Records */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+                <h3 className="font-bold text-[#0F172A] text-base mb-1">Active Edge DNS Records (Cloudflare Managed)</h3>
+                <p className="text-xs text-slate-400 mb-5">
+                  High-speed global routing with automatic TLS 1.3 encryption and DDoS mitigation.
+                </p>
+
                 <div className="table-wrapper">
                   <table className="table-default">
                     <thead>
                       <tr>
-                        <th className="table-header">Ticket ID</th>
-                        <th className="table-header">Subject</th>
-                        <th className="table-header">Priority</th>
-                        <th className="table-header">Status</th>
-                        <th className="table-header">Created</th>
+                        <th className="table-header">Type</th>
+                        <th className="table-header">Name</th>
+                        <th className="table-header">Target Value</th>
+                        <th className="table-header">Proxy Status</th>
                         <th className="table-header">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {tickets.map(t => (
-                        <tr key={t.id} className="hover:bg-slate-50/50">
-                          <td className="table-cell font-mono text-xs text-slate-400">{t.id}</td>
-                          <td className="table-cell font-medium text-[#0F172A] max-w-xs">{t.subject}</td>
+                    <tbody className="divide-y divide-slate-100">
+                      {[
+                        { type: 'A', name: '@', target: '172.67.194.82', proxy: 'Proxied (Cloudflare)' },
+                        { type: 'CNAME', name: 'www', target: 'acaciahealthcare.co.ke', proxy: 'Proxied' },
+                        { type: 'CNAME', name: 'staging', target: 'staging-acacia.bazionweb.com', proxy: 'Proxied' },
+                        { type: 'TXT', name: '@', target: 'v=spf1 include:_spf.google.com ~all', proxy: 'DNS Only' },
+                      ].map((record, i) => (
+                        <tr key={i} className="hover:bg-slate-50/50">
                           <td className="table-cell">
-                            <span className={`badge ${
-                              t.priority === 'P2' ? 'badge-yellow' : 'badge-slate'
-                            }`}>{t.priority}</span>
+                            <span className="badge badge-blue font-mono">{record.type}</span>
+                          </td>
+                          <td className="table-cell font-mono text-xs font-semibold text-slate-700">{record.name}</td>
+                          <td className="table-cell font-mono text-xs text-slate-600 max-w-xs truncate">{record.target}</td>
+                          <td className="table-cell">
+                            <span className="badge badge-green">{record.proxy}</span>
                           </td>
                           <td className="table-cell">
-                            <span className={`badge ${t.statusColor}`}>{t.status}</span>
-                          </td>
-                          <td className="table-cell text-slate-400">{t.created}</td>
-                          <td className="table-cell">
-                            <button className="text-xs text-[#2563EB] font-semibold hover:underline flex items-center gap-1">
-                              View <ExternalLink className="w-3 h-3" />
+                            <button
+                              onClick={() => copyToClipboard(record.target, `dns-${i}`)}
+                              className="text-xs text-[#2563EB] hover:underline flex items-center gap-1 font-semibold"
+                            >
+                              {copiedKey === `dns-${i}` ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600" /> Copied
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" /> Copy
+                                </>
+                              )}
                             </button>
                           </td>
                         </tr>
@@ -405,36 +922,294 @@ export default function PortalDashboard() {
             </div>
           )}
 
-          {/* ─── Invoices Tab ────────────────────────────────────────────── */}
-          {activeTab === 'invoices' && (
-            <div className="space-y-6">
-              <div className="card">
+          {/* ═════════ ENCRYPTED SECRETS VAULT ═════════ */}
+          {activeTab === 'vault' && (
+            <div className="space-y-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-[#0F172A]">Zero-Knowledge Credentials Vault</h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Safely deposit API keys, payment webhooks, and registrar secrets without sending them over unencrypted emails.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowSecretModal(true)}
+                  className="btn-primary text-xs py-2 px-4 shadow-sm self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Deposit Encrypted Secret
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
                 <div className="table-wrapper">
                   <table className="table-default">
                     <thead>
                       <tr>
-                        <th className="table-header">Invoice</th>
-                        <th className="table-header">Period</th>
+                        <th className="table-header">Secret Key Name</th>
+                        <th className="table-header">Environment / Scope</th>
+                        <th className="table-header">Encrypted Preview</th>
+                        <th className="table-header">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {vaultSecrets.map(s => (
+                        <tr key={s.id} className="hover:bg-slate-50/50">
+                          <td className="table-cell font-semibold text-slate-800 flex items-center gap-2">
+                            <Lock className="w-3.5 h-3.5 text-[#14B8A6]" />
+                            {s.key}
+                          </td>
+                          <td className="table-cell text-xs text-slate-500">{s.env}</td>
+                          <td className="table-cell font-mono text-xs text-slate-400">{s.preview}</td>
+                          <td className="table-cell">
+                            <span className="badge badge-green">Encrypted (AES-256)</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Add Secret Modal */}
+              {showSecretModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200">
+                    <h3 className="text-lg font-bold text-[#0F172A] mb-1">Add Secret to Vault</h3>
+                    <p className="text-xs text-slate-500 mb-5">
+                      The key will be encrypted at the database level and accessible exclusively to assigned Bazion engineers.
+                    </p>
+
+                    <form onSubmit={handleAddSecret} className="space-y-4">
+                      <div>
+                        <label className="label">Secret Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={newSecretKey}
+                          onChange={e => setNewSecretKey(e.target.value)}
+                          placeholder="e.g. M-Pesa Passkey / Mailgun API Key"
+                          className="input text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">Secret Value</label>
+                        <textarea
+                          required
+                          value={newSecretVal}
+                          onChange={e => setNewSecretVal(e.target.value)}
+                          placeholder="Paste sensitive token or credential..."
+                          className="input text-xs font-mono min-h-[90px]"
+                        />
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button type="submit" className="btn-primary flex-1 justify-center text-xs py-2.5">
+                          Save Encrypted Secret
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowSecretModal(false)}
+                          className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═════════ SUPPORT & REQUESTS ═════════ */}
+          {activeTab === 'support' && (
+            <div className="space-y-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-[#0F172A]">Direct Engineering Support</h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Submit sprint modifications or technical tickets with transparent SLA response countdowns.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowNewTicketModal(true)}
+                  className="btn-primary text-xs py-2 px-4 shadow-sm self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Request
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+                <div className="table-wrapper">
+                  <table className="table-default">
+                    <thead>
+                      <tr>
+                        <th className="table-header">Request ID</th>
+                        <th className="table-header">Subject</th>
+                        <th className="table-header">Priority</th>
+                        <th className="table-header">Status</th>
+                        <th className="table-header">SLA Response Window</th>
+                        <th className="table-header">Created</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {supportRequests.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-50/50">
+                          <td className="table-cell font-mono text-xs font-semibold text-slate-400">{t.id}</td>
+                          <td className="table-cell font-medium text-[#0F172A]">{t.subject}</td>
+                          <td className="table-cell">
+                            <span
+                              className={cn(
+                                'badge',
+                                t.priority === 'Urgent'
+                                  ? 'badge-red'
+                                  : t.priority === 'Normal'
+                                  ? 'badge-blue'
+                                  : 'badge-slate',
+                              )}
+                            >
+                              {t.priority}
+                            </span>
+                          </td>
+                          <td className="table-cell">
+                            <span
+                              className={cn(
+                                'badge',
+                                t.status.includes('Completed') || t.status.includes('Resolved')
+                                  ? 'badge-green'
+                                  : 'badge-yellow',
+                              )}
+                            >
+                              {t.status}
+                            </span>
+                          </td>
+                          <td className="table-cell text-xs font-semibold text-slate-600">{t.slaRemaining}</td>
+                          <td className="table-cell text-xs text-slate-400">{t.created}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* New Ticket Modal */}
+              {showNewTicketModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200">
+                    <h3 className="text-lg font-bold text-[#0F172A] mb-1">Submit Engineering Request</h3>
+                    <p className="text-xs text-slate-500 mb-5">
+                      Your request will be assigned to Peter Mwangi under the 4-Hour SLA Guarantee.
+                    </p>
+
+                    <form onSubmit={handleCreateTicket} className="space-y-4">
+                      <div>
+                        <label className="label">Request Description</label>
+                        <input
+                          type="text"
+                          required
+                          value={newTicketSubject}
+                          onChange={e => setNewTicketSubject(e.target.value)}
+                          placeholder="e.g. Update emergency contact phone on landing page"
+                          className="input text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label">Priority Level</label>
+                        <select
+                          value={newTicketPriority}
+                          onChange={e => setNewTicketPriority(e.target.value)}
+                          className="input text-xs"
+                        >
+                          <option value="Normal">Normal (Standard sprint adjustment)</option>
+                          <option value="Urgent">Urgent (Customer-facing block)</option>
+                          <option value="Critical">Critical (Immediate SLA response)</option>
+                        </select>
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button type="submit" className="btn-primary flex-1 justify-center text-xs py-2.5">
+                          Submit to Engineering
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowNewTicketModal(false)}
+                          className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═════════ INVOICES & CLOUD CARE ═════════ */}
+          {activeTab === 'invoices' && (
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-xl font-extrabold text-[#0F172A]">Invoices & Cloud Care Subscriptions</h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Itemized commercial statements with official KRA eTIMS tax receipts and direct M-Pesa statements.
+                </p>
+              </div>
+
+              {/* Active Subscription Summary */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                    Active Subscription
+                  </span>
+                  <h3 className="text-lg font-bold text-[#0F172A] mt-1">{mockClient.activePlan}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {mockClient.renewalAmount} · Next cycle: {mockClient.nextRenewal}
+                  </p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <div className="text-xs text-slate-400">Payment Channel</div>
+                  <div className="text-xs font-bold text-[#0F172A] mt-0.5">{mockClient.paymentMethod}</div>
+                </div>
+              </div>
+
+              {/* Invoices Table */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+                <div className="table-wrapper">
+                  <table className="table-default">
+                    <thead>
+                      <tr>
+                        <th className="table-header">Invoice #</th>
+                        <th className="table-header">Description</th>
                         <th className="table-header">Amount</th>
+                        <th className="table-header">Payment Rail</th>
                         <th className="table-header">Status</th>
                         <th className="table-header">Date</th>
                         <th className="table-header">Download</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {invoices.map(inv => (
+                    <tbody className="divide-y divide-slate-100">
+                      {mockInvoices.map(inv => (
                         <tr key={inv.id} className="hover:bg-slate-50/50">
-                          <td className="table-cell font-mono text-xs text-slate-400">{inv.id}</td>
-                          <td className="table-cell font-medium text-[#0F172A]">{inv.period}</td>
-                          <td className="table-cell font-bold text-[#0F172A]">{inv.amount}</td>
+                          <td className="table-cell font-mono text-xs font-semibold text-slate-400">{inv.id}</td>
+                          <td className="table-cell font-medium text-[#0F172A] text-xs max-w-xs">{inv.description}</td>
+                          <td className="table-cell font-bold text-[#0F172A] text-xs">{inv.amount}</td>
+                          <td className="table-cell text-xs text-slate-600">{inv.method}</td>
                           <td className="table-cell">
-                            <span className="badge badge-green">{inv.status}</span>
+                            <span className={cn('badge', inv.status === 'Paid' ? 'badge-green' : 'badge-yellow')}>
+                              {inv.status}
+                            </span>
                           </td>
-                          <td className="table-cell text-slate-400">{inv.date}</td>
+                          <td className="table-cell text-xs text-slate-400">{inv.date}</td>
                           <td className="table-cell">
-                            <button className="text-xs text-[#2563EB] font-semibold hover:underline flex items-center gap-1">
-                              <Download className="w-3 h-3" />
-                              PDF
+                            <button
+                              onClick={() => alert(`Downloading official PDF statement for ${inv.id}`)}
+                              className="text-xs text-[#2563EB] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" /> PDF
                             </button>
                           </td>
                         </tr>
@@ -445,262 +1220,8 @@ export default function PortalDashboard() {
               </div>
             </div>
           )}
-
-          {/* ─── Reports Tab ─────────────────────────────────────────────── */}
-          {activeTab === 'reports' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {['May 2025', 'April 2025', 'March 2025'].map(month => (
-                  <div key={month} className="card p-6 flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-[#0F172A]">{month}</div>
-                        <div className="text-xs text-slate-400">Monthly Report</div>
-                      </div>
-                      <FileText className="w-5 h-5 text-slate-300" />
-                    </div>
-                    <div className="flex gap-2 text-xs flex-wrap">
-                      <span className="badge-green">Uptime: 99.97%</span>
-                      <span className="badge-blue">Score: 96</span>
-                      <span className="badge-teal">0 incidents</span>
-                    </div>
-                    <button className="btn-secondary text-xs py-2 flex items-center justify-center gap-1">
-                      <Download className="w-3 h-3" />
-                      Download PDF
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Website Tab ──────────────────────────────────────────────────── */}
-          {activeTab === 'website' && (
-            <div className="space-y-6">
-              {/* Site health banner */}
-              <div className="bg-gradient-to-r from-[#0F172A] to-[#1e3a5f] rounded-2xl p-6 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <p className="text-slate-400 text-xs mb-1 uppercase tracking-widest">Live site</p>
-                  <a href={`https://${mockClient.domain}`} target="_blank" rel="noopener noreferrer"
-                    className="text-xl font-bold hover:text-[#14B8A6] transition-colors flex items-center gap-2">
-                    {mockClient.domain}
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
-                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
-                  <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
-                  <span className="text-sm text-slate-300">Site is online</span>
-                </div>
-              </div>
-
-              {/* Lighthouse scores */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { label: 'Performance', score: 97, color: 'text-[#22C55E]' },
-                  { label: 'Accessibility', score: 94, color: 'text-[#22C55E]' },
-                  { label: 'Best Practices', score: 100, color: 'text-[#22C55E]' },
-                  { label: 'SEO', score: 98, color: 'text-[#22C55E]' },
-                ].map(s => (
-                  <div key={s.label} className="card p-5 text-center">
-                    <div className={`text-3xl font-black ${s.color} mb-1`}>{s.score}</div>
-                    <div className="text-xs text-slate-400">{s.label}</div>
-                    <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                      <div className="h-full rounded-full bg-[#22C55E]" style={{ width: `${s.score}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Active project */}
-              <div className="card p-6">
-                <h3 className="font-bold text-[#0F172A] mb-4">Active project</h3>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="font-semibold text-[#0F172A]">Homepage redesign — Q3 2025</div>
-                    <div className="text-xs text-slate-400 mt-0.5">Staging: staging.acaciahealthcare.com</div>
-                  </div>
-                  <span className="badge-blue">In Progress</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden mb-2">
-                  <div className="h-full rounded-full bg-[#2563EB]" style={{ width: '65%' }} />
-                </div>
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>65% complete</span>
-                  <span>Due: Aug 15, 2025</span>
-                </div>
-                {/* Task list */}
-                <div className="mt-5 space-y-2">
-                  {[
-                    { task: 'Figma design approved', done: true },
-                    { task: 'Homepage component build', done: true },
-                    { task: 'Services page build', done: true },
-                    { task: 'CMS content migration', done: false },
-                    { task: 'QA & performance testing', done: false },
-                    { task: 'Production deploy', done: false },
-                  ].map((t, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm">
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${t.done ? 'bg-[#22C55E] border-[#22C55E]' : 'border-slate-200'}`}>
-                        {t.done && <Check className="w-2.5 h-2.5 text-white" />}
-                      </div>
-                      <span className={t.done ? 'text-slate-400 line-through' : 'text-slate-700'}>{t.task}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Core Web Vitals */}
-              <div className="card p-6">
-                <h3 className="font-bold text-[#0F172A] mb-4">Core Web Vitals</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {[
-                    { label: 'LCP (Largest Contentful Paint)', value: '1.2s', status: 'Good', threshold: '< 2.5s', color: 'text-[#22C55E]', bg: 'bg-green-50' },
-                    { label: 'INP (Interaction to Next Paint)', value: '48ms', status: 'Good', threshold: '< 200ms', color: 'text-[#22C55E]', bg: 'bg-green-50' },
-                    { label: 'CLS (Cumulative Layout Shift)', value: '0.02', status: 'Good', threshold: '< 0.1', color: 'text-[#22C55E]', bg: 'bg-green-50' },
-                  ].map(v => (
-                    <div key={v.label} className={`${v.bg} rounded-xl p-4 border border-slate-100`}>
-                      <div className={`text-xl font-black ${v.color} mb-1`}>{v.value}</div>
-                      <div className="text-xs font-semibold text-[#0F172A] mb-0.5">{v.status}</div>
-                      <div className="text-xs text-slate-400">{v.label}</div>
-                      <div className="text-xs text-slate-300 mt-1">Threshold: {v.threshold}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Settings Tab ──────────────────────────────────────────────────── */}
-          {activeTab === 'settings' && (
-            <div className="space-y-6 max-w-2xl">
-              {/* Contact details */}
-              <div className="card p-6">
-                <h3 className="font-bold text-[#0F172A] mb-5">Account details</h3>
-                <div className="space-y-4">
-                  {[
-                    { label: 'Business name', value: mockClient.name, type: 'text' },
-                    { label: 'Contact name', value: 'Sarah Kamau', type: 'text' },
-                    { label: 'Email address', value: 'sarah@acaciahealthcare.com', type: 'email' },
-                    { label: 'Phone number', value: '+1 555 011 1234', type: 'tel' },
-                  ].map(f => (
-                    <div key={f.label}>
-                      <label className="label">{f.label}</label>
-                      <input type={f.type} defaultValue={f.value} className="input" />
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5 flex justify-end">
-                  <button className="btn-primary text-sm py-2.5">Save changes</button>
-                </div>
-              </div>
-
-              {/* Notification preferences */}
-              <div className="card p-6">
-                <h3 className="font-bold text-[#0F172A] mb-5">Notification preferences</h3>
-                <div className="space-y-4">
-                  {[
-                    { label: 'Ticket updates', desc: 'When a ticket is updated or resolved', enabled: true },
-                    { label: 'Monthly reports', desc: 'Receive your monthly performance report', enabled: true },
-                    { label: 'Invoice reminders', desc: 'Before invoice due dates', enabled: true },
-                    { label: 'SSL expiry alerts', desc: 'When your SSL certificate is expiring', enabled: true },
-                    { label: 'Downtime alerts', desc: 'Immediate notification when site goes down', enabled: true },
-                    { label: 'Marketing emails', desc: 'Product updates and feature announcements', enabled: false },
-                  ].map(n => (
-                    <div key={n.label} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div>
-                        <div className="text-sm font-medium text-[#0F172A]">{n.label}</div>
-                        <div className="text-xs text-slate-400">{n.desc}</div>
-                      </div>
-                      <button className={`w-10 h-6 rounded-full transition-colors relative ${n.enabled ? 'bg-[#2563EB]' : 'bg-slate-200'}`}>
-                        <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${n.enabled ? 'left-5' : 'left-1'}`} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Security */}
-              <div className="card p-6">
-                <h3 className="font-bold text-[#0F172A] mb-5">Security</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-                    <div>
-                      <div className="text-sm font-medium text-[#0F172A]">Password</div>
-                      <div className="text-xs text-slate-400">Last changed 3 months ago</div>
-                    </div>
-                    <a href="https://auth.bazionweb.com/realms/bazionweb/account/password"
-                       target="_blank" rel="noopener noreferrer"
-                       className="btn-secondary text-xs py-1.5 px-4">
-                      Change
-                    </a>
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-                    <div>
-                      <div className="text-sm font-medium text-[#0F172A]">Two-factor authentication</div>
-                      <div className="text-xs text-slate-400">Strongly recommended</div>
-                    </div>
-                    <a href="https://auth.bazionweb.com/realms/bazionweb/account/totp"
-                       target="_blank" rel="noopener noreferrer"
-                       className="btn-primary text-xs py-1.5 px-4">
-                      Enable 2FA
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              {/* Danger zone */}
-              <div className="card p-6 border border-red-100">
-                <h3 className="font-bold text-[#EF4444] mb-3">Danger zone</h3>
-                <p className="text-sm text-slate-500 mb-4">
-                  Account cancellation removes all data after a 30-day grace period.
-                  Please contact support before proceeding.
-                </p>
-                <button className="btn-danger text-sm py-2">Request account cancellation</button>
-              </div>
-            </div>
-          )}
         </main>
       </div>
-
-      {/* New Ticket Modal */}
-      {showNewTicket && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-[#0F172A]">Submit a support ticket</h3>
-              <button onClick={() => setShowNewTicket(false)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="label">Subject</label>
-                <input type="text" className="input" placeholder="Brief description of the issue" />
-              </div>
-              <div>
-                <label className="label">Priority</label>
-                <select className="input">
-                  <option value="P4">P4 — Low (cosmetic, enhancement)</option>
-                  <option value="P3">P3 — Normal (minor issue)</option>
-                  <option value="P2">P2 — High (feature broken)</option>
-                  <option value="P1">P1 — Critical (site down)</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Description</label>
-                <textarea rows={4} className="input" placeholder="Describe the issue in detail…" />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowNewTicket(false)} className="btn-ghost flex-1">
-                  Cancel
-                </button>
-                <button onClick={() => setShowNewTicket(false)} className="btn-primary flex-1">
-                  Submit Ticket
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
