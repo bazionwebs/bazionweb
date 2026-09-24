@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     }
 
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bazionweb.com';
 
     // If in demo/test mode with placeholder key, simulate a successful initialization
     if (!secretKey || secretKey.includes('replace_with_your')) {
