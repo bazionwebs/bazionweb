@@ -1,3 +1,4 @@
+import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, TrendingUp, Shield, Zap, Clock, Check } from 'lucide-react';
@@ -7,7 +8,7 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 const studies: Record<string, {
   client: string; industry: string; plan: string; website: string;
-  challenge: string; approach: string[]; results: { icon: any; metric: string; label: string }[];
+  challenge: string; approach: string[]; results: { icon: React.ComponentType<{ className?: string }>; metric: string; label: string }[];
   quote: string; quoteName: string; quoteRole: string;
   timeline: string; teamSize: string;
   /** Screenshot under /public. Hero renders unchanged until set. */
@@ -93,7 +94,7 @@ export default function CaseStudyPage({ params }: { params: { slug: string } }) 
             <span className="ml-auto badge-blue">{s.plan} Plan</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-5 leading-snug">
-            How we transformed {s.client}'s website management
+            How we transformed {s.client}&apos;s website management
           </h1>
           <div className="flex flex-wrap gap-4 text-xs text-slate-400">
             <span>{s.timeline}</span>
@@ -153,7 +154,7 @@ export default function CaseStudyPage({ params }: { params: { slug: string } }) 
 
             <div className="lg:col-span-2 space-y-6">
               <blockquote className="card p-6 border-l-4 border-[#2563EB]">
-                <p className="text-slate-600 italic leading-relaxed mb-4">"{s.quote}"</p>
+                <p className="text-slate-600 italic leading-relaxed mb-4">&ldquo;{s.quote}&rdquo;</p>
                 <footer>
                   <div className="font-semibold text-[#0F172A] text-sm">{s.quoteName}</div>
                   <div className="text-xs text-slate-400">{s.quoteRole}</div>

@@ -84,7 +84,7 @@ export default function AboutPage() {
               About BazionWeb
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
-              Built for businesses that don't have time to manage their website
+              Built for businesses that don&apos;t have time to manage their website
             </h1>
             <p className="text-xl text-slate-400 leading-relaxed max-w-2xl">
               We started BazionWeb because we kept seeing the same story: great businesses with slow, broken, or abandoned websites — because no single provider owned the whole picture.
@@ -122,7 +122,7 @@ export default function AboutPage() {
                 To become the most trusted managed web services provider for SMEs worldwide, known for reliability, transparency, and measurable business impact.
               </p>
               <p className="text-slate-500 leading-relaxed">
-                We started with a simple belief: every business deserves enterprise-grade web management. And we're delivering it to the same standard that enterprise businesses expect — just packaged for the businesses that actually need it most.
+                We started with a simple belief: every business deserves enterprise-grade web management. And we&apos;re delivering it to the same standard that enterprise businesses expect — just packaged for the businesses that actually need it most.
               </p>
             </div>
           </div>
@@ -207,7 +207,7 @@ export default function AboutPage() {
         <div className="container-default max-w-3xl mx-auto">
           <div className="text-center mb-12">
             <span className="eyebrow">Our Story</span>
-            <h2 className="text-3xl font-bold text-[#0F172A]">Where we've been</h2>
+            <h2 className="text-3xl font-bold text-[#0F172A]">Where we&apos;ve been</h2>
           </div>
           <div className="relative">
             <div className="absolute left-4 top-0 bottom-0 w-px bg-gradient-to-b from-[#2563EB] via-[#14B8A6] to-transparent" />
@@ -257,7 +257,7 @@ export default function AboutPage() {
             ))}
           </div>
           <p className="text-center text-sm text-slate-400 mt-8">
-            Growing team — we're hiring across engineering, support, and client success.{' '}
+            Growing team — we&apos;re hiring across engineering, support, and client success.{' '}
             <Link href="/careers" className="text-[#2563EB] font-medium hover:underline">View open roles →</Link>
           </p>
         </div>
@@ -270,7 +270,7 @@ export default function AboutPage() {
             Ready to work with us?
           </h2>
           <p className="text-slate-400 mb-8 text-lg">
-            Tell us about your website. We'll give you an honest assessment and a clear path forward.
+            Tell us about your website. We&apos;ll give you an honest assessment and a clear path forward.
           </p>
           <Link href="/contact" className="btn-primary px-8 py-4 text-base">
             Start the conversation

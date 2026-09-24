@@ -66,7 +66,7 @@ export default function CookiePolicyPage() {
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">Third-Party Cookies</h2>
             <p className="text-slate-600 leading-relaxed">
-              We use Cloudflare for security and CDN. Their cookies (cf_clearance) are strictly necessary and governed by Cloudflare's privacy policy. We do not use advertising or social media tracking cookies.
+              We use Cloudflare for security and CDN. Their cookies (cf_clearance) are strictly necessary and governed by Cloudflare&apos;s privacy policy. We do not use advertising or social media tracking cookies.
             </p>
           </section>
         </div>

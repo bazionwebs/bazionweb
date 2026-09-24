@@ -55,7 +55,7 @@ export default function WebDevPage() {
       <section className="section bg-[#F8FAFC]">
         <div className="container-default">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[#0F172A] mb-3">What's included in every build</h2>
+            <h2 className="text-3xl font-bold text-[#0F172A] mb-3">What&apos;s included in every build</h2>
             <p className="text-slate-500">No extras. No hidden charges. Every item below is standard.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

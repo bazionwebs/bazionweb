@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">1. Who We Are (Data Controller)</h2>
             <p className="text-slate-600 leading-relaxed">
-              BazionWeb ("we", "our", "us") is the data controller for personal data collected via bazionweb.com and our client portal. Contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>
+              BazionWeb (&ldquo;we&rdquo;, &ldquo;our&rdquo;, &ldquo;us&rdquo;) is the data controller for personal data collected via bazionweb.com and our client portal. Contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>
             </p>
           </section>
 

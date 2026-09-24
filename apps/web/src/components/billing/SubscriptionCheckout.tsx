@@ -97,7 +97,7 @@ export default function SubscriptionCheckout({
   
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-  const [wiseAccount, setWiseAccount] = useState<any | null>(null);
+  const [wiseAccount, setWiseAccount] = useState<Record<string, string> | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const currentPlan = AVAILABLE_PLANS[selectedPlanSlug] || AVAILABLE_PLANS['growth'];
@@ -141,8 +141,8 @@ export default function SubscriptionCheckout({
         type: 'info',
         message: data.message || 'Prompt sent! Please check your mobile phone and enter your Safaricom M-Pesa PIN.',
       });
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Payment request failed' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Payment request failed' });
     } finally {
       setLoading(false);
     }
@@ -173,8 +173,8 @@ export default function SubscriptionCheckout({
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Card gateway error' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Card gateway error' });
       setLoading(false);
     }
   };
@@ -208,8 +208,8 @@ export default function SubscriptionCheckout({
         type: 'success',
         message: `Corporate B2B Invoice ${data.invoiceNumber} provisioned with designated virtual bank account.`,
       });
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Corporate invoice generation failed' });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Corporate invoice generation failed' });
     } finally {
       setLoading(false);
     }
@@ -439,7 +439,7 @@ export default function SubscriptionCheckout({
                       </label>
                       <select
                         value={currency}
-                        onChange={(e: any) => setCurrency(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCurrency(e.target.value as 'USD' | 'EUR' | 'GBP')}
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-white text-xs focus:outline-none focus:border-purple-500"
                       >
                         <option value="USD">USD ($) - ACH / Fedwire Routing</option>

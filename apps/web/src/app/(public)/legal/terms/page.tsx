@@ -31,7 +31,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-[#0F172A] mb-3">1. Agreement to Terms</h2>
               <p className="text-slate-600 leading-relaxed">
-                By accessing or using any service provided by BazionWeb ("Company", "we", "our"), you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, do not use our services. These terms constitute a legally binding agreement under the laws of Kenya and applicable international law.
+                By accessing or using any service provided by BazionWeb (&ldquo;Company&rdquo;, &ldquo;we&rdquo;, &ldquo;our&rdquo;), you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, do not use our services. These terms constitute a legally binding agreement under the laws of Kenya and applicable international law.
               </p>
             </section>
 
@@ -41,7 +41,7 @@ export default function TermsPage() {
                 BazionWeb provides managed website lifecycle services including but not limited to: website development, managed cloud hosting, website maintenance, security management, performance optimization, and technical support. The specific services, deliverables, and SLAs applicable to your subscription are defined in your Service Order.
               </p>
               <p className="text-slate-600 leading-relaxed">
-                We reserve the right to modify, suspend, or discontinue any service with 30 days' written notice, except where required by law, security necessity, or violation of these terms.
+                We reserve the right to modify, suspend, or discontinue any service with 30 days&apos; written notice, except where required by law, security necessity, or violation of these terms.
               </p>
             </section>
 
@@ -61,7 +61,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-[#0F172A] mb-3">4. Payment Terms</h2>
               <p className="text-slate-600 leading-relaxed mb-3">
-                Subscriptions are billed monthly in advance on your billing date. One-time project fees are invoiced per your Service Order payment schedule. Payment is due within 14 days of invoice date. Overdue accounts may be suspended after 7 days' notice.
+                Subscriptions are billed monthly in advance on your billing date. One-time project fees are invoiced per your Service Order payment schedule. Payment is due within 14 days of invoice date. Overdue accounts may be suspended after 7 days&apos; notice.
               </p>
               <p className="text-slate-600 leading-relaxed">
                 All prices are in USD unless otherwise stated. Taxes applicable in your jurisdiction are your responsibility.
@@ -88,14 +88,14 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-[#0F172A] mb-3">7. Limitation of Liability</h2>
               <p className="text-slate-600 leading-relaxed">
-                To the maximum extent permitted by law, BazionWeb's total liability to you for any claim arising from or related to these terms or our services shall not exceed the total fees paid by you in the three months preceding the claim. We are not liable for indirect, consequential, incidental, or punitive damages, including loss of business, data, or profits.
+                To the maximum extent permitted by law, BazionWeb&apos;s total liability to you for any claim arising from or related to these terms or our services shall not exceed the total fees paid by you in the three months preceding the claim. We are not liable for indirect, consequential, incidental, or punitive damages, including loss of business, data, or profits.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-bold text-[#0F172A] mb-3">8. Termination</h2>
               <p className="text-slate-600 leading-relaxed">
-                Either party may terminate with 30 days' written notice. We may terminate immediately for material breach, non-payment, or illegal use. Upon termination, we will provide a 30-day data export period. After that period, data will be permanently deleted per our Data Retention Policy.
+                Either party may terminate with 30 days&apos; written notice. We may terminate immediately for material breach, non-payment, or illegal use. Upon termination, we will provide a 30-day data export period. After that period, data will be permanently deleted per our Data Retention Policy.
               </p>
             </section>
 

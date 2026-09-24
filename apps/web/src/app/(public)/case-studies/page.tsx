@@ -129,7 +129,7 @@ export default function CaseStudiesPage() {
                 <p className="text-slate-500 leading-relaxed mb-6">{study.challenge}</p>
 
                 <blockquote className="border-l-4 border-[#2563EB] pl-4 italic text-slate-600 text-sm leading-relaxed mb-5">
-                  "{study.quote}"
+                  &ldquo;{study.quote}&rdquo;
                   <footer className="not-italic mt-2">
                     <span className="font-semibold text-[#0F172A]">{study.quoteName}</span>
                     <span className="text-slate-400"> — {study.quoteRole}</span>

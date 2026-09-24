@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import AudioTestimonial from '@/components/testimonials/AudioTestimonial';
+import HomepagePricingPreview from '@/components/pricing/HomepagePricingPreview';
 import {
   Globe, Shield, Wrench, Server, Zap, LifeBuoy,
   Check, ArrowRight, Star, TrendingUp, Clock, Award,
@@ -9,9 +10,9 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Managed Website Services for Growing Businesses',
+  title: 'Websites, Digital Systems & Managed Technology | BazionWeb',
   description:
-    'Complete website lifecycle management: custom development, managed hosting, security, maintenance and 24/7 support — one provider, one invoice.',
+    'We design, develop, host and maintain professional digital solutions for businesses, organizations, and institutions in Kenya and worldwide.',
   alternates: { canonical: 'https://bazionweb.com/' },
 };
 
@@ -27,90 +28,54 @@ const stats = [
 const services = [
   {
     icon: Globe,
-    name: 'Website Development',
-    href: '/services/development',
-    desc: 'Custom, responsive websites built on modern Next.js with CMS integration and SEO-ready architecture.',
-    tags: ['Next.js', 'Tailwind', 'Strapi CMS'],
+    name: 'Website Design & Development',
+    href: '/services#websites',
+    desc: 'Custom, responsive websites built on modern Next.js with CMS integration, SEO-ready architecture, and defect warranties.',
+    tags: ['Next.js', 'Tailwind', 'CMS Integration', 'SEO Ready'],
     accent: 'bg-blue-50 text-blue-600',
   },
   {
     icon: Server,
     name: 'Managed Cloud Hosting',
-    href: '/services/hosting',
-    desc: 'Cloud infrastructure with SSL, CDN, monitoring and daily backups — fully managed so you never worry.',
-    tags: ['Cloudflare CDN', 'Auto SSL', 'Daily Backups'],
+    href: '/services#hosting-care',
+    desc: 'High-speed cloud infrastructure with automated SSL, daily backups, WAF firewall, and 24/7 uptime monitoring.',
+    tags: ['Cloud Infrastructure', 'Auto SSL', 'Daily Backups', 'WAF'],
     accent: 'bg-teal-50 text-teal-600',
   },
   {
     icon: Wrench,
-    name: 'Website Maintenance',
-    href: '/services/maintenance',
-    desc: 'Monthly software updates, security patches, content updates and comprehensive health checks.',
-    tags: ['CMS Updates', 'Performance', 'Monthly Reports'],
+    name: 'Website Care & Maintenance',
+    href: '/services#hosting-care',
+    desc: 'Weekly updates, security patches, SEO health checks, and included dedicated engineering support hours.',
+    tags: ['CMS Updates', 'Core Web Vitals', 'Monthly Reports', 'Support Hours'],
     accent: 'bg-purple-50 text-purple-600',
   },
   {
     icon: Shield,
-    name: 'Security Management',
-    href: '/services/security',
-    desc: 'WAF protection, malware monitoring, SSL management and regular security audits — proactive defense.',
-    tags: ['WAF', 'Malware Scan', 'Audit Logs'],
-    accent: 'bg-red-50 text-red-600',
+    name: 'E-Commerce Solutions',
+    href: '/services#ecommerce',
+    desc: 'Online stores with direct M-Pesa STK Push prompts, credit card gateways, stock tracking, and coupon engines.',
+    tags: ['M-Pesa Daraja', 'Stripe / Cards', 'Inventory Sync', 'Conversion Ready'],
+    accent: 'bg-emerald-50 text-emerald-600',
   },
   {
     icon: Zap,
-    name: 'Performance Optimization',
-    href: '/services/performance',
-    desc: 'Core Web Vitals improvements, image optimization, caching configuration — Lighthouse 95+ guaranteed.',
-    tags: ['Core Web Vitals', 'Lighthouse 95+', 'CDN Config'],
-    accent: 'bg-yellow-50 text-yellow-600',
+    name: 'Custom Digital Systems & Portals',
+    href: '/services#custom-systems',
+    desc: 'Bespoke client portals, booking systems, LMS platforms, and CRMs engineered around your internal workflows.',
+    tags: ['Client Portals', 'LMS & CRMs', 'Custom APIs', 'Discovery Spec'],
+    accent: 'bg-indigo-50 text-indigo-600',
   },
   {
     icon: LifeBuoy,
-    name: '24/7 Technical Support',
+    name: '24/7 SLA Technical Support',
     href: '/services/support',
-    desc: 'SLA-backed ticket and email support. Real engineers, real accountability, real response times.',
-    tags: ['Ticket System', 'SLA-Backed', 'Escalation Matrix'],
-    accent: 'bg-green-50 text-green-600',
+    desc: 'Real systems engineers, financial uptime SLAs, and sub-15 minute emergency response for business-critical platforms.',
+    tags: ['SLA Backed', 'Sub-15m P1', 'Direct Hotline', 'Incident Post-Mortems'],
+    accent: 'bg-amber-50 text-amber-600',
   },
 ];
 
-const plans = [
-  {
-    name: 'Starter',
-    price: '$29',
-    per: '/mo',
-    desc: 'Hosting, SSL, backups, and monitoring. Everything you need to stay online.',
-    uptime: '99.9%',
-    support: '1 hour P1',
-    color: 'border-slate-200',
-    ctaColor: 'btn-secondary',
-    features: ['Managed Cloud Hosting', 'Auto SSL Certificate', 'Daily Backups', 'Uptime Monitoring', 'Basic Security', 'Email Support'],
-  },
-  {
-    name: 'Growth',
-    price: '$59',
-    per: '/mo',
-    desc: 'Add monthly maintenance, full security, and priority support to your hosting.',
-    uptime: '99.95%',
-    support: '30 min P1',
-    featured: true,
-    color: 'border-[#2563EB]',
-    ctaColor: 'btn-primary',
-    features: ['Everything in Starter', 'Monthly Maintenance', 'Full Security Management', 'Monthly Performance Report', 'Priority Support', 'SSL Monitoring'],
-  },
-  {
-    name: 'Business',
-    price: '$119',
-    per: '/mo',
-    desc: 'Full lifecycle management with performance optimization and unlimited minor updates.',
-    uptime: '99.95%',
-    support: '15 min P1',
-    color: 'border-slate-200',
-    ctaColor: 'btn-secondary',
-    features: ['Everything in Growth', 'Performance Optimization', 'Unlimited Minor Updates', 'Priority Queue', 'Monthly Strategy Call', 'Custom Reporting'],
-  },
-];
 
 const testimonials: {
   name: string; role: string; quote: string; rating: number;
@@ -340,10 +305,10 @@ export default function HomePage() {
           <div className="text-center max-w-2xl mx-auto mb-16">
             <span className="eyebrow">The Problem</span>
             <h2 className="text-3xl md:text-4xl font-bold text-[#0F172A] mb-4">
-              Managing a website shouldn't be this hard
+              Managing a website shouldn&apos;t be this hard
             </h2>
             <p className="text-slate-500 text-lg">
-              Most businesses deal with the same frustrations. We've built BazionWeb to solve every one of them.
+              Most businesses deal with the same frustrations. We&apos;ve built BazionWeb to solve every one of them.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -474,69 +439,17 @@ export default function HomePage() {
       {/* ── Pricing Preview ── */}
       <section className="section bg-[#F8FAFC]">
         <div className="container-default">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <span className="eyebrow">Pricing</span>
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="eyebrow">Pricing Architecture</span>
             <h2 className="text-3xl md:text-4xl font-bold text-[#0F172A] mb-4">
-              Simple, transparent pricing
+              Transparent, market-tailored packages
             </h2>
-            <p className="text-slate-500 text-lg">
-              No surprise fees. No lock-in contracts. Cancel any time.
+            <p className="text-slate-500 text-base md:text-lg">
+              Accessible professional development in Kenya and dedicated engineering partnerships worldwide.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {plans.map(plan => (
-              <div
-                key={plan.name}
-                className={`relative bg-white rounded-2xl border-2 ${plan.color} shadow-[var(--shadow-card)] p-8 flex flex-col`}
-              >
-                {plan.featured && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="bg-[#2563EB] text-white text-xs font-bold px-4 py-1.5 rounded-full shadow">
-                      Most Popular
-                    </span>
-                  </div>
-                )}
-                <div className="mb-6">
-                  <div className="text-sm font-semibold text-slate-500 uppercase tracking-widest mb-1">{plan.name}</div>
-                  <div className="flex items-end gap-1 mb-2">
-                    <span className="text-4xl font-black text-[#0F172A]">{plan.price}</span>
-                    <span className="text-slate-400 text-sm mb-1">{plan.per}</span>
-                  </div>
-                  <p className="text-sm text-slate-500">{plan.desc}</p>
-                </div>
 
-                <div className="flex gap-4 mb-6 pb-6 border-b border-slate-100">
-                  <div className="text-center">
-                    <div className="text-sm font-bold text-[#0F172A]">{plan.uptime}</div>
-                    <div className="text-xs text-slate-400">uptime</div>
-                  </div>
-                  <div className="w-px bg-slate-100" />
-                  <div className="text-center">
-                    <div className="text-sm font-bold text-[#0F172A]">{plan.support}</div>
-                    <div className="text-xs text-slate-400">response</div>
-                  </div>
-                </div>
-
-                <ul className="flex flex-col gap-2.5 mb-8 flex-1">
-                  {plan.features.map(f => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-slate-600">
-                      <Check className="w-4 h-4 text-[#22C55E] shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <Link href="/contact" className={plan.ctaColor + ' w-full justify-center'}>
-                  Get Started
-                </Link>
-              </div>
-            ))}
-          </div>
-          <div className="text-center mt-8">
-            <Link href="/pricing" className="text-sm font-semibold text-[#2563EB] hover:text-[#1D4ED8] flex items-center gap-1 justify-center">
-              See full pricing details including Enterprise <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
+          <HomepagePricingPreview />
         </div>
       </section>
 
@@ -560,7 +473,7 @@ export default function HomePage() {
                   ))}
                 </div>
                 <blockquote className="text-slate-300 text-sm leading-relaxed mb-6">
-                  "{t.quote}"
+                  &ldquo;{t.quote}&rdquo;
                 </blockquote>
                 <div>
                   <div className="font-semibold text-white text-sm">{t.name}</div>
@@ -582,7 +495,7 @@ export default function HomePage() {
               Get a free website assessment
             </h2>
             <p className="text-lg text-slate-500 mb-10 max-w-xl mx-auto">
-              We'll review your current setup and give you a clear plan with honest recommendations — no commitment required.
+              We&apos;ll review your current setup and give you a clear plan with honest recommendations — no commitment required.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/contact" className="btn-primary px-8 py-4 text-base">

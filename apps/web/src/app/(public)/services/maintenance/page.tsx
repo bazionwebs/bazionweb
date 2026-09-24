@@ -70,8 +70,8 @@ export default function MaintenancePage() {
 
       <section className="section bg-white">
         <div className="container-default max-w-3xl mx-auto">
-          <h2 className="text-2xl font-bold text-[#0F172A] mb-8">What counts as a "minor content update"?</h2>
-          <p className="text-slate-500 mb-6">On Growth+ plans, unlimited minor updates are included. Here's how we define them:</p>
+          <h2 className="text-2xl font-bold text-[#0F172A] mb-8">What counts as a &ldquo;minor content update&rdquo;?</h2>
+          <p className="text-slate-500 mb-6">On Growth+ plans, unlimited minor updates are included. Here&apos;s how we define them:</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="card p-6">
               <div className="text-xs font-bold text-[#22C55E] uppercase tracking-widest mb-4">✓ Minor — included</div>

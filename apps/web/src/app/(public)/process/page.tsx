@@ -161,7 +161,7 @@ export default function ProcessPage() {
             Ready for phase 1?
           </h2>
           <p className="text-slate-400 mb-8">
-            It starts with a free assessment. We reply within 24 hours with honest findings — even if the answer is "you don't need us."
+            It starts with a free assessment. We reply within 24 hours with honest findings — even if the answer is &ldquo;you don&apos;t need us.&rdquo;
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/contact" className="btn-primary px-8 py-4 text-base">

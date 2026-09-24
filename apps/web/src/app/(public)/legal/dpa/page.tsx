@@ -23,7 +23,7 @@ export default function DPAPage() {
 
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-5">
             <p className="text-sm text-[#2563EB] font-medium">
-              This DPA forms part of your Service Agreement with BazionWeb. It applies when we process personal data on your behalf (e.g. visitor data stored in your website's CMS or databases we host for you).
+              This DPA forms part of your Service Agreement with BazionWeb. It applies when we process personal data on your behalf (e.g. visitor data stored in your website&apos;s CMS or databases we host for you).
             </p>
           </div>
 
@@ -32,7 +32,7 @@ export default function DPAPage() {
             <p className="text-slate-600 leading-relaxed">
               <strong>Data Controller:</strong> You (the Client), as defined in your Service Order.<br />
               <strong>Data Processor:</strong> BazionWeb, Nairobi, Kenya.<br />
-              This DPA supplements the Terms of Service and governs all processing of personal data by BazionWeb on the Controller's behalf.
+              This DPA supplements the Terms of Service and governs all processing of personal data by BazionWeb on the Controller&apos;s behalf.
             </p>
           </section>
 

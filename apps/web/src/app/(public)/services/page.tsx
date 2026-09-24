@@ -1,225 +1,301 @@
 import Link from 'next/link';
 import {
-  Globe, Server, Wrench, Shield, Zap, LifeBuoy,
-  ArrowRight, Check
+  Globe,
+  ShoppingCart,
+  Cpu,
+  Server,
+  ArrowRight,
+  Check,
+  Building2,
+  GraduationCap,
+  HeartHandshake,
+  Church,
+  Rocket,
 } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Services',
-  description: 'Complete website lifecycle management: development, hosting, maintenance, security, performance, and 24/7 support.',
+  title: 'Digital Engineering Services — Websites, E-Commerce & Systems | BazionWeb',
+  description:
+    'Complete website & system lifecycle: custom development, e-commerce, custom web applications, managed cloud hosting, security, and ongoing care plans.',
   alternates: { canonical: 'https://bazionweb.com/services' },
 };
 
-const services = [
+const productFamilies = [
   {
-    id: 'development',
+    id: 'websites',
     icon: Globe,
-    name: 'Website Development',
-    tagline: 'Custom-built. Launch-ready. Built to last.',
-    desc: 'We design and build responsive, CMS-integrated websites on modern Next.js. Every site we build scores 95+ on Lighthouse on day one.',
+    name: 'Website Design & Development',
+    tagline: 'Custom-built. Launch-ready. Engineered for conversion.',
+    desc: 'We design and engineer responsive, high-performance websites on modern Next.js. Fast-loading, CMS-integrated, and built to convert visitors into loyal clients.',
+    startingPrice: 'From KSh 25,000 (Kenya) · From $495 (Intl)',
     deliverables: [
-      'Discovery & wireframes',
-      'UI/UX design (Figma)',
-      'Next.js development',
-      'CMS integration (Strapi)',
-      'SEO-ready architecture',
-      'QA & launch support',
+      'Mobile-first responsive UX/UI architecture',
+      'Full CMS content management (self-manage text & images)',
+      'Blog / news / announcements publishing engine',
+      'Technical SEO, Schema.org & Google Search Console setup',
+      'Enterprise security headers & automated SSL encryption',
+      'Included 14 to 90 days post-launch defect warranty',
     ],
-    from: 'From $800 one-time',
     accent: '#2563EB',
     bg: 'bg-blue-50',
     textColor: 'text-[#2563EB]',
+    pricingHref: '/pricing?tab=websites',
   },
   {
-    id: 'hosting',
-    icon: Server,
-    name: 'Managed Cloud Hosting',
-    tagline: 'Infrastructure you never have to think about.',
-    desc: 'Cloud-hosted on enterprise infrastructure with Cloudflare CDN, automated SSL, daily backups, and real-time uptime monitoring.',
+    id: 'ecommerce',
+    icon: ShoppingCart,
+    name: 'E-Commerce Solutions',
+    tagline: 'High-converting online stores with local & global payment rails.',
+    desc: 'From boutique retail shops to high-volume multi-category catalogues. Seamless M-Pesa STK Push prompts, credit card gateways, stock tracking, and automated customer notifications.',
+    startingPrice: 'From KSh 90,000 (Kenya) · From $1,500 (Intl)',
     deliverables: [
-      'Cloud server provisioning',
-      'Cloudflare CDN + DDoS protection',
-      'Auto SSL (Let\'s Encrypt)',
-      'Daily encrypted backups',
-      'Uptime monitoring (Kuma)',
-      'Monthly uptime reports',
+      'Product catalogues with multi-attribute variants',
+      'Direct M-Pesa Daraja STK Push mobile checkout',
+      'Stripe, PayPal, and credit card processing',
+      'Inventory management & automated stock alerts',
+      'Discount coupon engines & dynamic shipping zones',
+      'Google Analytics 4 e-commerce conversion tracking',
     ],
-    from: 'Included in all plans',
     accent: '#14B8A6',
     bg: 'bg-teal-50',
     textColor: 'text-[#14B8A6]',
+    pricingHref: '/pricing?tab=ecommerce',
   },
   {
-    id: 'maintenance',
-    icon: Wrench,
-    name: 'Website Maintenance',
-    tagline: 'Always updated. Never neglected.',
-    desc: 'Monthly software updates, CMS and plugin patches, content refreshes, and a comprehensive health check — all documented and reported.',
+    id: 'custom-systems',
+    icon: Cpu,
+    name: 'Custom Digital Systems & Portals',
+    tagline: 'Tailored software engineered around your specific operational workflows.',
+    desc: 'Stop forcing your business into rigid off-the-shelf subscriptions. We build bespoke client portals, booking engines, LMS educational platforms, and CRMs starting with a formal discovery phase.',
+    startingPrice: 'Discovery from KSh 25,000 · Systems from KSh 150,000 / $3,000',
     deliverables: [
-      'CMS core updates',
-      'Plugin/theme updates',
-      'Content updates (Growth+)',
-      'Broken link checks',
-      'Monthly health report',
-      'Change log delivery',
+      'Formal technical specification & database architecture',
+      'Role-based access control (Admins, Staff, Clients, Students)',
+      'Interactive dashboards & data visualization',
+      'Third-party ERP, CRM, and webhook integrations',
+      'Automated PDF generation, receipts & reporting',
+      'Dedicated project manager & milestone sign-offs',
     ],
-    from: 'Included in Growth+',
     accent: '#8B5CF6',
     bg: 'bg-purple-50',
     textColor: 'text-purple-600',
+    pricingHref: '/pricing?tab=custom',
   },
   {
-    id: 'security',
-    icon: Shield,
-    name: 'Security Management',
-    tagline: 'Proactive security before it becomes a crisis.',
-    desc: 'WAF rules, malware scanning, SSL lifecycle management, security audits and incident response — all handled without you lifting a finger.',
+    id: 'hosting-care',
+    icon: Server,
+    name: 'Managed Cloud Hosting & Ongoing Care',
+    tagline: 'Zero-downtime infrastructure and proactive software maintenance.',
+    desc: 'BazionWeb is not just selling raw server space; we sell managed peace of mind. We handle server configuration, weekly security patches, offsite backups, uptime alerts, and priority bug fixes.',
+    startingPrice: 'Hosting from KSh 4,500/yr ($60) · Care from KSh 5,000/mo ($75)',
     deliverables: [
-      'WAF (ModSecurity + Cloudflare)',
-      'Weekly malware scans',
-      'SSL monitoring & rotation',
-      'Fail2Ban intrusion prevention',
-      'Monthly security report',
-      'Incident response plan',
+      'Containerized high-speed cloud environments',
+      'Automated daily/weekly offsite encrypted backups',
+      'Web Application Firewall (WAF) & malware defense',
+      'Core Web Vitals telemetry & speed monitoring',
+      'Dedicated developer hours for updates and edits',
+      'Monthly digital health & performance reports',
     ],
-    from: 'Included in Growth+',
-    accent: '#EF4444',
-    bg: 'bg-red-50',
-    textColor: 'text-red-600',
-  },
-  {
-    id: 'performance',
-    icon: Zap,
-    name: 'Performance Optimization',
-    tagline: 'Faster pages. Better rankings. More conversions.',
-    desc: 'Core Web Vitals improvements, image optimization, aggressive caching strategies, and CDN tuning — with before/after Lighthouse proof.',
-    deliverables: [
-      'Core Web Vitals audit',
-      'Image optimization pipeline',
-      'Browser caching config',
-      'CDN tuning & preloading',
-      'Database query review',
-      'Before/after Lighthouse report',
-    ],
-    from: 'Included in Business+',
-    accent: '#F59E0B',
-    bg: 'bg-yellow-50',
-    textColor: 'text-yellow-600',
-  },
-  {
-    id: 'support',
-    icon: LifeBuoy,
-    name: '24/7 Technical Support',
-    tagline: 'Real engineers. Real SLAs. Real accountability.',
-    desc: 'SLA-backed support via tickets and email. Every plan has defined response targets — and we track against them in your monthly report.',
-    deliverables: [
-      'Zammad ticket system',
-      'SLA response targets',
-      'P1–P4 severity classification',
-      'Escalation matrix',
-      'Monthly SLA report',
-      'Incident post-mortems (P1)',
-    ],
-    from: 'Included in all plans',
     accent: '#22C55E',
     bg: 'bg-green-50',
     textColor: 'text-green-600',
+    pricingHref: '/pricing?tab=hosting-care',
+  },
+];
+
+const industries = [
+  {
+    icon: Building2,
+    name: 'SMEs & Growing Businesses',
+    desc: 'Establish authority, generate qualified inbound leads, and present a world-class digital image.',
+  },
+  {
+    icon: Church,
+    name: 'Churches & Ministries',
+    desc: 'Live sermon archives, event calendars, online tithes & offerings via M-Pesa, and community hubs.',
+  },
+  {
+    icon: GraduationCap,
+    name: 'Schools & Educational Institutions',
+    desc: 'Student admission portals, course modules, fee payment tracking, and parent communication.',
+  },
+  {
+    icon: HeartHandshake,
+    name: 'NGOs & Non-Profits',
+    desc: 'Multi-lingual program documentation, donation portals, impact report downloads, and grant reporting.',
+  },
+  {
+    icon: Rocket,
+    name: 'Startups & Founders',
+    desc: 'Rapid MVP deployment, scalable Next.js architectures, and conversion-engineered product landing pages.',
   },
 ];
 
 export default function ServicesPage() {
   return (
     <>
-      {/* Header */}
-      <section className="section bg-[#0F172A] pt-32">
-        <div className="container-default">
-          <div className="max-w-2xl">
+      {/* ─── Hero Header ─── */}
+      <section className="section bg-[#0F172A] pt-32 pb-20 text-white">
+        <div className="container-default max-w-4xl mx-auto text-center">
+          <div className="flex justify-center mb-4">
             <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services' }]} />
-            <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
-              Our Services
-            </span>
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Everything your website needs — under one roof
-            </h1>
-            <p className="text-lg text-slate-400 leading-relaxed">
-              Six service lines, fully integrated. We own the complete website lifecycle so you can focus on running your business.
-            </p>
+          </div>
+          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
+            Core Service Architecture
+          </span>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 tracking-tight">
+            Websites, Digital Systems & Managed Technology
+          </h1>
+          <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed mb-8">
+            We design, develop, host, and maintain professional digital solutions for businesses, organizations, and institutions in Kenya and worldwide.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4">
+            <Link href="/pricing" className="btn-primary text-xs px-6 py-3">
+              Explore 2026 Pricing Architecture
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link href="/quote" className="btn-secondary text-xs px-6 py-3">
+              Open Instant Quote Calculator
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Service cards */}
+      {/* ─── Product Families ─── */}
       <section className="section bg-[#F8FAFC]">
-        <div className="container-default space-y-10">
-          {services.map((s, i) => (
-            <div
-              key={s.id}
-              id={s.id}
-              className={`card p-8 md:p-10 grid grid-cols-1 lg:grid-cols-5 gap-8 items-start ${
-                i % 2 !== 0 ? 'lg:flex-row-reverse' : ''
-              }`}
-            >
-              {/* Content */}
-              <div className="lg:col-span-3">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
-                    <s.icon className={`w-5 h-5 ${s.textColor}`} />
-                  </div>
-                  <div>
-                    <div className="font-bold text-[#0F172A] text-lg">{s.name}</div>
-                    <div className={`text-sm font-medium ${s.textColor}`}>{s.tagline}</div>
-                  </div>
-                </div>
-                <p className="text-slate-500 leading-relaxed mb-5">{s.desc}</p>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-500 mb-6">
-                  {s.from}
-                </div>
-                <Link href={`/contact?service=${s.id}`} className="btn-primary inline-flex">
-                  Get started with {s.name.split(' ')[0].toLowerCase()}
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
+        <div className="container-default space-y-12 max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-widest text-[#2563EB] mb-2 block">
+              Four Product Families
+            </span>
+            <h2 className="text-3xl font-extrabold text-[#0F172A]">
+              Engineered for Complete Digital Success
+            </h2>
+          </div>
 
-              {/* Deliverables */}
-              <div className="lg:col-span-2">
-                <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">What's delivered</div>
-                  <ul className="space-y-2.5">
-                    {s.deliverables.map(d => (
-                      <li key={d} className="flex items-center gap-2 text-sm text-slate-600">
-                        <Check className="w-4 h-4 shrink-0" style={{ color: s.accent }} />
-                        {d}
-                      </li>
-                    ))}
-                  </ul>
+          <div className="space-y-8">
+            {productFamilies.map((family) => (
+              <div
+                key={family.id}
+                id={family.id}
+                className="card p-8 md:p-10 bg-white border border-slate-200/90 shadow-sm rounded-2xl grid grid-cols-1 lg:grid-cols-5 gap-8 items-start"
+              >
+                {/* Content */}
+                <div className="lg:col-span-3">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-12 h-12 rounded-xl ${family.bg} flex items-center justify-center shrink-0`}>
+                      <family.icon className={`w-6 h-6 ${family.textColor}`} />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-[#0F172A] text-xl md:text-2xl">
+                        {family.name}
+                      </h3>
+                      <div className={`text-xs font-semibold ${family.textColor}`}>
+                        {family.tagline}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-slate-600 text-sm leading-relaxed mb-6">
+                    {family.desc}
+                  </p>
+
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 mb-8">
+                    <span>{family.startingPrice}</span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <Link href={family.pricingHref} className="btn-primary text-xs px-5 py-2.5">
+                      View Packages & Pricing
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                    <Link
+                      href={`/quote?service=${family.id}`}
+                      className="btn-secondary text-xs px-5 py-2.5"
+                    >
+                      Calculate Quote
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Deliverables Checklist */}
+                <div className="lg:col-span-2">
+                  <div className="bg-slate-50/80 rounded-xl p-6 border border-slate-200/80">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">
+                      Core Capabilities & Inclusions
+                    </div>
+                    <ul className="space-y-3">
+                      {family.deliverables.map(item => (
+                        <li key={item} className="flex items-start gap-2.5 text-xs text-slate-600 leading-tight">
+                          <Check className="w-4 h-4 shrink-0 text-[#22C55E] mt-0.5" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Service integration callout */}
-      <section className="section bg-[#0F172A]">
+      {/* ─── Industries We Serve ─── */}
+      <section className="section bg-white border-t border-slate-100">
+        <div className="container-default max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <span className="text-xs font-bold uppercase tracking-widest text-[#2563EB] mb-2 block">
+              Tailored Solutions
+            </span>
+            <h2 className="text-3xl font-extrabold text-[#0F172A] mb-3">
+              Industries & Organizations We Serve
+            </h2>
+            <p className="text-sm text-slate-500">
+              We understand that a corporate law firm, an educational institution, and a faith-based ministry have fundamentally different requirements.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {industries.map(ind => (
+              <div
+                key={ind.name}
+                className="bg-slate-50/70 rounded-2xl p-6 border border-slate-100 hover:border-blue-200 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-blue-100/70 text-[#2563EB] flex items-center justify-center mb-4">
+                  <ind.icon className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-[#0F172A] text-base mb-2">{ind.name}</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">{ind.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Strategic Integration Callout ─── */}
+      <section className="section bg-[#0F172A] text-white">
         <div className="container-default max-w-3xl mx-auto text-center">
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
-            How It All Fits Together
+            The BazionWeb Advantage
           </span>
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            All six services work as one
+          <h2 className="text-3xl md:text-4xl font-extrabold mb-6">
+            One engineering team, zero vendor finger-pointing
           </h2>
-          <p className="text-slate-400 text-lg leading-relaxed mb-10">
-            Unlike piecing together multiple providers, every BazionWeb service shares the same monitoring, the same incident response, and the same client portal. When your security team spots a threat, your maintenance team already knows. When your performance drops, your support team is alerted automatically.
+          <p className="text-slate-300 text-sm md:text-base leading-relaxed mb-10">
+            When you build with BazionWeb, your designers, developers, hosting engineers, and security specialists sit at the same table. No juggling hosting tickets while waiting for a freelancer to respond.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/pricing" className="btn-primary px-8 py-4">
-              See Plan Options
-              <ArrowRight className="w-5 h-5" />
+            <Link href="/pricing" className="btn-primary px-8 py-3.5 text-xs">
+              Review Pricing Architecture
+              <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link href="/contact" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/15 text-white font-semibold hover:bg-white/5 transition-all duration-200">
-              Get Free Assessment
+            <Link
+              href="/contact"
+              className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl border border-white/20 text-white font-semibold hover:bg-white/10 transition-colors text-xs"
+            >
+              Book Technical Consultation
             </Link>
           </div>
         </div>

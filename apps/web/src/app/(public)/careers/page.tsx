@@ -29,7 +29,7 @@ export default function CareersPage() {
             Build the internet infrastructure businesses deserve
           </h1>
           <p className="text-lg text-slate-400">
-            We're a small, expert team moving fast. Every role here has real ownership, real impact, and room to grow.
+            We&apos;re a small, expert team moving fast. Every role here has real ownership, real impact, and room to grow.
           </p>
         </div>
       </section>

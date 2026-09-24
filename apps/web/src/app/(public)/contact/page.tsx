@@ -45,11 +45,11 @@ export default function ContactPage() {
               Get In Touch
             </span>
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Let's talk about your website
+              Let&apos;s talk about your website
             </h1>
             <p className="text-slate-400 text-lg leading-relaxed">
               Whether you need a new website, better hosting, or full lifecycle management —
-              we'll give you an honest assessment and a clear plan. No sales pressure.
+              we&apos;ll give you an honest assessment and a clear plan. No sales pressure.
             </p>
           </div>
         </div>

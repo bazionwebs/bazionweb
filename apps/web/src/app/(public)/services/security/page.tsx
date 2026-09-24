@@ -31,7 +31,7 @@ export default function SecurityPage() {
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">Service</span>
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-5">Security Management</h1>
           <p className="text-lg text-slate-400 mb-8 max-w-2xl">
-            Multi-layer, proactive security — WAF, malware scanning, intrusion prevention, SSL management, and monthly audits. We handle it so you don't find out about problems after the fact.
+            Multi-layer, proactive security — WAF, malware scanning, intrusion prevention, SSL management, and monthly audits. We handle it so you don&apos;t find out about problems after the fact.
           </p>
           <Link href="/contact?service=security" className="btn-primary px-7 py-3">
             Secure your website <ArrowRight className="w-4 h-4" />

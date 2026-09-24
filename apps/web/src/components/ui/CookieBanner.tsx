@@ -6,6 +6,12 @@ import { X, Cookie } from 'lucide-react';
 
 type ConsentState = 'pending' | 'accepted' | 'declined';
 
+declare global {
+  interface Window {
+    posthog?: { opt_in_capturing: () => void; opt_out_capturing: () => void };
+  }
+}
+
 export default function CookieBanner() {
   const [state, setState] = useState<ConsentState | null>(null);
   const [visible, setVisible] = useState(false);
@@ -25,8 +31,8 @@ export default function CookieBanner() {
     setState('accepted');
     setVisible(false);
     // Enable PostHog analytics
-    if (typeof window !== 'undefined' && (window as any).posthog) {
-      (window as any).posthog.opt_in_capturing();
+    if (typeof window !== 'undefined' && window.posthog) {
+      window.posthog.opt_in_capturing();
     }
   }
 
@@ -35,8 +41,8 @@ export default function CookieBanner() {
     setState('declined');
     setVisible(false);
     // Disable PostHog analytics
-    if (typeof window !== 'undefined' && (window as any).posthog) {
-      (window as any).posthog.opt_out_capturing();
+    if (typeof window !== 'undefined' && window.posthog) {
+      window.posthog.opt_out_capturing();
     }
   }
 

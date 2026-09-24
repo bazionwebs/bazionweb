@@ -1,410 +1,603 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
-  Globe, Database, ShoppingCart, Layers, Truck,
-  Palette, Check, ArrowRight, ChevronRight,
-  TrendingDown, Info, ArrowLeft
-} from 'lucide-react';
+  Market,
+  ADD_ON_RATE_CARD,
+} from '@/lib/pricingData';
+import MarketToggle from '@/components/ui/MarketToggle';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import {
+  Check,
+  ArrowRight,
+  ChevronRight,
+  ArrowLeft,
+  MessageSquare,
+  ShieldCheck,
+} from 'lucide-react';
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
-
-const PAGE_TYPES = [
-  { id: 'simple', label: 'Simple page', desc: 'About, Contact, FAQ, Legal', rate: 59, icon: Globe },
-  { id: 'standard', label: 'Standard page', desc: 'Services, Portfolio, Blog list', rate: 119, icon: Layers },
-  { id: 'complex', label: 'Complex page', desc: 'Homepage, Landing, Dashboard', rate: 219, icon: Database },
-];
-
-const PLAN_OPTIONS = [
-  { id: 'starter', label: 'Starter', price: 29, desc: 'Hosting, SSL, backups, monitoring', uptime: '99.9%' },
-  { id: 'growth', label: 'Growth', price: 59, desc: '+ Maintenance, security management', uptime: '99.95%', recommended: true },
-  { id: 'business', label: 'Business', price: 119, desc: '+ Performance, unlimited updates', uptime: '99.95%', recommended: false },
-  { id: 'enterprise', label: 'Enterprise', price: 0, desc: 'Custom SLA, dedicated AM', uptime: '99.99%' },
-];
-
-const ADD_ONS = [
-  { id: 'hasCms', label: 'CMS Integration', desc: 'Strapi — manage content without code', cost: 179, icon: Database },
-  { id: 'hasEcommerce', label: 'E-commerce', desc: 'Stripe checkout, product catalogue', cost: 399, icon: ShoppingCart },
-  { id: 'needsMigration', label: 'Site Migration', desc: 'Zero-downtime transfer from current host', cost: 79, icon: Truck },
-  { id: 'customDesign', label: 'Custom UI/UX Design', desc: 'Full Figma design system before build', cost: 199, icon: Palette },
-];
-
-interface Pages {
-  simple: number;
-  standard: number;
-  complex: number;
+interface QuoteConfig {
+  market: Market;
+  packageType: 'launch' | 'business' | 'professional' | 'ecom-starter' | 'ecom-business' | 'custom';
+  extraPages: number;
+  selectedAddOns: string[];
+  rushDelivery: boolean;
+  hosting: string; // 'none' | 'host-essential' | 'host-business' | 'host-pro'
+  care: string; // 'none' | 'care-essential' | 'care-business' | 'care-professional'
 }
 
-interface Config {
-  pages: Pages;
-  addOns: Record<string, boolean>;
-  plan: string;
-  billing: 'monthly' | 'annual';
-}
-
-const initial: Config = {
-  pages: { simple: 2, standard: 2, complex: 1 },
-  addOns: { hasCms: false, hasEcommerce: false, needsMigration: false, customDesign: false },
-  plan: 'growth',
-  billing: 'monthly',
+const PACKAGE_DEFAULTS = {
+  launch: { name: 'Launch Website', basePages: 5, kenyaCost: 25000, intlCost: 495 },
+  business: { name: 'Business Website', basePages: 10, kenyaCost: 50000, intlCost: 1250 },
+  professional: { name: 'Professional Website', basePages: 15, kenyaCost: 85000, intlCost: 2250 },
+  'ecom-starter': { name: 'E-Commerce Starter', basePages: 8, kenyaCost: 90000, intlCost: 1500 },
+  'ecom-business': { name: 'E-Commerce Business', basePages: 15, kenyaCost: 160000, intlCost: 2500 },
+  custom: { name: 'Custom Project Build', basePages: 5, kenyaCost: 25000, intlCost: 495 },
 };
 
-// ─── Calculation ──────────────────────────────────────────────────────────────
+function QuoteCalculatorContent() {
+  const searchParams = useSearchParams();
 
-function calculate(config: Config) {
-  const pageCost =
-    config.pages.simple * 59 +
-    config.pages.standard * 119 +
-    config.pages.complex * 219;
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [config, setConfig] = useState<QuoteConfig>({
+    market: (searchParams.get('market') === 'international' ? 'international' : 'kenya'),
+    packageType: (searchParams.get('package') as QuoteConfig['packageType']) || 'business',
+    extraPages: 0,
+    selectedAddOns: [],
+    rushDelivery: false,
+    hosting: 'host-business',
+    care: 'none',
+  });
 
-  const addOnCost = ADD_ONS.filter(a => config.addOns[a.id]).reduce((s, a) => s + a.cost, 0);
-  const buildTotal = pageCost + addOnCost;
+  useEffect(() => {
+    const marketParam = searchParams.get('market');
+    if (marketParam === 'international' || marketParam === 'kenya') {
+      setConfig(prev => ({ ...prev, market: marketParam }));
+    }
+    const pkgParam = searchParams.get('package');
+    if (pkgParam && pkgParam in PACKAGE_DEFAULTS) {
+      setConfig(prev => ({ ...prev, packageType: pkgParam as QuoteConfig['packageType'] }));
+    }
+    const addonParam = searchParams.get('addon');
+    if (addonParam) {
+      setConfig(prev => ({
+        ...prev,
+        selectedAddOns: prev.selectedAddOns.includes(addonParam)
+          ? prev.selectedAddOns
+          : [...prev.selectedAddOns, addonParam],
+      }));
+    }
+  }, [searchParams]);
 
-  const plan = PLAN_OPTIONS.find(p => p.id === config.plan)!;
-  const monthly = plan.price;
-  const annual = monthly * 10; // 2 months free
-  const annualSaving = monthly * 2;
+  const currencySymbol = config.market === 'kenya' ? 'KSh' : '$';
+  const pkgInfo = PACKAGE_DEFAULTS[config.packageType] || PACKAGE_DEFAULTS.business;
 
-  const recurringCost = config.billing === 'annual' ? annual : monthly * 12;
-  const year1 = buildTotal + recurringCost;
+  // Calculation Logic
+  const baseCost = config.market === 'kenya' ? pkgInfo.kenyaCost : pkgInfo.intlCost;
+  const extraPageRate = config.market === 'kenya' ? 2000 : 50;
+  const extraPagesCost = config.extraPages * extraPageRate;
 
-  return { buildTotal, monthly, annual, annualSaving, recurringCost, year1, pageCost, addOnCost };
-}
+  // Add-ons cost
+  const addOnsCost = config.selectedAddOns.reduce((total, id) => {
+    const item = ADD_ON_RATE_CARD.find(a => a.id === id);
+    if (!item) return total;
+    return total + (config.market === 'kenya' ? item.rawKes : item.rawUsd);
+  }, 0);
 
-// ─── Component ────────────────────────────────────────────────────────────────
+  const subtotalBuild = baseCost + extraPagesCost + addOnsCost;
+  const rushMultiplier = config.rushDelivery ? 0.35 : 0; // +35% average rush
+  const rushCost = Math.round(subtotalBuild * rushMultiplier);
+  const totalBuild = subtotalBuild + rushCost;
 
-type Step = 1 | 2 | 3;
+  // Hosting & Care recurring costs
+  let annualHosting = 0;
+  if (config.hosting === 'host-essential') annualHosting = config.market === 'kenya' ? 4500 : 60;
+  else if (config.hosting === 'host-business') annualHosting = config.market === 'kenya' ? 8500 : 120;
+  else if (config.hosting === 'host-pro') annualHosting = config.market === 'kenya' ? 15000 : 240;
 
-export default function QuoteCalculatorPage() {
-  const [config, setConfig] = useState<Config>(initial);
-  const [step, setStep] = useState<Step>(1);
+  let monthlyCare = 0;
+  if (config.care === 'care-essential') monthlyCare = config.market === 'kenya' ? 5000 : 75;
+  else if (config.care === 'care-business') monthlyCare = config.market === 'kenya' ? 10000 : 150;
+  else if (config.care === 'care-professional') monthlyCare = config.market === 'kenya' ? 20000 : 300;
 
-  const calc = calculate(config);
+  const totalYearOne = totalBuild + annualHosting + (monthlyCare * 12);
 
-  function setPages(type: keyof Pages, val: number) {
-    setConfig(prev => ({ ...prev, pages: { ...prev.pages, [type]: Math.max(0, val) } }));
-  }
-
+  // Toggle addon helper
   function toggleAddOn(id: string) {
-    setConfig(prev => ({ ...prev, addOns: { ...prev.addOns, [id]: !prev.addOns[id] } }));
+    setConfig(prev => ({
+      ...prev,
+      selectedAddOns: prev.selectedAddOns.includes(id)
+        ? prev.selectedAddOns.filter(item => item !== id)
+        : [...prev.selectedAddOns, id],
+    }));
   }
 
-  const totalPages = config.pages.simple + config.pages.standard + config.pages.complex;
+  // Pre-formatted message for WhatsApp or Form
+  const breakdownMessage = `Hello BazionWeb, I configured an estimate on your website:
+* Market: ${config.market === 'kenya' ? 'Kenya (KES)' : 'International (USD)'}
+* Package: ${pkgInfo.name} (${currencySymbol} ${baseCost.toLocaleString()})
+* Extra Pages: ${config.extraPages} (+${currencySymbol} ${extraPagesCost.toLocaleString()})
+* Add-ons: ${config.selectedAddOns.join(', ') || 'None'} (+${currencySymbol} ${addOnsCost.toLocaleString()})
+${config.rushDelivery ? '* Priority Rush Delivery: YES (+35%)\n' : ''}* Estimated One-Time Build: ${currencySymbol} ${totalBuild.toLocaleString()}
+* Managed Hosting: ${config.hosting} (${currencySymbol} ${annualHosting.toLocaleString()}/yr)
+* Maintenance Care: ${config.care} (${currencySymbol} ${monthlyCare.toLocaleString()}/mo)
+* Total Year 1 Estimate: ${currencySymbol} ${totalYearOne.toLocaleString()}
+
+Please confirm availability and discuss next steps.`;
+
+  const whatsappHref = `https://wa.me/254721287053?text=${encodeURIComponent(breakdownMessage)}`;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       {/* Header */}
-      <div className="bg-[#0F172A] pt-32 pb-16">
-        <div className="container-default max-w-4xl">
-          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Instant Quote' }]} />
-          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
-            Quote Calculator
+      <div className="bg-[#0F172A] pt-32 pb-16 text-white">
+        <div className="container-default max-w-5xl">
+          <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Instant Quote Calculator' }]} />
+          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
+            Interactive Cost Estimator
           </span>
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            Get an instant price estimate
+          <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+            Build your custom project estimate
           </h1>
-          <p className="text-slate-400 text-lg">
-            Configure your website and plan — see a live cost breakdown. No email required.
+          <p className="text-slate-300 text-sm md:text-base max-w-2xl leading-relaxed mb-6">
+            Configure your website tier, extra pages, payment integrations, and managed care plans.
+            Itemized transparency with zero hidden markups.
           </p>
+
+          <MarketToggle
+            currentMarket={config.market}
+            onChange={m => setConfig(prev => ({ ...prev, market: m }))}
+            className="items-start"
+          />
         </div>
       </div>
 
-      <div className="container-default max-w-4xl py-12">
-        {/* Progress steps */}
-        <div className="flex items-center gap-3 mb-10">
-          {(['Pages', 'Add-ons', 'Plan'] as const).map((label, i) => {
-            const stepNum = (i + 1) as Step;
-            const active = step === stepNum;
-            const done = step > stepNum;
+      <div className="container-default max-w-5xl py-12">
+        {/* Progress Navigation */}
+        <div className="flex items-center gap-3 mb-10 overflow-x-auto pb-2">
+          {[
+            { num: 1, label: 'Core Package & Pages' },
+            { num: 2, label: 'Add-Ons & Integrations' },
+            { num: 3, label: 'Hosting & Care' },
+          ].map(s => {
+            const active = step === s.num;
+            const done = step > s.num;
             return (
               <button
-                key={label}
-                onClick={() => setStep(stepNum)}
-                className="flex items-center gap-2"
+                key={s.num}
+                onClick={() => setStep(s.num as 1 | 2 | 3)}
+                className="flex items-center gap-2 shrink-0"
               >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                  done ? 'bg-[#22C55E] text-white' : active ? 'bg-[#2563EB] text-white' : 'bg-slate-200 text-slate-500'
-                }`}>
-                  {done ? <Check className="w-3.5 h-3.5" /> : stepNum}
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                    done
+                      ? 'bg-[#22C55E] text-white'
+                      : active
+                      ? 'bg-[#2563EB] text-white'
+                      : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  {done ? <Check className="w-3.5 h-3.5" /> : s.num}
                 </div>
-                <span className={`text-sm font-medium ${active ? 'text-[#0F172A]' : 'text-slate-400'}`}>{label}</span>
-                {i < 2 && <ChevronRight className="w-4 h-4 text-slate-300 mx-1" />}
+                <span
+                  className={`text-sm font-semibold ${
+                    active ? 'text-[#0F172A]' : 'text-slate-400'
+                  }`}
+                >
+                  {s.label}
+                </span>
+                {s.num < 3 && <ChevronRight className="w-4 h-4 text-slate-300 mx-1" />}
               </button>
             );
           })}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left — config panel */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          {/* Left: Step Configurator */}
           <div className="lg:col-span-2 space-y-6">
-
-            {/* Step 1 — Pages */}
+            {/* STEP 1: Core Package & Pages */}
             {step === 1 && (
-              <div className="card p-8">
-                <h2 className="text-xl font-bold text-[#0F172A] mb-2">How many pages do you need?</h2>
-                <p className="text-sm text-slate-500 mb-8">
-                  Pages are priced by complexity. You can adjust any time — the quote updates live.
+              <div className="card p-6 md:p-8 bg-white border border-slate-200 shadow-sm">
+                <h2 className="text-xl font-bold text-[#0F172A] mb-1">
+                  1. Select Your Baseline Package
+                </h2>
+                <p className="text-xs text-slate-500 mb-6">
+                  Each package includes mobile-first architecture, SSL, SEO setup, and included post-launch defect warranty.
                 </p>
-                <div className="space-y-5">
-                  {PAGE_TYPES.map(pt => (
-                    <div key={pt.id} className="flex items-center justify-between p-5 rounded-xl border border-slate-100 bg-slate-50/50 hover:border-[#2563EB]/30 transition-colors">
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                          <pt.icon className="w-5 h-5 text-[#2563EB]" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-[#0F172A]">{pt.label}</div>
-                          <div className="text-xs text-slate-400">{pt.desc}</div>
-                          <div className="text-xs font-bold text-[#2563EB] mt-1">${pt.rate} / page</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setPages(pt.id as keyof Pages, config.pages[pt.id as keyof Pages] - 1)}
-                          className="w-8 h-8 rounded-xl border border-slate-200 flex items-center justify-center text-slate-600 hover:border-[#2563EB] hover:text-[#2563EB] transition-colors font-bold text-lg leading-none"
-                        >
-                          −
-                        </button>
-                        <span className="text-xl font-black text-[#0F172A] w-8 text-center">
-                          {config.pages[pt.id as keyof Pages]}
-                        </span>
-                        <button
-                          onClick={() => setPages(pt.id as keyof Pages, config.pages[pt.id as keyof Pages] + 1)}
-                          className="w-8 h-8 rounded-xl border border-slate-200 flex items-center justify-center text-slate-600 hover:border-[#2563EB] hover:text-[#2563EB] transition-colors font-bold text-lg leading-none"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex justify-end mt-8">
-                  <button
-                    onClick={() => setStep(2)}
-                    disabled={totalPages === 0}
-                    className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next: Add-ons <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
 
-            {/* Step 2 — Add-ons */}
-            {step === 2 && (
-              <div className="card p-8">
-                <h2 className="text-xl font-bold text-[#0F172A] mb-2">Any additional features?</h2>
-                <p className="text-sm text-slate-500 mb-8">
-                  These are one-time build costs. Toggle anything you need.
-                </p>
-                <div className="space-y-3">
-                  {ADD_ONS.map(a => {
-                    const active = config.addOns[a.id];
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+                  {(
+                    [
+                      { id: 'launch', name: 'Launch', desc: 'Up to 5 pages, brochure setup', pages: 5 },
+                      { id: 'business', name: 'Business', desc: 'Up to 10 pages + CMS + Blog', pages: 10, rec: true },
+                      { id: 'professional', name: 'Professional', desc: 'Up to 15 pages + Advanced UX', pages: 15 },
+                      { id: 'ecom-starter', name: 'E-Commerce Starter', desc: 'Store + M-Pesa/Card Checkout', pages: 8 },
+                      { id: 'ecom-business', name: 'E-Commerce Business', desc: '100+ products, stock, coupons', pages: 15 },
+                      { id: 'custom', name: 'Custom Architecture', desc: 'Bespoke web applications', pages: 5 },
+                    ] as { id: keyof typeof PACKAGE_DEFAULTS; name: string; desc: string; pages: number; rec?: boolean }[]
+                  ).map(pkg => {
+                    const cost = config.market === 'kenya'
+                      ? PACKAGE_DEFAULTS[pkg.id].kenyaCost
+                      : PACKAGE_DEFAULTS[pkg.id].intlCost;
+                    const isSelected = config.packageType === pkg.id;
+
                     return (
                       <button
-                        key={a.id}
-                        onClick={() => toggleAddOn(a.id)}
-                        className={`w-full flex items-center justify-between p-5 rounded-xl border-2 transition-all text-left ${
-                          active
-                            ? 'border-[#2563EB] bg-blue-50/50'
-                            : 'border-slate-100 bg-slate-50/50 hover:border-slate-200'
+                        key={pkg.id}
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, packageType: pkg.id }))}
+                        className={`text-left p-4 rounded-xl border-2 transition-all relative ${
+                          isSelected
+                            ? 'border-[#2563EB] bg-blue-50/40 shadow-xs'
+                            : 'border-slate-200 hover:border-slate-300'
                         }`}
                       >
-                        <div className="flex items-start gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                            active ? 'bg-[#2563EB]' : 'bg-slate-100'
-                          }`}>
-                            <a.icon className={`w-5 h-5 ${active ? 'text-white' : 'text-slate-500'}`} />
-                          </div>
-                          <div>
-                            <div className="font-semibold text-[#0F172A]">{a.label}</div>
-                            <div className="text-xs text-slate-400">{a.desc}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0 ml-4">
-                          <span className="text-sm font-bold text-[#0F172A]">+${a.cost}</span>
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                            active ? 'bg-[#2563EB] border-[#2563EB]' : 'border-slate-300'
-                          }`}>
-                            {active && <Check className="w-3 h-3 text-white" />}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex justify-between mt-8">
-                  <button onClick={() => setStep(1)} className="btn-ghost flex items-center gap-2">
-                    <ArrowLeft className="w-4 h-4" /> Back
-                  </button>
-                  <button onClick={() => setStep(3)} className="btn-primary px-8">
-                    Next: Choose Plan <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3 — Plan */}
-            {step === 3 && (
-              <div className="card p-8">
-                <h2 className="text-xl font-bold text-[#0F172A] mb-2">Choose your monthly plan</h2>
-                <p className="text-sm text-slate-500 mb-6">
-                  Your plan covers hosting, support, and ongoing services after launch.
-                </p>
-
-                {/* Billing toggle */}
-                <div className="inline-flex items-center bg-slate-100 rounded-xl p-1 mb-8">
-                  {(['monthly', 'annual'] as const).map(b => (
-                    <button
-                      key={b}
-                      onClick={() => setConfig(prev => ({ ...prev, billing: b }))}
-                      className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                        config.billing === b
-                          ? 'bg-white text-[#0F172A] shadow-[var(--shadow-card)]'
-                          : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      {b === 'monthly' ? 'Monthly' : 'Annual (2 months free)'}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {PLAN_OPTIONS.map(p => {
-                    const active = config.plan === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        onClick={() => setConfig(prev => ({ ...prev, plan: p.id }))}
-                        className={`relative text-left p-5 rounded-xl border-2 transition-all ${
-                          active
-                            ? 'border-[#2563EB] bg-blue-50/50'
-                            : 'border-slate-100 bg-slate-50/50 hover:border-slate-200'
-                        }`}
-                      >
-                        {p.recommended && (
-                          <span className="absolute -top-2.5 left-4 bg-[#2563EB] text-white text-xs font-bold px-3 py-0.5 rounded-full">
+                        {pkg.rec && (
+                          <span className="absolute -top-2.5 right-3 bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                             Recommended
                           </span>
                         )}
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-[#0F172A]">{p.label}</span>
-                          {active && <Check className="w-4 h-4 text-[#2563EB]" />}
+                        <div className="font-bold text-[#0F172A] text-sm mb-0.5">{pkg.name}</div>
+                        <div className="text-xs text-slate-500 mb-2">{pkg.desc}</div>
+                        <div className="text-base font-extrabold text-[#2563EB]">
+                          {currencySymbol} {cost.toLocaleString()}
                         </div>
-                        <div className="text-2xl font-black text-[#0F172A] mb-1">
-                          {p.price > 0 ? (
-                            <>
-                              ${config.billing === 'annual' ? (p.price * 10 / 12).toFixed(0) : p.price}
-                              <span className="text-sm font-normal text-slate-400">/mo</span>
-                            </>
-                          ) : (
-                            <span className="text-lg">Custom</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-400 mb-2">{p.desc}</div>
-                        <div className="text-xs font-semibold text-[#14B8A6]">{p.uptime} uptime SLA</div>
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="flex justify-between mt-8">
-                  <button onClick={() => setStep(2)} className="btn-ghost flex items-center gap-2">
-                    <ArrowLeft className="w-4 h-4" /> Back
+                {/* Additional Pages Counter */}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="font-bold text-sm text-[#0F172A]">Need Additional Pages?</div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Package baseline includes {pkgInfo.basePages} pages. Extra pages are {currencySymbol} {extraPageRate.toLocaleString()} each.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, extraPages: Math.max(0, prev.extraPages - 1) }))}
+                        className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100"
+                      >
+                        −
+                      </button>
+                      <span className="text-base font-black text-[#0F172A] w-6 text-center">
+                        {config.extraPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, extraPages: prev.extraPages + 1 }))}
+                        className="w-8 h-8 rounded-lg border border-slate-300 bg-white flex items-center justify-center font-bold text-slate-600 hover:bg-slate-100"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-8">
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="btn-primary text-xs px-6 py-3"
+                  >
+                    Next: Add-Ons & Integrations <ArrowRight className="w-4 h-4" />
                   </button>
-                  <Link href="/contact" className="btn-primary px-8">
-                    Get Official Quote <ArrowRight className="w-4 h-4" />
-                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Add-Ons & Integrations */}
+            {step === 2 && (
+              <div className="card p-6 md:p-8 bg-white border border-slate-200 shadow-sm">
+                <h2 className="text-xl font-bold text-[#0F172A] mb-1">
+                  2. Choose Add-Ons & Functional Modules
+                </h2>
+                <p className="text-xs text-slate-500 mb-6">
+                  Select additional features or integrations to bundle into your build quotation.
+                </p>
+
+                <div className="space-y-3 mb-8">
+                  {ADD_ON_RATE_CARD.filter(a => a.id !== 'extra-page' && a.id !== 'rush-delivery').map(addon => {
+                    const isChecked = config.selectedAddOns.includes(addon.id);
+                    const price = config.market === 'kenya' ? addon.kenyaPrice : addon.intlPrice;
+
+                    return (
+                      <button
+                        key={addon.id}
+                        type="button"
+                        onClick={() => toggleAddOn(addon.id)}
+                        className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left ${
+                          isChecked
+                            ? 'border-[#2563EB] bg-blue-50/40'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-bold text-sm text-[#0F172A]">{addon.name}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{addon.description}</div>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0 ml-4">
+                          <span className="text-xs font-bold text-[#2563EB]">{price}</span>
+                          <div
+                            className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                              isChecked
+                                ? 'bg-[#2563EB] border-[#2563EB] text-white'
+                                : 'border-slate-300 bg-white'
+                            }`}
+                          >
+                            {isChecked && <Check className="w-3.5 h-3.5" />}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Priority Rush Delivery Option */}
+                <div className="bg-amber-50/60 rounded-xl p-4 border border-amber-200/70 flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-sm text-amber-900">Priority Rush Delivery (+35%)</div>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Fast-track your timeline by assigning dedicated senior engineering sprints.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setConfig(prev => ({ ...prev, rushDelivery: !prev.rushDelivery }))}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+                      config.rushDelivery
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-white border border-amber-300 text-amber-900 hover:bg-amber-100'
+                    }`}
+                  >
+                    {config.rushDelivery ? 'Rush Enabled' : 'Add Rush'}
+                  </button>
+                </div>
+
+                <div className="flex justify-between mt-8">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="btn-secondary text-xs px-5 py-2.5 flex items-center gap-2"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep(3)}
+                    className="btn-primary text-xs px-6 py-3"
+                  >
+                    Next: Hosting & Care <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: Hosting & Care */}
+            {step === 3 && (
+              <div className="card p-6 md:p-8 bg-white border border-slate-200 shadow-sm space-y-8">
+                <div>
+                  <h2 className="text-xl font-bold text-[#0F172A] mb-1">
+                    3. Managed Cloud Hosting & Ongoing Care
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-6">
+                    Choose ongoing infrastructure and maintenance plans for your website after launch.
+                  </p>
+
+                  {/* Hosting options */}
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+                    Managed Cloud Hosting (Annual):
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+                    {[
+                      { id: 'host-essential', name: 'Host Essential', price: config.market === 'kenya' ? 'KSh 4,500/yr' : '$60/yr', desc: 'SSL, DNS, Backups & Uptime Alerts' },
+                      { id: 'host-business', name: 'Host Business', price: config.market === 'kenya' ? 'KSh 8,500/yr' : '$120/yr', desc: 'Priority Resources, Email, WAF & Backups', rec: true },
+                      { id: 'host-pro', name: 'Host Professional', price: config.market === 'kenya' ? 'KSh 15,000/yr' : '$240/yr', desc: 'Staging, High Traffic & Rollback Snapshots' },
+                      { id: 'none', name: 'I have my own hosting', price: 'Free / Self-Managed', desc: 'Deploy to your existing server or cloud' },
+                    ].map(h => (
+                      <button
+                        key={h.id}
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, hosting: h.id }))}
+                        className={`text-left p-4 rounded-xl border-2 transition-all relative ${
+                          config.hosting === h.id
+                            ? 'border-[#2563EB] bg-blue-50/40'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {h.rec && (
+                          <span className="absolute -top-2.5 right-3 bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            Recommended
+                          </span>
+                        )}
+                        <div className="font-bold text-sm text-[#0F172A]">{h.name}</div>
+                        <div className="text-xs text-slate-500 mb-1">{h.desc}</div>
+                        <div className="text-sm font-extrabold text-[#2563EB]">{h.price}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Monthly Care options */}
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+                    Website Care & Maintenance (Monthly):
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { id: 'care-essential', name: 'Care Essential', price: config.market === 'kenya' ? 'KSh 5,000/mo' : '$75/mo', desc: 'Updates, backups, monitoring + 1 hr support' },
+                      { id: 'care-business', name: 'Care Business', price: config.market === 'kenya' ? 'KSh 10,000/mo' : '$150/mo', desc: 'Weekly updates, SEO reviews + 2 hr support', rec: true },
+                      { id: 'care-professional', name: 'Care Professional', price: config.market === 'kenya' ? 'KSh 20,000/mo' : '$300/mo', desc: 'Proactive dev, speed audits + 5 hr support' },
+                      { id: 'none', name: 'No Care Plan (Warranty only)', price: 'Included Warranty', desc: 'Post-launch free defect warranty only' },
+                    ].map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, care: c.id }))}
+                        className={`text-left p-4 rounded-xl border-2 transition-all relative ${
+                          config.care === c.id
+                            ? 'border-[#2563EB] bg-blue-50/40'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {c.rec && (
+                          <span className="absolute -top-2.5 right-3 bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            Popular
+                          </span>
+                        )}
+                        <div className="font-bold text-sm text-[#0F172A]">{c.name}</div>
+                        <div className="text-xs text-slate-500 mb-1">{c.desc}</div>
+                        <div className="text-sm font-extrabold text-[#14B8A6]">{c.price}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-6 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="btn-secondary text-xs px-5 py-2.5 flex items-center gap-2"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Back
+                  </button>
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary text-xs px-6 py-3 flex items-center gap-2 bg-[#22C55E] hover:bg-[#16A34A]"
+                  >
+                    <MessageSquare className="w-4 h-4" /> Send to WhatsApp
+                  </a>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Right — live price summary (sticky) */}
-          <div className="lg:sticky lg:top-24 h-fit space-y-4">
-            <div className="card p-6">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">Live Estimate</div>
+          {/* Right: Live Quotation Summary */}
+          <div className="lg:sticky lg:top-24 space-y-4">
+            <div className="card p-6 bg-white border border-slate-200 shadow-md rounded-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Itemized Estimate
+                </span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-[#2563EB]">
+                  {config.market === 'kenya' ? 'KES' : 'USD'}
+                </span>
+              </div>
 
-              {/* Build cost breakdown */}
-              <div className="space-y-2 pb-4 border-b border-slate-100">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">One-time build</div>
-                {PAGE_TYPES.map(pt => {
-                  const qty = config.pages[pt.id as keyof Pages];
-                  if (!qty) return null;
+              {/* Build Breakdown */}
+              <div className="space-y-2 pb-4 border-b border-slate-100 text-xs">
+                <div className="flex justify-between font-semibold text-[#0F172A]">
+                  <span>{pkgInfo.name}</span>
+                  <span>{currencySymbol} {baseCost.toLocaleString()}</span>
+                </div>
+                {config.extraPages > 0 && (
+                  <div className="flex justify-between text-slate-500">
+                    <span>{config.extraPages}× Extra Pages</span>
+                    <span>+{currencySymbol} {extraPagesCost.toLocaleString()}</span>
+                  </div>
+                )}
+                {config.selectedAddOns.map(id => {
+                  const item = ADD_ON_RATE_CARD.find(a => a.id === id);
+                  if (!item) return null;
+                  const itemPrice = config.market === 'kenya' ? item.rawKes : item.rawUsd;
                   return (
-                    <div key={pt.id} className="flex justify-between text-sm">
-                      <span className="text-slate-500">{qty}× {pt.label}</span>
-                      <span className="font-medium text-[#0F172A]">${qty * pt.rate}</span>
+                    <div key={id} className="flex justify-between text-slate-500">
+                      <span>{item.name}</span>
+                      <span>+{currencySymbol} {itemPrice.toLocaleString()}</span>
                     </div>
                   );
                 })}
-                {ADD_ONS.filter(a => config.addOns[a.id]).map(a => (
-                  <div key={a.id} className="flex justify-between text-sm">
-                    <span className="text-slate-500">{a.label}</span>
-                    <span className="font-medium text-[#0F172A]">${a.cost}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between text-sm font-bold text-[#0F172A] pt-2 border-t border-slate-100 mt-2">
-                  <span>Build total</span>
-                  <span>${calc.buildTotal.toLocaleString()}</span>
-                </div>
-              </div>
-
-              {/* Monthly plan */}
-              <div className="py-4 border-b border-slate-100">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Ongoing plan</div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 capitalize">{config.plan} plan</span>
-                  <span className="font-medium text-[#0F172A]">
-                    {config.plan === 'enterprise' ? 'Custom' : (
-                      config.billing === 'annual'
-                        ? `$${calc.annual}/yr`
-                        : `$${calc.monthly}/mo`
-                    )}
-                  </span>
-                </div>
-                {config.billing === 'annual' && calc.annualSaving > 0 && (
-                  <div className="flex items-center gap-1 mt-2 text-xs text-[#22C55E] font-semibold">
-                    <TrendingDown className="w-3.5 h-3.5" />
-                    Save ${calc.annualSaving}/yr with annual billing
+                {config.rushDelivery && (
+                  <div className="flex justify-between text-amber-700 font-semibold">
+                    <span>Rush Production (+35%)</span>
+                    <span>+{currencySymbol} {rushCost.toLocaleString()}</span>
                   </div>
                 )}
+
+                <div className="flex justify-between font-extrabold text-[#0F172A] text-sm pt-2 border-t border-slate-100">
+                  <span>One-Time Build Total</span>
+                  <span className="text-[#2563EB]">{currencySymbol} {totalBuild.toLocaleString()}</span>
+                </div>
               </div>
 
-              {/* Year 1 total */}
-              <div className="pt-4">
-                <div className="flex justify-between items-end mb-1">
-                  <span className="text-sm text-slate-500">Year 1 total</span>
-                  <span className="text-3xl font-black text-[#0F172A]">
-                    {config.plan === 'enterprise' ? 'Custom' : `$${calc.year1.toLocaleString()}`}
+              {/* Ongoing Recurring Services */}
+              <div className="py-3 border-b border-slate-100 space-y-1.5 text-xs">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Recurring Services:
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Hosting</span>
+                  <span className="font-semibold text-[#0F172A]">
+                    {annualHosting > 0 ? `${currencySymbol} ${annualHosting.toLocaleString()}/yr` : 'Self-hosted'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Build cost + {config.billing} subscription
+                <div className="flex justify-between text-slate-600">
+                  <span>Care Maintenance</span>
+                  <span className="font-semibold text-[#0F172A]">
+                    {monthlyCare > 0 ? `${currencySymbol} ${monthlyCare.toLocaleString()}/mo` : 'Warranty only'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Year 1 Total */}
+              <div className="pt-3">
+                <div className="flex justify-between items-end mb-1">
+                  <span className="text-xs font-bold text-slate-500 uppercase">Year 1 Total</span>
+                  <span className="text-2xl font-black text-[#0F172A]">
+                    {currencySymbol} {totalYearOne.toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Includes one-time build + 12 months hosting & care
                 </p>
               </div>
 
-              <div className="flex items-start gap-2 mt-4 p-3 bg-blue-50 rounded-xl">
-                <Info className="w-3.5 h-3.5 text-[#2563EB] shrink-0 mt-0.5" />
-                <p className="text-xs text-[#2563EB]">
-                  This is an estimate. Your official quote may differ based on your specific requirements.
-                </p>
+              {/* Action Buttons */}
+              <div className="space-y-2 mt-6">
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-bold transition-colors shadow-sm"
+                >
+                  <MessageSquare className="w-4 h-4" /> Send Quote to WhatsApp
+                </a>
+                <Link
+                  href={`/contact?source=quote-calculator&market=${config.market}&package=${config.packageType}`}
+                  className="btn-primary w-full justify-center text-xs py-3"
+                >
+                  Book Free Consultation <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="flex items-start gap-2 mt-4 p-3 bg-blue-50/70 rounded-xl text-[11px] text-[#2563EB] leading-tight">
+                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>100% Client Ownership guaranteed. Zero vendor lock-in.</span>
               </div>
             </div>
-
-            <Link href="/contact" className="btn-primary w-full justify-center">
-              Get Official Quote
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-
-            <p className="text-xs text-slate-400 text-center">
-              No commitment required. Response within 24 hours.
-            </p>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function QuoteCalculatorPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0F172A] pt-40 flex items-center justify-center text-white">
+        Loading interactive quote calculator...
+      </div>
+    }>
+      <QuoteCalculatorContent />
+    </Suspense>
   );
 }

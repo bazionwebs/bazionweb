@@ -74,7 +74,7 @@ export default function ContactForm() {
         </div>
         <h3 className="text-xl font-bold text-[#0F172A]">Message received!</h3>
         <p className="text-slate-500 max-w-sm">
-          We'll review your submission and get back to you within 24 hours (usually faster).
+          We&apos;ll review your submission and get back to you within 24 hours (usually faster).
         </p>
         <button
           onClick={() => { setForm(initialData); setState('idle'); }}
@@ -90,7 +90,7 @@ export default function ContactForm() {
     <div className="card p-8">
       <h2 className="text-xl font-bold text-[#0F172A] mb-2">Request a free assessment</h2>
       <p className="text-sm text-slate-500 mb-8">
-        Fill in what you know — we'll follow up with any questions.
+        Fill in what you know — we&apos;ll follow up with any questions.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>

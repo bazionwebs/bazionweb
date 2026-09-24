@@ -38,7 +38,7 @@ export default function SupportPage() {
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">Service</span>
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-5">24/7 Technical Support</h1>
           <p className="text-lg text-slate-400 mb-8 max-w-2xl">
-            Real engineers. SLA-backed response times. No bots, no runarounds, no "have you tried turning it off and on again." When something breaks, we own it.
+            Real engineers. SLA-backed response times. No bots, no runarounds, no &ldquo;have you tried turning it off and on again.&rdquo; When something breaks, we own it.
           </p>
           <Link href="/contact" className="btn-primary px-7 py-3">
             Talk to a human <ArrowRight className="w-4 h-4" />
