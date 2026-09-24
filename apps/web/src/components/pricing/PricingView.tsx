@@ -111,15 +111,15 @@ export default function PricingView() {
                   return (
                     <div
                       key={pkg.id}
-                      className={`relative bg-white rounded-2xl border-2 p-7 flex flex-col transition-all hover:shadow-xl ${
+                      className={`relative bg-white rounded-2xl border-2 pt-9 pb-7 px-6 flex flex-col transition-all hover:shadow-xl ${
                         pkg.popular
                           ? 'border-[#2563EB] shadow-[0_0_0_4px_rgba(37,99,235,0.08)]'
                           : 'border-slate-200/80 hover:border-slate-300'
                       }`}
                     >
                       {pkg.badge && (
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                          <span className={`text-[11px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider ${
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap z-10">
+                          <span className={`inline-block whitespace-nowrap text-[10px] font-extrabold px-3.5 py-1 rounded-full uppercase tracking-wider shadow-xs ${
                             pkg.popular ? 'bg-[#2563EB] text-white' : 'bg-[#0F172A] text-white'
                           }`}>
                             {pkg.badge}
@@ -127,7 +127,7 @@ export default function PricingView() {
                         </div>
                       )}
 
-                      <div className="mb-6">
+                      <div className="mb-5">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
                           {pkg.name}
                         </div>
@@ -137,6 +137,17 @@ export default function PricingView() {
                         <p className="text-xs text-slate-500 leading-relaxed min-h-[3rem]">
                           {pkg.description}
                         </p>
+                      </div>
+
+                      {/* Primary Action Button (Positioned above pages line) */}
+                      <div className="mb-6">
+                        <Link
+                          href={`${pkg.ctaHref}&market=${market}`}
+                          className={pkg.popular ? 'btn-primary w-full justify-center text-xs py-2.5 shadow-sm' : 'btn-secondary w-full justify-center text-xs py-2.5'}
+                        >
+                          {pkg.ctaText}
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
                       </div>
 
                       {/* Scope parameters */}
@@ -160,7 +171,7 @@ export default function PricingView() {
                       </div>
 
                       {/* Deliverables list */}
-                      <div className="space-y-2.5 mb-8 flex-1">
+                      <div className="space-y-2.5 flex-1">
                         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                           What&apos;s Included:
                         </div>
@@ -170,16 +181,6 @@ export default function PricingView() {
                             <span>{item}</span>
                           </div>
                         ))}
-                      </div>
-
-                      <div className="mt-auto">
-                        <Link
-                          href={`${pkg.ctaHref}&market=${market}`}
-                          className={pkg.popular ? 'btn-primary w-full justify-center text-xs' : 'btn-secondary w-full justify-center text-xs'}
-                        >
-                          {pkg.ctaText}
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
                       </div>
                     </div>
                   );
@@ -206,15 +207,15 @@ export default function PricingView() {
                   return (
                     <div
                       key={pkg.id}
-                      className={`relative bg-white rounded-2xl border-2 p-8 flex flex-col transition-all hover:shadow-xl ${
+                      className={`relative bg-white rounded-2xl border-2 pt-9 pb-7 px-6 sm:px-8 flex flex-col transition-all hover:shadow-xl ${
                         pkg.popular
                           ? 'border-[#2563EB] shadow-[0_0_0_4px_rgba(37,99,235,0.08)]'
                           : 'border-slate-200/80 hover:border-slate-300'
                       }`}
                     >
                       {pkg.badge && (
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                          <span className={`text-[11px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider ${
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap z-10">
+                          <span className={`inline-block whitespace-nowrap text-[10px] font-extrabold px-3.5 py-1 rounded-full uppercase tracking-wider shadow-xs ${
                             pkg.popular ? 'bg-[#2563EB] text-white' : 'bg-[#0F172A] text-white'
                           }`}>
                             {pkg.badge}
@@ -222,16 +223,27 @@ export default function PricingView() {
                         </div>
                       )}
 
-                      <div className="mb-6">
+                      <div className="mb-5">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
                           {pkg.name}
                         </div>
                         <div className="text-3xl font-black text-[#0F172A] mb-2 tracking-tight">
                           {price}
                         </div>
-                        <p className="text-xs text-slate-500 leading-relaxed">
+                        <p className="text-xs text-slate-500 leading-relaxed min-h-[2.5rem]">
                           {pkg.description}
                         </p>
+                      </div>
+
+                      {/* Primary Action Button (Positioned above scale line) */}
+                      <div className="mb-6">
+                        <Link
+                          href={`${pkg.ctaHref}&market=${market}`}
+                          className={pkg.popular ? 'btn-primary w-full justify-center text-xs py-2.5 shadow-sm' : 'btn-secondary w-full justify-center text-xs py-2.5'}
+                        >
+                          {pkg.ctaText}
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
                       </div>
 
                       <div className="space-y-2 mb-6 pb-6 border-b border-slate-100 text-xs">
@@ -245,7 +257,7 @@ export default function PricingView() {
                         </div>
                       </div>
 
-                      <div className="space-y-2.5 mb-8 flex-1">
+                      <div className="space-y-2.5 flex-1">
                         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                           E-Commerce Features:
                         </div>
@@ -255,16 +267,6 @@ export default function PricingView() {
                             <span>{feature}</span>
                           </div>
                         ))}
-                      </div>
-
-                      <div className="mt-auto">
-                        <Link
-                          href={`${pkg.ctaHref}&market=${market}`}
-                          className={pkg.popular ? 'btn-primary w-full justify-center text-xs' : 'btn-secondary w-full justify-center text-xs'}
-                        >
-                          {pkg.ctaText}
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
                       </div>
                     </div>
                   );
@@ -286,19 +288,19 @@ export default function PricingView() {
               </div>
 
               {/* Discovery callout banner */}
-              <div className="bg-gradient-to-r from-blue-900 via-slate-900 to-[#0F172A] text-white rounded-2xl p-8 border border-blue-800/40">
+              <div className="bg-gradient-to-r from-blue-900 via-slate-900 to-[#0F172A] text-white rounded-2xl p-6 sm:p-8 border border-blue-800/40">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                   <div className="max-w-2xl">
                     <span className="text-xs font-bold uppercase tracking-widest text-[#14B8A6] mb-2 block">
                       Phase 01 — Mandatory Discovery & Specification
                     </span>
-                    <h3 className="text-2xl font-extrabold mb-2">
+                    <h3 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
                       Discovery & Technical Blueprint
                     </h3>
                     <p className="text-xs md:text-sm text-slate-300 leading-relaxed mb-4">
                       Every custom web system begins with a formal discovery phase: user roles, workflows, database architecture, security requirements, and a binding milestone roadmap.
                     </p>
-                    <div className="flex items-center gap-4 text-xs font-semibold text-blue-200">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs font-semibold text-blue-200">
                       <span>✓ Requirements Document</span>
                       <span>✓ Wireframe Mockups</span>
                       <span>✓ Database Entity Models</span>
@@ -396,38 +398,38 @@ export default function PricingView() {
                     return (
                       <div
                         key={plan.id}
-                        className={`bg-white rounded-2xl border-2 p-6 flex flex-col justify-between ${
+                        className={`bg-white rounded-2xl border-2 p-6 flex flex-col ${
                           plan.popular ? 'border-[#2563EB] shadow-md' : 'border-slate-200/80'
                         }`}
                       >
-                        <div>
-                          {plan.badge && (
-                            <span className="inline-block text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
-                              {plan.badge}
-                            </span>
-                          )}
-                          <h3 className="font-bold text-[#0F172A] text-base mb-1">{plan.name}</h3>
-                          <div className="text-2xl font-black text-[#0F172A] mb-2">{price}</div>
-                          <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
-                            {plan.description}
-                          </p>
+                        {plan.badge && (
+                          <span className="inline-block self-start text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
+                            {plan.badge}
+                          </span>
+                        )}
+                        <h3 className="font-bold text-[#0F172A] text-base mb-1">{plan.name}</h3>
+                        <div className="text-2xl font-black text-[#0F172A] mb-2">{price}</div>
+                        <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
+                          {plan.description}
+                        </p>
 
-                          <div className="space-y-2 mb-6 border-t border-slate-100 pt-4">
-                            {plan.features.map((feat, i) => (
-                              <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                                <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
-                                <span>{feat}</span>
-                              </div>
-                            ))}
-                          </div>
+                        <div className="mb-6">
+                          <Link
+                            href={`${plan.ctaHref}&market=${market}`}
+                            className={plan.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
+                          >
+                            Select Hosting
+                          </Link>
                         </div>
 
-                        <Link
-                          href={`${plan.ctaHref}&market=${market}`}
-                          className={plan.popular ? 'btn-primary w-full justify-center text-xs' : 'btn-secondary w-full justify-center text-xs'}
-                        >
-                          Select Hosting
-                        </Link>
+                        <div className="space-y-2 border-t border-slate-100 pt-4 flex-1">
+                          {plan.features.map((feat, i) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                              <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
+                              <span>{feat}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
@@ -454,39 +456,39 @@ export default function PricingView() {
                     return (
                       <div
                         key={care.id}
-                        className={`bg-white rounded-2xl border-2 p-6 flex flex-col justify-between ${
+                        className={`bg-white rounded-2xl border-2 p-6 flex flex-col ${
                           care.popular ? 'border-[#2563EB] shadow-md' : 'border-slate-200/80'
                         }`}
                       >
-                        <div>
-                          {care.badge && (
-                            <span className="inline-block text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
-                              {care.badge}
-                            </span>
-                          )}
-                          <h3 className="font-bold text-[#0F172A] text-base mb-1">{care.name}</h3>
-                          <div className="text-2xl font-black text-[#0F172A] mb-1">{price}</div>
-                          <div className="text-xs font-bold text-[#14B8A6] mb-3">{care.hours}</div>
-                          <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
-                            {care.description}
-                          </p>
+                        {care.badge && (
+                          <span className="inline-block self-start text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
+                            {care.badge}
+                          </span>
+                        )}
+                        <h3 className="font-bold text-[#0F172A] text-base mb-1">{care.name}</h3>
+                        <div className="text-2xl font-black text-[#0F172A] mb-1">{price}</div>
+                        <div className="text-xs font-bold text-[#14B8A6] mb-3">{care.hours}</div>
+                        <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
+                          {care.description}
+                        </p>
 
-                          <div className="space-y-2 mb-6 border-t border-slate-100 pt-4">
-                            {care.features.map((feat, i) => (
-                              <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                                <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
-                                <span>{feat}</span>
-                              </div>
-                            ))}
-                          </div>
+                        <div className="mb-6">
+                          <Link
+                            href={`${care.ctaHref}&market=${market}`}
+                            className={care.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
+                          >
+                            Subscribe to Care
+                          </Link>
                         </div>
 
-                        <Link
-                          href={`${care.ctaHref}&market=${market}`}
-                          className={care.popular ? 'btn-primary w-full justify-center text-xs' : 'btn-secondary w-full justify-center text-xs'}
-                        >
-                          Subscribe to Care
-                        </Link>
+                        <div className="space-y-2 border-t border-slate-100 pt-4 flex-1">
+                          {care.features.map((feat, i) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                              <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
+                              <span>{feat}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   })}

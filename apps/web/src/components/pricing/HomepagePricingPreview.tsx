@@ -19,23 +19,23 @@ export default function HomepagePricingPreview() {
           return (
             <div
               key={pkg.id}
-              className={`relative bg-white rounded-2xl border-2 p-8 flex flex-col transition-all hover:shadow-xl ${
+              className={`relative bg-white rounded-2xl border-2 pt-9 pb-7 px-6 sm:px-8 flex flex-col transition-all hover:shadow-xl ${
                 pkg.popular
                   ? 'border-[#2563EB] shadow-[0_0_0_4px_rgba(37,99,235,0.08)]'
                   : 'border-slate-200/90'
               }`}
             >
               {pkg.badge && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                  <span className={`text-[11px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider ${
-                    pkg.popular ? 'bg-[#2563EB] text-white shadow-sm' : 'bg-[#0F172A] text-white'
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap z-10">
+                  <span className={`inline-block whitespace-nowrap text-[10px] font-extrabold px-3.5 py-1 rounded-full uppercase tracking-wider shadow-xs ${
+                    pkg.popular ? 'bg-[#2563EB] text-white' : 'bg-[#0F172A] text-white'
                   }`}>
                     {pkg.badge}
                   </span>
                 </div>
               )}
 
-              <div className="mb-6">
+              <div className="mb-5">
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
                   {pkg.name}
                 </div>
@@ -45,6 +45,17 @@ export default function HomepagePricingPreview() {
                 <p className="text-xs text-slate-500 leading-relaxed min-h-[2.5rem]">
                   {pkg.description}
                 </p>
+              </div>
+
+              {/* Primary Action Button (Positioned above pages line) */}
+              <div className="mb-6">
+                <Link
+                  href={`/quote?package=${pkg.id}&market=${market}`}
+                  className={pkg.popular ? 'btn-primary w-full justify-center text-xs py-2.5 shadow-sm' : 'btn-secondary w-full justify-center text-xs py-2.5'}
+                >
+                  {pkg.ctaText}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
 
               <div className="space-y-1.5 mb-6 pb-6 border-b border-slate-100 text-xs">
@@ -62,7 +73,7 @@ export default function HomepagePricingPreview() {
                 </div>
               </div>
 
-              <ul className="space-y-2.5 mb-8 flex-1">
+              <ul className="space-y-2.5 flex-1">
                 {pkg.deliverables.slice(0, 5).map((f, i) => (
                   <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
                     <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
@@ -70,13 +81,6 @@ export default function HomepagePricingPreview() {
                   </li>
                 ))}
               </ul>
-
-              <Link
-                href={`/quote?package=${pkg.id}&market=${market}`}
-                className={pkg.popular ? 'btn-primary w-full justify-center text-xs' : 'btn-secondary w-full justify-center text-xs'}
-              >
-                {pkg.ctaText}
-              </Link>
             </div>
           );
         })}

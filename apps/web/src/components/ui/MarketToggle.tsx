@@ -23,12 +23,12 @@ export default function MarketToggle({
       <div
         role="group"
         aria-label="Market selection"
-        className="inline-flex p-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-inner"
+        className="inline-flex flex-col xs:flex-row p-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-inner w-full sm:w-auto gap-1 xs:gap-0"
       >
         <button
           type="button"
           onClick={() => onChange('kenya')}
-          className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+          className={`flex items-center justify-center gap-2 px-3.5 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 ${
             currentMarket === 'kenya'
               ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/20'
               : 'text-slate-300 hover:text-white hover:bg-white/5'
@@ -37,7 +37,7 @@ export default function MarketToggle({
         >
           <span className="text-base" role="img" aria-label="Kenya flag">🇰🇪</span>
           <span>Kenya (KES)</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${
+          <span className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${
             currentMarket === 'kenya' ? 'bg-white/20 text-white' : 'bg-white/10 text-slate-400'
           }`}>
             Local Rails
@@ -47,7 +47,7 @@ export default function MarketToggle({
         <button
           type="button"
           onClick={() => onChange('international')}
-          className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+          className={`flex items-center justify-center gap-2 px-3.5 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 ${
             currentMarket === 'international'
               ? 'bg-[#14B8A6] text-white shadow-lg shadow-teal-500/30 ring-1 ring-white/20'
               : 'text-slate-300 hover:text-white hover:bg-white/5'
@@ -56,7 +56,7 @@ export default function MarketToggle({
         >
           <span className="text-base" role="img" aria-label="World globe">🌍</span>
           <span>International (USD)</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${
+          <span className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${
             currentMarket === 'international' ? 'bg-white/20 text-white' : 'bg-white/10 text-slate-400'
           }`}>
             Global Dev

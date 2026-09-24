@@ -60,12 +60,12 @@ export default function PricingPrinciplesSection() {
                 Every website build includes an ironclad warranty covering defect fixes and launch stability.
               </p>
             </div>
-            <span className="text-xs font-bold bg-[#2563EB] text-white px-3 py-1.5 rounded-full">
+            <span className="self-start md:self-auto text-xs font-bold bg-[#2563EB] text-white px-3 py-1.5 rounded-full">
               Zero Billable Extras During Window
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             {[
               { tier: 'Launch', days: '14 Days Free Support', for: 'Startups & Brochure Sites' },
               { tier: 'Business', days: '30 Days Free Support', for: 'SMEs & Organizations' },

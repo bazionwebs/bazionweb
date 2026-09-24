@@ -144,7 +144,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
   {
     id: 'professional',
     name: 'Professional',
-    badge: 'Established Organizations',
+    badge: 'Established Orgs',
     kenyaPrice: 'KSh 85,000',
     intlPrice: '$2,250',
     pages: 'Up to 15 pages',
@@ -226,7 +226,7 @@ export const ECOMMERCE_PACKAGES: EcommercePlan[] = [
   {
     id: 'ecom-business',
     name: 'E-Commerce Business',
-    badge: 'Recommended for Retail',
+    badge: 'Recommended Retail',
     popular: true,
     kenyaPrice: 'KSh 160,000',
     intlPrice: '$2,500',

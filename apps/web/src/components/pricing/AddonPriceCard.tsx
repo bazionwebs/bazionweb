@@ -95,7 +95,7 @@ export default function AddonPriceCard({ market }: AddonPriceCardProps) {
                 No Contract Needed
               </span>
             </div>
-            <h4 className="text-lg md:text-xl font-bold">
+            <h4 className="text-lg md:text-xl font-bold text-white">
               Pay-As-You-Go Engineering & Tech Support
             </h4>
             <p className="text-xs md:text-sm text-slate-300 max-w-xl mt-1">
@@ -104,14 +104,14 @@ export default function AddonPriceCard({ market }: AddonPriceCardProps) {
           </div>
         </div>
 
-        <div className="text-center md:text-right shrink-0">
+        <div className="text-center md:text-right shrink-0 w-full md:w-auto">
           <div className="text-2xl md:text-3xl font-extrabold text-white">
             {HOURLY_SUPPORT_RATES[market]}
           </div>
           <p className="text-[11px] text-slate-400 mb-3">Billed per engineer hour with live time logs</p>
           <Link
             href={`/contact?service=hourly-support&market=${market}`}
-            className="btn-primary text-xs px-5 py-2.5"
+            className="btn-primary text-xs px-5 py-2.5 w-full md:w-auto justify-center"
           >
             Request Support Hours
           </Link>
