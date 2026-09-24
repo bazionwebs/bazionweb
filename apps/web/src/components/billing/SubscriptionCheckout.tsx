@@ -110,6 +110,7 @@ export default function SubscriptionCheckout({
   const [activeTab, setActiveTab] = useState<PaymentTab>('MPESA');
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>(initialCycle);
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GBP'>('USD');
   const [poNumber, setPoNumber] = useState('');
   
@@ -131,34 +132,36 @@ export default function SubscriptionCheckout({
     }
   };
 
-  // Handle M-Pesa STK Push
+  // Handle M-Pesa STK Push via Paystack
   const handleMpesaPay = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/v1/invoices/subscribe/intasend', {
+      const res = await fetch('/api/paystack/initialize', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planId: currentPlan.id,
-          billingCycle,
-          paymentMethod: 'MPESA',
-          mpesaPhoneNumber: phone.replace(/[^0-9]/g, ''),
+          email: email || 'billing@acaciahealthcare.co.ke',
+          amount: currentPriceKes,
+          planSlug: currentPlan.slug,
+          phone: phone.replace(/[^0-9]/g, ''),
+          currency: 'KES',
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'STK Push initialization failed');
+      if (!res.ok) throw new Error(data.error || 'Payment initialization failed');
 
-      setFeedback({
-        type: 'info',
-        message: data.message || 'Prompt sent! Please check your mobile phone and enter your Safaricom M-Pesa PIN.',
-      });
+      if (data.authorizationUrl) {
+        window.location.href = data.authorizationUrl;
+      } else {
+        setFeedback({
+          type: 'info',
+          message: 'M-Pesa prompt initiated! Please check your mobile handset and enter your PIN.',
+        });
+      }
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Payment request failed' });
     } finally {
@@ -166,30 +169,28 @@ export default function SubscriptionCheckout({
     }
   };
 
-  // Handle Card Checkout
+  // Handle Card Checkout via Paystack
   const handleCardPay = async () => {
     setLoading(true);
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/v1/invoices/subscribe/intasend', {
+      const res = await fetch('/api/paystack/initialize', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planId: currentPlan.id,
-          billingCycle,
-          paymentMethod: 'CARD',
+          email: email || 'billing@acaciahealthcare.co.ke',
+          amount: currentPriceKes,
+          planSlug: currentPlan.slug,
+          currency: 'KES',
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Card session failed');
+      if (!res.ok) throw new Error(data.error || 'Card gateway initialization failed');
 
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (data.authorizationUrl) {
+        window.location.href = data.authorizationUrl;
       }
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Card gateway error' });
@@ -320,7 +321,7 @@ export default function SubscriptionCheckout({
         {/* Security Badge */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-3 text-xs text-slate-400">
           <Lock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>256-Bit SSL Encrypted Checkout. Backed by IntaSend (mobile money + cards) and Wise (bank transfer) APIs.</span>
+          <span>256-Bit SSL Encrypted Checkout. Backed by Paystack (M-Pesa STK Push + Global Cards) and Wise (Corporate Wire) APIs.</span>
         </div>
       </div>
 
@@ -397,6 +398,17 @@ export default function SubscriptionCheckout({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                  Billing Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="billing@yourcompany.com"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors mb-3"
+                />
+
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
                   Mobile-money phone number
                 </label>
                 <input
@@ -408,7 +420,7 @@ export default function SubscriptionCheckout({
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                 />
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  You will receive an STK Push PIN prompt directly on your handset.
+                  You will receive an STK Push PIN prompt directly on your handset via Paystack.
                 </span>
               </div>
 
@@ -430,8 +442,21 @@ export default function SubscriptionCheckout({
                 <span className="text-xl font-bold text-white font-mono">${currentPriceUsd.toLocaleString()} USD</span>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                  Billing Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="billing@yourcompany.com"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors mb-3"
+                />
+              </div>
+
               <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed">
-                Supports Visa, Mastercard, and American Express. Your card details are tokenized securely with IntaSend PCI-DSS Level 1 compliance.
+                Supports Visa, Mastercard, and American Express. Your card details are tokenized securely with Paystack PCI-DSS Level 1 compliance.
               </div>
 
               <button
