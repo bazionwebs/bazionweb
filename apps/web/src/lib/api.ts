@@ -89,6 +89,7 @@ export const authApi = {
 // ─── Client portal ───────────────────────────────────────────────────────────
 export const portalApi = {
   getMyClient: () => api.get('/clients/me').then(r => r.data),
+  getMyProjects: () => api.get('/projects/me').then(r => r.data),
   getMyHosting: () => api.get('/hosting/me').then(r => r.data),
   getMyTickets: () => api.get('/tickets?scope=mine').then(r => r.data),
   getMyInvoices: () => api.get('/invoices?scope=mine').then(r => r.data),
@@ -96,6 +97,33 @@ export const portalApi = {
 
   createTicket: (data: { subject: string; priority: string; category: string; body: string }) =>
     api.post('/tickets', data).then(r => r.data),
+};
+
+// ─── Staff (admin/support) ───────────────────────────────────────────────────
+export const adminApi = {
+  listClients: (params: { q?: string; page?: number; limit?: number } = {}) =>
+    api.get('/clients', { params: { limit: 100, ...params } }).then(r => r.data),
+
+  listTickets: (params: { status?: string; priority?: string; page?: number; limit?: number } = {}) =>
+    api.get('/tickets', { params: { limit: 50, ...params } }).then(r => r.data),
+
+  updateTicket: (id: string, data: { status?: string }) =>
+    api.patch(`/tickets/${id}`, data).then(r => r.data),
+
+  listInvoices: (params: { status?: string; page?: number; limit?: number } = {}) =>
+    api.get('/invoices', { params: { limit: 50, ...params } }).then(r => r.data),
+
+  listHosting: () =>
+    api.get('/hosting', { params: { limit: 100 } }).then(r => r.data),
+
+  listProjects: (params: { page?: number; limit?: number } = {}) =>
+    api.get('/projects', { params: { limit: 50, ...params } }).then(r => r.data),
+
+  getMrr: () => api.get('/reports/mrr').then(r => r.data),
+
+  getUptime: (days = 30) => api.get('/reports/uptime', { params: { days } }).then(r => r.data),
+
+  getSla: () => api.get('/reports/sla').then(r => r.data),
 };
 
 export default api;

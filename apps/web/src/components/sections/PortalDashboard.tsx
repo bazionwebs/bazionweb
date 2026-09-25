@@ -11,7 +11,6 @@ import {
   FileText,
   CheckCircle2,
   ShieldCheck,
-  ExternalLink,
   ChevronRight,
   Download,
   Plus,
@@ -30,6 +29,15 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
+import {
+  useClientProfile,
+  useClientHosting,
+  useClientTickets,
+  useCreateTicket,
+  useClientInvoices,
+} from '@/hooks/usePortalData';
+import { TableSkeletonRows, QueryError, EmptyState } from '@/components/ui/QueryState';
+import { formatMoney, formatDate, titleCase, providerLabel, shortId } from '@/lib/format';
 
 // ─── Client Profile & Data Model ─────────────────────────────────────────────
 
@@ -195,65 +203,8 @@ const assetSovereigntyChecklist = [
   },
 ];
 
-const mockTickets = [
-  {
-    id: 'REQ-1082',
-    subject: 'Add emergency clinic contact number to mobile header',
-    priority: 'Urgent',
-    status: 'In Engineering',
-    category: 'Design Modification',
-    created: '2 hours ago',
-    slaRemaining: '1h 55m remaining',
-  },
-  {
-    id: 'REQ-1065',
-    subject: 'Integrate Dr. Kiptoo into dermatology services booking dropdown',
-    priority: 'Normal',
-    status: 'Resolved & Deployed',
-    category: 'Content Update',
-    created: '3 days ago',
-    slaRemaining: 'Met (Resolved in 1.4h)',
-  },
-  {
-    id: 'REQ-1040',
-    subject: 'Quarterly database backup verification and security patch run',
-    priority: 'Standard Care',
-    status: 'Completed',
-    category: 'Cloud Care Maintenance',
-    created: '1 week ago',
-    slaRemaining: 'Completed per schedule',
-  },
-];
-
-const mockInvoices = [
-  {
-    id: 'INV-2026-0924',
-    description: 'Phase 3 Milestone: Core Next.js Build & Payment Integrations',
-    amount: 'KES 80,000',
-    method: 'M-Pesa Business Till',
-    status: 'Paid',
-    date: 'Sep 20, 2026',
-    receiptNumber: 'QHJ78291KL',
-  },
-  {
-    id: 'INV-2026-0815',
-    description: 'Phase 1 & 2 Milestone: Discovery, Architecture & Figma Wireframes',
-    amount: 'KES 80,000',
-    method: 'M-Pesa Paybill #829102',
-    status: 'Paid',
-    date: 'Aug 15, 2026',
-    receiptNumber: 'QFB19482MC',
-  },
-  {
-    id: 'INV-2026-CARE-01',
-    description: 'Business Cloud Care Retainer — Advance Booking',
-    amount: 'KES 25,000',
-    method: 'Bank Wire / M-Pesa',
-    status: 'Scheduled',
-    date: 'Due Oct 15, 2026',
-    receiptNumber: 'Pending Launch',
-  },
-];
+const PRIORITY_MAP: Record<string, string> = { Critical: 'P1', Urgent: 'P2', Normal: 'P3' };
+const TICKET_CATEGORIES = ['HOSTING', 'DEVELOPMENT', 'MAINTENANCE', 'SECURITY', 'BILLING', 'PERFORMANCE', 'OTHER'];
 
 type PortalTab = 'dashboard' | 'milestones' | 'assets' | 'vault' | 'support' | 'invoices';
 
@@ -278,10 +229,38 @@ export default function PortalDashboard() {
   const [showSecretModal, setShowSecretModal] = useState(false);
 
   // Support Request state
-  const [supportRequests, setSupportRequests] = useState(mockTickets);
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [newTicketSubject, setNewTicketSubject] = useState('');
   const [newTicketPriority, setNewTicketPriority] = useState('Normal');
+  const [newTicketCategory, setNewTicketCategory] = useState('HOSTING');
+  const [newTicketBody, setNewTicketBody] = useState('');
+  const [ticketError, setTicketError] = useState<string | null>(null);
+
+  // ── Live data (API-backed; demo narrative sections below stay local) ──────
+  const { data: liveClient } = useClientProfile();
+  const { data: hostingAccounts } = useClientHosting();
+  const {
+    data: liveTickets = [],
+    isLoading: ticketsLoading,
+    isError: ticketsError,
+    refetch: refetchTickets,
+  } = useClientTickets();
+  const {
+    data: liveInvoices = [],
+    isLoading: invoicesLoading,
+    isError: invoicesError,
+    refetch: refetchInvoices,
+  } = useClientInvoices();
+  const createTicket = useCreateTicket();
+
+  const clientName = liveClient?.businessName ?? mockClient.name;
+  const contactName = liveClient?.contactName ?? mockClient.contactName;
+  const workspaceDomain = hostingAccounts?.[0]?.domain ?? '—';
+  const openTicketCount = liveTickets.filter(
+    t => t.status === 'OPEN' || t.status === 'IN_PROGRESS',
+  ).length;
+  const activeSubscription = liveClient?.subscriptions?.[0];
+  const planPrice = activeSubscription?.plan?.priceMonthly ?? liveClient?.plan?.priceMonthly;
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -308,19 +287,24 @@ export default function PortalDashboard() {
 
   const handleCreateTicket = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTicketSubject) return;
-    const newReq = {
-      id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      subject: newTicketSubject,
-      priority: newTicketPriority,
-      status: 'Queued for Engineering',
-      category: 'Client Request',
-      created: 'Just now',
-      slaRemaining: '4h 00m remaining',
-    };
-    setSupportRequests([newReq, ...supportRequests]);
-    setNewTicketSubject('');
-    setShowNewTicketModal(false);
+    if (!newTicketSubject.trim() || newTicketBody.trim().length < 20 || createTicket.isPending) return;
+    setTicketError(null);
+    createTicket.mutate(
+      {
+        subject: newTicketSubject.trim(),
+        priority: PRIORITY_MAP[newTicketPriority] ?? 'P3',
+        category: newTicketCategory,
+        body: newTicketBody.trim(),
+      },
+      {
+        onSuccess: () => {
+          setNewTicketSubject('');
+          setNewTicketBody('');
+          setShowNewTicketModal(false);
+        },
+        onError: () => setTicketError('Could not submit your request. Please try again.'),
+      },
+    );
   };
 
   const navItems = [
@@ -328,7 +312,7 @@ export default function PortalDashboard() {
     { icon: Layers, label: 'Delivery Roadmap & Sandbox', id: 'milestones' as PortalTab },
     { icon: Globe, label: 'Asset Sovereignty & DNS', id: 'assets' as PortalTab },
     { icon: KeyRound, label: 'Encrypted Vault', id: 'vault' as PortalTab },
-    { icon: Ticket, label: 'Engineering Support', id: 'support' as PortalTab, count: 1 },
+    { icon: Ticket, label: 'Engineering Support', id: 'support' as PortalTab, count: openTicketCount || undefined },
     { icon: FileText, label: 'Invoices & Cloud Care', id: 'invoices' as PortalTab },
   ];
 
@@ -359,8 +343,8 @@ export default function PortalDashboard() {
               AH
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-bold text-white truncate">{mockClient.name}</div>
-              <div className="text-xs text-slate-400 truncate">{mockClient.contactName}</div>
+              <div className="text-sm font-bold text-white truncate">{clientName}</div>
+              <div className="text-xs text-slate-400 truncate">{contactName}</div>
             </div>
           </div>
 
@@ -448,22 +432,12 @@ export default function PortalDashboard() {
                 {navItems.find(n => n.id === activeTab)?.label}
               </h1>
               <p className="text-xs text-slate-400">
-                Connected Workspace: <strong className="text-slate-600">{mockClient.domain}</strong>
+                Connected Workspace: <strong className="text-slate-600">{workspaceDomain}</strong>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <a
-              href={mockClient.stagingUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-              <span>Open Staging Preview</span>
-            </a>
-
             <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
               <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold">
                 SK
@@ -486,7 +460,7 @@ export default function PortalDashboard() {
                       Active Engineering Sprint
                     </span>
                     <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                      Welcome, {mockClient.contactName}
+                      Welcome, {contactName}
                     </h2>
                     <p className="text-slate-300 text-sm mt-1 max-w-xl leading-relaxed">
                       Your Phase 3 engineering sprint is <strong className="text-white">88% complete</strong>. Payment gateways (M-Pesa + Stripe) are integrated and staging is available for client acceptance testing.
@@ -1051,45 +1025,63 @@ export default function PortalDashboard() {
                         <th className="table-header">Subject</th>
                         <th className="table-header">Priority</th>
                         <th className="table-header">Status</th>
-                        <th className="table-header">SLA Response Window</th>
+                        <th className="table-header">Category</th>
                         <th className="table-header">Created</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {supportRequests.map(t => (
-                        <tr key={t.id} className="hover:bg-slate-50/50">
-                          <td className="table-cell font-mono text-xs font-semibold text-slate-400">{t.id}</td>
-                          <td className="table-cell font-medium text-[#0F172A]">{t.subject}</td>
-                          <td className="table-cell">
-                            <span
-                              className={cn(
-                                'badge',
-                                t.priority === 'Urgent'
-                                  ? 'badge-red'
-                                  : t.priority === 'Normal'
-                                  ? 'badge-blue'
-                                  : 'badge-slate',
-                              )}
-                            >
-                              {t.priority}
-                            </span>
+                      {ticketsLoading ? (
+                        <TableSkeletonRows rows={4} cols={6} />
+                      ) : ticketsError ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-6">
+                            <QueryError message="Your requests couldn't be loaded." onRetry={() => refetchTickets()} />
                           </td>
-                          <td className="table-cell">
-                            <span
-                              className={cn(
-                                'badge',
-                                t.status.includes('Completed') || t.status.includes('Resolved')
-                                  ? 'badge-green'
-                                  : 'badge-yellow',
-                              )}
-                            >
-                              {t.status}
-                            </span>
-                          </td>
-                          <td className="table-cell text-xs font-semibold text-slate-600">{t.slaRemaining}</td>
-                          <td className="table-cell text-xs text-slate-400">{t.created}</td>
                         </tr>
-                      ))}
+                      ) : liveTickets.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-6">
+                            <EmptyState title="No requests yet" hint="Submit your first engineering request above." />
+                          </td>
+                        </tr>
+                      ) : (
+                        liveTickets.map(t => (
+                          <tr key={t.id} className="hover:bg-slate-50/50">
+                            <td className="table-cell font-mono text-xs font-semibold text-slate-400">#{shortId(t.id, 6)}</td>
+                            <td className="table-cell font-medium text-[#0F172A]">{t.subject}</td>
+                            <td className="table-cell">
+                              <span
+                                className={cn(
+                                  'badge',
+                                  t.priority === 'P1'
+                                    ? 'badge-red'
+                                    : t.priority === 'P2'
+                                    ? 'badge-yellow'
+                                    : t.priority === 'P3'
+                                    ? 'badge-blue'
+                                    : 'badge-slate',
+                                )}
+                              >
+                                {t.priority}
+                              </span>
+                            </td>
+                            <td className="table-cell">
+                              <span
+                                className={cn(
+                                  'badge',
+                                  t.status === 'RESOLVED' || t.status === 'CLOSED'
+                                    ? 'badge-green'
+                                    : 'badge-yellow',
+                                )}
+                              >
+                                {titleCase(t.status)}
+                              </span>
+                            </td>
+                            <td className="table-cell text-xs font-semibold text-slate-600">{titleCase(t.category)}</td>
+                            <td className="table-cell text-xs text-slate-400">{formatDate(t.createdAt)}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1130,9 +1122,42 @@ export default function PortalDashboard() {
                         </select>
                       </div>
 
+                      <div>
+                        <label className="label">Category</label>
+                        <select
+                          value={newTicketCategory}
+                          onChange={e => setNewTicketCategory(e.target.value)}
+                          className="input text-xs"
+                        >
+                          {TICKET_CATEGORIES.map(c => (
+                            <option key={c} value={c}>{titleCase(c)}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="label">Details (min. 20 characters)</label>
+                        <textarea
+                          required
+                          rows={4}
+                          value={newTicketBody}
+                          onChange={e => setNewTicketBody(e.target.value)}
+                          placeholder="Describe the issue, where it happens, and what you expected…"
+                          className="input text-xs"
+                        />
+                      </div>
+
+                      {ticketError && (
+                        <p className="text-xs font-semibold text-[#EF4444]">{ticketError}</p>
+                      )}
+
                       <div className="flex gap-3 pt-2">
-                        <button type="submit" className="btn-primary flex-1 justify-center text-xs py-2.5">
-                          Submit to Engineering
+                        <button
+                          type="submit"
+                          disabled={createTicket.isPending}
+                          className="btn-primary flex-1 justify-center text-xs py-2.5 disabled:opacity-50"
+                        >
+                          {createTicket.isPending ? 'Submitting…' : 'Submit to Engineering'}
                         </button>
                         <button
                           type="button"
@@ -1165,14 +1190,21 @@ export default function PortalDashboard() {
                   <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
                     Active Subscription
                   </span>
-                  <h3 className="text-lg font-bold text-[#0F172A] mt-1">{mockClient.activePlan}</h3>
+                  <h3 className="text-lg font-bold text-[#0F172A] mt-1">
+                    {activeSubscription?.plan?.name ?? liveClient?.plan?.name ?? '—'}
+                  </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {mockClient.renewalAmount} · Next cycle: {mockClient.nextRenewal}
+                    {planPrice !== undefined && planPrice !== null
+                      ? `${formatMoney(planPrice)} / mo`
+                      : 'No active plan'}{' '}
+                    · Next cycle: {activeSubscription?.renewalDate ? formatDate(activeSubscription.renewalDate) : '—'}
                   </p>
                 </div>
                 <div className="text-left sm:text-right">
                   <div className="text-xs text-slate-400">Payment Channel</div>
-                  <div className="text-xs font-bold text-[#0F172A] mt-0.5">{mockClient.paymentMethod}</div>
+                  <div className="text-xs font-bold text-[#0F172A] mt-0.5">
+                    {providerLabel(activeSubscription?.provider)}
+                  </div>
                 </div>
               </div>
 
@@ -1185,35 +1217,68 @@ export default function PortalDashboard() {
                         <th className="table-header">Invoice #</th>
                         <th className="table-header">Description</th>
                         <th className="table-header">Amount</th>
-                        <th className="table-header">Payment Rail</th>
+                        <th className="table-header">Currency</th>
                         <th className="table-header">Status</th>
                         <th className="table-header">Date</th>
                         <th className="table-header">Download</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {mockInvoices.map(inv => (
-                        <tr key={inv.id} className="hover:bg-slate-50/50">
-                          <td className="table-cell font-mono text-xs font-semibold text-slate-400">{inv.id}</td>
-                          <td className="table-cell font-medium text-[#0F172A] text-xs max-w-xs">{inv.description}</td>
-                          <td className="table-cell font-bold text-[#0F172A] text-xs">{inv.amount}</td>
-                          <td className="table-cell text-xs text-slate-600">{inv.method}</td>
-                          <td className="table-cell">
-                            <span className={cn('badge', inv.status === 'Paid' ? 'badge-green' : 'badge-yellow')}>
-                              {inv.status}
-                            </span>
-                          </td>
-                          <td className="table-cell text-xs text-slate-400">{inv.date}</td>
-                          <td className="table-cell">
-                            <button
-                              onClick={() => alert(`Downloading official PDF statement for ${inv.id}`)}
-                              className="text-xs text-[#2563EB] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-                            >
-                              <Download className="w-3.5 h-3.5" /> PDF
-                            </button>
+                      {invoicesLoading ? (
+                        <TableSkeletonRows rows={4} cols={7} />
+                      ) : invoicesError ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-6">
+                            <QueryError message="Your invoices couldn't be loaded." onRetry={() => refetchInvoices()} />
                           </td>
                         </tr>
-                      ))}
+                      ) : liveInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-6">
+                            <EmptyState title="No invoices yet" hint="Invoices appear here after your first billing cycle." />
+                          </td>
+                        </tr>
+                      ) : (
+                        liveInvoices.map(inv => (
+                          <tr key={inv.id} className="hover:bg-slate-50/50">
+                            <td className="table-cell font-mono text-xs font-semibold text-slate-400">{inv.invoiceNumber}</td>
+                            <td className="table-cell font-medium text-[#0F172A] text-xs max-w-xs">{inv.notes ?? 'Subscription billing'}</td>
+                            <td className="table-cell font-bold text-[#0F172A] text-xs">{formatMoney(inv.amount, inv.currency)}</td>
+                            <td className="table-cell text-xs text-slate-600">{inv.currency}</td>
+                            <td className="table-cell">
+                              <span
+                                className={cn(
+                                  'badge',
+                                  inv.status === 'PAID'
+                                    ? 'badge-green'
+                                    : inv.status === 'OVERDUE'
+                                    ? 'badge-red'
+                                    : inv.status === 'CANCELLED'
+                                    ? 'badge-slate'
+                                    : 'badge-yellow',
+                                )}
+                              >
+                                {titleCase(inv.status)}
+                              </span>
+                            </td>
+                            <td className="table-cell text-xs text-slate-400">{formatDate(inv.createdAt)}</td>
+                            <td className="table-cell">
+                              {inv.pdfUrl ? (
+                                <a
+                                  href={inv.pdfUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-[#2563EB] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Download className="w-3.5 h-3.5" /> PDF
+                                </a>
+                              ) : (
+                                <span className="text-xs text-slate-300 font-medium">Pending</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
