@@ -20,6 +20,7 @@ import {
 import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
+import { useMarketPreference } from '@/hooks/useMarketPreference';
 
 // ─── Plan config (mirrors SubscriptionCheckout) ────────────────────────────────
 const PLAN_META: Record<string, {
@@ -108,6 +109,9 @@ export default function OnboardingPage() {
   const planSlug = pendingPlan || DEFAULT_PLAN;
   const plan = PLAN_META[planSlug] || PLAN_META[DEFAULT_PLAN];
 
+  const { marketCode } = useMarketPreference();
+  const [activeMarket, setActiveMarket] = useState<'KE' | 'GLOBAL'>('GLOBAL');
+
   const [tab, setTab] = useState<PayTab>('MPESA');
   const [cycle, setCycle] = useState<Cycle>('MONTHLY');
   const [phone, setPhone] = useState('');
@@ -115,8 +119,29 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
 
-  const kes = cycle === 'ANNUAL' ? plan.priceAnnualKes : plan.priceMonthlyKes;
-  const usd = cycle === 'ANNUAL' ? plan.priceAnnualUsd : plan.priceMonthlyUsd;
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('bazion_locked_proposal');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.marketCode === 'KE' || parsed.marketCode === 'GLOBAL') {
+          setActiveMarket(parsed.marketCode);
+          if (parsed.marketCode === 'GLOBAL') setTab('CARD');
+          return;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    setActiveMarket(marketCode === 'KE' ? 'KE' : 'GLOBAL');
+    if (marketCode !== 'KE') setTab('CARD');
+  }, [marketCode]);
+
+  const isKenya = activeMarket === 'KE';
+  const displayCurrency = isKenya ? 'KES' : 'USD';
+  const displayAmount = cycle === 'ANNUAL'
+    ? (isKenya ? plan.priceAnnualKes : plan.priceAnnualUsd)
+    : (isKenya ? plan.priceMonthlyKes : plan.priceMonthlyUsd);
 
   async function handleMpesa(e: React.FormEvent) {
     e.preventDefault();
@@ -128,7 +153,7 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email || user?.email,
-          amount: kes,
+          amount: displayAmount,
           planSlug,
           phone: phone.replace(/[^0-9]/g, ''),
           currency: 'KES',
@@ -157,9 +182,9 @@ export default function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email || user?.email,
-          amount: kes,
+          amount: displayAmount,
           planSlug,
-          currency: 'KES',
+          currency: displayCurrency,
         }),
       });
       const data = await res.json();
@@ -236,7 +261,7 @@ export default function OnboardingPage() {
                 </div>
                 <div className="mb-4">
                   <span className="text-3xl font-black text-white">
-                    {cycle === 'MONTHLY' ? `KES ${plan.priceMonthlyKes.toLocaleString()}` : `KES ${plan.priceAnnualKes.toLocaleString()}`}
+                    {displayCurrency} {displayAmount.toLocaleString()}
                   </span>
                   <span className="text-white/60 text-sm ml-1">/{cycle === 'MONTHLY' ? 'mo' : 'yr'}</span>
                 </div>
@@ -304,22 +329,29 @@ export default function OnboardingPage() {
                 <h2 className="text-xl font-bold text-white mt-0.5">Choose payment method</h2>
                 <p className="text-xs text-slate-400 mt-1">
                   Paying <span className="font-semibold text-white">
-                    KES {kes.toLocaleString()} {cycle === 'ANNUAL' ? '/ year' : '/ month'}
+                    {displayCurrency} {displayAmount.toLocaleString()} {cycle === 'ANNUAL' ? '/ year' : '/ month'}
                   </span>
-                  <span className="text-slate-500 ml-2">(≈ USD {usd.toLocaleString()})</span>
+                  <span className="text-slate-500 ml-2">· {isKenya ? 'Kenya Market Price Book (KE-2026-v1)' : 'International Price Book (GLOBAL-2026-v1)'}</span>
                 </p>
               </div>
 
               {/* Payment method tabs */}
-              <div className="grid grid-cols-3 gap-0 border-b border-slate-800">
-                {([
-                  { id: 'MPESA', label: 'M-Pesa', sub: 'Mobile Money', Icon: Smartphone },
-                  { id: 'CARD', label: 'Card', sub: 'Visa / Mastercard', Icon: CreditCard },
-                  { id: 'WIRE', label: 'Wire', sub: 'Corporate / B2B', Icon: Building2 },
-                ] as const).map(({ id, label, sub, Icon }) => (
+              <div className={`grid ${isKenya ? 'grid-cols-3' : 'grid-cols-2'} gap-0 border-b border-slate-800`}>
+                {(
+                  isKenya
+                    ? [
+                        { id: 'MPESA', label: 'M-Pesa', sub: 'Instant STK Push', Icon: Smartphone },
+                        { id: 'CARD', label: 'Local Card', sub: 'Visa / Mastercard', Icon: CreditCard },
+                        { id: 'WIRE', label: 'Bank Wire', sub: 'Kenyan RTGS / EFT', Icon: Building2 },
+                      ]
+                    : [
+                        { id: 'CARD', label: 'International Card', sub: 'Stripe / Cards', Icon: CreditCard },
+                        { id: 'WIRE', label: 'International Wire', sub: 'Wise / SWIFT Receiving', Icon: Building2 },
+                      ]
+                ).map(({ id, label, sub, Icon }) => (
                   <button
                     key={id}
-                    onClick={() => { setTab(id); setFeedback(null); }}
+                    onClick={() => { setTab(id as PayTab); setFeedback(null); }}
                     className={`flex flex-col items-center gap-1 py-4 px-3 text-xs font-semibold transition-all border-b-2 ${
                       tab === id
                         ? 'border-[#2563EB] text-white bg-[#2563EB]/5'
@@ -355,7 +387,7 @@ export default function OnboardingPage() {
                         <p className="text-xs font-semibold text-emerald-400">Safaricom M-Pesa STK Push</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">You&apos;ll receive a PIN prompt on your phone within 5 seconds</p>
                       </div>
-                      <span className="text-lg font-black text-emerald-400 font-mono">KES {kes.toLocaleString()}</span>
+                      <span className="text-lg font-black text-emerald-400 font-mono">{displayCurrency} {displayAmount.toLocaleString()}</span>
                     </div>
 
                     <div>
@@ -403,7 +435,7 @@ export default function OnboardingPage() {
                         <p className="text-xs font-semibold text-blue-400">International Card (Paystack)</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">Visa, Mastercard & Amex · PCI-DSS Level 1</p>
                       </div>
-                      <span className="text-lg font-black text-blue-300 font-mono">USD {usd.toLocaleString()}</span>
+                      <span className="text-lg font-black text-blue-300 font-mono">{displayCurrency} {displayAmount.toLocaleString()}</span>
                     </div>
 
                     <div>

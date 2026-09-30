@@ -577,3 +577,114 @@ model Notification {
   @@index([read])
   @@map("notifications")
 }
+
+// ─── Commercial Market Localization Engine Models ─────────────────────────────
+
+model Market {
+  id            String      @id @default(uuid())
+  code          String      @unique // 'KE', 'GLOBAL', 'EA', etc.
+  name          String
+  currency      String      // 'KES', 'USD', 'EUR', 'GBP'
+  countryCodes  String[]    @map("country_codes")
+  active        Boolean     @default(true)
+  defaultLocale String      @default("en-US") @map("default_locale")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  priceBooks    PriceBook[]
+  proposals     Proposal[]
+  leads         Lead[]
+
+  @@map("markets")
+}
+
+model PriceBook {
+  id             String      @id // e.g. "KE-2026-v1", "GLOBAL-2026-v1"
+  marketId       String      @map("market_id")
+  name           String
+  version        String      // e.g. "2026-v1"
+  effectiveFrom  DateTime    @map("effective_from")
+  effectiveUntil DateTime?   @map("effective_until")
+  status         String      @default("active") // "active", "archived", "draft"
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  market         Market      @relation(fields: [marketId], references: [id])
+  prices         Price[]
+  proposals      Proposal[]
+  leads          Lead[]
+
+  @@index([marketId])
+  @@index([status])
+  @@map("price_books")
+}
+
+model Price {
+  id            String    @id @default(uuid())
+  priceBookId   String    @map("price_book_id")
+  productId     String    @map("product_id") // e.g. "website-business"
+  amount        Decimal   @db.Decimal(12, 2)
+  billingPeriod String?   @map("billing_period") // "one-time", "month", "year"
+  minPrice      Decimal?  @map("min_price") @db.Decimal(12, 2)
+  maxPrice      Decimal?  @map("max_price") @db.Decimal(12, 2)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  priceBook     PriceBook @relation(fields: [priceBookId], references: [id])
+
+  @@unique([priceBookId, productId])
+  @@index([productId])
+  @@map("prices")
+}
+
+model Proposal {
+  id             String    @id @default(uuid())
+  proposalCode   String    @unique @map("proposal_code")
+  marketId       String    @map("market_id")
+  priceBookId    String    @map("price_book_id")
+  currency       String
+  billingCountry String    @map("billing_country")
+  clientEmail    String    @map("client_email")
+  clientName     String?   @map("client_name")
+  clientCompany  String?   @map("client_company")
+  lineItems      Json      @map("line_items")
+  totalAmount    Decimal   @map("total_amount") @db.Decimal(12, 2)
+  status         String    @default("LOCKED") // LOCKED, ACCEPTED, EXPIRED
+  expiresAt      DateTime  @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  market         Market    @relation(fields: [marketId], references: [id])
+  priceBook      PriceBook @relation(fields: [priceBookId], references: [id])
+
+  @@index([marketId])
+  @@index([priceBookId])
+  @@index([clientEmail])
+  @@map("proposals")
+}
+
+model Lead {
+  id              String     @id @default(uuid())
+  name            String
+  email           String
+  company         String?
+  phone           String?
+  country         String
+  marketId        String     @map("market_id")
+  currency        String
+  priceBookId     String     @map("price_book_id")
+  serviceInterest String     @map("service_interest")
+  source          String     @default("web")
+  notes           String?
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  market          Market     @relation(fields: [marketId], references: [id])
+  priceBook       PriceBook  @relation(fields: [priceBookId], references: [id])
+
+  @@index([marketId])
+  @@index([priceBookId])
+  @@index([email])
+  @@index([country])
+  @@map("leads")
+}

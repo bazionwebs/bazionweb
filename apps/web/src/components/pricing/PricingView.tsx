@@ -27,7 +27,7 @@ import {
 type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'hosting' | 'addons';
 
 export default function PricingView() {
-  const { market } = useMarketPreference();
+  const { market, marketDef, openModal } = useMarketPreference();
   const [activeTab, setActiveTab] = useState<TabKey>('websites');
 
   return (
@@ -50,6 +50,23 @@ export default function PricingView() {
           <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto mb-6 leading-relaxed">
             Every project quotation is backed by verified client ownership, itemized deliverables, and post-launch warranties.
           </p>
+
+          {/* Current Commercial Market Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-slate-200">
+            <span className="text-slate-400">Commercial Market:</span>
+            <span className="font-bold text-white flex items-center gap-1.5">
+              <span>{marketDef.flag}</span>
+              <span>{marketDef.name} ({marketDef.currency})</span>
+            </span>
+            <span className="text-slate-500">·</span>
+            <button
+              type="button"
+              onClick={openModal}
+              className="text-[#14B8A6] hover:text-teal-300 font-bold underline underline-offset-2 transition-colors cursor-pointer"
+            >
+              Change market
+            </button>
+          </div>
         </div>
       </section>
 

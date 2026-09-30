@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Globe, Shield, Wrench, Server, Zap, LifeBuoy, Twitter, Linkedin, Github, Mail, Phone, MapPin } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
+import MarketSelectorTrigger from '@/components/layout/MarketSelectorTrigger';
 
 const services = [
   { name: 'Website Development', href: '/services/development', icon: Globe },
@@ -139,19 +140,24 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Bottom bar */}
+      {/* Bottom bar with Market Selector */}
       <div className="border-t border-white/5">
-        <div className="container-default py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <a
-            href="https://status.bazionweb.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors group"
-          >
-            <span className="w-2 h-2 rounded-full bg-[#22C55E] inline-block animate-pulse" />
-            All systems operational
-            <span className="text-slate-600 group-hover:text-slate-400 transition-colors">· status.bazionweb.com</span>
-          </a>
+        <div className="container-default py-5 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <a
+              href="https://status.bazionweb.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors group"
+            >
+              <span className="w-2 h-2 rounded-full bg-[#22C55E] inline-block animate-pulse" />
+              All systems operational
+              <span className="text-slate-600 group-hover:text-slate-400 transition-colors">· status.bazionweb.com</span>
+            </a>
+            <span className="text-slate-700 hidden md:inline">|</span>
+            <MarketSelectorTrigger variant="footer" />
+          </div>
+
           <p className="text-xs text-slate-500">
             © {new Date().getFullYear()} BazionWeb. All rights reserved.
           </p>

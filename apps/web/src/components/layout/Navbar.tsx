@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import MarketSelectorTrigger from '@/components/layout/MarketSelectorTrigger';
 
 const serviceItems = [
   { name: 'Websites', href: '/services#websites', icon: Globe, desc: 'Starter, Business & Corporate' },
@@ -238,17 +239,8 @@ export default function Navbar() {
 
         {/* ─── Desktop Actions Cluster ─── */}
         <div className="hidden lg:flex items-center gap-3">
-          {/* Currency / Market Toggle Pill */}
-          <button
-            onClick={toggleMarket}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 hover:border-slate-300 bg-slate-50 transition-colors"
-            title="Toggle between Kenya (KES) and International (USD) pricing"
-            aria-label="Toggle currency"
-          >
-            <span className={market === 'kenya' ? 'text-[#0D9488]' : 'text-slate-400'}>🇰🇪 KES</span>
-            <span className="text-slate-300">|</span>
-            <span className={market === 'international' ? 'text-[#0D9488]' : 'text-slate-400'}>🌍 USD</span>
-          </button>
+          {/* Commercial Market Selector Trigger */}
+          <MarketSelectorTrigger variant="navbar" />
 
           <Link
             href="/portal"
@@ -333,7 +325,11 @@ export default function Navbar() {
               Contact & Inquiry
             </Link>
 
-            <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
+            <div className="pt-3 border-t border-slate-100 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between px-3 py-1">
+                <span className="text-xs font-semibold text-slate-500">Commercial Market</span>
+                <MarketSelectorTrigger variant="compact" />
+              </div>
               <Link href="/portal" className="text-center py-2 text-xs font-semibold text-slate-600 hover:text-[#0D9488]">
                 Existing Client Portal Login →
               </Link>

@@ -8,7 +8,8 @@ import {
   Market,
   ADD_ON_RATE_CARD,
 } from '@/lib/pricingData';
-import { readStoredMarket, detectMarket } from '@/hooks/useMarketPreference';
+import { useMarketPreference } from '@/hooks/useMarketPreference';
+import { MARKETS, mapCountryToMarket } from '@/lib/marketEngine';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import {
   Check,
@@ -23,6 +24,8 @@ import {
   Mail,
   User,
   Sparkles,
+  Globe,
+  Lock,
 } from 'lucide-react';
 
 interface QuoteConfig {
@@ -37,11 +40,11 @@ interface QuoteConfig {
 
 const PACKAGE_DEFAULTS = {
   launch: { name: 'Launch Website', basePages: 5, kenyaCost: 25000, intlCost: 495 },
-  business: { name: 'Business Website', basePages: 10, kenyaCost: 50000, intlCost: 1250 },
-  professional: { name: 'Professional Website', basePages: 15, kenyaCost: 85000, intlCost: 2250 },
+  business: { name: 'Business Website', basePages: 10, kenyaCost: 90000, intlCost: 1500 },
+  professional: { name: 'Professional Website', basePages: 15, kenyaCost: 160000, intlCost: 2850 },
   'ecom-starter': { name: 'E-Commerce Starter', basePages: 8, kenyaCost: 90000, intlCost: 1500 },
-  'ecom-business': { name: 'E-Commerce Business', basePages: 15, kenyaCost: 160000, intlCost: 2500 },
-  custom: { name: 'Custom Project Build', basePages: 5, kenyaCost: 25000, intlCost: 495 },
+  'ecom-business': { name: 'E-Commerce Business', basePages: 15, kenyaCost: 175000, intlCost: 2950 },
+  custom: { name: 'Custom Project Build', basePages: 5, kenyaCost: 180000, intlCost: 3200 },
 };
 
 function QuoteCalculatorContent() {
@@ -50,9 +53,10 @@ function QuoteCalculatorContent() {
   const setSession = useAuthStore(s => s.setSession);
   const setPendingPlan = useAuthStore(s => s.setPendingPlan);
 
+  const { market, marketCode, marketDef, openModal } = useMarketPreference();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [config, setConfig] = useState<QuoteConfig>({
-    market: (searchParams.get('market') === 'kenya' ? 'kenya' : 'international'),
+    market,
     packageType: (searchParams.get('package') as QuoteConfig['packageType']) || 'business',
     extraPages: 0,
     selectedAddOns: [],
@@ -66,13 +70,16 @@ function QuoteCalculatorContent() {
   const [gName, setGName] = useState('');
   const [gEmail, setGEmail] = useState('');
   const [gCompany, setGCompany] = useState('');
+  const [gCountry, setGCountry] = useState(marketCode === 'KE' ? 'KE' : 'US');
   const [gLoading, setGLoading] = useState(false);
 
+  // Sync config when market changes
   useEffect(() => {
-    const marketParam = searchParams.get('market');
-    if (marketParam === 'international' || marketParam === 'kenya') {
-      setConfig(prev => ({ ...prev, market: marketParam }));
-    }
+    setConfig(prev => ({ ...prev, market }));
+    setGCountry(marketCode === 'KE' ? 'KE' : 'US');
+  }, [market, marketCode]);
+
+  useEffect(() => {
     const pkgParam = searchParams.get('package');
     if (pkgParam && pkgParam in PACKAGE_DEFAULTS) {
       setConfig(prev => ({ ...prev, packageType: pkgParam as QuoteConfig['packageType'] }));
@@ -87,21 +94,6 @@ function QuoteCalculatorContent() {
       }));
     }
   }, [searchParams]);
-
-  // Returning visitors: stored market wins unless a deep-link ?market= is present.
-  // New visitors: East-African timezones start on Kenya pricing (same URL, no redirect).
-  useEffect(() => {
-    if (searchParams.get('market')) return;
-    const stored = readStoredMarket();
-    if (stored) {
-      setConfig(prev => (prev.market === stored ? prev : { ...prev, market: stored }));
-      return;
-    }
-    if (detectMarket() === 'kenya') {
-      setConfig(prev => (prev.market === 'kenya' ? prev : { ...prev, market: 'kenya' }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const currencySymbol = config.market === 'kenya' ? 'KSh' : '$';
   const pkgInfo = PACKAGE_DEFAULTS[config.packageType] || PACKAGE_DEFAULTS.business;
@@ -158,11 +150,70 @@ function QuoteCalculatorContent() {
     setGLoading(true);
 
     try {
+      // 1. Authoritative Level 4 Resolution via Declared Billing Country
+      const authoritativeMarketCode = mapCountryToMarket(gCountry);
+      const authoritativeMarketDef = MARKETS[authoritativeMarketCode] || MARKETS.GLOBAL;
+      const priceBookId = authoritativeMarketDef.activePriceBookId;
+      const authoritativeCurrency = authoritativeMarketDef.currency;
+
+      // 2. Call server-side quote proposal API to lock quote
+      const quoteRes = await fetch('/api/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          billingCountry: gCountry,
+          packageType: config.packageType,
+          extraPages: config.extraPages,
+          selectedAddOns: config.selectedAddOns,
+          rushDelivery: config.rushDelivery,
+          care: config.care,
+          hosting: config.hosting,
+          clientName: gName.trim(),
+          clientEmail: gEmail.trim(),
+          clientCompany: gCompany.trim(),
+        }),
+      });
+
+      const proposalData = quoteRes.ok ? await quoteRes.json() : null;
+
+      // 3. Register commercial lead
+      await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: gName.trim(),
+          email: gEmail.trim(),
+          company: gCompany.trim() || undefined,
+          country: gCountry,
+          proposalId: proposalData?.proposalId,
+          serviceInterest: `Website - ${pkgInfo.name}`,
+          estimatedBudget: totalYearOne,
+        }),
+      }).catch(() => {/* ignore background lead capture network drop */});
+
+      // 4. Save locked proposal to localStorage
+      localStorage.setItem('bazion_locked_proposal', JSON.stringify(proposalData || {
+        proposalId: `PROP-LOCAL-${Date.now()}`,
+        marketCode: authoritativeMarketCode,
+        currency: authoritativeCurrency,
+        priceBookId,
+        country: gCountry,
+        packageType: config.packageType,
+        packageName: pkgInfo.name,
+        totalBuild,
+        monthlyCare,
+        annualHosting,
+        totalYearOne,
+        savedAt: new Date().toISOString(),
+      }));
+
       localStorage.setItem('bazion_saved_quote', JSON.stringify({
         packageType: config.packageType,
         packageName: pkgInfo.name,
-        market: config.market,
-        currencySymbol,
+        market: authoritativeMarketCode === 'KE' ? 'kenya' : 'international',
+        marketCode: authoritativeMarketCode,
+        priceBookId,
+        currencySymbol: authoritativeMarketDef.currencySymbol,
         extraPages: config.extraPages,
         selectedAddOns: config.selectedAddOns,
         rushDelivery: config.rushDelivery,
@@ -246,6 +297,22 @@ Please confirm availability and discuss next steps.`;
             Configure your website tier, extra pages, payment integrations, and managed care plans.
             Itemized transparency with zero hidden markups.
           </p>
+
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-slate-200">
+            <span className="text-slate-400">Commercial Market:</span>
+            <span className="font-bold text-white flex items-center gap-1.5">
+              <span>{marketDef.flag}</span>
+              <span>{marketDef.name} ({marketDef.currency})</span>
+            </span>
+            <span className="text-slate-500">·</span>
+            <button
+              type="button"
+              onClick={openModal}
+              className="text-[#14B8A6] hover:text-teal-300 font-bold underline underline-offset-2 transition-colors cursor-pointer"
+            >
+              Change market
+            </button>
+          </div>
         </div>
       </div>
 
@@ -746,6 +813,41 @@ Please confirm availability and discuss next steps.`;
                     placeholder="Acacia Healthcare Ltd"
                     className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="gs-country" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Billing Country &amp; Contracting Entity</span>
+                  <span className="text-[10px] font-bold text-[#2563EB]">Authoritative Market</span>
+                </label>
+                <div className="relative">
+                  <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <select
+                    id="gs-country"
+                    value={gCountry}
+                    onChange={e => setGCountry(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 bg-white focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium"
+                  >
+                    <optgroup label="East Africa (Kenya Price Book & Terms)">
+                      <option value="KE">🇰🇪 Kenya (KES · M-Pesa &amp; Kenyan Bank Wire)</option>
+                      <option value="UG">🇺🇬 Uganda (East Africa Region)</option>
+                      <option value="TZ">🇹🇿 Tanzania (East Africa Region)</option>
+                      <option value="RW">🇷🇼 Rwanda (East Africa Region)</option>
+                    </optgroup>
+                    <optgroup label="International (Global Price Book & Master SLA)">
+                      <option value="US">🇺🇸 United States (USD · Stripe &amp; Wire)</option>
+                      <option value="GB">🇬🇧 United Kingdom (USD · International Rails)</option>
+                      <option value="CA">🇨🇦 Canada (USD · Global Rails)</option>
+                      <option value="AU">🇦🇺 Australia (USD · Global Rails)</option>
+                      <option value="DE">🇩🇪 Germany / Europe (USD · International)</option>
+                      <option value="OTHER">🌍 Other International (USD · Global Master SLA)</option>
+                    </optgroup>
+                  </select>
+                </div>
+                <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Authoritative Price Book: <strong className="text-slate-700">{mapCountryToMarket(gCountry) === 'KE' ? 'KE-2026-v1 (KES)' : 'GLOBAL-2026-v1 (USD)'}</strong></span>
+                  <span className="text-emerald-600 font-semibold flex items-center gap-1"><Lock className="w-3 h-3" /> Price Guaranteed 30 Days</span>
                 </div>
               </div>
 

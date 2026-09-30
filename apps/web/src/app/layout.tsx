@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import '../styles/globals.css';
 import CookieBanner from '@/components/ui/CookieBanner';
+import MarketSelectorModal from '@/components/layout/MarketSelectorModal';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://bazionweb.com'),
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-white antialiased">
         {children}
         <CookieBanner />
+        <MarketSelectorModal />
       </body>
     </html>
   );

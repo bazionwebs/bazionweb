@@ -19,7 +19,7 @@ interface Props {
 }
 
 export default function ServiceFamilyView({ family }: Props) {
-  const { market } = useMarketPreference();
+  const { market, marketDef, openModal } = useMarketPreference();
 
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -126,12 +126,20 @@ export default function ServiceFamilyView({ family }: Props) {
             <h2 className="text-2xl md:text-4xl font-extrabold text-[#0F172A] mb-3">
               Included Deliverables & Fixed Rates
             </h2>
-            <p className="text-xs md:text-sm text-slate-500">
-              Showing pricing for{' '}
-              <strong className="text-[#0F172A]">
-                {market === 'kenya' ? 'Kenya (KES + M-Pesa)' : 'International (USD)'}
+            <div className="flex items-center justify-center gap-2 text-xs md:text-sm text-slate-500 mt-2">
+              <span>Commercial Price Book:</span>
+              <strong className="text-[#0F172A] font-bold">
+                {marketDef.flag} {marketDef.shortName} ({marketDef.currency})
               </strong>
-            </p>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={openModal}
+                className="text-[#0D9488] hover:underline font-semibold cursor-pointer"
+              >
+                Change market
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

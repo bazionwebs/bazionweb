@@ -1,45 +1,64 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { Market } from '@/lib/pricingData';
+import {
+  MarketCode,
+  LegacyMarket,
+  MarketDefinition,
+  MARKETS,
+  normalizeMarketCode,
+  BAZION_MARKET_COOKIE,
+  LEGACY_MARKET_COOKIE,
+} from '@/lib/marketEngine';
 
-export const MARKET_STORAGE_KEY = 'bw-market';
-export const MARKET_COOKIE_KEY = 'bw-market';
+export const MARKET_STORAGE_KEY = 'bazion_market';
+export const LEGACY_STORAGE_KEY = 'bw-market';
 
 /**
- * Reads the market cookie silently without external dependencies.
+ * Reads market cookie from document.cookie
  */
-export function readMarketCookie(): Market | null {
+export function readMarketCookie(): MarketCode | null {
   if (typeof document === 'undefined') return null;
   try {
-    const match = document.cookie.match(new RegExp('(^|;\\s*)' + MARKET_COOKIE_KEY + '=([^;]*)'));
-    const val = match ? decodeURIComponent(match[2]).toLowerCase() : null;
-    return val === 'kenya' || val === 'international' ? (val as Market) : null;
+    // 1. Check authoritative bazion_market cookie
+    const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + BAZION_MARKET_COOKIE + '=([^;]*)'));
+    if (match) {
+      return normalizeMarketCode(decodeURIComponent(match[1]));
+    }
+    // 2. Check legacy bw-market cookie
+    const legacyMatch = document.cookie.match(new RegExp('(?:^|;\\s*)' + LEGACY_MARKET_COOKIE + '=([^;]*)'));
+    if (legacyMatch) {
+      return normalizeMarketCode(decodeURIComponent(legacyMatch[1]));
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
 /**
- * Saves market to cookie for edge sync and persistence.
+ * Sets persistent market cookies for both edge middleware and legacy support.
  */
-export function setMarketCookie(market: Market) {
+export function setMarketCookie(market: MarketCode | LegacyMarket) {
   if (typeof document === 'undefined') return;
   try {
+    const canonical = normalizeMarketCode(market);
+    const legacyVal = canonical === 'KE' ? 'kenya' : 'international';
     const expires = new Date(Date.now() + 365 * 864e5).toUTCString();
-    document.cookie = `${MARKET_COOKIE_KEY}=${market}; expires=${expires}; path=/; SameSite=Lax`;
+
+    // Set new canonical market cookie
+    document.cookie = `${BAZION_MARKET_COOKIE}=${canonical}; expires=${expires}; path=/; SameSite=Lax`;
+    // Set legacy cookie for backward-compatible edge nodes
+    document.cookie = `${LEGACY_MARKET_COOKIE}=${legacyVal}; expires=${expires}; path=/; SameSite=Lax`;
   } catch {
     /* ignore cookie writing errors */
   }
 }
 
 /**
- * Silent market detection:
- * - Edge cookie / header takes priority
- * - Timezone analysis (Africa/* timezones default to Kenya/East Africa)
- * - Defaults to international (USD) for global visitors and search crawlers
+ * Silent market detection (Level 1 Geo IP & Timezone heuristic)
  */
-export function detectMarket(): Market {
+export function detectMarket(): MarketCode {
   // 1. Check cookie injected by Edge Middleware
   const cookieVal = readMarketCookie();
   if (cookieVal) return cookieVal;
@@ -47,84 +66,131 @@ export function detectMarket(): Market {
   // 2. Check client timezone as fallback
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
-    if (tz.startsWith('Africa/')) return 'kenya';
+    if (tz === 'Africa/Nairobi' || tz.startsWith('Africa/')) {
+      return 'KE';
+    }
   } catch {
-    /* ignore — default below */
+    /* ignore */
   }
 
-  return 'international';
+  return 'GLOBAL';
 }
 
-export function readStoredMarket(): Market | null {
-  // Check URL override if on client
+/**
+ * Read stored market from query param, cookie, or local storage.
+ */
+export function readStoredMarket(): MarketCode | null {
+  // 1. Check URL override if on client
   if (typeof window !== 'undefined') {
     try {
       const params = new URLSearchParams(window.location.search);
       const cur = params.get('currency')?.toLowerCase();
       const mkt = params.get('market')?.toLowerCase();
-      if (cur === 'kes' || mkt === 'kenya' || mkt === 'ke') return 'kenya';
-      if (cur === 'usd' || mkt === 'international' || mkt === 'intl') return 'international';
+      if (cur === 'kes' || mkt === 'kenya' || mkt === 'ke') return 'KE';
+      if (cur === 'usd' || mkt === 'international' || mkt === 'intl' || mkt === 'global') return 'GLOBAL';
     } catch {
       /* ignore */
     }
   }
 
+  // 2. Cookie
   const cookie = readMarketCookie();
   if (cookie) return cookie;
 
-  try {
-    const v = window.localStorage.getItem(MARKET_STORAGE_KEY);
-    return v === 'kenya' || v === 'international' ? (v as Market) : null;
-  } catch {
-    return null;
+  // 3. LocalStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const v = window.localStorage.getItem(MARKET_STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (v) return normalizeMarketCode(v);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return null;
+}
+
+// Global modal event listener
+const MARKET_MODAL_EVENT = 'bazion:open-market-modal';
+const MARKET_CHANGE_EVENT = 'bazion:market-change';
+
+export function triggerOpenMarketModal() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(MARKET_MODAL_EVENT));
   }
 }
 
 /**
- * Silent Market Preference Hook
- *
- * Design guarantees:
- * - Silent resolution: Never pops up alarming suggestion banners or comparisons.
- * - Single canonical URL: Prevents SEO duplicate content and cloaking penalties.
- * - Edge synchronization: Middleware and client share the 'bw-market' cookie.
+ * React hook for market preference resolution and UI binding
  */
 export function useMarketPreference() {
-  const [market, setMarketState] = useState<Market>('international');
+  const [marketCode, setMarketCodeState] = useState<MarketCode>('GLOBAL');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    // 1. Priority to explicit stored preference or cookie
+    // 1. Check stored or detected market
     const stored = readStoredMarket();
     if (stored) {
-      setMarketState(stored);
-      return;
-    }
-
-    // 2. Silent edge/timezone detection
-    const detected = detectMarket();
-    if (detected === 'kenya') {
-      setMarketState('kenya');
-      setMarketCookie('kenya');
+      setMarketCodeState(stored);
+    } else {
+      const detected = detectMarket();
+      setMarketCodeState(detected);
+      setMarketCookie(detected);
       try {
-        window.localStorage.setItem(MARKET_STORAGE_KEY, 'kenya');
+        window.localStorage.setItem(MARKET_STORAGE_KEY, detected);
+        window.localStorage.setItem(LEGACY_STORAGE_KEY, detected === 'KE' ? 'kenya' : 'international');
       } catch {
         /* ignore */
       }
     }
+
+    // 2. Listen for modal events
+    const handleOpenModal = () => setIsModalOpen(true);
+    const handleMarketChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { marketCode: MarketCode };
+      if (detail?.marketCode) {
+        setMarketCodeState(detail.marketCode);
+      }
+    };
+
+    window.addEventListener(MARKET_MODAL_EVENT, handleOpenModal);
+    window.addEventListener(MARKET_CHANGE_EVENT, handleMarketChange);
+
+    return () => {
+      window.removeEventListener(MARKET_MODAL_EVENT, handleOpenModal);
+      window.removeEventListener(MARKET_CHANGE_EVENT, handleMarketChange);
+    };
   }, []);
 
-  const setMarket = useCallback((m: Market) => {
-    setMarketState(m);
-    setMarketCookie(m);
+  const setMarket = useCallback((m: MarketCode | LegacyMarket) => {
+    const code = normalizeMarketCode(m);
+    setMarketCodeState(code);
+    setMarketCookie(code);
+
     try {
-      window.localStorage.setItem(MARKET_STORAGE_KEY, m);
+      window.localStorage.setItem(MARKET_STORAGE_KEY, code);
+      window.localStorage.setItem(LEGACY_STORAGE_KEY, code === 'KE' ? 'kenya' : 'international');
     } catch {
       /* ignore */
     }
+
+    // Dispatch broadcast event so all components update in real-time
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(MARKET_CHANGE_EVENT, { detail: { marketCode: code } }));
+    }
   }, []);
 
+  const marketDef: MarketDefinition = MARKETS[marketCode] || MARKETS.GLOBAL;
+  const legacyMarket: LegacyMarket = marketCode === 'KE' ? 'kenya' : 'international';
+
   return {
-    market,
+    marketCode,
+    market: legacyMarket, // legacy compatibility for existing components
+    marketDef,
     setMarket,
-    suggestKenya: false, // Intentionally false: eliminates comparative alert banners
+    isModalOpen,
+    openModal: () => setIsModalOpen(true),
+    closeModal: () => setIsModalOpen(false),
+    suggestKenya: false,
   };
 }
