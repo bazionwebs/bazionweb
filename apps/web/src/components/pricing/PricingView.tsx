@@ -553,10 +553,6 @@ export default function PricingView() {
           <div className="space-y-4">
             {[
               {
-                q: 'Why are Kenya and International prices structured separately?',
-                a: 'Kenya and International are distinct commercial markets with different delivery workflows. International packages include more formal discovery documentation, asynchronous timezone support, international payment handling (Wise/Stripe/Cards), and formal handover QA, rather than simply converting currencies at bank rates.',
-              },
-              {
                 q: 'Do I own my website and domain completely?',
                 a: 'Yes, 100%. Clients retain absolute ownership of their domain, source code, business data, content, and credentials. BazionWeb will never hold your digital assets hostage if you decide to self-host or transfer.',
               },
