@@ -17,12 +17,26 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/careers`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
     { url: `${BASE}/faq`, lastModified: now, changeFrequency: 'weekly', priority: 0.7 },
     { url: `${BASE}/process`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
+    // Service Core Families
+    { url: `${BASE}/services/websites`, lastModified: now, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${BASE}/services/ecommerce`, lastModified: now, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${BASE}/services/custom-systems`, lastModified: now, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${BASE}/services/managed-technology`, lastModified: now, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${BASE}/services/specialized-services`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     // Service sub-pages (active, indexed)
     { url: `${BASE}/services/development`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${BASE}/services/maintenance`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${BASE}/services/security`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${BASE}/services/performance`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${BASE}/services/support`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
+    // Solutions verticals
+    { url: `${BASE}/solutions`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${BASE}/solutions/smes`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE}/solutions/churches`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE}/solutions/education`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE}/solutions/ngos`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE}/solutions/startups`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE}/solutions/professional-services`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     // NOTE: /services/hosting is intentionally omitted — it is a noindex redirect to /services/maintenance
     // Legal (noindex in robots but present for completeness)
     { url: `${BASE}/legal/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },

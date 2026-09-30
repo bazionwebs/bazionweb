@@ -7,6 +7,7 @@ import {
   ECOMMERCE_PACKAGES,
   CUSTOM_SYSTEM_TIERS,
   CARE_PLANS,
+  MANAGED_HOSTING_PLANS,
 } from '@/lib/pricingData';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import AddonPriceCard from '@/components/pricing/AddonPriceCard';
@@ -19,10 +20,11 @@ import {
   ShoppingCart,
   Cpu,
   Wrench,
+  Server,
   HelpCircle,
 } from 'lucide-react';
 
-type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'addons';
+type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'hosting' | 'addons';
 
 export default function PricingView() {
   const { market } = useMarketPreference();
@@ -60,6 +62,7 @@ export default function PricingView() {
               { id: 'ecommerce', label: 'E-Commerce', icon: ShoppingCart },
               { id: 'custom', label: 'Custom Digital Systems', icon: Cpu },
               { id: 'care', label: 'Website Care & Maintenance', icon: Wrench },
+              { id: 'hosting', label: 'Managed Hosting', icon: Server },
               { id: 'addons', label: 'Add-On Price Card', icon: Wrench },
             ].map(tab => {
               const Icon = tab.icon;
@@ -429,7 +432,72 @@ export default function PricingView() {
             </div>
           )}
 
-          {/* TAB 5: ADD-ONS */}
+          {/* TAB 5: MANAGED HOSTING */}
+          {activeTab === 'hosting' && (
+            <div className="space-y-12">
+              <div className="text-center max-w-2xl mx-auto">
+                <span className="text-xs font-bold uppercase tracking-widest text-[#2563EB] mb-1 block">
+                  Infrastructure & Operations
+                </span>
+                <h2 className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-2">
+                  Managed Cloud & Website Hosting
+                </h2>
+                <p className="text-xs md:text-sm text-slate-500">
+                  BazionWeb does not resell raw server space. We deliver managed hosting: infrastructure, configuration, SSL certificates, automated daily backups, and ongoing monitoring.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {MANAGED_HOSTING_PLANS.map(host => {
+                  const price = market === 'kenya' ? host.kenyaPrice : host.intlPrice;
+                  return (
+                    <div
+                      key={host.id}
+                      className={`bg-white rounded-2xl border-2 p-6 flex flex-col ${
+                        host.popular ? 'border-[#2563EB] shadow-md' : 'border-slate-200/80'
+                      }`}
+                    >
+                      {host.badge && (
+                        <span className="inline-block self-start text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
+                          {host.badge}
+                        </span>
+                      )}
+                      <h3 className="font-bold text-[#0F172A] text-base mb-1">{host.name}</h3>
+                      <div className="text-2xl font-black text-[#0F172A] mb-0.5">{price}</div>
+                      <div className="text-[11px] text-slate-400 font-medium mb-1">{host.billingPeriod}</div>
+                      <div className="text-xs font-semibold text-[#14B8A6] mb-3">{host.resources}</div>
+                      <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
+                        {host.description}
+                      </p>
+
+                      <div className="mb-6">
+                        <Link
+                          href={host.ctaHref}
+                          className={host.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
+                        >
+                          {host.ctaText}
+                        </Link>
+                      </div>
+
+                      <div className="space-y-2 border-t border-slate-100 pt-4 flex-1">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                          Infrastructure Includes:
+                        </div>
+                        {host.features.map((feat, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                            <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
+                            <span>{feat}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: ADD-ONS */}
           {activeTab === 'addons' && (
             <div className="space-y-10">
               <div className="text-center max-w-2xl mx-auto">

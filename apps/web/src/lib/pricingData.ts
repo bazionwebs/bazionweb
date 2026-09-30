@@ -61,6 +61,22 @@ export interface CarePlan {
   ctaHref: string;
 }
 
+export interface HostingPlan {
+  id: string;
+  name: string;
+  badge?: string;
+  popular?: boolean;
+  kenyaPrice: string;
+  intlPrice: string;
+  billingPeriod: string;
+  resources: string;
+  support: string;
+  description: string;
+  features: string[];
+  ctaText: string;
+  ctaHref: string;
+}
+
 export interface AddOnItem {
   id: string;
   name: string;
@@ -379,6 +395,98 @@ export const CARE_PLANS: CarePlan[] = [
       'Direct developer escalation hotline',
     ],
     ctaHref: '/contact?service=care-enterprise',
+  },
+];
+
+export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
+  {
+    id: 'host-essential',
+    name: 'Host Essential',
+    kenyaPrice: 'KSh 4,500/year',
+    intlPrice: '$60/year',
+    billingPeriod: 'Billed annually',
+    resources: 'SSD NVMe Storage, Unmetered Bandwidth',
+    support: 'Standard email support',
+    description: 'Managed web hosting with SSL, DNS configuration, and automated backups.',
+    features: [
+      'High-speed SSD NVMe hosting',
+      'Free automated SSL (HTTPS) certificate',
+      'Cloudflare Edge DNS & global CDN caching',
+      'Automated weekly off-site backups',
+      '99.9% uptime monitoring',
+      'Basic malware scanning & firewall',
+      'Standard technical support',
+    ],
+    ctaText: 'Choose Host Essential',
+    ctaHref: '/quote?package=host-essential',
+  },
+  {
+    id: 'host-business',
+    name: 'Host Business',
+    badge: 'Recommended',
+    popular: true,
+    kenyaPrice: 'KSh 8,500/year',
+    intlPrice: '$120/year',
+    billingPeriod: 'Billed annually',
+    resources: '3x CPU/RAM, 5 Corporate Email Inboxes',
+    support: 'Priority ticket support',
+    description: 'Enhanced hosting with business email accounts, daily backups, and staging testing.',
+    features: [
+      '3x CPU & memory resources for fast page loads',
+      'Up to 5 business email accounts (@yourcompany.com)',
+      'Automated daily backups with 14-day retention',
+      'Free SSL, Cloudflare CDN & DDoS defense',
+      'Staging environment for safe pre-launch testing',
+      'Performance & speed monitoring',
+      'Seamless free migration from your old host',
+      'Priority ticket support response',
+    ],
+    ctaText: 'Choose Host Business',
+    ctaHref: '/quote?package=host-business',
+  },
+  {
+    id: 'host-professional',
+    name: 'Host Professional',
+    badge: 'High Performance',
+    kenyaPrice: 'KSh 15,000/year',
+    intlPrice: '$240/year',
+    billingPeriod: 'Billed annually',
+    resources: 'Dedicated Compute Allocation, Redis Cache',
+    support: 'Priority phone & ticket support',
+    description: 'High-resource managed cloud hosting for high-traffic sites, organizations, and stores.',
+    features: [
+      'High-traffic compute allocation with Redis object caching',
+      'Enhanced automated backup retention (30-day snapshots)',
+      'Continuous malware scanning & proactive threat blocking',
+      'Automated staging environment with Git deploy hooks',
+      'Real-time uptime & response time telemetry',
+      'Dedicated migration engineer support',
+      'Priority phone & direct ticket support',
+    ],
+    ctaText: 'Choose Host Professional',
+    ctaHref: '/quote?package=host-professional',
+  },
+  {
+    id: 'host-cloud',
+    name: 'Managed Cloud',
+    badge: 'Custom Architecture',
+    kenyaPrice: 'From KSh 30,000/year',
+    intlPrice: 'From $300/year',
+    billingPeriod: 'Billed annually',
+    resources: 'Docker Containers, Dedicated DB, Scalable',
+    support: 'Dedicated DevOps SLA',
+    description: 'Fully isolated containerized cloud environments for Next.js apps, NestJS APIs, and custom software.',
+    features: [
+      'Isolated Docker container orchestration',
+      'Dedicated PostgreSQL database with automated backups',
+      'Redis in-memory caching cluster',
+      'Automated CI/CD deployments & zero-downtime releases',
+      'Custom Cloudflare WAF & rate-limiting rules',
+      '24/7 server health monitoring & automated failover',
+      'Direct systems engineer escalation channel',
+    ],
+    ctaText: 'Consult Cloud Architect',
+    ctaHref: '/contact?service=managed-cloud',
   },
 ];
 
