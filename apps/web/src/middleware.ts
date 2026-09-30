@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-
-export const BAZION_MARKET_COOKIE = 'bazion_market';
-export const LEGACY_MARKET_COOKIE = 'bw-market';
-
-const EAST_AFRICA_COUNTRIES = new Set(['KE', 'UG', 'TZ', 'RW', 'BI', 'ET', 'SS']);
+// Import canonical constants from marketEngine — single source of truth for cookie names
+import {
+  BAZION_MARKET_COOKIE,
+  LEGACY_MARKET_COOKIE,
+  mapCountryToMarket,
+} from '@/lib/marketEngine';
 
 /**
  * Market-Aware Edge Middleware:
@@ -62,13 +63,8 @@ export function middleware(request: NextRequest) {
       '';
 
     const normalizedCountry = headerCountry.trim().toUpperCase();
-
-    if (normalizedCountry === 'KE' || EAST_AFRICA_COUNTRIES.has(normalizedCountry)) {
-      targetMarketCode = 'KE';
-    } else {
-      // Default international for all other regions & search crawlers (US IP)
-      targetMarketCode = 'GLOBAL';
-    }
+    // Delegate to canonical mapCountryToMarket — single source for East Africa routing
+    targetMarketCode = mapCountryToMarket(normalizedCountry) as 'KE' | 'GLOBAL';
   }
 
   const legacyValue = targetMarketCode === 'KE' ? 'kenya' : 'international';

@@ -83,8 +83,8 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     ],
     recommendedBundle: {
       packageName: 'Business Website Package',
-      packagePriceKenya: 'KSh 50,000',
-      packagePriceIntl: '$1,250',
+      packagePriceKenya: 'KSh 90,000',   // ← canonical: priceBooks.ts KE-2026-v1
+      packagePriceIntl: '$1,500',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Business',
       carePriceKenya: 'KSh 10,000/mo',
       carePriceIntl: '$150/mo',
@@ -164,8 +164,8 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     ],
     recommendedBundle: {
       packageName: 'Professional Church Platform',
-      packagePriceKenya: 'KSh 85,000',
-      packagePriceIntl: '$2,250',
+      packagePriceKenya: 'KSh 160,000',  // ← canonical: priceBooks.ts KE-2026-v1
+      packagePriceIntl: '$2,850',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Business',
       carePriceKenya: 'KSh 10,000/mo',
       carePriceIntl: '$150/mo',
@@ -316,8 +316,8 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     ],
     recommendedBundle: {
       packageName: 'Professional NGO Platform',
-      packagePriceKenya: 'KSh 85,000 – KSh 150,000',
-      packagePriceIntl: '$2,250 – $4,000',
+      packagePriceKenya: 'KSh 160,000 – KSh 320,000', // ← canonical range: priceBooks.ts
+      packagePriceIntl: '$2,850 – $5,500',             // ← canonical range: priceBooks.ts
       carePlan: 'Care Business',
       carePriceKenya: 'KSh 10,000/mo',
       carePriceIntl: '$150/mo',
@@ -468,8 +468,8 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     ],
     recommendedBundle: {
       packageName: 'Professional Practice Platform',
-      packagePriceKenya: 'KSh 85,000',
-      packagePriceIntl: '$2,250',
+      packagePriceKenya: 'KSh 160,000',  // ← canonical: priceBooks.ts KE-2026-v1
+      packagePriceIntl: '$2,850',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Essential',
       carePriceKenya: 'KSh 5,000/mo',
       carePriceIntl: '$75/mo',

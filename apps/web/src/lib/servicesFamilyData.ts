@@ -57,7 +57,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Growing SMEs & Organizations',
         profile: 'Established businesses needing CMS and lead funnels',
-        fit: 'Business Package (Up to 10 pages, CMS, blog engine, KSh 50,000 / $1,250).',
+        fit: 'Business Package (Up to 10 pages, CMS, blog engine, KSh 90,000 / $1,500).',
       },
       {
         title: 'Corporations & Institutions',
@@ -90,12 +90,12 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         id: 'business',
         name: 'Business Website',
-        priceKenya: 'KSh 50,000',
-        priceIntl: '$1,250',
+        priceKenya: 'KSh 90,000',  // ← canonical: priceBooks.ts KE-2026-v1
+        priceIntl: '$1,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'Most Popular',
         popular: true,
         pagesOrScale: 'Up to 10 pages',
-        timeline: '10–15 working days',
+        timeline: '10–18 working days',
         warranty: '30-day warranty',
         description: 'Custom corporate design with CMS, blog, lead-capture forms, and technical SEO.',
         deliverables: [
@@ -115,11 +115,11 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         id: 'professional',
         name: 'Professional Website',
-        priceKenya: 'KSh 85,000',
-        priceIntl: '$2,250',
+        priceKenya: 'KSh 160,000', // ← canonical: priceBooks.ts KE-2026-v1
+        priceIntl: '$2,850',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'Established Orgs',
         pagesOrScale: 'Up to 15 pages',
-        timeline: '2–4 weeks',
+        timeline: '15–25 working days',
         warranty: '60-day warranty',
         description: 'High-performance presence with structured data, newsletter pipelines, and document hubs.',
         deliverables: [
@@ -139,8 +139,8 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         id: 'corporate',
         name: 'Corporate & Enterprise',
-        priceKenya: 'From KSh 150,000',
-        priceIntl: 'From $4,000',
+        priceKenya: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
+        priceIntl: 'From $5,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'Custom Scope',
         pagesOrScale: 'Bespoke Architecture',
         timeline: '4–8 weeks',
@@ -244,12 +244,12 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Established Multi-Product Stores',
         profile: 'Brands requiring inventory management and discount coupons',
-        fit: 'E-Commerce Business (100+ products, stock alerts, KSh 160,000 / $2,500).',
+        fit: 'E-Commerce Business (100+ products, stock alerts, KSh 175,000 / $2,950).',
       },
       {
         title: 'High-Volume & Wholesale Retailers',
         profile: 'B2B commerce, ERP integrations, and subscription billing',
-        fit: 'E-Commerce Professional (From KSh 275,000 / $4,500+).',
+        fit: 'E-Commerce Professional (From KSh 320,000 / $5,500+).',
       },
     ],
     packages: [
@@ -279,8 +279,8 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         id: 'ecom-business',
         name: 'E-Commerce Business',
-        priceKenya: 'KSh 160,000',
-        priceIntl: '$2,500',
+        priceKenya: 'KSh 175,000', // ← canonical: priceBooks.ts KE-2026-v1
+        priceIntl: '$2,950',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'Recommended Retail',
         popular: true,
         pagesOrScale: '100+ products',
@@ -304,8 +304,8 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         id: 'ecom-pro',
         name: 'E-Commerce Professional',
-        priceKenya: 'From KSh 275,000',
-        priceIntl: 'From $4,500',
+        priceKenya: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
+        priceIntl: 'From $5,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'High-Volume & B2B',
         pagesOrScale: 'Enterprise Scale',
         timeline: '6–10 weeks',

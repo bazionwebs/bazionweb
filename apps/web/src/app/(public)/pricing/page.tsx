@@ -34,7 +34,7 @@ const pricingSchema = {
     {
       '@type': 'Offer',
       name: 'Business Website Package (Kenya)',
-      price: '50000', priceCurrency: 'KES',
+      price: '90000', priceCurrency: 'KES',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',
@@ -50,7 +50,7 @@ const pricingSchema = {
     {
       '@type': 'Offer',
       name: 'Business Website Package (International)',
-      price: '1250', priceCurrency: 'USD',
+      price: '1500', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',
@@ -84,7 +84,7 @@ const pricingSchema = {
     {
       '@type': 'Offer',
       name: 'Starter Care Plan (International) — Monthly',
-      price: '49', priceCurrency: 'USD',
+      price: '75', priceCurrency: 'USD',  // ← corrected: was $49, canonical is $75
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',

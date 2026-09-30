@@ -11,8 +11,9 @@ import {
   LEGACY_MARKET_COOKIE,
 } from '@/lib/marketEngine';
 
-export const MARKET_STORAGE_KEY = 'bazion_market';
-export const LEGACY_STORAGE_KEY = 'bw-market';
+// Re-use the same cookie name strings as localStorage keys for consistency
+const MARKET_STORAGE_KEY = BAZION_MARKET_COOKIE;  // 'bazion_market'
+const LEGACY_STORAGE_KEY = LEGACY_MARKET_COOKIE;  // 'bw-market'
 
 /**
  * Reads market cookie from document.cookie
@@ -128,29 +129,31 @@ export function useMarketPreference() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    // 1. Check stored or detected market
+    // 1. Try to read market from URL params, cookie, or localStorage in one pass
     const stored = readStoredMarket();
     if (stored) {
       setMarketCodeState(stored);
     } else {
-      const detected = detectMarket();
+      // 2. No persisted preference — fall back to timezone heuristic
+      let detected: MarketCode = 'GLOBAL';
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+        if (tz === 'Africa/Nairobi' || tz.startsWith('Africa/')) detected = 'KE';
+      } catch { /* ignore */ }
+
       setMarketCodeState(detected);
       setMarketCookie(detected);
       try {
         window.localStorage.setItem(MARKET_STORAGE_KEY, detected);
         window.localStorage.setItem(LEGACY_STORAGE_KEY, detected === 'KE' ? 'kenya' : 'international');
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
     }
 
-    // 2. Listen for modal events
+    // 3. Listen for modal and market-change broadcast events
     const handleOpenModal = () => setIsModalOpen(true);
     const handleMarketChange = (e: Event) => {
       const detail = (e as CustomEvent).detail as { marketCode: MarketCode };
-      if (detail?.marketCode) {
-        setMarketCodeState(detail.marketCode);
-      }
+      if (detail?.marketCode) setMarketCodeState(detail.marketCode);
     };
 
     window.addEventListener(MARKET_MODAL_EVENT, handleOpenModal);

@@ -120,10 +120,10 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     name: 'Business',
     badge: 'Most Popular',
     popular: true,
-    kenyaPrice: 'KSh 50,000',
-    intlPrice: '$1,250',
+    kenyaPrice: 'KSh 90,000',   // ← canonical: priceBooks.ts KE-2026-v1
+    intlPrice: '$1,500',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Up to 10 pages',
-    timeline: '10–15 working days',
+    timeline: '10–18 working days',
     revisions: '2 revision rounds',
     support: '30-day post-launch support',
     targetAudience: 'Recommended for growing SMEs, churches, schools, NGOs, consultants and institutions.',
@@ -149,10 +149,10 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     id: 'professional',
     name: 'Professional',
     badge: 'Established Orgs',
-    kenyaPrice: 'KSh 85,000',
-    intlPrice: '$2,250',
+    kenyaPrice: 'KSh 160,000',  // ← canonical: priceBooks.ts KE-2026-v1
+    intlPrice: '$2,850',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Up to 15 pages',
-    timeline: '2–4 weeks',
+    timeline: '15–25 working days',
     revisions: '2 revision rounds',
     support: '60-day post-launch support',
     targetAudience: 'Established companies and multi-department organizations needing advanced presence & integrations.',
@@ -178,8 +178,8 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     id: 'corporate',
     name: 'Corporate & Custom',
     badge: 'Enterprise',
-    kenyaPrice: 'From KSh 150,000',
-    intlPrice: 'From $4,000',
+    kenyaPrice: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
+    intlPrice: 'From $5,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Unlimited / Custom Scoped',
     timeline: '4–8 weeks',
     revisions: 'Defined in Contract',
@@ -207,8 +207,8 @@ export const ECOMMERCE_PACKAGES: EcommercePlan[] = [
   {
     id: 'ecom-starter',
     name: 'E-Commerce Starter',
-    kenyaPrice: 'KSh 90,000',
-    intlPrice: '$1,500',
+    kenyaPrice: 'KSh 90,000',   // ← matches priceBooks.ts
+    intlPrice: '$1,500',        // ← matches priceBooks.ts
     products: 'Up to 30 products',
     support: '30-day support',
     description: 'For boutiques, artisans, and retailers launching their first professional transactional store.',
@@ -232,8 +232,8 @@ export const ECOMMERCE_PACKAGES: EcommercePlan[] = [
     name: 'E-Commerce Business',
     badge: 'Recommended Retail',
     popular: true,
-    kenyaPrice: 'KSh 160,000',
-    intlPrice: '$2,500',
+    kenyaPrice: 'KSh 175,000',  // ← canonical: priceBooks.ts KE-2026-v1
+    intlPrice: '$2,950',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
     products: '100+ products',
     support: '90-day support',
     description: 'For established brands requiring inventory sync, discount coupons, advanced shipping, and high performance.',
@@ -256,8 +256,8 @@ export const ECOMMERCE_PACKAGES: EcommercePlan[] = [
     id: 'ecom-pro',
     name: 'E-Commerce Professional',
     badge: 'High-Volume & B2B',
-    kenyaPrice: 'From KSh 275,000',
-    intlPrice: 'From $4,500',
+    kenyaPrice: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
+    intlPrice: 'From $5,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
     products: 'Enterprise Scale',
     support: 'Dedicated SLA',
     description: 'Bespoke commerce platforms with ERP/accounting integration, subscriptions, multi-vendor, or wholesale tiers.',
@@ -287,9 +287,9 @@ export const CUSTOM_SYSTEM_TIERS: CustomSystemTier[] = [
     examples: ['Requirements Document', 'Wireframes & UI Prototypes', 'Database Entity Models', 'API Roadmap & Cost Estimate'],
   },
   {
-    category: 'Client Portals & Booking Platforms',
-    kenyaStarting: 'From KSh 150,000',
-    intlStarting: 'From $3,000 – $3,500',
+    category: 'Client Portals & API Gateways',       // was: Booking Platforms
+    kenyaStarting: 'From KSh 180,000',               // ← canonical: priceBooks.ts custom-tier-1
+    intlStarting: 'From $3,200',                     // ← canonical: priceBooks.ts custom-tier-1
     description: 'Secure customer web applications with authenticated logins, appointment booking, file sharing, and self-service dashboards.',
     examples: ['Customer Account Portals', 'Appointment & Service Booking', 'Membership Hubs', 'Document Vaults'],
   },
@@ -309,8 +309,8 @@ export const CUSTOM_SYSTEM_TIERS: CustomSystemTier[] = [
   },
   {
     category: 'ERP, SaaS Platforms & Enterprise Portals',
-    kenyaStarting: 'From KSh 500,000 – 750,000+',
-    intlStarting: 'From $10,000 – $20,000+',
+    kenyaStarting: 'From KSh 500,000 – 750,000+',   // ← matches priceBooks.ts custom-tier-3: 750,000
+    intlStarting: 'From $10,000 – $20,000+',         // ← matches priceBooks.ts custom-tier-3: 12,500 base
     description: 'Multi-tenant software-as-a-service platforms, automated billing engines, and cross-department enterprise operational systems.',
     examples: ['SaaS Minimum Viable Products (MVP)', 'Custom ERP Modules', 'Supply Chain Portals', 'Financial Transaction Platforms'],
   },
