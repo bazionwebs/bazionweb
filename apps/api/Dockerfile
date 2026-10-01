@@ -6,7 +6,8 @@ RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+# npm ci requires lock in sync; fall back to npm install on drift (monorepo locks)
+RUN npm ci --ignore-scripts || npm install --ignore-scripts
 
 COPY . .
 
@@ -24,7 +25,7 @@ RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts || npm install --omit=dev --ignore-scripts
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 3 — runner

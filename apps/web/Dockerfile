@@ -6,7 +6,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts || npm install --omit=dev --ignore-scripts
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — builder: full build with dev deps
@@ -16,7 +16,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts || npm install --ignore-scripts
 
 COPY . .
 
