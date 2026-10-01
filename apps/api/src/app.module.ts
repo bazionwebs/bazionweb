@@ -17,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { MfaGuard } from './common/guards/mfa.guard';
+import { envValidationSchema } from './config/env.validation';
 
 @Module({
   imports: [
@@ -24,6 +25,8 @@ import { MfaGuard } from './common/guards/mfa.guard';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
+      validationSchema: envValidationSchema,
+      validationOptions: { abortEarly: false },
     }),
 
     // ── Rate limiting (OWASP A04 — Rate Limiting) ──────────────────────────────

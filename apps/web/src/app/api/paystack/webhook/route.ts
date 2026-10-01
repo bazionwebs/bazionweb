@@ -3,49 +3,36 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Fail-closed Paystack webhook (cards). Primary receiver is the API
+ * POST /api/v1/webhooks/paystack. This Next route only logs if used.
+ */
 export async function POST(req: Request) {
   try {
     const bodyText = await req.text();
     const signature = req.headers.get('x-paystack-signature');
-    const secretKey = process.env.PAYSTACK_SECRET_KEY || '';
+    const secretKey =
+      process.env.PAYSTACK_WEBHOOK_SECRET || process.env.PAYSTACK_SECRET_KEY || '';
 
-    // If real secret key configured, verify HMAC signature
-    if (secretKey && !secretKey.includes('replace_with_your')) {
-      const hash = crypto
-        .createHmac('sha512', secretKey)
-        .update(bodyText)
-        .digest('hex');
+    if (!secretKey) {
+      return NextResponse.json({ error: 'Payments misconfigured' }, { status: 503 });
+    }
 
-      if (hash !== signature) {
-        return NextResponse.json({ error: 'Invalid HMAC signature' }, { status: 401 });
-      }
+    const hash = crypto.createHmac('sha512', secretKey).update(bodyText).digest('hex');
+    const a = Buffer.from(signature || '', 'utf8');
+    const b = Buffer.from(hash, 'utf8');
+    if (!signature || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return NextResponse.json({ error: 'Invalid HMAC signature' }, { status: 401 });
     }
 
     const event = JSON.parse(bodyText);
-
-    // Event handling
-    switch (event.event) {
-      case 'charge.success':
-        // Log transaction, customer email, payment channel (M-Pesa or Card)
-        console.log('[Paystack Webhook] Charge Success:', {
-          reference: event.data?.reference,
-          amount: (event.data?.amount || 0) / 100,
-          currency: event.data?.currency,
-          channel: event.data?.channel,
-          email: event.data?.customer?.email,
-        });
-        break;
-
-      case 'subscription.create':
-        console.log('[Paystack Webhook] Subscription Created:', event.data?.subscription_code);
-        break;
-
-      case 'invoice.payment_failed':
-        console.warn('[Paystack Webhook] Invoice Payment Failed:', event.data?.invoice_code);
-        break;
-
-      default:
-        console.log('[Paystack Webhook] Unhandled event:', event.event);
+    if (event.event === 'charge.success') {
+      console.log('[Paystack Webhook] Charge Success:', {
+        reference: event.data?.reference,
+        amount: (event.data?.amount || 0) / 100,
+        currency: event.data?.currency,
+        channel: event.data?.channel,
+      });
     }
 
     return NextResponse.json({ received: true }, { status: 200 });

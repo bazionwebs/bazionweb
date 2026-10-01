@@ -129,22 +129,20 @@ describe('IntaSendService', () => {
       );
     });
 
-    it('returns demo fallback in sandbox environment on API error', async () => {
+    it('fails closed in sandbox environment on API error (no DEMO_ fallback)', async () => {
       mockAxiosInstance.post.mockRejectedValueOnce({
         response: { data: { message: 'Safaricom bridge timeout' } },
       });
 
-      const result = await service.triggerMpesaStkPush({
-        phoneNumber: '254712345678',
-        amount: 1000,
-        currency: 'KES',
-        narrative: 'Test',
-        invoiceNumber: 'INV-DEMO',
-      });
-
-      expect(result.state).toBe('PENDING');
-      expect(result.invoiceId).toMatch(/^DEMO_INV_/);
-      expect(result.customerMessage).toContain('Sandbox');
+      await expect(
+        service.triggerMpesaStkPush({
+          phoneNumber: '254712345678',
+          amount: 1000,
+          currency: 'KES',
+          narrative: 'Test',
+          invoiceNumber: 'INV-DEMO',
+        }),
+      ).rejects.toThrow(HttpException);
     });
 
     it('throws HttpException in production environment on API error', async () => {
@@ -194,21 +192,20 @@ describe('IntaSendService', () => {
       expect(result.trackingId).toBe('sess_123');
     });
 
-    it('provides fallback sandbox redirect URL on error', async () => {
+    it('fails closed on checkout error (no sandbox URL)', async () => {
       mockAxiosInstance.post.mockRejectedValueOnce(new Error('Timeout'));
 
-      const result = await service.createCheckoutSession({
-        amount: 49,
-        currency: 'USD',
-        email: 'user@example.com',
-        firstName: 'Alex',
-        lastName: 'Smith',
-        invoiceNumber: 'INV-101',
-        redirectUrl: 'https://bazionweb.com/success',
-      });
-
-      expect(result.checkoutUrl).toContain('sandbox.intasend.com/pay');
-      expect(result.signature).toBe('sandbox_sig');
+      await expect(
+        service.createCheckoutSession({
+          amount: 49,
+          currency: 'USD',
+          email: 'user@example.com',
+          firstName: 'Alex',
+          lastName: 'Smith',
+          invoiceNumber: 'INV-101',
+          redirectUrl: 'https://bazionweb.com/success',
+        }),
+      ).rejects.toThrow(HttpException);
     });
   });
 });

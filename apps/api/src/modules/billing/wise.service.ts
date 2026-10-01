@@ -1,23 +1,26 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
+import * as crypto from 'crypto';
 
-export interface WiseVirtualAccountDetails {
-  id: string;
-  currency: string;
-  accountHolderName: string;
-  accountNumber: string;
-  routingNumber?: string;
-  swiftBic?: string;
+export interface ManualBankDetails {
+  beneficiary: string;
+  accountNumber?: string;
   iban?: string;
-  bankAddress: {
-    addressFirstLine: string;
-    city: string;
-    postCode: string;
-    country: string;
-  };
+  swiftBic?: string;
+  routingNumber?: string;
+  bankAddress?: Record<string, string>;
+  referenceNote?: string;
 }
 
+/**
+ * Wise — payouts + invoice links ONLY.
+ *
+ * Wise business receiving with local account details is NOT available for
+ * Kenya-registered businesses (see onboarding availability screen). Do NOT
+ * generate virtual USD/EUR/GBP accounts here. Collections use:
+ *   KES M-Pesa -> IntaSend, Cards -> Paystack, B2B wire -> manual bank transfer.
+ */
 @Injectable()
 export class WiseService {
   private readonly logger = new Logger(WiseService.name);
@@ -30,13 +33,13 @@ export class WiseService {
       ? 'https://api.sandbox.transferwise.tech/v1'
       : 'https://api.wise.com/v1';
 
-    const apiToken = this.config.get<string>('WISE_API_TOKEN', 'wise_sandbox_token_placeholder');
-    this.profileId = this.config.get<string>('WISE_PROFILE_ID', '1001001');
+    const apiToken = this.config.get<string>('WISE_API_TOKEN', '');
+    this.profileId = this.config.get<string>('WISE_PROFILE_ID', '');
 
     this.http = axios.create({
       baseURL,
       headers: {
-        Authorization: `Bearer ${apiToken}`,
+        ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
         'Content-Type': 'application/json',
       },
       timeout: 20000,
@@ -44,100 +47,82 @@ export class WiseService {
   }
 
   /**
-   * Generates or fetches multi-currency receiving balance account details on Wise
+   * Static B2B settlement instructions from env (no fake accounts).
+   * Configure BANK_* in Render / host env. Throws 503 if unconfigured.
    */
-  async generateVirtualBankDetails(currency: 'USD' | 'EUR' | 'GBP'): Promise<WiseVirtualAccountDetails> {
-    try {
-      // Step 1: Query active borderless multi-currency account balances
-      const balancesRes = await this.http.get(`/borderless-accounts?profileId=${this.profileId}`);
-      const activeAccount = balancesRes.data?.[0];
+  getManualSettlementInstructions(currency: 'USD' | 'EUR' | 'GBP', paymentReference: string): ManualBankDetails {
+    const beneficiary = this.config.get<string>('BANK_BENEFICIARY', 'BazionWeb Technologies Ltd');
+    const accountNumber = this.config.get<string>('BANK_ACCOUNT_NUMBER', '');
+    const iban = this.config.get<string>('BANK_IBAN', '');
+    const swiftBic = this.config.get<string>('BANK_SWIFT_BIC', '');
+    const line = this.config.get<string>('BANK_ADDRESS_LINE', '');
+    const city = this.config.get<string>('BANK_ADDRESS_CITY', '');
+    const country = this.config.get<string>('BANK_ADDRESS_COUNTRY', '');
 
-      if (activeAccount) {
-        // Step 2: Query bank details provisioned for the profile
-        const accountDetailsRes = await this.http.get(
-          `/borderless-accounts/${activeAccount.id}/bank-details`,
-        );
-
-        const matchedBank = (accountDetailsRes.data || []).find(
-          (detail: any) => detail.currency?.toUpperCase() === currency.toUpperCase() && detail.active !== false,
-        );
-
-        if (matchedBank) {
-          return {
-            id: String(matchedBank.id || `WISE_${currency}_${Date.now()}`),
-            currency: matchedBank.currency,
-            accountHolderName: matchedBank.accountHolderName || 'BazionWeb Ltd',
-            accountNumber: matchedBank.details?.accountNumber || matchedBank.details?.accountNo || '9876543210',
-            routingNumber: matchedBank.details?.routingNumber || matchedBank.details?.aba || matchedBank.details?.sortCode,
-            swiftBic: matchedBank.details?.bic || matchedBank.details?.swift || 'TRWIGB2LXXX',
-            iban: matchedBank.details?.iban,
-            bankAddress: matchedBank.details?.bankAddress || {
-              addressFirstLine: 'Wise Payments Ltd / Community Federal Savings Bank',
-              city: 'New York',
-              postCode: '10001',
-              country: currency === 'USD' ? 'USA' : currency === 'GBP' ? 'United Kingdom' : 'Belgium',
-            },
-          };
-        }
-      }
-    } catch (error: any) {
-      this.logger.warn(`Wise API remote query note: ${error.response?.data?.message || error.message}`);
+    if (!accountNumber && !iban) {
+      throw new ServiceUnavailableException(
+        'Bank transfer details not configured — contact billing@bazionweb.com',
+      );
     }
 
-    // Provision designated multi-currency virtual accounts for the corporate client
-    return this.getProvisionedFallbackBank(currency);
+    return {
+      beneficiary,
+      accountNumber: accountNumber || undefined,
+      iban: iban || undefined,
+      swiftBic: swiftBic || undefined,
+      bankAddress:
+        line || city || country
+          ? { addressFirstLine: line, city, country }
+          : undefined,
+      referenceNote: `Quote payment reference "${paymentReference}" on your bank remittance advice.`,
+    };
   }
 
-  private getProvisionedFallbackBank(currency: 'USD' | 'EUR' | 'GBP'): WiseVirtualAccountDetails {
-    if (currency === 'USD') {
-      return {
-        id: `WISE_USD_${Date.now()}`,
-        currency: 'USD',
-        accountHolderName: 'BazionWeb Technologies Ltd',
-        accountNumber: '409182390182',
-        routingNumber: '026073150', // Evolve Bank & Trust ACH/Wire
-        swiftBic: 'EVBLUS33',
-        bankAddress: {
-          addressFirstLine: '6070 Poplar Ave, Suite 200',
-          city: 'Memphis',
-          postCode: '38119',
-          country: 'United States',
-        },
-      };
-    }
+  /**
+   * @deprecated Wise virtual receiving accounts are unavailable in KE.
+   * Always throws — callers must use getManualSettlementInstructions().
+   */
+  async generateVirtualBankDetails(_currency: 'USD' | 'EUR' | 'GBP'): Promise<never> {
+    throw new HttpException(
+      'Wise virtual bank accounts unavailable for KE businesses — use manual bank transfer',
+      HttpStatus.GONE,
+    );
+  }
 
-    if (currency === 'EUR') {
-      return {
-        id: `WISE_EUR_${Date.now()}`,
-        currency: 'EUR',
-        accountHolderName: 'BazionWeb Technologies Ltd',
-        accountNumber: 'BE89370400440532',
-        iban: 'BE89370400440532',
-        swiftBic: 'TRWIBEB1XXX',
-        bankAddress: {
-          addressFirstLine: 'Avenue Louise 54, Room S52',
-          city: 'Brussels',
-          postCode: '1050',
-          country: 'Belgium',
-        },
-      };
+  /** Optional payout helper (contractor/supplier). Fail-closed, no fallbacks. */
+  async createPayout(params: { amount: number; currency: string; recipientId: string; reference: string }) {
+    const token = this.config.get<string>('WISE_API_TOKEN', '');
+    if (!token || !this.profileId) {
+      throw new ServiceUnavailableException('Wise payouts not configured');
     }
+    try {
+      const res = await this.http.post('/transfers', {
+        sourceAccount: this.profileId,
+        targetAccount: params.recipientId,
+        amount: { value: params.amount, currency: params.currency },
+        reference: params.reference,
+      });
+      return res.data;
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message;
+      this.logger.error(`Wise payout failed: ${msg}`);
+      throw new HttpException(`Wise payout failed: ${msg}`, HttpStatus.BAD_GATEWAY);
+    }
+  }
 
-    // GBP
-    return {
-      id: `WISE_GBP_${Date.now()}`,
-      currency: 'GBP',
-      accountHolderName: 'BazionWeb Technologies Ltd',
-      accountNumber: '23456789',
-      routingNumber: '23-14-70', // UK Sort Code
-      swiftBic: 'TRWIGB2LXXX',
-      iban: 'GB12TRWI23147023456789',
-      bankAddress: {
-        addressFirstLine: '56 Shoreditch High Street',
-        city: 'London',
-        postCode: 'E1 6JJ',
-        country: 'United Kingdom',
-      },
-    };
+  verifyWebhookSignature(rawBody: string | Buffer, signature: string | undefined): void {
+    const secret = this.config.get<string>('WISE_WEBHOOK_SECRET', '');
+    if (!secret) {
+      throw new ServiceUnavailableException('Wise webhook secret not configured');
+    }
+    if (!signature) {
+      throw new HttpException('Missing Wise signature', HttpStatus.UNAUTHORIZED);
+    }
+    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+    const a = Buffer.from(signature, 'utf8');
+    const b = Buffer.from(expected, 'utf8');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      throw new HttpException('Invalid Wise signature', HttpStatus.UNAUTHORIZED);
+    }
   }
 }

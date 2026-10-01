@@ -14,7 +14,8 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { IntaSendSubscriptionDto, WiseCorporateInvoiceDto } from './dto/billing.dto';
+import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto } from './dto/billing.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
 @ApiBearerAuth()
@@ -36,13 +37,27 @@ export class BillingController {
   }
 
   @Post('subscribe/intasend')
-  @ApiOperation({ summary: 'Initialize IntaSend M-Pesa STK Push or Card Checkout' })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Initialize IntaSend M-Pesa STK Push (KES)' })
   subscribeIntaSend(@Request() req: any, @Body() body: IntaSendSubscriptionDto) {
     return this.svc.subscribeIntaSend(req.user, body);
   }
 
+  @Post('subscribe/paystack')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Initialize Paystack card checkout (KES/USD) — server-side pricing' })
+  subscribePaystack(@Request() req: any, @Body() body: PaystackSubscriptionDto) {
+    return this.svc.subscribePaystack(req.user, body);
+  }
+
+  @Post('corporate-invoice/bank-transfer')
+  @ApiOperation({ summary: 'Generate B2B invoice with manual bank-transfer details' })
+  createBankTransferInvoice(@Request() req: any, @Body() body: BankTransferInvoiceDto) {
+    return this.svc.createBankTransferInvoice(req.user, body);
+  }
+
   @Post('corporate-invoice/wise')
-  @ApiOperation({ summary: 'Generate B2B Corporate Invoice with Wise Virtual Bank Details' })
+  @ApiOperation({ summary: 'DEPRECATED — alias for bank-transfer (Wise receiving unavailable in KE)' })
   createWiseCorporateInvoice(@Request() req: any, @Body() body: WiseCorporateInvoiceDto) {
     return this.svc.createWiseCorporateInvoice(req.user, body);
   }

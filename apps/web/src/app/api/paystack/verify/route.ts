@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+/** Fail-closed verify proxy — no demo amounts. Requires server secret. */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -12,25 +13,13 @@ export async function GET(req: Request) {
     }
 
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
-
-    // In demo mode or if key is placeholder
-    if (!secretKey || secretKey.includes('replace_with_your')) {
-      return NextResponse.json({
-        success: true,
-        status: 'success',
-        isDemo: true,
-        reference,
-        amount: 25000,
-        channel: 'mobile_money',
-        message: 'Payment verified successfully (simulated environment).',
-      });
+    if (!secretKey) {
+      return NextResponse.json({ error: 'Payments misconfigured' }, { status: 503 });
     }
 
     const res = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-      },
+      headers: { Authorization: `Bearer ${secretKey}` },
     });
 
     const data = await res.json();
@@ -42,7 +31,7 @@ export async function GET(req: Request) {
         reference: data.data.reference,
         amount: data.data.amount / 100,
         currency: data.data.currency,
-        channel: data.data.channel, // 'mobile_money' (M-Pesa) or 'card'
+        channel: data.data.channel,
         paidAt: data.data.paid_at,
         customer: data.data.customer,
       });

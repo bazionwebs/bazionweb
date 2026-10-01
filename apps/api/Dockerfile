@@ -10,11 +10,11 @@ RUN npm ci --ignore-scripts
 
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate --schema ./prisma.schema.prisma 2>/dev/null || true
+# Generate Prisma client (fail closed — broken schema must break the image)
+RUN npx prisma generate --schema ./prisma.schema.prisma
 
 # Build NestJS
-RUN npm run build 2>/dev/null || npx tsc -p tsconfig.json
+RUN npm run build
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — production deps only

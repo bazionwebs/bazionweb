@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 
@@ -40,8 +40,12 @@ export class IntaSendService {
       ? 'https://sandbox.intasend.com/api/v1'
       : 'https://payment.intasend.com/api/v1';
 
-    const secretKey = this.config.get<string>('INTASEND_SECRET_KEY', 'ISSecretKey_sandbox_placeholder');
-    this.publishableKey = this.config.get<string>('INTASEND_PUBLISHABLE_KEY', 'ISPubKey_sandbox_placeholder');
+    // Fail fast: no placeholder defaults. Joi validates at boot; getOrThrow guards tests.
+    const secretKey = this.config.get<string>('INTASEND_SECRET_KEY', '');
+    this.publishableKey = this.config.get<string>('INTASEND_PUBLISHABLE_KEY', '');
+    if (!secretKey || !this.publishableKey) {
+      this.logger.warn('IntaSend keys missing — STK calls will fail closed until configured');
+    }
 
     this.http = axios.create({
       baseURL: this.baseUrl,
@@ -77,18 +81,28 @@ export class IntaSendService {
   }
 
   /**
-   * Trigger direct M-Pesa STK Push for billing subscription
+   * Trigger direct M-Pesa STK Push for billing subscription.
+   * Fail-closed: gateway errors always throw (no DEMO_* fallbacks).
    */
   async triggerMpesaStkPush(params: IntaSendMpesaStkParams) {
-    try {
-      // Normalize M-Pesa phone numbers to international format (e.g., 0712... -> 254712...)
-      let formattedPhone = params.phoneNumber.replace(/[\s+-]/g, '');
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = `254${formattedPhone.slice(1)}`;
-      } else if (formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) {
-        formattedPhone = `254${formattedPhone}`;
-      }
+    if (!Number.isFinite(params.amount) || params.amount <= 0) {
+      throw new BadRequestException('Amount must be greater than zero');
+    }
+    if (params.amount > 250_000) {
+      throw new BadRequestException('M-Pesa per-transaction limit is KES 250,000');
+    }
+    // Normalize M-Pesa phone numbers to international format (e.g., 0712... -> 254712...)
+    let formattedPhone = params.phoneNumber.replace(/[\s+-]/g, '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = `254${formattedPhone.slice(1)}`;
+    } else if (formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) {
+      formattedPhone = `254${formattedPhone}`;
+    }
+    if (!/^254\d{9}$/.test(formattedPhone)) {
+      throw new BadRequestException('Valid Safaricom phone number is required (e.g. 254712345678)');
+    }
 
+    try {
       const response = await this.http.post('/payment/mpesa-stk-push/', {
         phone_number: formattedPhone,
         amount: params.amount,
@@ -98,24 +112,13 @@ export class IntaSendService {
 
       return {
         invoiceId: response.data.invoice?.invoice_id || response.data.id,
-        trackingId: response.data.tracking_id || `TRK_${Date.now()}`,
+        trackingId: response.data.tracking_id || response.data.id || params.invoiceNumber,
         state: response.data.state || 'PENDING',
         customerMessage: response.data.customer_message || 'STK Push prompt sent to your Safaricom mobile phone.',
       };
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || error.response?.data?.detail || error.message;
       this.logger.error(`IntaSend STK Push failed: ${JSON.stringify(errorMsg)}`);
-      
-      // In sandbox/demo environments without live Safaricom bridge, provide graceful fallback
-      if (this.config.get<string>('INTASEND_ENVIRONMENT', 'sandbox') === 'sandbox') {
-        return {
-          invoiceId: `DEMO_INV_${Date.now()}`,
-          trackingId: `DEMO_TRK_${Date.now()}`,
-          state: 'PENDING',
-          customerMessage: `[Sandbox] STK Push simulated for ${params.phoneNumber}. Enter PIN in simulation.`,
-        };
-      }
-
       throw new HttpException(
         `M-Pesa STK Push failed: ${errorMsg}`,
         HttpStatus.BAD_GATEWAY,
@@ -124,7 +127,8 @@ export class IntaSendService {
   }
 
   /**
-   * Initialize standard checkout or card tokenization session
+   * @deprecated Cards go via Paystack (PaystackService). Kept for backwards compat.
+   * Fail-closed: never returns sandbox URLs.
    */
   async createCheckoutSession(params: IntaSendCheckoutSessionParams) {
     try {
@@ -140,21 +144,21 @@ export class IntaSendService {
         card_tarrif: 'CUSTOMER',
       });
 
+      if (!response.data?.url && !response.data?.id) {
+        throw new HttpException('IntaSend checkout rejected', HttpStatus.BAD_GATEWAY);
+      }
       return {
-        checkoutUrl: response.data.url || `${this.baseUrl}/checkout/${response.data.id || 'session'}`,
+        checkoutUrl: response.data.url || `${this.baseUrl}/checkout/${response.data.id}`,
         signature: response.data.signature || '',
-        trackingId: response.data.id || `TRK_${Date.now()}`,
+        trackingId: response.data.id || params.invoiceNumber,
       };
     } catch (error: any) {
-      this.logger.warn(`Card checkout session endpoint note: ${error.message}`);
-      
-      // Sandbox fallback redirect URL
-      const trackingId = `IS_TRK_${Date.now()}`;
-      return {
-        checkoutUrl: `https://sandbox.intasend.com/pay/${this.publishableKey}/?amount=${params.amount}&currency=${params.currency}&api_ref=${params.invoiceNumber}&redirect_url=${encodeURIComponent(params.redirectUrl)}`,
-        signature: 'sandbox_sig',
-        trackingId,
-      };
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`IntaSend checkout failed: ${error.message}`);
+      throw new HttpException(
+        `IntaSend checkout failed: ${error.response?.data?.message || error.message}`,
+        HttpStatus.BAD_GATEWAY,
+      );
     }
   }
 }

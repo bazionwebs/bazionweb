@@ -9,8 +9,10 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 async function bootstrap() {
+  // rawBody:true preserves exact webhook bytes for HMAC verification
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
+    rawBody: true,
   });
 
   const config = app.get(ConfigService);

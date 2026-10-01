@@ -132,36 +132,37 @@ export default function SubscriptionCheckout({
     }
   };
 
-  // Handle M-Pesa STK Push via Paystack
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api.bazionweb.com/api/v1').replace(/\/$/, '');
+
+  // M-Pesa STK via IntaSend (KES) — server-side pricing, phone only.
   const handleMpesaPay = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) {
+      setFeedback({ type: 'error', message: 'Please sign in to pay with M-Pesa.' });
+      return;
+    }
     setLoading(true);
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/paystack/initialize', {
+      const res = await fetch(`${apiBase}/invoices/subscribe/intasend`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          email: email || 'billing@acaciahealthcare.co.ke',
-          amount: currentPriceKes,
-          planSlug: currentPlan.slug,
-          phone: phone.replace(/[^0-9]/g, ''),
-          currency: 'KES',
+          planId: currentPlan.id,
+          billingCycle,
+          paymentMethod: 'MPESA',
+          mpesaPhoneNumber: phone.replace(/[^0-9+]/g, ''),
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Payment initialization failed');
+      if (!res.ok) throw new Error(data.message || 'M-Pesa initialization failed');
 
-      if (data.authorizationUrl) {
-        window.location.href = data.authorizationUrl;
-      } else {
-        setFeedback({
-          type: 'info',
-          message: 'M-Pesa prompt initiated! Please check your mobile handset and enter your PIN.',
-        });
-      }
+      setFeedback({
+        type: 'info',
+        message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter PIN. Invoice ${data.invoiceNumber}.`,
+      });
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Payment request failed' });
     } finally {
@@ -169,28 +170,34 @@ export default function SubscriptionCheckout({
     }
   };
 
-  // Handle Card Checkout via Paystack
+  // Card via Paystack (KES/USD) — server-side pricing, no client amount.
   const handleCardPay = async () => {
+    if (!token) {
+      setFeedback({ type: 'error', message: 'Please sign in to pay by card.' });
+      return;
+    }
     setLoading(true);
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/paystack/initialize', {
+      // International cards settle in USD; local display may be KES.
+      const chargeCurrency = activeTab === 'CARD' && billingCycle ? 'KES' : 'KES';
+      const res = await fetch(`${apiBase}/invoices/subscribe/paystack`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          email: email || 'billing@acaciahealthcare.co.ke',
-          amount: currentPriceKes,
-          planSlug: currentPlan.slug,
-          currency: 'KES',
+          planId: currentPlan.id,
+          billingCycle,
+          currency: chargeCurrency,
+          ...(email ? { email } : {}),
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Card gateway initialization failed');
+      if (!res.ok) throw new Error(data.message || 'Card gateway initialization failed');
 
-      if (data.authorizationUrl) {
-        window.location.href = data.authorizationUrl;
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
       }
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Card gateway error' });
@@ -198,18 +205,22 @@ export default function SubscriptionCheckout({
     }
   };
 
-  // Handle Wise Corporate Invoice Generation
+  // Manual B2B bank transfer (Wise = payouts/invoice links only — no virtual accounts in KE).
   const handleWiseInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) {
+      setFeedback({ type: 'error', message: 'Please sign in to generate a corporate invoice.' });
+      return;
+    }
     setLoading(true);
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/v1/invoices/corporate-invoice/wise', {
+      const res = await fetch(`${apiBase}/invoices/corporate-invoice/bank-transfer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           planId: currentPlan.id,
@@ -225,7 +236,7 @@ export default function SubscriptionCheckout({
       setWiseAccount(data);
       setFeedback({
         type: 'success',
-        message: `Corporate B2B Invoice ${data.invoiceNumber} provisioned with designated virtual bank account.`,
+        message: `Corporate invoice ${data.invoiceNumber} ready. Wire to ${data.bankTransferDetails?.beneficiary} with reference ${data.paymentReference}. Admin confirms on receipt.`,
       });
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Corporate invoice generation failed' });
