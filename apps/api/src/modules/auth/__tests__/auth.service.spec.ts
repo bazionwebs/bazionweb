@@ -251,7 +251,7 @@ describe('AuthService.setUserPassword()', () => {
 
   it('hashes the new password, updates the user, and revokes sessions', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'u-1', deletedAt: null });
-    prisma.user.update.mockImplementation(({ data }) => Promise.resolve({ id: 'u-1' }));
+    prisma.user.update.mockImplementation(() => Promise.resolve({ id: 'u-1' }));
 
     const result = await service.setUserPassword('u-1', 'NewStrongPass123!');
 

@@ -1,7 +1,6 @@
 import { Reflector } from '@nestjs/core';
 import { ForbiddenException, ExecutionContext } from '@nestjs/common';
-import { MfaGuard, REQUIRE_MFA_KEY } from '../mfa.guard';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { MfaGuard } from '../mfa.guard';
 
 describe('MfaGuard', () => {
   let guard: MfaGuard;

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { WebhooksController } from '../webhooks.controller';
@@ -68,7 +69,7 @@ describe('WebhooksController signatures', () => {
           useValue: {
             verifyWebhookSignature: jest.fn((raw: any, sig?: string) => {
               const expected = crypto.createHmac('sha512', SECRET).update(raw).digest('hex');
-              if (sig !== expected) throw new (require('@nestjs/common').UnauthorizedException)();
+              if (sig !== expected) throw new UnauthorizedException();
             }),
           },
         },
@@ -77,7 +78,7 @@ describe('WebhooksController signatures', () => {
           useValue: {
             verifyWebhookSignature: jest.fn((raw: any, sig?: string) => {
               const expected = crypto.createHmac('sha256', SECRET).update(raw).digest('hex');
-              if (sig !== expected) throw new (require('@nestjs/common').UnauthorizedException)();
+              if (sig !== expected) throw new UnauthorizedException();
             }),
           },
         },

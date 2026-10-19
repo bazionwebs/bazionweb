@@ -1,12 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { PricingService } from '../pricing.service';
 import { PricingAuditService } from '../pricing-audit.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 describe('PricingService', () => {
   let service: PricingService;
-  let auditService: PricingAuditService;
 
   const mockMarketKE = {
     id: 'market-ke-uuid',
@@ -124,7 +122,6 @@ describe('PricingService', () => {
     }).compile();
 
     service = module.get<PricingService>(PricingService);
-    auditService = module.get<PricingAuditService>(PricingAuditService);
   });
 
   describe('resolveMarket', () => {

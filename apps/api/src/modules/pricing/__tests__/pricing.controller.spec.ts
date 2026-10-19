@@ -9,7 +9,6 @@ import { ConfigService } from '@nestjs/config';
 
 describe('PricingController', () => {
   let controller: PricingController;
-  let pricingService: PricingService;
 
   const mockPricingService = {
     getActiveMarkets: jest.fn(),
@@ -41,7 +40,6 @@ describe('PricingController', () => {
     }).compile();
 
     controller = module.get<PricingController>(PricingController);
-    pricingService = module.get<PricingService>(PricingService);
   });
 
   it('delegates getMarkets to pricingService', async () => {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { resolveMarket } from '@/lib/marketEngine';
-import { formatCurrency } from '@/lib/priceBooks';
+import { getPriceBookForMarket, formatCurrency } from '@/lib/priceBooks';
+import { ADD_ON_RATE_CARD } from '@/lib/pricingData';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
       clientName,
       clientEmail,
       clientCompany,
+      couponCode,
     } = body;
 
     // Resolve market via confirmed billing country / headers
@@ -27,85 +28,139 @@ export async function POST(request: NextRequest) {
     });
 
     const marketCode = resolution.code;
-    let currency: 'KES' | 'USD' | 'EUR' | 'GBP' = (resolution.currency as 'KES' | 'USD' | 'EUR' | 'GBP') || 'USD';
-    let currencySymbol = marketCode === 'KE' ? 'KSh' : '$';
-    let priceBookVersion = '2026-v1';
-    let priceBookId = `${marketCode}-2026-v1`;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
-    // Package item key & page rate key
-    const packageKey = `website-${packageType}`;
-    const extraPageKey = 'rate-extra-page';
-
-    let baseCost = marketCode === 'KE' ? 90000 : 1500;
-    let pageRate = marketCode === 'KE' ? 2000 : 50;
-    const priceMap = new Map<string, number>();
-
-    // ─── Query Database Single Source of Truth ───────────────────────────────
+    // ─── Attempt Centralized Database SSOT Query via API ─────────────────────
     try {
-      const dbMarket = await prisma.market.findUnique({
-        where: { code: marketCode },
-        include: { currency: true },
+      const apiResponse = await fetch(`${apiUrl}/pricing/quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          marketCode,
+          countryCode: billingCountry,
+          packageType,
+          extraPages: Number(extraPages) || 0,
+          selectedAddOns,
+          rushDelivery: Boolean(rushDelivery),
+          care,
+          hosting,
+          couponCode,
+          clientEmail,
+          clientName,
+        }),
       });
 
-      if (dbMarket) {
-        currency = dbMarket.currencyCode as 'KES' | 'USD' | 'EUR' | 'GBP';
-        currencySymbol = dbMarket.currency.symbol;
+      if (apiResponse.ok) {
+        const dbCalculated = await apiResponse.json();
+        const now = new Date();
+        const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const proposalId = `BZ-${marketCode}-${now.getFullYear()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-        const dbPriceBook = await prisma.priceBook.findFirst({
-          where: {
-            marketId: dbMarket.id,
-            status: 'active',
-            effectiveFrom: { lte: new Date() },
-            OR: [{ effectiveUntil: null }, { effectiveUntil: { gte: new Date() } }],
+        return NextResponse.json({
+          proposalId,
+          status: 'LOCKED',
+          version: dbCalculated.priceBookVersion,
+          priceBookId: dbCalculated.priceBookId,
+          marketCode: dbCalculated.marketCode,
+          currency: dbCalculated.currency,
+          currencySymbol: dbCalculated.currencySymbol,
+          billingCountry: billingCountry || (marketCode === 'KE' ? 'KE' : 'GLOBAL'),
+          createdAt: now.toISOString(),
+          expiresAt: expires.toISOString(),
+          client: {
+            name: clientName || null,
+            email: clientEmail || null,
+            company: clientCompany || null,
           },
-          orderBy: { effectiveFrom: 'desc' },
+          package: {
+            id: packageType,
+            name: dbCalculated.breakdown.package.name,
+            baseCost: dbCalculated.breakdown.package.amount,
+            formattedBaseCost: formatCurrency(dbCalculated.breakdown.package.amount, dbCalculated.currency),
+            timeline: packageType === 'enterprise' ? '20–30 working days' : '10–18 working days',
+            supportWarranty: '30-day warranty',
+          },
+          extraPages: {
+            count: dbCalculated.breakdown.extraPages.count,
+            rate: dbCalculated.breakdown.extraPages.ratePerPage,
+            cost: dbCalculated.breakdown.extraPages.amount,
+            formattedCost: formatCurrency(dbCalculated.breakdown.extraPages.amount, dbCalculated.currency),
+          },
+          addOns: dbCalculated.breakdown.addOns.map((a: { productId: string; name: string; amount: number }) => ({
+            id: a.productId,
+            name: a.name,
+            cost: a.amount,
+            formatted: formatCurrency(a.amount, dbCalculated.currency),
+          })),
+          rushDelivery: {
+            active: dbCalculated.breakdown.rushDelivery.applied,
+            multiplier: dbCalculated.breakdown.rushDelivery.applied ? 0.35 : 0,
+            cost: dbCalculated.breakdown.rushDelivery.amount,
+            formattedCost: formatCurrency(dbCalculated.breakdown.rushDelivery.amount, dbCalculated.currency),
+          },
+          totals: {
+            subtotalBuild: dbCalculated.breakdown.subtotalBuild,
+            totalBuild: dbCalculated.breakdown.totalBuildGross,
+            formattedTotalBuild: formatCurrency(dbCalculated.breakdown.totalBuildGross, dbCalculated.currency),
+            monthlyCare: dbCalculated.breakdown.careMonthly.amount,
+            formattedMonthlyCare: formatCurrency(dbCalculated.breakdown.careMonthly.amount, dbCalculated.currency),
+            annualHosting: dbCalculated.breakdown.hostingMonthly.amount * 12,
+            formattedAnnualHosting: formatCurrency(dbCalculated.breakdown.hostingMonthly.amount * 12, dbCalculated.currency),
+            totalYearOne:
+              dbCalculated.breakdown.totalBuildGross +
+              dbCalculated.breakdown.hostingMonthly.amount * 12 +
+              dbCalculated.breakdown.careMonthly.amount * 12,
+            formattedTotalYearOne: formatCurrency(
+              dbCalculated.breakdown.totalBuildGross +
+                dbCalculated.breakdown.hostingMonthly.amount * 12 +
+                dbCalculated.breakdown.careMonthly.amount * 12,
+              dbCalculated.currency,
+            ),
+          },
+          commercialTerms: {
+            paymentRails:
+              marketCode === 'KE'
+                ? ['M-Pesa STK Push', 'Kenyan Bank Wire / RTGS', 'Local Visa / Mastercard']
+                : ['International Visa / Mastercard', 'Wise Wire Transfer', 'ACH / SEPA Direct'],
+            title:
+              marketCode === 'KE'
+                ? 'Kenya Commercial Terms & SME SLAs'
+                : 'International Master Terms & SLAs',
+          },
         });
-
-        if (dbPriceBook) {
-          priceBookId = dbPriceBook.id;
-          priceBookVersion = dbPriceBook.version;
-
-          const dbPrices = await prisma.price.findMany({
-            where: { priceBookId: dbPriceBook.id },
-          });
-
-          for (const p of dbPrices) {
-            priceMap.set(p.productId, Number(p.amount));
-          }
-
-          if (priceMap.has(packageKey)) {
-            baseCost = priceMap.get(packageKey)!;
-          }
-          if (priceMap.has(extraPageKey)) {
-            pageRate = priceMap.get(extraPageKey)!;
-          }
-        }
       }
-    } catch (dbErr: any) {
-      console.warn('Database pricing query notice (using fallback constants):', dbErr.message);
+    } catch {
+      // Gracefully fall back to local calculation if backend API is offline during build/dev
     }
 
+    // ─── Resilient Local Fallback Engine ──────────────────────────────────────
+    const priceBook = getPriceBookForMarket(marketCode);
+    const currency = priceBook.currency;
+
+    const packageKey = `website-${packageType}`;
+    const packageItem = priceBook.items[packageKey] || priceBook.items['website-business'];
+    const baseCost = packageItem ? packageItem.amount : (marketCode === 'KE' ? 90000 : 1500);
+
+    const extraPageItem = priceBook.items['rate-extra-page'];
+    const pageRate = extraPageItem ? extraPageItem.amount : (marketCode === 'KE' ? 2000 : 50);
     const extraPagesCost = (Number(extraPages) || 0) * pageRate;
 
-    // Calculate add-ons from Database Prices
     let addOnsCost = 0;
     const itemizedAddOns: Array<{ id: string; name: string; cost: number; formatted: string }> = [];
 
     if (Array.isArray(selectedAddOns)) {
       for (const addonId of selectedAddOns) {
-        const cost =
-          priceMap.get(addonId) ??
-          (marketCode === 'KE' ? 15000 : 250);
-        addOnsCost += cost;
-        itemizedAddOns.push({
-          id: addonId,
-          name: addonId
-            .split('-')
-            .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(' '),
-          cost,
-          formatted: formatCurrency(cost, currency),
-        });
+        const addon = ADD_ON_RATE_CARD.find((a) => a.id === addonId);
+        if (addon) {
+          const cost = marketCode === 'KE' ? addon.rawKes : addon.rawUsd;
+          addOnsCost += cost;
+          itemizedAddOns.push({
+            id: addon.id,
+            name: addon.name,
+            cost,
+            formatted: formatCurrency(cost, currency),
+          });
+        }
       }
     }
 
@@ -114,38 +169,43 @@ export async function POST(request: NextRequest) {
     const rushCost = Math.round(subtotalBuild * rushMultiplier);
     const totalBuild = subtotalBuild + rushCost;
 
-    // Care recurring costs from Database
     let monthlyCare = 0;
     if (care !== 'none') {
-      const careKey = `care-${care.replace('care-', '')}`;
-      monthlyCare =
-        priceMap.get(careKey) ??
-        (marketCode === 'KE' ? (care.includes('growth') ? 12000 : 5000) : 99);
+      const careItem = priceBook.items[care];
+      if (careItem) {
+        monthlyCare = careItem.amount;
+      } else {
+        if (care === 'care-essential') monthlyCare = marketCode === 'KE' ? 5000 : 75;
+        if (care === 'care-business') monthlyCare = marketCode === 'KE' ? 10000 : 150;
+        if (care === 'care-professional') monthlyCare = marketCode === 'KE' ? 20000 : 300;
+      }
     }
 
-    // Hosting recurring costs from Database
     let annualHosting = 0;
     if (hosting !== 'none') {
-      const hostKey = `hosting-${hosting.replace('host-', '')}`;
-      annualHosting =
-        (priceMap.get(hostKey) ?? (marketCode === 'KE' ? 3500 : 35)) * 12;
+      const hostItem = priceBook.items[hosting];
+      if (hostItem) {
+        annualHosting = hostItem.amount;
+      } else {
+        if (hosting === 'host-essential') annualHosting = marketCode === 'KE' ? 4500 : 60;
+        if (hosting === 'host-business') annualHosting = marketCode === 'KE' ? 8500 : 120;
+        if (hosting === 'host-pro') annualHosting = marketCode === 'KE' ? 15000 : 240;
+      }
     }
 
     const totalYearOne = totalBuild + annualHosting + monthlyCare * 12;
-
     const now = new Date();
-    const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 day guarantee
+    const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const proposalId = `BZ-${marketCode}-${now.getFullYear()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-    // Generate locked proposal
-    const lockedProposal = {
+    return NextResponse.json({
       proposalId,
       status: 'LOCKED',
-      version: priceBookVersion,
-      priceBookId,
+      version: priceBook.version,
+      priceBookId: priceBook.id,
       marketCode,
       currency,
-      currencySymbol,
+      currencySymbol: priceBook.currencySymbol,
       billingCountry: billingCountry || (marketCode === 'KE' ? 'KE' : 'GLOBAL'),
       createdAt: now.toISOString(),
       expiresAt: expires.toISOString(),
@@ -156,11 +216,11 @@ export async function POST(request: NextRequest) {
       },
       package: {
         id: packageType,
-        name: `${packageType.charAt(0).toUpperCase() + packageType.slice(1)} Website`,
+        name: packageItem?.name || packageType,
         baseCost,
         formattedBaseCost: formatCurrency(baseCost, currency),
-        timeline: packageType === 'enterprise' ? '20–30 working days' : '10–18 working days',
-        supportWarranty: '30-day warranty',
+        timeline: packageItem?.timeline || '10–18 working days',
+        supportWarranty: packageItem?.supportWarranty || '30-day warranty',
       },
       extraPages: {
         count: Number(extraPages) || 0,
@@ -187,45 +247,10 @@ export async function POST(request: NextRequest) {
         formattedTotalYearOne: formatCurrency(totalYearOne, currency),
       },
       commercialTerms: {
-        paymentRails:
-          marketCode === 'KE'
-            ? ['M-Pesa STK Push', 'Kenyan Bank Wire / RTGS', 'Local Visa / Mastercard']
-            : ['International Visa / Mastercard', 'Wise Wire Transfer', 'ACH / SEPA Direct'],
-        title:
-          marketCode === 'KE'
-            ? 'Kenya Commercial Terms & SME SLAs'
-            : 'International Master Terms & SLAs',
+        paymentRails: priceBook.paymentRails,
+        title: marketCode === 'KE' ? 'Kenya Commercial Terms & SME SLAs' : 'International Master Terms & SLAs',
       },
-    };
-
-    // Persist locked proposal in DB if clientEmail is present
-    if (clientEmail) {
-      try {
-        const dbMarket = await prisma.market.findUnique({ where: { code: marketCode } });
-        if (dbMarket) {
-          await prisma.proposal.create({
-            data: {
-              proposalCode: proposalId,
-              marketId: dbMarket.id,
-              priceBookId,
-              currency,
-              billingCountry: billingCountry || (marketCode === 'KE' ? 'KE' : 'GLOBAL'),
-              clientEmail: clientEmail.trim().toLowerCase(),
-              clientName: clientName?.trim() || null,
-              clientCompany: clientCompany?.trim() || null,
-              lineItems: lockedProposal as any,
-              totalAmount: totalBuild,
-              status: 'LOCKED',
-              expiresAt: expires,
-            },
-          });
-        }
-      } catch (propErr: any) {
-        console.warn('Notice: proposal record not stored in DB:', propErr.message);
-      }
-    }
-
-    return NextResponse.json(lockedProposal);
+    });
   } catch (error) {
     console.error('Quote generation error:', error);
     return NextResponse.json({ error: 'Failed to generate authoritative quote' }, { status: 500 });

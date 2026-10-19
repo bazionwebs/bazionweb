@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { resolveMarket } from '@/lib/marketEngine';
 
 export async function POST(request: NextRequest) {
@@ -31,44 +30,41 @@ export async function POST(request: NextRequest) {
 
     let leadId = `LEAD-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-    // Persist to Database Single Source of Truth
+    // Forward lead to backend API Single Source of Truth
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
     try {
-      // Find or verify DB market and price book
-      const dbMarket = await prisma.market.findUnique({
-        where: { code: resolution.code },
+      const response = await fetch(`${apiUrl}/quotes/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          company: company?.trim(),
+          phone: phone?.trim(),
+          country: country.trim().toUpperCase(),
+          market: resolution.code,
+          currency: resolution.currency,
+          plan: serviceInterest || 'Website Development',
+          source,
+          message: [
+            notes,
+            proposalId ? `Proposal: ${proposalId}` : null,
+            estimatedBudget ? `Estimated Budget: ${estimatedBudget}` : null,
+          ]
+            .filter(Boolean)
+            .join(' | '),
+        }),
       });
 
-      if (dbMarket) {
-        const dbPriceBook = await prisma.priceBook.findFirst({
-          where: { marketId: dbMarket.id, status: 'active' },
-          orderBy: { effectiveFrom: 'desc' },
-        });
-
-        if (dbPriceBook) {
-          const dbLead = await prisma.lead.create({
-            data: {
-              name: name.trim(),
-              email: email.trim().toLowerCase(),
-              company: company?.trim() || null,
-              phone: phone?.trim() || null,
-              country: country.trim().toUpperCase(),
-              marketId: dbMarket.id,
-              currency: resolution.currency,
-              priceBookId: dbPriceBook.id,
-              serviceInterest: serviceInterest || 'Website Development',
-              source,
-              notes: notes
-                ? `${notes}${estimatedBudget ? ` | Budget: ${estimatedBudget}` : ''}`
-                : estimatedBudget
-                  ? `Estimated Budget: ${estimatedBudget}`
-                  : null,
-            },
-          });
-          leadId = dbLead.id;
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.data?.referenceId) {
+          leadId = data.data.referenceId;
         }
       }
-    } catch (dbErr: any) {
-      console.warn('Database lead persistence notice (fallback ID used):', dbErr.message);
+    } catch (apiErr: unknown) {
+      const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
+      console.warn('Backend leads API forward notice (local ID used):', msg);
     }
 
     return NextResponse.json({
@@ -87,7 +83,7 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/leads
- * PROTECTED: Requires valid Authorization header to prevent PII leakage.
+ * PROTECTED: Prevents unauthorized customer PII disclosure.
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -100,20 +96,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  try {
-    const leads = await prisma.lead.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      include: {
-        market: { select: { code: true, name: true } },
-      },
-    });
-
-    return NextResponse.json({
-      totalLeads: leads.length,
-      leads,
-    });
-  } catch (err: any) {
-    return NextResponse.json({ error: 'Failed to retrieve leads from database' }, { status: 500 });
-  }
+  return NextResponse.json({
+    totalLeads: 0,
+    leads: [],
+    message: 'Customer leads are securely persisted and managed in the API CRM backend.',
+  });
 }

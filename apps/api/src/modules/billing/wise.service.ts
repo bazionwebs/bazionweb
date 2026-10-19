@@ -82,6 +82,7 @@ export class WiseService {
    * @deprecated Wise virtual receiving accounts are unavailable in KE.
    * Always throws — callers must use getManualSettlementInstructions().
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async generateVirtualBankDetails(_currency: 'USD' | 'EUR' | 'GBP'): Promise<never> {
     throw new HttpException(
       'Wise virtual bank accounts unavailable for KE businesses — use manual bank transfer',
