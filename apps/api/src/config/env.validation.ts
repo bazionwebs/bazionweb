@@ -13,6 +13,15 @@ export const envValidationSchema = Joi.object({
   DATABASE_URL: Joi.string().uri().required(),
   DATABASE_URL_UNPOOLED: Joi.string().uri().optional().allow(''),
 
+  // Auth & JWT (Enforce minimum 32 characters to prevent weak HMAC keys)
+  AUTH_PROVIDER: Joi.string().valid('local', 'keycloak').default('local'),
+  JWT_SECRET: Joi.string()
+    .min(32)
+    .required()
+    .invalid('CHANGE_ME_256BIT_SECRET_KEY_FOR_LOCAL_DEV', 'secret', 'password'),
+  JWT_EXPIRY: Joi.string().default('15m'),
+  JWT_REFRESH_EXPIRY: Joi.string().default('7d'),
+
   // IntaSend — M-Pesa STK (KES)
   INTASEND_ENVIRONMENT: Joi.string().valid('sandbox', 'production').default('sandbox'),
   INTASEND_PUBLISHABLE_KEY: Joi.string().min(8).required(),

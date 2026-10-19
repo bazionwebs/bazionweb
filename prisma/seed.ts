@@ -112,6 +112,227 @@ async function main() {
     console.log(`  ✓ Plan: ${plan.name}`);
   }
 
+  // ─── Currencies ─────────────────────────────────────────────────────────────
+  const currencies = [
+    { code: 'USD', name: 'US Dollar', symbol: '$', decimals: 2, exchangeRateToBase: 1.0, baseCurrency: true },
+    { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh', decimals: 0, exchangeRateToBase: 129.50, baseCurrency: false },
+    { code: 'EUR', name: 'Euro', symbol: '€', decimals: 2, exchangeRateToBase: 0.92, baseCurrency: false },
+    { code: 'GBP', name: 'British Pound', symbol: '£', decimals: 2, exchangeRateToBase: 0.79, baseCurrency: false },
+  ];
+
+  for (const c of currencies) {
+    await prisma.currency.upsert({
+      where: { code: c.code },
+      update: c,
+      create: c,
+    });
+    console.log(`  ✓ Currency: ${c.code} (${c.name})`);
+  }
+
+  // ─── Markets ────────────────────────────────────────────────────────────────
+  const markets = [
+    {
+      code: 'KE',
+      name: 'Kenya',
+      currencyCode: 'KES',
+      countryCodes: ['KE'],
+      active: true,
+      defaultLocale: 'en-KE',
+      vatRate: 0.1600,
+      taxIncludedInPrice: true,
+      roundingRule: 'INTEGER',
+    },
+    {
+      code: 'GLOBAL',
+      name: 'International / Global',
+      currencyCode: 'USD',
+      countryCodes: [],
+      active: true,
+      defaultLocale: 'en-US',
+      vatRate: 0.0000,
+      taxIncludedInPrice: false,
+      roundingRule: 'EXACT',
+    },
+    {
+      code: 'EA',
+      name: 'East Africa (Uganda, Tanzania, Rwanda)',
+      currencyCode: 'USD',
+      countryCodes: ['UG', 'TZ', 'RW', 'BI', 'SS'],
+      active: false,
+      defaultLocale: 'en-US',
+      vatRate: 0.0000,
+      taxIncludedInPrice: false,
+      roundingRule: 'EXACT',
+    },
+  ];
+
+  const seededMarkets: Record<string, any> = {};
+  for (const m of markets) {
+    seededMarkets[m.code] = await prisma.market.upsert({
+      where: { code: m.code },
+      update: m,
+      create: m,
+    });
+    console.log(`  ✓ Market: ${m.code} (${m.name})`);
+  }
+
+  // ─── Tax Rules ──────────────────────────────────────────────────────────────
+  const taxRules = [
+    {
+      marketId: seededMarkets['KE'].id,
+      name: 'Kenya KRA Standard VAT (16%)',
+      taxType: 'VAT',
+      rate: 0.1600,
+      isInclusive: true,
+      countryCode: 'KE',
+      active: true,
+    },
+    {
+      marketId: seededMarkets['GLOBAL'].id,
+      name: 'Exported Digital Services (Zero-Rated / Reverse Charge)',
+      taxType: 'VAT',
+      rate: 0.0000,
+      isInclusive: false,
+      active: true,
+    },
+  ];
+
+  for (const tr of taxRules) {
+    const existing = await prisma.taxRule.findFirst({
+      where: { marketId: tr.marketId, name: tr.name },
+    });
+    if (existing) {
+      await prisma.taxRule.update({ where: { id: existing.id }, data: tr });
+    } else {
+      await prisma.taxRule.create({ data: tr });
+    }
+    console.log(`  ✓ Tax Rule: ${tr.name}`);
+  }
+
+  // ─── Price Books ────────────────────────────────────────────────────────────
+  const priceBooks = [
+    {
+      id: 'KE-2026-v1',
+      marketId: seededMarkets['KE'].id,
+      name: 'Kenya Commercial Price Book 2026 v1',
+      version: '2026-v1',
+      effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+      effectiveUntil: new Date('2026-12-31T23:59:59Z'),
+      status: 'active',
+    },
+    {
+      id: 'GLOBAL-2026-v1',
+      marketId: seededMarkets['GLOBAL'].id,
+      name: 'Global Commercial Price Book 2026 v1',
+      version: '2026-v1',
+      effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+      effectiveUntil: new Date('2026-12-31T23:59:59Z'),
+      status: 'active',
+    },
+  ];
+
+  for (const pb of priceBooks) {
+    await prisma.priceBook.upsert({
+      where: { id: pb.id },
+      update: pb,
+      create: pb,
+    });
+    console.log(`  ✓ Price Book: ${pb.id}`);
+  }
+
+  // ─── Prices (Authoritative Database SSOT) ──────────────────────────────────
+  const priceCatalog = [
+    // Kenya prices (KES)
+    { priceBookId: 'KE-2026-v1', productId: 'website-starter', amount: 45000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'website-business', amount: 90000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'website-ecommerce', amount: 160000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'website-enterprise', amount: 350000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'rate-extra-page', amount: 2000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'care-starter', amount: 5000, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'care-growth', amount: 12000, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'care-scale', amount: 25000, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'hosting-starter', amount: 1500, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'hosting-business', amount: 3500, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'hosting-enterprise', amount: 8000, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-copywriting', amount: 15000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-seo-advanced', amount: 25000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-multilingual', amount: 20000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-booking', amount: 18000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-payment-gateway', amount: 15000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-portal-client', amount: 40000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-brand-identity', amount: 30000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-maintenance-priority', amount: 12000, billingPeriod: 'one-time' },
+
+    // Global prices (USD)
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'website-starter', amount: 750, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'website-business', amount: 1500, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'website-ecommerce', amount: 2800, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'website-enterprise', amount: 6000, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'rate-extra-page', amount: 50, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-starter', amount: 49, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-growth', amount: 99, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-scale', amount: 199, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'hosting-starter', amount: 15, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'hosting-business', amount: 35, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'hosting-enterprise', amount: 80, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-copywriting', amount: 250, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-seo-advanced', amount: 400, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-multilingual', amount: 350, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-booking', amount: 300, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-payment-gateway', amount: 250, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-portal-client', amount: 650, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-brand-identity', amount: 500, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-maintenance-priority', amount: 200, billingPeriod: 'one-time' },
+  ];
+
+  for (const p of priceCatalog) {
+    await prisma.price.upsert({
+      where: {
+        priceBookId_productId: {
+          priceBookId: p.priceBookId,
+          productId: p.productId,
+        },
+      },
+      update: p,
+      create: p,
+    });
+  }
+  console.log(`  ✓ Seeded ${priceCatalog.length} authoritative prices into database`);
+
+  // ─── Market Adjustments / Coupons ──────────────────────────────────────────
+  const adjustments = [
+    {
+      marketId: seededMarkets['KE'].id,
+      name: 'Kenya SME Growth Incentive',
+      adjustmentType: 'PERCENTAGE_DISCOUNT',
+      value: 10, // 10%
+      couponCode: 'SMEKE10',
+      minSpend: 50000,
+      active: true,
+    },
+    {
+      marketId: seededMarkets['GLOBAL'].id,
+      name: 'Global First-Project Launch Credit',
+      adjustmentType: 'FIXED_DISCOUNT',
+      value: 150, // $150
+      couponCode: 'GLOBAL150',
+      minSpend: 1500,
+      active: true,
+    },
+  ];
+
+  for (const adj of adjustments) {
+    const existing = await prisma.marketAdjustment.findFirst({
+      where: { marketId: adj.marketId, name: adj.name },
+    });
+    if (existing) {
+      await prisma.marketAdjustment.update({ where: { id: existing.id }, data: adj });
+    } else {
+      await prisma.marketAdjustment.create({ data: adj });
+    }
+    console.log(`  ✓ Market Adjustment: ${adj.name}`);
+  }
+
   // ─── Demo Admin User ─────────────────────────────────────────────────────────
   // Local password comes from ADMIN_PASSWORD env (never committed). Without it
   // the admin row is created but cannot log in until the password is seeded.

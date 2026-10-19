@@ -96,7 +96,8 @@ export class WebhooksController {
 
     const resolvedRef = String(invoice_id || tracking_id || invoiceNumber || '');
     if (!resolvedRef) return { status: 'IGNORED_NO_REFERENCE' };
-    const idempotencyKey = `INTASEND_EVENT_${resolvedRef}_${state}`;
+    // Key idempotency on provider reference, not on event state transition
+    const idempotencyKey = `INTASEND_EVENT_${resolvedRef}`;
 
     const existingLog = await this.prisma.paymentLog.findUnique({ where: { idempotencyKey } });
     if (existingLog && existingLog.status === PaymentStatus.SUCCESS) {
@@ -112,6 +113,7 @@ export class WebhooksController {
 
     if (!invoice) {
       // Persist orphan for manual reconciliation — never silently drop money.
+      // clientId: null avoids foreign key constraint violation against Client table.
       await this.prisma.paymentLog.upsert({
         where: { idempotencyKey },
         create: {
@@ -123,12 +125,14 @@ export class WebhooksController {
           currency: 'KES',
           status: PaymentStatus.FAILED,
           errorMessage: `Orphan: no invoice for api_ref ${invoiceNumber}`,
-          clientId: 'orphan',
+          clientId: null,
           rawPayload: payload,
         },
         update: { rawPayload: payload },
-      }).catch(() => undefined);
-      this.logger.warn(`IntaSend orphan for api_ref ${invoiceNumber}`);
+      }).catch((err) => {
+        this.logger.error(`Failed to persist IntaSend orphan payment log: ${err.message}`, err.stack);
+      });
+      this.logger.warn(`IntaSend orphan recorded for api_ref ${invoiceNumber}`);
       return { status: 'ORPHAN_TRANSACTION_RECORDED' };
     }
 
@@ -245,7 +249,28 @@ export class WebhooksController {
       ? await this.prisma.invoice.findUnique({ where: { invoiceNumber }, include: { client: true } })
       : null;
     if (!invoice) {
-      this.logger.warn(`Paystack orphan reference ${reference}`);
+      await this.prisma.paymentLog.upsert({
+        where: { idempotencyKey },
+        create: {
+          idempotencyKey,
+          provider: PaymentProvider.PAYSTACK,
+          providerRef: reference,
+          method:
+            String(data.channel || '').includes('mobile_money') || String(data.channel || '').includes('mpesa')
+              ? PaymentMethodType.MPESA
+              : PaymentMethodType.CARD,
+          amount: paidAmount || 0,
+          currency,
+          status: PaymentStatus.FAILED,
+          errorMessage: `Orphan: no invoice for Paystack reference ${reference}`,
+          clientId: null,
+          rawPayload: data,
+        },
+        update: { rawPayload: data },
+      }).catch((err) => {
+        this.logger.error(`Failed to persist Paystack orphan log: ${err.message}`, err.stack);
+      });
+      this.logger.warn(`Paystack orphan recorded for reference ${reference}`);
       return { status: 'ORPHAN_TRANSACTION_RECORDED' };
     }
 

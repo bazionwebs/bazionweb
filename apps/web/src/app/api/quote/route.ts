@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 import { resolveMarket } from '@/lib/marketEngine';
-import { getPriceBookForMarket, formatCurrency } from '@/lib/priceBooks';
-import { ADD_ON_RATE_CARD } from '@/lib/pricingData';
+import { formatCurrency } from '@/lib/priceBooks';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       clientCompany,
     } = body;
 
-    // Level 4: Authoritative Resolution via Confirmed Billing Country
+    // Resolve market via confirmed billing country / headers
     const resolution = resolveMarket({
       billingCountry: billingCountry || null,
       ipCountry: request.headers.get('cf-ipcountry') || request.headers.get('x-vercel-ip-country'),
@@ -27,36 +27,85 @@ export async function POST(request: NextRequest) {
     });
 
     const marketCode = resolution.code;
-    const priceBook = getPriceBookForMarket(marketCode);
-    const currency = priceBook.currency;
+    let currency: 'KES' | 'USD' | 'EUR' | 'GBP' = (resolution.currency as 'KES' | 'USD' | 'EUR' | 'GBP') || 'USD';
+    let currencySymbol = marketCode === 'KE' ? 'KSh' : '$';
+    let priceBookVersion = '2026-v1';
+    let priceBookId = `${marketCode}-2026-v1`;
 
-    // Determine package pricing from active versioned price book
+    // Package item key & page rate key
     const packageKey = `website-${packageType}`;
-    const packageItem = priceBook.items[packageKey] || priceBook.items['website-business'];
-    const baseCost = packageItem ? packageItem.amount : (marketCode === 'KE' ? 90000 : 1500);
+    const extraPageKey = 'rate-extra-page';
 
-    // Rate for extra pages from price book
-    const extraPageItem = priceBook.items['rate-extra-page'];
-    const pageRate = extraPageItem ? extraPageItem.amount : (marketCode === 'KE' ? 2000 : 50);
+    let baseCost = marketCode === 'KE' ? 90000 : 1500;
+    let pageRate = marketCode === 'KE' ? 2000 : 50;
+    const priceMap = new Map<string, number>();
+
+    // ─── Query Database Single Source of Truth ───────────────────────────────
+    try {
+      const dbMarket = await prisma.market.findUnique({
+        where: { code: marketCode },
+        include: { currency: true },
+      });
+
+      if (dbMarket) {
+        currency = dbMarket.currencyCode as 'KES' | 'USD' | 'EUR' | 'GBP';
+        currencySymbol = dbMarket.currency.symbol;
+
+        const dbPriceBook = await prisma.priceBook.findFirst({
+          where: {
+            marketId: dbMarket.id,
+            status: 'active',
+            effectiveFrom: { lte: new Date() },
+            OR: [{ effectiveUntil: null }, { effectiveUntil: { gte: new Date() } }],
+          },
+          orderBy: { effectiveFrom: 'desc' },
+        });
+
+        if (dbPriceBook) {
+          priceBookId = dbPriceBook.id;
+          priceBookVersion = dbPriceBook.version;
+
+          const dbPrices = await prisma.price.findMany({
+            where: { priceBookId: dbPriceBook.id },
+          });
+
+          for (const p of dbPrices) {
+            priceMap.set(p.productId, Number(p.amount));
+          }
+
+          if (priceMap.has(packageKey)) {
+            baseCost = priceMap.get(packageKey)!;
+          }
+          if (priceMap.has(extraPageKey)) {
+            pageRate = priceMap.get(extraPageKey)!;
+          }
+        }
+      }
+    } catch (dbErr: any) {
+      console.warn('Database pricing query notice (using fallback constants):', dbErr.message);
+    }
+
     const extraPagesCost = (Number(extraPages) || 0) * pageRate;
 
-    // Calculate add-ons from rate card
+    // Calculate add-ons from Database Prices
     let addOnsCost = 0;
     const itemizedAddOns: Array<{ id: string; name: string; cost: number; formatted: string }> = [];
 
     if (Array.isArray(selectedAddOns)) {
       for (const addonId of selectedAddOns) {
-        const addon = ADD_ON_RATE_CARD.find(a => a.id === addonId);
-        if (addon) {
-          const cost = marketCode === 'KE' ? addon.rawKes : addon.rawUsd;
-          addOnsCost += cost;
-          itemizedAddOns.push({
-            id: addon.id,
-            name: addon.name,
-            cost,
-            formatted: formatCurrency(cost, currency),
-          });
-        }
+        const cost =
+          priceMap.get(addonId) ??
+          (marketCode === 'KE' ? 15000 : 250);
+        addOnsCost += cost;
+        itemizedAddOns.push({
+          id: addonId,
+          name: addonId
+            .split('-')
+            .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' '),
+          cost,
+          formatted: formatCurrency(cost, currency),
+        });
       }
     }
 
@@ -65,47 +114,38 @@ export async function POST(request: NextRequest) {
     const rushCost = Math.round(subtotalBuild * rushMultiplier);
     const totalBuild = subtotalBuild + rushCost;
 
-    // Care recurring costs
+    // Care recurring costs from Database
     let monthlyCare = 0;
     if (care !== 'none') {
-      const careItem = priceBook.items[care];
-      if (careItem) {
-        monthlyCare = careItem.amount;
-      } else {
-        if (care === 'care-essential') monthlyCare = marketCode === 'KE' ? 5000 : 75;
-        if (care === 'care-business') monthlyCare = marketCode === 'KE' ? 10000 : 150;
-        if (care === 'care-professional') monthlyCare = marketCode === 'KE' ? 20000 : 300;
-      }
+      const careKey = `care-${care.replace('care-', '')}`;
+      monthlyCare =
+        priceMap.get(careKey) ??
+        (marketCode === 'KE' ? (care.includes('growth') ? 12000 : 5000) : 99);
     }
 
-    // Hosting recurring costs
+    // Hosting recurring costs from Database
     let annualHosting = 0;
     if (hosting !== 'none') {
-      const hostItem = priceBook.items[hosting];
-      if (hostItem) {
-        annualHosting = hostItem.amount;
-      } else {
-        if (hosting === 'host-essential') annualHosting = marketCode === 'KE' ? 4500 : 60;
-        if (hosting === 'host-business') annualHosting = marketCode === 'KE' ? 8500 : 120;
-        if (hosting === 'host-pro') annualHosting = marketCode === 'KE' ? 15000 : 240;
-      }
+      const hostKey = `hosting-${hosting.replace('host-', '')}`;
+      annualHosting =
+        (priceMap.get(hostKey) ?? (marketCode === 'KE' ? 3500 : 35)) * 12;
     }
 
-    const totalYearOne = totalBuild + annualHosting + (monthlyCare * 12);
+    const totalYearOne = totalBuild + annualHosting + monthlyCare * 12;
 
     const now = new Date();
-    const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 day proposal guarantee
+    const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 day guarantee
     const proposalId = `BZ-${marketCode}-${now.getFullYear()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
     // Generate locked proposal
     const lockedProposal = {
       proposalId,
       status: 'LOCKED',
-      version: priceBook.version,
-      priceBookId: priceBook.id,
+      version: priceBookVersion,
+      priceBookId,
       marketCode,
       currency,
-      currencySymbol: priceBook.currencySymbol,
+      currencySymbol,
       billingCountry: billingCountry || (marketCode === 'KE' ? 'KE' : 'GLOBAL'),
       createdAt: now.toISOString(),
       expiresAt: expires.toISOString(),
@@ -116,11 +156,11 @@ export async function POST(request: NextRequest) {
       },
       package: {
         id: packageType,
-        name: packageItem?.name || packageType,
+        name: `${packageType.charAt(0).toUpperCase() + packageType.slice(1)} Website`,
         baseCost,
         formattedBaseCost: formatCurrency(baseCost, currency),
-        timeline: packageItem?.timeline || '10–18 working days',
-        supportWarranty: packageItem?.supportWarranty || '30-day warranty',
+        timeline: packageType === 'enterprise' ? '20–30 working days' : '10–18 working days',
+        supportWarranty: '30-day warranty',
       },
       extraPages: {
         count: Number(extraPages) || 0,
@@ -147,10 +187,43 @@ export async function POST(request: NextRequest) {
         formattedTotalYearOne: formatCurrency(totalYearOne, currency),
       },
       commercialTerms: {
-        paymentRails: priceBook.paymentRails,
-        title: marketCode === 'KE' ? 'Kenya Commercial Terms & SME SLAs' : 'International Master Terms & SLAs',
+        paymentRails:
+          marketCode === 'KE'
+            ? ['M-Pesa STK Push', 'Kenyan Bank Wire / RTGS', 'Local Visa / Mastercard']
+            : ['International Visa / Mastercard', 'Wise Wire Transfer', 'ACH / SEPA Direct'],
+        title:
+          marketCode === 'KE'
+            ? 'Kenya Commercial Terms & SME SLAs'
+            : 'International Master Terms & SLAs',
       },
     };
+
+    // Persist locked proposal in DB if clientEmail is present
+    if (clientEmail) {
+      try {
+        const dbMarket = await prisma.market.findUnique({ where: { code: marketCode } });
+        if (dbMarket) {
+          await prisma.proposal.create({
+            data: {
+              proposalCode: proposalId,
+              marketId: dbMarket.id,
+              priceBookId,
+              currency,
+              billingCountry: billingCountry || (marketCode === 'KE' ? 'KE' : 'GLOBAL'),
+              clientEmail: clientEmail.trim().toLowerCase(),
+              clientName: clientName?.trim() || null,
+              clientCompany: clientCompany?.trim() || null,
+              lineItems: lockedProposal as any,
+              totalAmount: totalBuild,
+              status: 'LOCKED',
+              expiresAt: expires,
+            },
+          });
+        }
+      } catch (propErr: any) {
+        console.warn('Notice: proposal record not stored in DB:', propErr.message);
+      }
+    }
 
     return NextResponse.json(lockedProposal);
   } catch (error) {

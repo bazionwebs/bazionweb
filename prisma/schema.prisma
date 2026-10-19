@@ -454,7 +454,7 @@ model PaymentLog {
   rawPayload     Json              @map("raw_payload")
   errorMessage   String?           @map("error_message")
   
-  clientId       String            @map("client_id")
+  clientId       String?           @map("client_id")
   subscriptionId String?           @map("subscription_id")
   invoiceId      String?           @map("invoice_id")
   userId         String?           @map("user_id")
@@ -462,7 +462,7 @@ model PaymentLog {
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
 
-  client       Client        @relation(fields: [clientId], references: [id])
+  client       Client?       @relation(fields: [clientId], references: [id])
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
   invoice      Invoice?      @relation(fields: [invoiceId], references: [id])
   user         User?         @relation(fields: [userId], references: [id])
@@ -579,24 +579,70 @@ model Notification {
   @@map("notifications")
 }
 
-// ─── Commercial Market Localization Engine Models ─────────────────────────────
+// ─── Commercial Multi-Market Pricing Engine Models (SSOT) ───────────────────
+
+model Currency {
+  code               String   @id // 'KES', 'USD', 'EUR', 'GBP'
+  name               String
+  symbol             String
+  decimals           Int      @default(2)
+  exchangeRateToBase Decimal  @default(1.0) @map("exchange_rate_to_base") @db.Decimal(14, 6)
+  baseCurrency       Boolean  @default(false) @map("base_currency")
+  rateUpdatedAt      DateTime @default(now()) @map("rate_updated_at")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  markets            Market[]
+
+  @@map("currencies")
+}
 
 model Market {
-  id            String      @id @default(uuid())
-  code          String      @unique // 'KE', 'GLOBAL', 'EA', etc.
-  name          String
-  currency      String      // 'KES', 'USD', 'EUR', 'GBP'
-  countryCodes  String[]    @map("country_codes")
-  active        Boolean     @default(true)
-  defaultLocale String      @default("en-US") @map("default_locale")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id                 String             @id @default(uuid())
+  code               String             @unique // 'KE', 'GLOBAL', 'EA', etc.
+  name               String
+  currencyCode       String             @map("currency_code")
+  countryCodes       String[]           @map("country_codes")
+  active             Boolean            @default(true)
+  defaultLocale      String             @default("en-US") @map("default_locale")
+  vatRate            Decimal            @default(0.1600) @map("vat_rate") @db.Decimal(5, 4)
+  taxIncludedInPrice Boolean            @default(true) @map("tax_included_in_price")
+  roundingRule       String             @default("INTEGER") @map("rounding_rule") // INTEGER, NINETY_NINE, EXACT
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  priceBooks    PriceBook[]
-  proposals     Proposal[]
-  leads         Lead[]
+  currency           Currency           @relation(fields: [currencyCode], references: [code])
+  priceBooks         PriceBook[]
+  proposals          Proposal[]
+  leads              Lead[]
+  taxRules           TaxRule[]
+  marketAdjustments  MarketAdjustment[]
 
+  @@index([currencyCode])
   @@map("markets")
+}
+
+model TaxRule {
+  id             String    @id @default(uuid())
+  marketId       String    @map("market_id")
+  name           String    // e.g. "KRA Standard VAT (16%)", "Export Zero-Rate"
+  taxType        String    @default("VAT") @map("tax_type") // VAT, SALES_TAX, GST
+  rate           Decimal   @db.Decimal(5, 4) // e.g. 0.1600
+  isInclusive    Boolean   @default(true) @map("is_inclusive")
+  countryCode    String?   @map("country_code")
+  effectiveFrom  DateTime  @default(now()) @map("effective_from")
+  effectiveUntil DateTime? @map("effective_until")
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  market         Market    @relation(fields: [marketId], references: [id])
+
+  @@index([marketId])
+  @@index([active])
+  @@index([effectiveFrom, effectiveUntil])
+  @@map("tax_rules")
 }
 
 model PriceBook {
@@ -617,13 +663,14 @@ model PriceBook {
 
   @@index([marketId])
   @@index([status])
+  @@index([effectiveFrom, effectiveUntil])
   @@map("price_books")
 }
 
 model Price {
   id            String    @id @default(uuid())
   priceBookId   String    @map("price_book_id")
-  productId     String    @map("product_id") // e.g. "website-business"
+  productId     String    @map("product_id") // e.g. "website-business", "addon-seo"
   amount        Decimal   @db.Decimal(12, 2)
   billingPeriod String?   @map("billing_period") // "one-time", "month", "year"
   minPrice      Decimal?  @map("min_price") @db.Decimal(12, 2)
@@ -636,6 +683,31 @@ model Price {
   @@unique([priceBookId, productId])
   @@index([productId])
   @@map("prices")
+}
+
+model MarketAdjustment {
+  id             String    @id @default(uuid())
+  marketId       String    @map("market_id")
+  productId      String?   @map("product_id") // specific product or null for all
+  name           String    // e.g. "Early Adopter Subsidy", "Annual Prepayment Discount"
+  adjustmentType String    @map("adjustment_type") // PERCENTAGE_DISCOUNT, FIXED_DISCOUNT, SURCHARGE
+  value          Decimal   @db.Decimal(12, 2)
+  minSpend       Decimal?  @map("min_spend") @db.Decimal(12, 2)
+  maxDiscount    Decimal?  @map("max_discount") @db.Decimal(12, 2)
+  couponCode     String?   @map("coupon_code")
+  effectiveFrom  DateTime  @default(now()) @map("effective_from")
+  effectiveUntil DateTime? @map("effective_until")
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  market         Market    @relation(fields: [marketId], references: [id])
+
+  @@index([marketId])
+  @@index([couponCode])
+  @@index([active])
+  @@index([effectiveFrom, effectiveUntil])
+  @@map("market_adjustments")
 }
 
 model Proposal {
@@ -689,3 +761,23 @@ model Lead {
   @@index([country])
   @@map("leads")
 }
+
+model PricingAuditLog {
+  id           String   @id @default(uuid())
+  entityType   String   @map("entity_type") // PRICE, PRICE_BOOK, TAX_RULE, MARKET_ADJUSTMENT, MARKET, CURRENCY
+  entityId     String   @map("entity_id")
+  action       String   // CREATE, UPDATE, ARCHIVE, DELETE
+  changedBy    String   @map("changed_by") // user ID or system
+  oldValues    Json?    @map("old_values")
+  newValues    Json?    @map("new_values")
+  changeReason String?  @map("change_reason")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  timestamp    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([changedBy])
+  @@index([timestamp])
+  @@map("pricing_audit_logs")
+}
+

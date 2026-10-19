@@ -18,6 +18,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { MfaGuard } from './common/guards/mfa.guard';
 import { envValidationSchema } from './config/env.validation';
+import { PricingModule } from './modules/pricing/pricing.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { envValidationSchema } from './config/env.validation';
     QuotesModule,
     HealthModule,
     NotificationsModule,
+    PricingModule,
   ],
   providers: [AuditInterceptor, MfaGuard, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

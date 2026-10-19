@@ -61,12 +61,14 @@ export class MfaGuard implements CanActivate {
       select: { mfaEnabled: true, role: true },
     });
 
-    if (!dbUser) return true;
+    if (!dbUser) {
+      throw new ForbiddenException('User record not found for MFA verification.');
+    }
 
-    // Staff without MFA enabled — block and instruct
-    if (this.STAFF_ROLES.includes(dbUser.role) && !dbUser.mfaEnabled) {
+    // Staff without MFA enabled, or any user accessing a @RequireMfa() route without MFA
+    if ((this.STAFF_ROLES.includes(dbUser.role) || requireMfa) && !dbUser.mfaEnabled) {
       throw new ForbiddenException(
-        'Multi-factor authentication is required for staff accounts. ' +
+        'Multi-factor authentication is required for staff accounts and sensitive operations. ' +
         'Please contact your administrator to enable MFA.',
       );
     }
