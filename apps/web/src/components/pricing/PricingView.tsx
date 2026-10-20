@@ -27,7 +27,7 @@ import {
 type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'hosting' | 'addons';
 
 export default function PricingView() {
-  const { market, marketDef, openModal } = useMarketPreference();
+  const { market, marketCode, marketDef, setMarket, openModal } = useMarketPreference();
   const [activeTab, setActiveTab] = useState<TabKey>('websites');
 
   return (
@@ -47,25 +47,57 @@ export default function PricingView() {
             Transparent engineering pricing
           </h1>
 
-          <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto mb-6 leading-relaxed">
+          <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
             Every project quotation is backed by verified client ownership, itemized deliverables, and post-launch warranties.
           </p>
 
-          {/* Current Commercial Market Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-slate-200">
-            <span className="text-slate-400">Commercial Market:</span>
-            <span className="font-bold text-white flex items-center gap-1.5">
-              <span>{marketDef.flag}</span>
-              <span>{marketDef.name} ({marketDef.currency})</span>
-            </span>
-            <span className="text-slate-500">·</span>
-            <button
-              type="button"
-              onClick={openModal}
-              className="text-[#14B8A6] hover:text-teal-300 font-bold underline underline-offset-2 transition-colors cursor-pointer"
-            >
-              Change market
-            </button>
+          {/* 1-Click Segmented Market Switcher */}
+          <div className="flex flex-col items-center gap-3">
+            <div className="inline-flex items-center p-1.5 rounded-2xl bg-white/10 backdrop-blur-lg border border-white/20 shadow-2xl">
+              <button
+                type="button"
+                onClick={() => setMarket('KE')}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs md:text-sm font-extrabold transition-all duration-200 cursor-pointer ${
+                  marketCode === 'KE'
+                    ? 'bg-[#2563EB] text-white shadow-lg shadow-blue-500/40 ring-2 ring-white/30 scale-102'
+                    : 'text-slate-300 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <span className="text-base">🇰🇪</span>
+                <span>Kenya (KES)</span>
+                <span className="hidden sm:inline-block text-[10px] px-2 py-0.5 rounded-full bg-white/20 text-blue-100 font-semibold ml-1">
+                  M-Pesa · KRA 16% VAT
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMarket('GLOBAL')}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs md:text-sm font-extrabold transition-all duration-200 cursor-pointer ${
+                  marketCode === 'GLOBAL'
+                    ? 'bg-[#0D9488] text-white shadow-lg shadow-teal-500/40 ring-2 ring-white/30 scale-102'
+                    : 'text-slate-300 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <span className="text-base">🌐</span>
+                <span>International (USD)</span>
+                <span className="hidden sm:inline-block text-[10px] px-2 py-0.5 rounded-full bg-white/20 text-teal-100 font-semibold ml-1">
+                  Cards · 0% Export
+                </span>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+              <span>Viewing: <strong className="text-white">{marketDef.flag} {marketDef.name} ({marketDef.currency})</strong></span>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={openModal}
+                className="text-[#14B8A6] hover:text-teal-300 font-semibold underline underline-offset-2 transition-colors cursor-pointer"
+              >
+                Regional details &amp; modal
+              </button>
+            </div>
           </div>
         </div>
       </section>

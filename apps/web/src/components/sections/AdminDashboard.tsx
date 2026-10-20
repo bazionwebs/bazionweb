@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   LayoutDashboard, Users, Ticket, FileText, BarChart2,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
+import AdminMarketsTab from '@/components/admin/AdminMarketsTab';
 import {
   useAdminClients,
   useAdminTickets,
@@ -28,6 +29,7 @@ import { formatMoney, formatDate, titleCase, timeAgo, shortId } from '@/lib/form
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
+  { icon: Globe, label: 'Markets & Pricing', id: 'markets', badge: 'SSOT', badgeColor: 'bg-teal-500' },
   { icon: Users, label: 'Clients', id: 'clients', badge: '47' },
   { icon: Ticket, label: 'Tickets', id: 'tickets', badge: '3', badgeColor: 'bg-red-500' },
   { icon: FileText, label: 'Invoices', id: 'invoices' },
@@ -43,6 +45,16 @@ export default function AdminDashboardClient() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && navItems.some(item => item.id === tabParam)) {
+        setActiveTab(tabParam);
+      }
+    }
+  }, []);
 
   // ─── Live data (API-backed) ─────────────────────────────────────────────
   const clientsQuery = useAdminClients();
@@ -758,8 +770,11 @@ export default function AdminDashboardClient() {
             </div>
           )}
 
+          {/* TAB: MARKETS & PRICING */}
+          {activeTab === 'markets' && <AdminMarketsTab />}
+
           {/* Other tabs placeholder */}
-          {!['dashboard', 'clients', 'tickets', 'security', 'reports'].includes(activeTab) && (
+          {!['dashboard', 'clients', 'tickets', 'security', 'reports', 'markets'].includes(activeTab) && (
             <div className="flex flex-col items-center justify-center h-64 text-center bg-white rounded-2xl border border-slate-100">
               <div className="text-4xl mb-4">🚧</div>
               <h3 className="font-bold text-[#0F172A] mb-2 capitalize">{activeTab}</h3>
