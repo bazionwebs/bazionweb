@@ -12,7 +12,7 @@ RUN npm ci --ignore-scripts || npm install --ignore-scripts
 COPY . .
 
 # Generate Prisma client (fail closed — broken schema must break the image)
-RUN npx prisma generate --schema ./prisma.schema.prisma
+RUN npx prisma generate --schema ./prisma/schema.prisma
 
 # Build NestJS
 RUN npm run build
@@ -51,7 +51,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/dist         ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
 # Prisma schema needed for migrations at runtime
-COPY --chown=nestjs:nodejs prisma.schema.prisma ./prisma/schema.prisma
+COPY --chown=nestjs:nodejs prisma/schema.prisma ./prisma/schema.prisma
 
 USER nestjs
 
