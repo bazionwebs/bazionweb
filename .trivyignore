@@ -4,9 +4,12 @@
 # (i.e. requiring a major upgrade) are accepted here. Anything fixable in
 # range must be upgraded, not ignored.
 #
-# NOTE: this repo's image scans (apko/alpine + node-pkg) report CVE ids, not
-# GHSA ids. Ids below were taken verbatim from the SARIF the scanner emitted
-# (run 39425573326), so they match Trivy's rule ids.
+# NOTE: this repo's image scans (apko/alpine + node-pkg) report mixed rule
+# ids (CVE for most advisories, GHSA for others) depending on which is
+# preferred in the DB refresh. Ids below were taken verbatim from the SARIF
+# the scanner emitted, so they match Trivy's rule ids; CVE aliases are also
+# listed for GHSA entries so DB refreshes that flip the preferred id stay
+# covered.
 #
 # The bundled npm CLI and its transitive deps were previously a finding
 # source; both runner images now remove /usr/local/lib/node_modules/npm and
@@ -38,3 +41,20 @@ CVE-2026-64649
 CVE-2026-69153
 CVE-2026-73646
 CVE-2026-75604
+
+## libheif RCE reachable via sharp/AVIF image optimization (severity 9.5).
+## Not applicable to this app: sharp is not installed (no libheif binary in
+## the image; Next 14 uses the squoosh path). Re-verify and remove this
+## entry if sharp is ever added.
+GHSA-2xp9-vwfh-vxw4
+
+## React Server Components request handling — CVE-2026-23869 / -23870 /
+## -23864. Affects the App Router on every Next line up to 16.x; fixes live
+## in the React 19.x RSC packages + Next 15/16 majors only. Accepted until
+## the Next.js major upgrade below removes the whole 14.x block.
+GHSA-8h8q-6873-q5fj
+CVE-2026-23870
+GHSA-h25m-26qc-wcjf
+CVE-2026-23864
+GHSA-q4gf-8mx6-v5v3
+CVE-2026-23869
