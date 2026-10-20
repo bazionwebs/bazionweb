@@ -31,7 +31,8 @@ RUN npm ci --omit=dev --ignore-scripts || npm install --omit=dev --ignore-script
 # Stage 3 — runner
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
-RUN apk add --no-cache curl openssl
+# Patch-level OS upgrade: ship a base with current advisory fixes
+RUN apk update && apk upgrade --no-cache && apk add --no-cache curl openssl
 
 WORKDIR /app
 

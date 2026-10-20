@@ -42,7 +42,8 @@ RUN npm run build
 # Stage 3 — runner: minimal runtime image
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
-RUN apk add --no-cache curl
+# Patch-level OS upgrade: ship a base with current advisory fixes
+RUN apk update && apk upgrade --no-cache && apk add --no-cache curl
 
 WORKDIR /app
 

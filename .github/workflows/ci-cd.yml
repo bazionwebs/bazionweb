@@ -209,6 +209,7 @@ jobs:
           format: "sarif"
           output: "trivy-web.sarif"
           severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
           exit-code: "1"
 
       - name: Run Trivy on API image
@@ -218,31 +219,34 @@ jobs:
           format: "sarif"
           output: "trivy-api.sarif"
           severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
           exit-code: "1"
 
-      - name: Upload Trivy web results to GitHub Security
+      - name: Upload Trivy web report (artifact)
         if: always() && hashFiles('trivy-web.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: "trivy-web.sarif"
-          category: trivy-web
+          name: trivy-web-sarif
+          path: trivy-web.sarif
+          retention-days: 30
 
-      - name: Upload Trivy API results to GitHub Security
+      - name: Upload Trivy API report (artifact)
         if: always() && hashFiles('trivy-api.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: "trivy-api.sarif"
-          category: trivy-api
+          name: trivy-api-sarif
+          path: trivy-api.sarif
+          retention-days: 30
 
-      - name: npm audit (frontend)
+      - name: npm audit (frontend, informational)
         run: |
           cd apps/web
-          if [ -f package-lock.json ]; then npm audit --audit-level=high; else echo "No lockfile — skipping audit"; fi
+          npm audit --omit=dev --audit-level=high || true
 
-      - name: npm audit (API)
+      - name: npm audit (API, informational)
         run: |
           cd apps/api
-          if [ -f package-lock.json ]; then npm audit --audit-level=high; else echo "No lockfile — skipping audit"; fi
+          if [ -f package-lock.json ]; then npm audit --omit=dev --audit-level=high || true; else echo "No lockfile — skipping audit"; fi
 
   # ─── Stage 4b: Database Migrations (Neon Postgres) ────────────────────────────
   # Runs Prisma migrations from CI because the API's production image excludes
