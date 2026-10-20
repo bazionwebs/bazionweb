@@ -224,7 +224,7 @@ jobs:
 
       - name: Upload Trivy web report (artifact)
         if: always() && hashFiles('trivy-web.sarif') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-web-sarif
           path: trivy-web.sarif
@@ -232,7 +232,7 @@ jobs:
 
       - name: Upload Trivy API report (artifact)
         if: always() && hashFiles('trivy-api.sarif') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-api-sarif
           path: trivy-api.sarif
@@ -340,7 +340,7 @@ jobs:
           PORTAL_TEST_PASSWORD: ${{ secrets.E2E_CLIENT_PASSWORD }}
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-report
