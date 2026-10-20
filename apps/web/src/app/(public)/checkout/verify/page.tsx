@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
+import { useAuthStore } from '@/store/auth.store';
 
 function VerifyPaymentContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get('reference') || searchParams.get('trxref');
+  const setSubscriptionStatus = useAuthStore(s => s.setSubscriptionStatus);
 
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -37,6 +39,7 @@ function VerifyPaymentContent() {
 
         if (json.success) {
           setSuccess(true);
+          setSubscriptionStatus('ACTIVE');
           setData({
             ...json,
             planSlug: json.metadata?.planSlug || json.planSlug,
@@ -53,7 +56,7 @@ function VerifyPaymentContent() {
     }
 
     verify();
-  }, [reference]);
+  }, [reference, setSubscriptionStatus]);
 
   return (
     <div className="w-full max-w-xl bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100 text-slate-900">

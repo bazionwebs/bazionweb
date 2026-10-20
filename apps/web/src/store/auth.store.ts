@@ -25,6 +25,7 @@ interface AuthState {
   setSession: (user: AuthUser, accessToken: string, refreshToken: string, expiresIn: number) => void;
   clearSession: () => void;
   setPendingPlan: (planSlug: string | null) => void;
+  setSubscriptionStatus: (status: 'ACTIVE' | 'PENDING' | 'NONE') => void;
   isAuthenticated: () => boolean;
   hasRole: (role: string) => boolean;
   isTokenExpired: () => boolean;
@@ -54,6 +55,13 @@ export const useAuthStore = create<AuthState>()(
 
       setPendingPlan: (planSlug) => {
         set({ pendingPlan: planSlug });
+      },
+
+      setSubscriptionStatus: (status) => {
+        const current = get().user;
+        if (current) {
+          set({ user: { ...current, subscriptionStatus: status } });
+        }
       },
 
       isAuthenticated: () => {

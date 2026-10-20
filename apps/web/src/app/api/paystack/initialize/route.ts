@@ -26,6 +26,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Valid payment amount is required' }, { status: 400 });
     }
 
+    // ── Price Integrity & Anti-Tampering Gate ────────────────────────────────
+    const normalizedCurrency = currency.toUpperCase() === 'USD' ? 'USD' : 'KES';
+    const AUTHORITATIVE_PLANS: Record<string, { monthlyKes: number; annualKes: number; monthlyUsd: number; annualUsd: number }> = {
+      'care-essential': { monthlyKes: 5000, annualKes: 54000, monthlyUsd: 75, annualUsd: 810 },
+      'care-business': { monthlyKes: 10000, annualKes: 108000, monthlyUsd: 150, annualUsd: 1620 },
+      'care-professional': { monthlyKes: 20000, annualKes: 216000, monthlyUsd: 300, annualUsd: 3240 },
+      'starter': { monthlyKes: 3800, annualKes: 40800, monthlyUsd: 29, annualUsd: 312 },
+    };
+
+    if (planSlug && AUTHORITATIVE_PLANS[planSlug]) {
+      const plan = AUTHORITATIVE_PLANS[planSlug];
+      const validAmounts = normalizedCurrency === 'USD'
+        ? [plan.monthlyUsd, plan.annualUsd]
+        : [plan.monthlyKes, plan.annualKes];
+
+      // Disallow amounts lower than official tier
+      const matchesTier = validAmounts.some(expected => Math.abs(expected - numericAmount) < 0.01);
+      if (!matchesTier) {
+        return NextResponse.json({
+          error: `Invalid payment amount for ${planSlug}. Expected ${normalizedCurrency} ${validAmounts.join(' or ')}, received ${numericAmount}.`,
+        }, { status: 400 });
+      }
+    } else {
+      // For custom quotes / invoices, enforce strict minimum threshold
+      const minAmount = normalizedCurrency === 'USD' ? 5 : 500;
+      if (numericAmount < minAmount) {
+        return NextResponse.json({
+          error: `Payment amount is below minimum processing threshold (${normalizedCurrency} ${minAmount}).`,
+        }, { status: 400 });
+      }
+    }
+
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) {
       return NextResponse.json({ error: 'Paystack is not configured on server' }, { status: 503 });
