@@ -48,22 +48,22 @@ export default function AdminMarketsTab() {
   const activePlan = WEBSITE_PACKAGES.find(p => p.id === sandboxPackageId) || WEBSITE_PACKAGES[1];
   
   // Base Prices
-  const basePriceKES = sandboxPackageId === 'launch' ? 25000 : sandboxPackageId === 'business' ? 90000 : sandboxPackageId === 'professional' ? 160000 : 250000;
-  const basePriceUSD = sandboxPackageId === 'launch' ? 495 : sandboxPackageId === 'business' ? 1500 : sandboxPackageId === 'professional' ? 2850 : 4500;
+  const basePriceKES = sandboxPackageId === 'launch' ? 25000 : sandboxPackageId === 'business' ? 90000 : sandboxPackageId === 'professional' ? 160000 : 320000;
+  const basePriceUSD = sandboxPackageId === 'launch' ? 450 : sandboxPackageId === 'business' ? 950 : sandboxPackageId === 'professional' ? 1750 : 3600;
   const basePrice = sandboxMarket === 'KE' ? basePriceKES : basePriceUSD;
 
   // Extra Page Rates
-  const extraPageRateKES = sandboxPackageId === 'launch' ? 4500 : sandboxPackageId === 'business' ? 4000 : 3500;
-  const extraPageRateUSD = sandboxPackageId === 'launch' ? 80 : sandboxPackageId === 'business' ? 70 : 60;
+  const extraPageRateKES = 2000;
+  const extraPageRateUSD = 40;
   const extraPageRate = sandboxMarket === 'KE' ? extraPageRateKES : extraPageRateUSD;
   const extraPagesTotal = extraPages * extraPageRate;
 
   // Add-ons
   const availableAddons = [
-    { id: 'seo-foundation', name: 'Technical SEO & Schema Foundation', kes: 25000, usd: 400 },
-    { id: 'speed-boost', name: 'Lighthouse 98+ Speed Hardening', kes: 20000, usd: 350 },
-    { id: 'copywriting', name: 'Professional Conversion Copywriting', kes: 30000, usd: 500 },
-    { id: 'crm-integration', name: 'HubSpot / Zoho CRM Pipeline', kes: 35000, usd: 600 },
+    { id: 'seo-foundation', name: 'Technical SEO & Schema Foundation', kes: 15000, usd: 220 },
+    { id: 'speed-boost', name: 'Lighthouse 98+ Speed Hardening', kes: 12000, usd: 180 },
+    { id: 'copywriting', name: 'Professional Conversion Copywriting', kes: 10000, usd: 180 },
+    { id: 'crm-integration', name: 'HubSpot / Zoho CRM Pipeline', kes: 25000, usd: 350 },
   ];
 
   const addonsTotal = selectedAddons.reduce((sum, addonId) => {
@@ -77,9 +77,11 @@ export default function AdminMarketsTab() {
   const subtotal = subtotalBeforeRush + rushSurcharge;
 
   // Discount
-  const isCouponValid = couponCode.trim().toUpperCase() === 'BAZION10' || couponCode.trim().toUpperCase() === 'WELCOME10';
-  const discountAmount = isCouponValid ? subtotal * 0.1 : 0;
-  const netAfterDiscount = subtotal - discountAmount;
+  const isCouponValid = ['GLOBAL10', 'GLOBAL100', 'SMEKE10', 'BAZION10'].includes(couponCode.trim().toUpperCase());
+  const discountAmount = isCouponValid
+    ? (couponCode.trim().toUpperCase() === 'GLOBAL100' ? 100 : subtotal * 0.1)
+    : 0;
+  const netAfterDiscount = Math.max(0, subtotal - discountAmount);
 
   // Taxes
   // Kenya: 16% VAT inclusive in gross total

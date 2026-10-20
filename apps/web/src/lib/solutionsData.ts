@@ -84,16 +84,16 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     recommendedBundle: {
       packageName: 'Business Website Package',
       packagePriceKenya: 'KSh 90,000',   // ← canonical: priceBooks.ts KE-2026-v1
-      packagePriceIntl: '$1,500',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
+      packagePriceIntl: '$950',          // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Business',
       carePriceKenya: 'KSh 10,000/mo',
-      carePriceIntl: '$150/mo',
+      carePriceIntl: '$89/mo',
       summary: 'Custom 10-page website, CMS integration, lead capture pipeline, and 30-day post-launch warranty.',
     },
     recommendedAddons: [
-      'Dynamic Blog & News Engine (KSh 7,500 / $150)',
-      'Advanced Multi-Step Form (KSh 5,000 / $100)',
-      'Local SEO Foundation (KSh 15,000 / $300)',
+      'Dynamic Blog & News Engine (KSh 7,500 / $120)',
+      'Advanced Multi-Step Form (KSh 5,000 / $80)',
+      'Local SEO Foundation (KSh 15,000 / $220)',
     ],
     proofMetric: {
       stat: '+140%',
@@ -165,16 +165,16 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     recommendedBundle: {
       packageName: 'Professional Church Platform',
       packagePriceKenya: 'KSh 160,000',  // ← canonical: priceBooks.ts KE-2026-v1
-      packagePriceIntl: '$2,850',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
+      packagePriceIntl: '$1,750',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Business',
       carePriceKenya: 'KSh 10,000/mo',
-      carePriceIntl: '$150/mo',
+      carePriceIntl: '$89/mo',
       summary: 'Up to 15 pages, sermon archive, events manager, M-Pesa integration, and 60-day warranty.',
     },
     recommendedAddons: [
       'M-Pesa Daraja Automated Giving Gateway (KSh 10,000)',
       'Africa\'s Talking Bulk SMS Alerts (KSh 8,500)',
-      'Church Management Member Registry (From KSh 200,000 / $5,000)',
+      'Church Management Member Registry (From KSh 200,000 / $3,900)',
     ],
     proofMetric: {
       stat: '99.9%',
@@ -469,16 +469,16 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     recommendedBundle: {
       packageName: 'Professional Practice Platform',
       packagePriceKenya: 'KSh 160,000',  // ← canonical: priceBooks.ts KE-2026-v1
-      packagePriceIntl: '$2,850',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
+      packagePriceIntl: '$1,750',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Essential',
       carePriceKenya: 'KSh 5,000/mo',
-      carePriceIntl: '$75/mo',
+      carePriceIntl: '$39/mo',
       summary: 'Up to 15 pages, practice area index, partner profiles, appointment intake, and 60-day support.',
     },
     recommendedAddons: [
-      'Advanced Client Intake Screening Form (KSh 5,000 / $100)',
-      'Publications & Legal Insights Hub (KSh 7,500 / $150)',
-      'Online Consultation Booking Engine (From KSh 15,000 / $300)',
+      'Advanced Client Intake Screening Form (KSh 5,000 / $80)',
+      'Publications & Legal Insights Hub (KSh 7,500 / $120)',
+      'Online Consultation Booking Engine (From KSh 15,000 / $220)',
     ],
     proofMetric: {
       stat: '3x',

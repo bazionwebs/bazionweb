@@ -93,7 +93,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     id: 'launch',
     name: 'Launch',
     kenyaPrice: 'KSh 25,000',
-    intlPrice: '$495',
+    intlPrice: '$450',
     pages: 'Up to 5 pages',
     timeline: '5–10 working days',
     revisions: '1 revision round',
@@ -121,7 +121,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     badge: 'Most Popular',
     popular: true,
     kenyaPrice: 'KSh 90,000',   // ← canonical: priceBooks.ts KE-2026-v1
-    intlPrice: '$1,500',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
+    intlPrice: '$950',          // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Up to 10 pages',
     timeline: '10–18 working days',
     revisions: '2 revision rounds',
@@ -150,7 +150,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     name: 'Professional',
     badge: 'Established Orgs',
     kenyaPrice: 'KSh 160,000',  // ← canonical: priceBooks.ts KE-2026-v1
-    intlPrice: '$2,850',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
+    intlPrice: '$1,750',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Up to 15 pages',
     timeline: '15–25 working days',
     revisions: '2 revision rounds',
@@ -179,7 +179,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     name: 'Corporate & Custom',
     badge: 'Enterprise',
     kenyaPrice: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
-    intlPrice: 'From $5,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
+    intlPrice: 'From $3,600',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Unlimited / Custom Scoped',
     timeline: '4–8 weeks',
     revisions: 'Defined in Contract',
@@ -208,7 +208,7 @@ export const ECOMMERCE_PACKAGES: EcommercePlan[] = [
     id: 'ecom-starter',
     name: 'E-Commerce Starter',
     kenyaPrice: 'KSh 90,000',   // ← matches priceBooks.ts
-    intlPrice: '$1,500',        // ← matches priceBooks.ts
+    intlPrice: '$890',          // ← canonical: priceBooks.ts GLOBAL-2026-v1
     products: 'Up to 30 products',
     support: '30-day support',
     description: 'For boutiques, artisans, and retailers launching their first professional transactional store.',
@@ -233,7 +233,7 @@ export const ECOMMERCE_PACKAGES: EcommercePlan[] = [
     badge: 'Recommended Retail',
     popular: true,
     kenyaPrice: 'KSh 175,000',  // ← canonical: priceBooks.ts KE-2026-v1
-    intlPrice: '$2,950',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
+    intlPrice: '$1,650',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
     products: '100+ products',
     support: '90-day support',
     description: 'For established brands requiring inventory sync, discount coupons, advanced shipping, and high performance.',
@@ -257,7 +257,7 @@ export const ECOMMERCE_PACKAGES: EcommercePlan[] = [
     name: 'E-Commerce Professional',
     badge: 'High-Volume & B2B',
     kenyaPrice: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
-    intlPrice: 'From $5,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
+    intlPrice: 'From $3,600',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
     products: 'Enterprise Scale',
     support: 'Dedicated SLA',
     description: 'Bespoke commerce platforms with ERP/accounting integration, subscriptions, multi-vendor, or wholesale tiers.',
@@ -282,35 +282,35 @@ export const CUSTOM_SYSTEM_TIERS: CustomSystemTier[] = [
   {
     category: 'Discovery & Specification Phase',
     kenyaStarting: 'KSh 25,000 – 75,000',
-    intlStarting: '$500 – $1,500',
+    intlStarting: '$450',
     description: 'Before writing code, we document your exact system architecture, workflows, database schema, and milestones. (Fee credited toward development if project proceeds).',
     examples: ['Requirements Document', 'Wireframes & UI Prototypes', 'Database Entity Models', 'API Roadmap & Cost Estimate'],
   },
   {
     category: 'Client Portals & API Gateways',       // was: Booking Platforms
     kenyaStarting: 'From KSh 180,000',               // ← canonical: priceBooks.ts custom-tier-1
-    intlStarting: 'From $3,200',                     // ← canonical: priceBooks.ts custom-tier-1
+    intlStarting: 'From $2,200',                     // ← canonical: priceBooks.ts custom-tier-1
     description: 'Secure customer web applications with authenticated logins, appointment booking, file sharing, and self-service dashboards.',
     examples: ['Customer Account Portals', 'Appointment & Service Booking', 'Membership Hubs', 'Document Vaults'],
   },
   {
     category: 'CRMs & Institutional Management Systems',
     kenyaStarting: 'From KSh 200,000',
-    intlStarting: 'From $5,000',
+    intlStarting: 'From $3,900',
     description: 'Custom management systems tailored to your internal operational structure without recurring SaaS per-seat taxes.',
     examples: ['Church Management & Giving Systems', 'Lead & Deal Pipeline CRMs', 'Clinic/Patient Scheduling', 'Inventory & Asset Trackers'],
   },
   {
     category: 'School Portals & Learning Management (LMS)',
     kenyaStarting: 'From KSh 250,000 – 300,000',
-    intlStarting: 'From $7,500',
+    intlStarting: 'From $4,900',
     description: 'Full educational platforms with student admission, grading, course modules, quizzes, and automated certificate generation.',
     examples: ['School Management Portals', 'E-Learning & Video Courses', 'Student Grading & Fee Portals', 'Teacher/Parent Communication'],
   },
   {
     category: 'ERP, SaaS Platforms & Enterprise Portals',
     kenyaStarting: 'From KSh 500,000 – 750,000+',   // ← matches priceBooks.ts custom-tier-3: 750,000
-    intlStarting: 'From $10,000 – $20,000+',         // ← matches priceBooks.ts custom-tier-3: 12,500 base
+    intlStarting: 'From $8,500 – $15,000+',         // ← matches priceBooks.ts custom-tier-3
     description: 'Multi-tenant software-as-a-service platforms, automated billing engines, and cross-department enterprise operational systems.',
     examples: ['SaaS Minimum Viable Products (MVP)', 'Custom ERP Modules', 'Supply Chain Portals', 'Financial Transaction Platforms'],
   },
@@ -321,7 +321,7 @@ export const CARE_PLANS: CarePlan[] = [
     id: 'care-essential',
     name: 'Care Essential',
     kenyaPrice: 'KSh 5,000/month',
-    intlPrice: '$75/month',
+    intlPrice: '$39/month',
     hours: '1 hour support/month',
     description: 'Peace-of-mind maintenance keeping your site secure, updated, and bug-free.',
     features: [
@@ -341,7 +341,7 @@ export const CARE_PLANS: CarePlan[] = [
     badge: 'Most Popular',
     popular: true,
     kenyaPrice: 'KSh 10,000/month',
-    intlPrice: '$150/month',
+    intlPrice: '$89/month',
     hours: 'Up to 2 hours support/month',
     description: 'Proactive management with weekly update cycles, SEO health reviews, and priority turnaround.',
     features: [
@@ -362,7 +362,7 @@ export const CARE_PLANS: CarePlan[] = [
     name: 'Care Professional',
     badge: 'Mission-Critical',
     kenyaPrice: 'KSh 20,000/month',
-    intlPrice: '$300/month',
+    intlPrice: '$189/month',
     hours: 'Up to 5 hours support/month',
     description: 'Full digital engineering partnership for companies requiring ongoing development and optimization.',
     features: [
@@ -382,7 +382,7 @@ export const CARE_PLANS: CarePlan[] = [
     id: 'care-enterprise',
     name: 'Care Enterprise',
     kenyaPrice: 'From KSh 40,000/month',
-    intlPrice: 'From $600+/month',
+    intlPrice: 'From $390+/month',
     hours: 'Custom SLA allocation',
     description: 'Dedicated support agreements for high-revenue e-commerce, SaaS, institutions, and portals.',
     features: [
@@ -403,7 +403,7 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
     id: 'host-essential',
     name: 'Host Essential',
     kenyaPrice: 'KSh 4,500/year',
-    intlPrice: '$60/year',
+    intlPrice: '$49/year',
     billingPeriod: 'Billed annually',
     resources: 'SSD NVMe Storage, Unmetered Bandwidth',
     support: 'Standard email support',
@@ -426,7 +426,7 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
     badge: 'Recommended',
     popular: true,
     kenyaPrice: 'KSh 8,500/year',
-    intlPrice: '$120/year',
+    intlPrice: '$99/year',
     billingPeriod: 'Billed annually',
     resources: '3x CPU/RAM, 5 Corporate Email Inboxes',
     support: 'Priority ticket support',
@@ -449,7 +449,7 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
     name: 'Host Professional',
     badge: 'High Performance',
     kenyaPrice: 'KSh 15,000/year',
-    intlPrice: '$240/year',
+    intlPrice: '$189/year',
     billingPeriod: 'Billed annually',
     resources: 'Dedicated Compute Allocation, Redis Cache',
     support: 'Priority phone & ticket support',
@@ -471,7 +471,7 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
     name: 'Managed Cloud',
     badge: 'Custom Architecture',
     kenyaPrice: 'From KSh 30,000/year',
-    intlPrice: 'From $300/year',
+    intlPrice: 'From $290/year',
     billingPeriod: 'Billed annually',
     resources: 'Docker Containers, Dedicated DB, Scalable',
     support: 'Dedicated DevOps SLA',
@@ -496,50 +496,50 @@ export const ADD_ON_RATE_CARD: AddOnItem[] = [
     name: 'Additional Page',
     category: 'feature',
     kenyaPrice: 'KSh 2,000',
-    intlPrice: '$50',
+    intlPrice: '$40',
     description: 'Fully designed and responsive page adhering to your design system.',
     rawKes: 2000,
-    rawUsd: 50,
+    rawUsd: 40,
   },
   {
     id: 'blog-news',
     name: 'Blog / News Engine',
     category: 'feature',
     kenyaPrice: 'KSh 7,500',
-    intlPrice: '$150',
+    intlPrice: '$120',
     description: 'Full article CMS, categories, author bio, social sharing, and search.',
     rawKes: 7500,
-    rawUsd: 150,
+    rawUsd: 120,
   },
   {
     id: 'advanced-form',
     name: 'Advanced Form / Survey',
     category: 'feature',
     kenyaPrice: 'KSh 5,000',
-    intlPrice: '$100',
+    intlPrice: '$80',
     description: 'Multi-step logic, file uploads, conditional fields, and CRM webhook.',
     rawKes: 5000,
-    rawUsd: 100,
+    rawUsd: 80,
   },
   {
     id: 'booking-system',
     name: 'Online Booking System',
     category: 'feature',
     kenyaPrice: 'From KSh 15,000',
-    intlPrice: 'From $300',
+    intlPrice: 'From $220',
     description: 'Calendar scheduling, appointment reminders, and automated calendar sync.',
     rawKes: 15000,
-    rawUsd: 300,
+    rawUsd: 220,
   },
   {
     id: 'payment-gateway',
     name: 'Card Payment Gateway',
     category: 'integration',
     kenyaPrice: 'From KSh 10,000',
-    intlPrice: 'From $200',
+    intlPrice: 'From $150',
     description: 'Stripe, PayPal, or PesaPal secure card processing integration.',
     rawKes: 10000,
-    rawUsd: 200,
+    rawUsd: 150,
   },
   {
     id: 'mpesa-integration',
@@ -549,67 +549,67 @@ export const ADD_ON_RATE_CARD: AddOnItem[] = [
     intlPrice: 'Available on request',
     description: 'Direct Safaricom Daraja STK Push prompt for instant Kenya mobile checkout.',
     rawKes: 10000,
-    rawUsd: 100,
+    rawUsd: 80,
   },
   {
     id: 'newsletter',
     name: 'Newsletter Integration',
     category: 'marketing',
     kenyaPrice: 'KSh 5,000',
-    intlPrice: '$100',
+    intlPrice: '$80',
     description: 'Mailchimp or Brevo opt-in popups, footer forms, and welcome automated emails.',
     rawKes: 5000,
-    rawUsd: 100,
+    rawUsd: 80,
   },
   {
     id: 'advanced-seo',
     name: 'Advanced SEO Foundation',
     category: 'marketing',
     kenyaPrice: 'From KSh 15,000',
-    intlPrice: 'From $300',
+    intlPrice: 'From $220',
     description: 'Structured Schema.org markup, keyword research, meta tuning, and canonical audit.',
     rawKes: 15000,
-    rawUsd: 300,
+    rawUsd: 220,
   },
   {
     id: 'copywriting',
     name: 'Professional Copywriting',
     category: 'marketing',
     kenyaPrice: 'From KSh 10,000',
-    intlPrice: 'From $250',
+    intlPrice: 'From $180',
     description: 'Persuasive, conversion-driven copy for key landing pages and service decks.',
     rawKes: 10000,
-    rawUsd: 250,
+    rawUsd: 180,
   },
   {
     id: 'migration',
     name: 'Website Migration',
     category: 'workflow',
     kenyaPrice: 'From KSh 5,000',
-    intlPrice: 'From $100',
+    intlPrice: 'From $80',
     description: 'Zero-downtime transfer of content, database, and DNS from your old host.',
     rawKes: 5000,
-    rawUsd: 100,
+    rawUsd: 80,
   },
   {
     id: 'extra-revision',
     name: 'Additional Revision Round',
     category: 'workflow',
     kenyaPrice: 'KSh 3,000',
-    intlPrice: '$75',
+    intlPrice: '$50',
     description: 'One additional structured revision round beyond the package limit.',
     rawKes: 3000,
-    rawUsd: 75,
+    rawUsd: 50,
   },
   {
     id: 'custom-api',
     name: 'Custom API Integration',
     category: 'integration',
     kenyaPrice: 'From KSh 15,000',
-    intlPrice: 'From $300',
+    intlPrice: 'From $240',
     description: 'Connect third-party SaaS, ERP, CRM, or external webhooks.',
     rawKes: 15000,
-    rawUsd: 300,
+    rawUsd: 240,
   },
   {
     id: 'rush-delivery',

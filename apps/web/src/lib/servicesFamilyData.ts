@@ -57,7 +57,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Growing SMEs & Organizations',
         profile: 'Established businesses needing CMS and lead funnels',
-        fit: 'Business Package (Up to 10 pages, CMS, blog engine, KSh 90,000 / $1,500).',
+        fit: 'Business Package (Up to 10 pages, CMS, blog engine, KSh 90,000 / $950).',
       },
       {
         title: 'Corporations & Institutions',
@@ -70,7 +70,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'launch',
         name: 'Launch Website',
         priceKenya: 'KSh 25,000',
-        priceIntl: '$495',
+        priceIntl: '$450',
         pagesOrScale: 'Up to 5 pages',
         timeline: '5–10 working days',
         warranty: '14-day warranty',
@@ -91,7 +91,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'business',
         name: 'Business Website',
         priceKenya: 'KSh 90,000',  // ← canonical: priceBooks.ts KE-2026-v1
-        priceIntl: '$1,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
+        priceIntl: '$950',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'Most Popular',
         popular: true,
         pagesOrScale: 'Up to 10 pages',
@@ -116,7 +116,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'professional',
         name: 'Professional Website',
         priceKenya: 'KSh 160,000', // ← canonical: priceBooks.ts KE-2026-v1
-        priceIntl: '$2,850',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
+        priceIntl: '$1,750',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'Established Orgs',
         pagesOrScale: 'Up to 15 pages',
         timeline: '15–25 working days',
@@ -140,7 +140,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'corporate',
         name: 'Corporate & Enterprise',
         priceKenya: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
-        priceIntl: 'From $5,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
+        priceIntl: 'From $3,600',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'Custom Scope',
         pagesOrScale: 'Bespoke Architecture',
         timeline: '4–8 weeks',
@@ -249,7 +249,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'High-Volume & Wholesale Retailers',
         profile: 'B2B commerce, ERP integrations, and subscription billing',
-        fit: 'E-Commerce Professional (From KSh 320,000 / $5,500+).',
+        fit: 'E-Commerce Professional (From KSh 320,000 / $3,600+).',
       },
     ],
     packages: [
@@ -257,7 +257,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'ecom-starter',
         name: 'E-Commerce Starter',
         priceKenya: 'KSh 90,000',
-        priceIntl: '$1,500',
+        priceIntl: '$890',
         pagesOrScale: 'Up to 30 products',
         timeline: '2–3 weeks',
         warranty: '30-day warranty',
@@ -280,7 +280,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'ecom-business',
         name: 'E-Commerce Business',
         priceKenya: 'KSh 175,000', // ← canonical: priceBooks.ts KE-2026-v1
-        priceIntl: '$2,950',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
+        priceIntl: '$1,650',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'Recommended Retail',
         popular: true,
         pagesOrScale: '100+ products',
@@ -305,7 +305,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'ecom-pro',
         name: 'E-Commerce Professional',
         priceKenya: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
-        priceIntl: 'From $5,500',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
+        priceIntl: 'From $3,600',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
         badge: 'High-Volume & B2B',
         pagesOrScale: 'Enterprise Scale',
         timeline: '6–10 weeks',
