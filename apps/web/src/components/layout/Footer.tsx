@@ -34,28 +34,28 @@ const legal = [
 
 export default function Footer() {
   return (
-    <footer className="relative bg-gradient-to-b from-[#991B1B] via-[#450A0A] to-[#1A0303] text-white border-t border-red-500/30 shadow-2xl">
+    <footer className="relative bg-gradient-to-b from-[#374151] via-[#1F2937] to-[#111827] text-white border-t border-slate-600/50 shadow-2xl">
       {/* Main footer */}
       <div className="container-default py-16 lg:py-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
           {/* Brand column */}
           <div className="lg:col-span-2">
             <Logo variant="dark" markClassName="h-14 w-auto" className="mb-6" />
-            <p className="text-red-100/80 text-sm leading-relaxed max-w-sm mb-6">
+            <p className="text-slate-300 text-sm leading-relaxed max-w-sm mb-6">
               Complete website lifecycle management for growing businesses.
               One provider, one invoice — development, custom systems, security, and ongoing support.
             </p>
             <div className="flex flex-col gap-2 mb-8">
-              <a href="mailto:hello@bazionweb.com" className="flex items-center gap-2 text-red-100/80 hover:text-white transition-colors text-sm">
-                <Mail className="w-4 h-4 shrink-0 text-red-300" />
+              <a href="mailto:hello@bazionweb.com" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
+                <Mail className="w-4 h-4 shrink-0 text-[#14B8A6]" />
                 hello@bazionweb.com
               </a>
-              <a href="tel:+254721287053" className="flex items-center gap-2 text-red-100/80 hover:text-white transition-colors text-sm">
-                <Phone className="w-4 h-4 shrink-0 text-red-300" />
+              <a href="tel:+254721287053" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
+                <Phone className="w-4 h-4 shrink-0 text-[#14B8A6]" />
                 +254 721 287 053
               </a>
-              <span className="flex items-center gap-2 text-red-100/80 text-sm">
-                <MapPin className="w-4 h-4 shrink-0 text-red-300" />
+              <span className="flex items-center gap-2 text-slate-300 text-sm">
+                <MapPin className="w-4 h-4 shrink-0 text-[#14B8A6]" />
                 Remote-first · Worldwide
               </span>
             </div>
@@ -73,7 +73,7 @@ export default function Footer() {
                   aria-label={label}
                   className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
                 >
-                  <Icon className="w-4 h-4 text-slate-400 hover:text-white" />
+                  <Icon className="w-4 h-4 text-slate-300 hover:text-white" />
                 </a>
               ))}
             </div>
@@ -85,8 +85,8 @@ export default function Footer() {
             <ul className="flex flex-col gap-2.5">
               {services.map(s => (
                 <li key={s.name}>
-                  <Link href={s.href} className="text-sm text-red-200/80 hover:text-white transition-colors flex items-center gap-2">
-                    <s.icon className="w-3.5 h-3.5 text-rose-300 shrink-0" />
+                  <Link href={s.href} className="text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-2">
+                    <s.icon className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
                     {s.name}
                   </Link>
                 </li>
@@ -105,7 +105,7 @@ export default function Footer() {
                       href={l.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-red-200/80 hover:text-white transition-colors flex items-center gap-1.5"
+                      className="text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-1.5"
                     >
                       {l.name}
                       {l.name === 'System Status' && (
@@ -113,7 +113,7 @@ export default function Footer() {
                       )}
                     </a>
                   ) : (
-                    <Link href={l.href} className="text-sm text-red-200/80 hover:text-white transition-colors">
+                    <Link href={l.href} className="text-sm text-slate-300 hover:text-white transition-colors">
                       {l.name}
                     </Link>
                   )}
@@ -128,7 +128,7 @@ export default function Footer() {
             <ul className="flex flex-col gap-2.5">
               {legal.map(l => (
                 <li key={l.name}>
-                  <Link href={l.href} className="text-sm text-red-200/80 hover:text-white transition-colors">
+                  <Link href={l.href} className="text-sm text-slate-300 hover:text-white transition-colors">
                     {l.name}
                   </Link>
                 </li>
@@ -146,15 +146,15 @@ export default function Footer() {
               href="https://status.bazionweb.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-xs text-red-200/80 hover:text-white transition-colors group"
+              className="flex items-center gap-2 text-xs text-slate-300 hover:text-white transition-colors group"
             >
               <span className="w-2 h-2 rounded-full bg-[#22C55E] inline-block animate-pulse" />
               All systems operational
-              <span className="text-red-300/70 group-hover:text-red-200 transition-colors">· status.bazionweb.com</span>
+              <span className="text-slate-400 group-hover:text-slate-300 transition-colors">· status.bazionweb.com</span>
             </a>
           </div>
 
-          <p className="text-xs text-red-200/60">
+          <p className="text-xs text-slate-400">
             © {new Date().getFullYear()} BazionWeb. All rights reserved.
           </p>
         </div>
