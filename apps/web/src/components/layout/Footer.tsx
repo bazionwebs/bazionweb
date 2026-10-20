@@ -34,28 +34,28 @@ const legal = [
 
 export default function Footer() {
   return (
-    <footer className="relative bg-gradient-to-b from-[#1E293B] via-[#162032] to-[#0F172A] text-white border-t border-slate-700/50">
+    <footer className="relative bg-gradient-to-b from-[#991B1B] via-[#450A0A] to-[#1A0303] text-white border-t border-red-500/30 shadow-2xl">
       {/* Main footer */}
       <div className="container-default py-16 lg:py-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
           {/* Brand column */}
           <div className="lg:col-span-2">
             <Logo variant="dark" markClassName="h-14 w-auto" className="mb-6" />
-            <p className="text-slate-400 text-sm leading-relaxed max-w-sm mb-6">
+            <p className="text-red-100/80 text-sm leading-relaxed max-w-sm mb-6">
               Complete website lifecycle management for growing businesses.
               One provider, one invoice — development, custom systems, security, and ongoing support.
             </p>
             <div className="flex flex-col gap-2 mb-8">
-              <a href="mailto:hello@bazionweb.com" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm">
-                <Mail className="w-4 h-4 shrink-0 text-[#14B8A6]" />
+              <a href="mailto:hello@bazionweb.com" className="flex items-center gap-2 text-red-100/80 hover:text-white transition-colors text-sm">
+                <Mail className="w-4 h-4 shrink-0 text-red-300" />
                 hello@bazionweb.com
               </a>
-              <a href="tel:+254721287053" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm">
-                <Phone className="w-4 h-4 shrink-0 text-[#14B8A6]" />
+              <a href="tel:+254721287053" className="flex items-center gap-2 text-red-100/80 hover:text-white transition-colors text-sm">
+                <Phone className="w-4 h-4 shrink-0 text-red-300" />
                 +254 721 287 053
               </a>
-              <span className="flex items-center gap-2 text-slate-400 text-sm">
-                <MapPin className="w-4 h-4 shrink-0 text-[#14B8A6]" />
+              <span className="flex items-center gap-2 text-red-100/80 text-sm">
+                <MapPin className="w-4 h-4 shrink-0 text-red-300" />
                 Remote-first · Worldwide
               </span>
             </div>
@@ -85,8 +85,8 @@ export default function Footer() {
             <ul className="flex flex-col gap-2.5">
               {services.map(s => (
                 <li key={s.name}>
-                  <Link href={s.href} className="text-sm text-slate-400 hover:text-white transition-colors flex items-center gap-2">
-                    <s.icon className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
+                  <Link href={s.href} className="text-sm text-red-200/80 hover:text-white transition-colors flex items-center gap-2">
+                    <s.icon className="w-3.5 h-3.5 text-rose-300 shrink-0" />
                     {s.name}
                   </Link>
                 </li>
@@ -105,7 +105,7 @@ export default function Footer() {
                       href={l.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
+                      className="text-sm text-red-200/80 hover:text-white transition-colors flex items-center gap-1.5"
                     >
                       {l.name}
                       {l.name === 'System Status' && (
@@ -113,7 +113,7 @@ export default function Footer() {
                       )}
                     </a>
                   ) : (
-                    <Link href={l.href} className="text-sm text-slate-400 hover:text-white transition-colors">
+                    <Link href={l.href} className="text-sm text-red-200/80 hover:text-white transition-colors">
                       {l.name}
                     </Link>
                   )}
@@ -122,14 +122,13 @@ export default function Footer() {
             </ul>
           </div>
 
-
           {/* Legal */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-widest">Legal</h3>
             <ul className="flex flex-col gap-2.5">
               {legal.map(l => (
                 <li key={l.name}>
-                  <Link href={l.href} className="text-sm text-slate-400 hover:text-white transition-colors">
+                  <Link href={l.href} className="text-sm text-red-200/80 hover:text-white transition-colors">
                     {l.name}
                   </Link>
                 </li>
@@ -139,23 +138,23 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Bottom bar with Market Selector */}
-      <div className="border-t border-white/5">
+      {/* Bottom bar */}
+      <div className="border-t border-white/10">
         <div className="container-default py-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-wrap">
             <a
               href="https://status.bazionweb.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors group"
+              className="flex items-center gap-2 text-xs text-red-200/80 hover:text-white transition-colors group"
             >
               <span className="w-2 h-2 rounded-full bg-[#22C55E] inline-block animate-pulse" />
               All systems operational
-              <span className="text-slate-600 group-hover:text-slate-400 transition-colors">· status.bazionweb.com</span>
+              <span className="text-red-300/70 group-hover:text-red-200 transition-colors">· status.bazionweb.com</span>
             </a>
           </div>
 
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-red-200/60">
             © {new Date().getFullYear()} BazionWeb. All rights reserved.
           </p>
         </div>
