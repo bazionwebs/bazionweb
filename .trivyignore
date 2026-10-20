@@ -58,3 +58,25 @@ GHSA-h25m-26qc-wcjf
 CVE-2026-23864
 GHSA-q4gf-8mx6-v5v3
 CVE-2026-23869
+
+## API image — same acceptance policy. Everything fixable in range was
+## upgraded (multer 2.4.0, qs 6.16.1, body-parser 1.20.8, js-yaml 4.3.2,
+## lodash 4.18.1). The batch below is gated on the Nest single-number
+## upgrade (10 -> 12), which also lands body-parser 2.x / file-type 21 /
+## uuid 14 / js-yaml 5 natively; do not patch these piecemeal.
+
+## @nestjs/core — fixed in 11.1.18; running 10.4.22. Clears with the
+## Nest 12 upgrade.
+CVE-2026-35515
+
+## js-yaml !!omap resolver — fixed only in the 5.x line (5.2.1); the 4.x
+## line never got the backport (verified by the advisory's own matrix).
+GHSA-5p4m-2wfm-xmqj
+
+## file-type — fixed in 21.3.1 / 21.3.2; 20.4.1 hoisted by
+## @nestjs/common@10. file-type 21 is a breaking consumer-facing major.
+CVE-2026-31808
+CVE-2026-32630
+
+## uuid — fixed in 14.0.0; 11.0.3 hoisted by @nestjs/schedule@4.
+CVE-2026-41907
