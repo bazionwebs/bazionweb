@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { Globe, Shield, Wrench, Server, Zap, LifeBuoy, Twitter, Linkedin, Github, Mail, Phone, MapPin } from 'lucide-react';
@@ -21,7 +21,7 @@ const company = [
   { name: 'Blog', href: '/blog' },
   { name: 'FAQ', href: '/faq' },
   { name: 'Careers', href: '/careers' },
-  { name: 'System Status', href: 'https://status.bazionweb.com' },
+  { name: 'System Status', href: 'https://status.bazionwebs.com' },
 ];
 
 const legal = [
@@ -46,9 +46,9 @@ export default function Footer() {
               One provider, one invoice — development, custom systems, security, and ongoing support.
             </p>
             <div className="flex flex-col gap-2 mb-8">
-              <a href="mailto:hello@bazionweb.com" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
+              <a href="mailto:hello@bazionwebs.com" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
                 <Mail className="w-4 h-4 shrink-0 text-[#14B8A6]" />
-                hello@bazionweb.com
+                hello@bazionwebs.com
               </a>
               <a href="tel:+254721287053" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
                 <Phone className="w-4 h-4 shrink-0 text-[#14B8A6]" />
@@ -143,14 +143,14 @@ export default function Footer() {
         <div className="container-default py-5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-wrap">
             <a
-              href="https://status.bazionweb.com"
+              href="https://status.bazionwebs.com"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-xs text-slate-300 hover:text-white transition-colors group"
             >
               <span className="w-2 h-2 rounded-full bg-[#22C55E] inline-block animate-pulse" />
               All systems operational
-              <span className="text-slate-400 group-hover:text-slate-300 transition-colors">· status.bazionweb.com</span>
+              <span className="text-slate-400 group-hover:text-slate-300 transition-colors">· status.bazionwebs.com</span>
             </a>
           </div>
 

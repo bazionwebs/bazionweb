@@ -1,10 +1,10 @@
-import type { Metadata } from 'next';
+﻿import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Cookie Policy',
   description: 'BazionWeb Cookie Policy — what cookies and local storage items we use and why.',
-  alternates: { canonical: 'https://bazionweb.com/legal/cookies' },
+  alternates: { canonical: 'https://bazionwebs.com/legal/cookies' },
 };
 
 export default function CookiePolicyPage() {
@@ -59,7 +59,7 @@ export default function CookiePolicyPage() {
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">Your Choices</h2>
             <p className="text-slate-600 leading-relaxed">
-              Strictly necessary cookies cannot be disabled as they are required for the portal to function. You can opt out of analytics cookies via our cookie consent banner or by contacting <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>. Disabling analytics cookies does not affect your service.
+              Strictly necessary cookies cannot be disabled as they are required for the portal to function. You can opt out of analytics cookies via our cookie consent banner or by contacting <a href="mailto:privacy@bazionwebs.com" className="text-[#2563EB]">privacy@bazionwebs.com</a>. Disabling analytics cookies does not affect your service.
             </p>
           </section>
 

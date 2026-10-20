@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { ArrowRight, Clock } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -7,7 +7,7 @@ import JsonLd from '@/components/seo/JsonLd';
 export const metadata: Metadata = {
   title: 'Engineering Blog & Technical Insights | BazionWeb',
   description: 'Actionable guides and technical insights on Core Web Vitals, modern Next.js development, e-commerce optimization, SSL security, and managed website services.',
-  alternates: { canonical: 'https://bazionweb.com/blog' },
+  alternates: { canonical: 'https://bazionwebs.com/blog' },
 };
 
 const posts = [
@@ -94,20 +94,20 @@ export default function BlogPage() {
         data={{
           '@context': 'https://schema.org',
           '@type': 'Blog',
-          '@id': 'https://bazionweb.com/blog',
+          '@id': 'https://bazionwebs.com/blog',
           name: 'BazionWeb Engineering Blog',
           description: 'Practical guides on website maintenance, security, performance, and managed web services for business owners in Kenya and worldwide.',
-          url: 'https://bazionweb.com/blog',
+          url: 'https://bazionwebs.com/blog',
           publisher: {
             '@type': 'Organization',
-            '@id': 'https://bazionweb.com/#organization',
+            '@id': 'https://bazionwebs.com/#organization',
             name: 'BazionWeb',
           },
           blogPost: staticPosts.map(p => ({
             '@type': 'BlogPosting',
             headline: p.title,
             description: p.excerpt,
-            url: `https://bazionweb.com/blog/${p.slug}`,
+            url: `https://bazionwebs.com/blog/${p.slug}`,
             keywords: p.tags.join(', '),
           })),
         }}

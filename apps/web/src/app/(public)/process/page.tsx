@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { Search, PenTool, Code, FlaskConical, Rocket, RefreshCw, ArrowRight, CheckCircle2 } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: 'Our Engineering & Delivery Process',
   description:
     'From initial discovery and wireframing to Next.js development, rigorous QA testing, launch, and proactive care — explore our 6-phase engineering lifecycle.',
-  alternates: { canonical: 'https://bazionweb.com/process' },
+  alternates: { canonical: 'https://bazionwebs.com/process' },
 };
 
 const phases = [

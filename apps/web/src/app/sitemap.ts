@@ -1,6 +1,6 @@
-import { MetadataRoute } from 'next';
+﻿import { MetadataRoute } from 'next';
 
-const BASE = 'https://bazionweb.com';
+const BASE = 'https://bazionwebs.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

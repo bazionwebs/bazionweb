@@ -1,11 +1,11 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Careers & Engineering Opportunities',
   description: 'Join the BazionWeb engineering team. We are building the most dependable web and digital systems partner for growing businesses worldwide.',
-  alternates: { canonical: 'https://bazionweb.com/careers' },
+  alternates: { canonical: 'https://bazionwebs.com/careers' },
 };
 
 const values = [
@@ -64,7 +64,7 @@ export default function CareersPage() {
               Our team is complete for now — but great people are always welcome.
               Send an open application and we&apos;ll reach out when a fitting role opens.
             </p>
-            <Link href="mailto:careers@bazionweb.com" className="btn-secondary">
+            <Link href="mailto:careers@bazionwebs.com" className="btn-secondary">
               Send an open application
             </Link>
           </div>

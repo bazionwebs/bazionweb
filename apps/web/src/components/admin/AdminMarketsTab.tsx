@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -209,7 +209,7 @@ export default function AdminMarketsTab() {
               </Link>
               <button
                 type="button"
-                onClick={() => copyToClipboard('https://bazionweb.com/pricing?market=ke', 'ke-link')}
+                onClick={() => copyToClipboard('https://bazionwebs.com/pricing?market=ke', 'ke-link')}
                 className="text-slate-400 hover:text-white flex items-center gap-1 text-[11px] cursor-pointer"
               >
                 <Copy className="w-3 h-3" />
@@ -261,7 +261,7 @@ export default function AdminMarketsTab() {
               </Link>
               <button
                 type="button"
-                onClick={() => copyToClipboard('https://bazionweb.com/pricing?market=global', 'global-link')}
+                onClick={() => copyToClipboard('https://bazionwebs.com/pricing?market=global', 'global-link')}
                 className="text-slate-400 hover:text-white flex items-center gap-1 text-[11px] cursor-pointer"
               >
                 <Copy className="w-3 h-3" />

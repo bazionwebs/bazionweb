@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { Shield, Check, ArrowRight, Lock, Eye, AlertTriangle, FileSearch, RefreshCw, Bell } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -7,7 +7,7 @@ import JsonLd from '@/components/seo/JsonLd';
 export const metadata: Metadata = {
   title: 'Managed Website Security & Vulnerability Defense',
   description: 'Proactive WAF rules, weekly malware scanning, automated SSL monitoring, and monthly security audits to protect your web presence.',
-  alternates: { canonical: 'https://bazionweb.com/services/security' },
+  alternates: { canonical: 'https://bazionwebs.com/services/security' },
 };
 
 const layers = [
@@ -29,12 +29,12 @@ export default function SecurityPage() {
           '@type': 'Service',
           name: 'Managed Website Security & WAF Protection',
           description: 'Proactive WAF rules, weekly malware scanning, automated SSL monitoring, and monthly security audits to protect your web presence from threats.',
-          url: 'https://bazionweb.com/services/security',
-          provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
+          url: 'https://bazionwebs.com/services/security',
+          provider: { '@type': 'Organization', '@id': 'https://bazionwebs.com/#organization', name: 'BazionWeb' },
           areaServed: ['Kenya', 'Worldwide'],
           offers: [
-            { '@type': 'Offer', name: 'Security Add-on (Kenya)', price: '3000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
-            { '@type': 'Offer', name: 'Security Add-on (International)', price: '29', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+            { '@type': 'Offer', name: 'Security Add-on (Kenya)', price: '3000', priceCurrency: 'KES', url: 'https://bazionwebs.com/pricing' },
+            { '@type': 'Offer', name: 'Security Add-on (International)', price: '29', priceCurrency: 'USD', url: 'https://bazionwebs.com/pricing' },
           ],
         }}
       />

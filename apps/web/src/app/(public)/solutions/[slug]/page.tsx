@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+﻿import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SOLUTIONS_DATA } from '@/lib/solutionsData';
@@ -27,7 +27,7 @@ export function generateMetadata({ params }: Props): Metadata {
   return {
     title: `${data.name} Digital Platforms & Systems | BazionWeb`,
     description: data.heroSubtitle,
-    alternates: { canonical: `https://bazionweb.com/solutions/${params.slug}` },
+    alternates: { canonical: `https://bazionwebs.com/solutions/${params.slug}` },
     keywords: [
       `${data.name} website Kenya`,
       `${data.name} digital platform`,

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { Zap, ArrowRight, TrendingUp, Image, Database, Globe, BarChart2, Server } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -7,7 +7,7 @@ import JsonLd from '@/components/seo/JsonLd';
 export const metadata: Metadata = {
   title: 'Website Performance & Core Web Vitals Optimization',
   description: 'Core Web Vitals tuning, Lighthouse 95+ performance optimization, image compression, CDN caching, and database query optimization.',
-  alternates: { canonical: 'https://bazionweb.com/services/performance' },
+  alternates: { canonical: 'https://bazionwebs.com/services/performance' },
 };
 
 const optimizations = [
@@ -37,12 +37,12 @@ export default function PerformancePage() {
           '@type': 'Service',
           name: 'Website Performance & Core Web Vitals Optimization',
           description: 'Core Web Vitals tuning, Lighthouse 95+ targets, image compression, CDN caching, and database query optimization for faster Google rankings.',
-          url: 'https://bazionweb.com/services/performance',
-          provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
+          url: 'https://bazionwebs.com/services/performance',
+          provider: { '@type': 'Organization', '@id': 'https://bazionwebs.com/#organization', name: 'BazionWeb' },
           areaServed: ['Kenya', 'Worldwide'],
           offers: [
-            { '@type': 'Offer', name: 'Performance Audit & Fix (Kenya)', price: '15000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
-            { '@type': 'Offer', name: 'Performance Audit & Fix (International)', price: '149', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+            { '@type': 'Offer', name: 'Performance Audit & Fix (Kenya)', price: '15000', priceCurrency: 'KES', url: 'https://bazionwebs.com/pricing' },
+            { '@type': 'Offer', name: 'Performance Audit & Fix (International)', price: '149', priceCurrency: 'USD', url: 'https://bazionwebs.com/pricing' },
           ],
         }}
       />

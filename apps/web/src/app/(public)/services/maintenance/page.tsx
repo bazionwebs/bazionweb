@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { Wrench, Check, ArrowRight, RefreshCw, FileText, AlertCircle, Edit3, Activity, Package } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -7,7 +7,7 @@ import JsonLd from '@/components/seo/JsonLd';
 export const metadata: Metadata = {
   title: 'Website Care & Monthly Maintenance Plans',
   description: 'Monthly CMS & plugin updates, security patches, continuous health checks, and minor content updates delivered with transparent monthly reporting.',
-  alternates: { canonical: 'https://bazionweb.com/services/maintenance' },
+  alternates: { canonical: 'https://bazionwebs.com/services/maintenance' },
 };
 
 const tasks = [
@@ -39,12 +39,12 @@ export default function MaintenancePage() {
           '@type': 'Service',
           name: 'Website Care & Monthly Maintenance',
           description: 'Monthly CMS updates, security patches, health checks, content updates, and transparent monthly reporting. One team, one invoice.',
-          url: 'https://bazionweb.com/services/maintenance',
-          provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
+          url: 'https://bazionwebs.com/services/maintenance',
+          provider: { '@type': 'Organization', '@id': 'https://bazionwebs.com/#organization', name: 'BazionWeb' },
           areaServed: ['Kenya', 'Worldwide'],
           offers: [
-            { '@type': 'Offer', name: 'Starter Care Plan (Kenya)', price: '5000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
-            { '@type': 'Offer', name: 'Starter Care Plan (International)', price: '49', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+            { '@type': 'Offer', name: 'Starter Care Plan (Kenya)', price: '5000', priceCurrency: 'KES', url: 'https://bazionwebs.com/pricing' },
+            { '@type': 'Offer', name: 'Starter Care Plan (International)', price: '49', priceCurrency: 'USD', url: 'https://bazionwebs.com/pricing' },
           ],
         }}
       />

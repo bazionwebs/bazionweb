@@ -1,10 +1,10 @@
-import type { Metadata } from 'next';
+﻿import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'BazionWeb Privacy Policy — how we collect, use, and protect your personal data. GDPR and POPIA compliant.',
-  alternates: { canonical: 'https://bazionweb.com/legal/privacy' },
+  alternates: { canonical: 'https://bazionwebs.com/legal/privacy' },
 };
 
 export default function PrivacyPage() {
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">1. Who We Are (Data Controller)</h2>
             <p className="text-slate-600 leading-relaxed">
-              BazionWeb (&ldquo;we&rdquo;, &ldquo;our&rdquo;, &ldquo;us&rdquo;) is the data controller for personal data collected via bazionweb.com and our client portal. Contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>
+              BazionWeb (&ldquo;we&rdquo;, &ldquo;our&rdquo;, &ldquo;us&rdquo;) is the data controller for personal data collected via bazionwebs.com and our client portal. Contact: <a href="mailto:privacy@bazionwebs.com" className="text-[#2563EB]">privacy@bazionwebs.com</a>
             </p>
           </section>
 
@@ -96,7 +96,7 @@ export default function PrivacyPage() {
               <li><strong>Withdraw consent</strong> — at any time, for consent-based processing</li>
             </ul>
             <p className="text-slate-500 text-sm mt-3">
-              Submit requests to: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>. We respond within 30 days.
+              Submit requests to: <a href="mailto:privacy@bazionwebs.com" className="text-[#2563EB]">privacy@bazionwebs.com</a>. We respond within 30 days.
             </p>
           </section>
 
@@ -117,7 +117,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">8. Contact & Complaints</h2>
             <p className="text-slate-600 leading-relaxed">
-              Data Protection contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a><br />
+              Data Protection contact: <a href="mailto:privacy@bazionwebs.com" className="text-[#2563EB]">privacy@bazionwebs.com</a><br />
               You have the right to lodge a complaint with your local data protection authority.
             </p>
           </section>

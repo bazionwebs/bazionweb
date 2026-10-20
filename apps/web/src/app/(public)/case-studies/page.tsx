@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, TrendingUp, Shield, Zap, Clock } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -8,7 +8,7 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 export const metadata: Metadata = {
   title: 'Client Case Studies & Engineering Results | BazionWeb',
   description: 'Real client results: see how BazionWeb transformed website performance, online sales, and system reliability for healthcare networks, law firms, and NGOs.',
-  alternates: { canonical: 'https://bazionweb.com/case-studies' },
+  alternates: { canonical: 'https://bazionwebs.com/case-studies' },
 };
 
 type Study = {

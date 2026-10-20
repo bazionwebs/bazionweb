@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -487,7 +487,7 @@ export default function OnboardingPage() {
                     </div>
 
                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300">
-                      After completing the wire transfer, email your remittance advice to <strong>billing@bazionweb.com</strong> referencing your payment code above.
+                      After completing the wire transfer, email your remittance advice to <strong>billing@bazionwebs.com</strong> referencing your payment code above.
                     </div>
 
                     <Link

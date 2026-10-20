@@ -1,10 +1,10 @@
-import type { Metadata, Viewport } from 'next';
+﻿import type { Metadata, Viewport } from 'next';
 import '../styles/globals.css';
 import CookieBanner from '@/components/ui/CookieBanner';
 import MarketSimulatorBar from '@/components/layout/MarketSimulatorBar';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://bazionweb.com'),
+  metadataBase: new URL('https://bazionwebs.com'),
   title: {
     default: 'BazionWeb — Web Design, Custom Systems & E-Commerce Development',
     template: '%s | BazionWeb',
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     'corporate web design Kenya',
     'BazionWeb',
   ],
-  authors: [{ name: 'BazionWeb', url: 'https://bazionweb.com' }],
+  authors: [{ name: 'BazionWeb', url: 'https://bazionwebs.com' }],
   creator: 'BazionWeb',
   publisher: 'BazionWeb',
   formatDetection: {
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     alternateLocale: ['en_GB'],
-    url: 'https://bazionweb.com',
+    url: 'https://bazionwebs.com',
     siteName: 'BazionWeb',
     title: 'BazionWeb — Web Design, Custom Systems & E-Commerce Development',
     description:

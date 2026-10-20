@@ -34,18 +34,32 @@ export default function PortalLoginPage() {
     }
   }
 
-  function handleMagicLinkSubmit(e: React.FormEvent) {
+  const [deliveryInfo, setDeliveryInfo] = useState<{ delivered?: boolean; previewUrl?: string; message?: string } | null>(null);
+
+  async function handleMagicLinkSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!email) {
-      setError('Please enter your email address.');
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid work email address.');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const res = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch sign-in link');
+
+      setDeliveryInfo(data);
       setMagicLinkSent(true);
-    }, 900);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to dispatch magic link. Please check your network.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function launchDemoWorkspace() {
@@ -164,18 +178,40 @@ export default function PortalLoginPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-[#0F172A]">Check your inbox</h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      A sign-in link has been sent to <strong className="text-slate-700">{email}</strong>.
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      {deliveryInfo?.delivered ? (
+                        <>
+                          A secure sign-in email was dispatched to <strong className="text-slate-800">{email}</strong>. Please check your inbox and spam folder.
+                        </>
+                      ) : (
+                        <>
+                          Sign-in link created for <strong className="text-slate-800">{email}</strong>.
+                        </>
+                      )}
                     </p>
                   </div>
 
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-2">
                     <button
-                      onClick={launchDemoWorkspace}
-                      className="btn-primary w-full py-2.5 text-xs font-bold shadow-md"
+                      onClick={() => {
+                        if (deliveryInfo?.previewUrl) {
+                          window.location.href = deliveryInfo.previewUrl;
+                        } else {
+                          launchDemoWorkspace();
+                        }
+                      }}
+                      className="btn-primary w-full py-2.5 text-xs font-bold shadow-md justify-center flex items-center gap-1.5"
                     >
                       Authenticate Now (Instant Access)
                       <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setMagicLinkSent(false); setDeliveryInfo(null); }}
+                      className="text-xs text-slate-400 hover:text-slate-600 transition-colors block mx-auto pt-1"
+                    >
+                      &larr; Use another email
                     </button>
                   </div>
                 </div>
@@ -204,7 +240,7 @@ export default function PortalLoginPage() {
                 <div className="flex items-center justify-between mb-1">
                   <label htmlFor="password" className="label text-xs mb-0">Password</label>
                   <a
-                    href="https://auth.bazionweb.com/realms/bazionweb/login-actions/reset-credentials"
+                    href="https://auth.bazionwebs.com/realms/bazionweb/login-actions/reset-credentials"
                     className="text-[11px] text-[#2563EB] hover:underline"
                     target="_blank"
                     rel="noopener noreferrer"

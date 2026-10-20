@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+﻿import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SOLUTIONS_DATA } from '@/lib/solutionsData';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: 'Tailored Digital Solutions by Industry | BazionWeb',
   description:
     'Domain-engineered web architectures for SMEs, Churches, Educational Institutions, NGOs, Tech Startups, and Professional Practices in Kenya and globally.',
-  alternates: { canonical: 'https://bazionweb.com/solutions' },
+  alternates: { canonical: 'https://bazionwebs.com/solutions' },
 };
 
 const verticalIcons: Record<string, React.ElementType> = {

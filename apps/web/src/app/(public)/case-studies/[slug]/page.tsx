@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, TrendingUp, Shield, Zap, Clock, Check } from 'lucide-react';
@@ -92,12 +92,12 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   return {
     title: `${s.client} — Client Case Study`,
     description: s.challenge.slice(0, 160),
-    alternates: { canonical: `https://bazionweb.com/case-studies/${params.slug}` },
+    alternates: { canonical: `https://bazionwebs.com/case-studies/${params.slug}` },
     openGraph: {
       title: `${s.client} — Client Case Study | BazionWeb`,
       description: s.challenge.slice(0, 160),
       type: 'article',
-      url: `https://bazionweb.com/case-studies/${params.slug}`,
+      url: `https://bazionwebs.com/case-studies/${params.slug}`,
       images: [{ url: '/og-image.png', width: 1200, height: 630, alt: `${s.client} Case Study` }],
     },
     twitter: {
@@ -121,21 +121,21 @@ export default function CaseStudyPage({ params }: { params: { slug: string } }) 
           '@type': 'Article',
           headline: `How we transformed ${s.client}'s website management`,
           description: s.challenge.slice(0, 200),
-          image: 'https://bazionweb.com/og-image.png',
+          image: 'https://bazionwebs.com/og-image.png',
           author: {
             '@type': 'Organization',
-            '@id': 'https://bazionweb.com/#organization',
+            '@id': 'https://bazionwebs.com/#organization',
             name: 'BazionWeb',
-            url: 'https://bazionweb.com/',
+            url: 'https://bazionwebs.com/',
           },
           publisher: {
             '@type': 'Organization',
-            '@id': 'https://bazionweb.com/#organization',
+            '@id': 'https://bazionwebs.com/#organization',
             name: 'BazionWeb',
-            url: 'https://bazionweb.com/',
-            logo: 'https://bazionweb.com/brand/logo.png',
+            url: 'https://bazionwebs.com/',
+            logo: 'https://bazionwebs.com/brand/logo.png',
           },
-          mainEntityOfPage: `https://bazionweb.com/case-studies/${params.slug}`,
+          mainEntityOfPage: `https://bazionwebs.com/case-studies/${params.slug}`,
         }}
       />
       <section className="bg-[#0F172A] pt-32 pb-16">

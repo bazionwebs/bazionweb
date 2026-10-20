@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import {
   Globe,
   ShoppingCart,
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   title: 'Digital Engineering Services — Websites, E-Commerce & Systems | BazionWeb',
   description:
     'Complete website & system lifecycle: custom development, e-commerce, custom web applications, security, and ongoing care plans.',
-  alternates: { canonical: 'https://bazionweb.com/services' },
+  alternates: { canonical: 'https://bazionwebs.com/services' },
 };
 
 const productFamilies = [
@@ -152,7 +152,7 @@ export default function ServicesPage() {
               provider: {
                 '@type': 'Organization',
                 name: 'BazionWeb',
-                url: 'https://bazionweb.com',
+                url: 'https://bazionwebs.com',
               },
               offers: {
                 '@type': 'Offer',

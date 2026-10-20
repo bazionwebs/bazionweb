@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import type { Metadata } from 'next';
 import FaqAccordion, { type FaqItem } from '@/components/faq/FaqAccordion';
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: 'Frequently Asked Questions (FAQ) | BazionWeb',
   description:
     'Clear answers about BazionWeb web development, e-commerce, custom systems, timelines, pricing, code ownership, M-Pesa integration, and care plans.',
-  alternates: { canonical: 'https://bazionweb.com/faq' },
+  alternates: { canonical: 'https://bazionwebs.com/faq' },
 };
 
 const faqs: FaqItem[] = [
