@@ -1,8 +1,0 @@
-# Cloudflare Pages – exclude files exceeding the 25 MiB per-file limit
-.next/cache/
-node_modules/
-coverage/
-.git/
-*.exe
-*.zip
-*.tar.gz

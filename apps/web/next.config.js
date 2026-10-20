@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
@@ -37,6 +39,21 @@ const nextConfig = {
     return [
       { source: '/www', destination: '/', permanent: true },
     ];
+  },
+  webpack(config) {
+    if (config.cache && config.cache.type === 'filesystem') {
+      const cacheDirectory = path.join(__dirname, 'node_modules', '.cache', 'next-webpack');
+      if (Array.isArray(config.cache)) {
+        config.cache.forEach((cacheOptions) => {
+          if (cacheOptions.type === 'filesystem') {
+            cacheOptions.cacheDirectory = cacheDirectory;
+          }
+        });
+      } else {
+        config.cache.cacheDirectory = cacheDirectory;
+      }
+    }
+    return config;
   },
 };
 
