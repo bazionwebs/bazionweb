@@ -170,34 +170,57 @@ export default function SubscriptionCheckout({
     }
   };
 
-  // Card via Paystack (KES/USD) — server-side pricing, no client amount.
+  // Card via Paystack (KES/USD) — server-side pricing, fallback to Next.js route
   const handleCardPay = async () => {
-    if (!token) {
-      setFeedback({ type: 'error', message: 'Please sign in to pay by card.' });
-      return;
-    }
     setLoading(true);
     setFeedback(null);
 
+    const clientEmail = email || (typeof window !== 'undefined' ? localStorage.getItem('bw_user_email') : '') || 'client@bazionweb.com';
+    const amountToCharge = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualKes : currentPlan.priceMonthlyKes;
+
     try {
-      // International cards settle in USD; local display may be KES.
-      const chargeCurrency = activeTab === 'CARD' && billingCycle ? 'KES' : 'KES';
-      const res = await fetch(`${apiBase}/invoices/subscribe/paystack`, {
+      if (token) {
+        try {
+          const res = await fetch(`${apiBase}/invoices/subscribe/paystack`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              planId: currentPlan.id,
+              billingCycle,
+              currency: 'KES',
+              ...(email ? { email } : {}),
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.checkoutUrl) {
+              window.location.href = data.checkoutUrl;
+              return;
+            }
+          }
+        } catch {
+          // Fall back to direct paystack route below
+        }
+      }
+
+      // Direct Paystack checkout initialization
+      const res = await fetch('/api/paystack/initialize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planId: currentPlan.id,
-          billingCycle,
-          currency: chargeCurrency,
-          ...(email ? { email } : {}),
+          email: clientEmail,
+          amount: amountToCharge,
+          planSlug: currentPlan.slug,
+          currency: 'KES',
+          channels: ['card', 'mobile_money'],
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Card gateway initialization failed');
+      if (!res.ok) throw new Error(data.error || 'Card gateway initialization failed');
 
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (data.authorizationUrl) {
+        window.location.href = data.authorizationUrl;
       }
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Card gateway error' });

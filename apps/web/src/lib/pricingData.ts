@@ -95,7 +95,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     kenyaPrice: 'KSh 25,000',
     intlPrice: '$450',
     pages: 'Up to 5 pages',
-    timeline: '5–10 working days',
+    timeline: '10–15 working days (2–3 weeks)',
     revisions: '1 revision round',
     support: '14-day post-launch support',
     targetAudience: 'Individuals, startups and small businesses getting online with modern authority.',
@@ -123,7 +123,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     kenyaPrice: 'KSh 90,000',   // ← canonical: priceBooks.ts KE-2026-v1
     intlPrice: '$950',          // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Up to 10 pages',
-    timeline: '10–18 working days',
+    timeline: '15–20 working days (3–4 weeks)',
     revisions: '2 revision rounds',
     support: '30-day post-launch support',
     targetAudience: 'Recommended for growing SMEs, churches, schools, NGOs, consultants and institutions.',
@@ -152,7 +152,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     kenyaPrice: 'KSh 160,000',  // ← canonical: priceBooks.ts KE-2026-v1
     intlPrice: '$1,750',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Up to 15 pages',
-    timeline: '15–25 working days',
+    timeline: '4–6 weeks',
     revisions: '2 revision rounds',
     support: '60-day post-launch support',
     targetAudience: 'Established companies and multi-department organizations needing advanced presence & integrations.',
@@ -181,7 +181,7 @@ export const WEBSITE_PACKAGES: WebsitePlan[] = [
     kenyaPrice: 'From KSh 320,000', // ← canonical: priceBooks.ts KE-2026-v1
     intlPrice: 'From $3,600',       // ← canonical: priceBooks.ts GLOBAL-2026-v1
     pages: 'Unlimited / Custom Scoped',
-    timeline: '4–8 weeks',
+    timeline: '6–10 weeks',
     revisions: 'Defined in Contract',
     support: '90-day dedicated warranty',
     targetAudience: 'Corporations, universities, regional NGOs, large ministries and multi-entity institutions.',
