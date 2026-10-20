@@ -372,7 +372,7 @@ jobs:
   deploy-production:
     name: "Stage 8 — Deploy to Production"
     runs-on: ubuntu-latest
-    needs: [e2e-tests, lighthouse]
+    needs: [security-scan, migrate]
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
