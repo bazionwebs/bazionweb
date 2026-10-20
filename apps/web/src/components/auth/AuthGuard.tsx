@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/auth.store';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -13,6 +14,7 @@ interface AuthGuardProps {
 
 export default function AuthGuard({ children, requiredRoles = [], redirectTo = '/portal/login' }: AuthGuardProps) {
   const { isAuthenticated, hasRole, isTokenExpired, refresh } = useAuth();
+  const user = useAuthStore(s => s.user);
   const router = useRouter();
   const [checking, setChecking] = useState(true);
 
@@ -32,10 +34,23 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       if (requiredRoles.length > 0) {
         const permitted = requiredRoles.some(r => hasRole(r));
         if (!permitted) {
-          router.replace('/portal'); // insufficient permissions → client portal
+          router.replace('/portal');
           return;
         }
       }
+
+      // ── Subscription gate ───────────────────────────────────────────────────
+      // Non-admin clients with PENDING or missing subscriptionStatus must
+      // complete onboarding (payment) before accessing the dashboard.
+      const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some(r => hasRole(r));
+      if (!isAdminRole) {
+        const subStatus = user?.subscriptionStatus;
+        if (!subStatus || subStatus === 'PENDING' || subStatus === 'NONE') {
+          router.replace('/portal/onboarding');
+          return;
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       setChecking(false);
     }

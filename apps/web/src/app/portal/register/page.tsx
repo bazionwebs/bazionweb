@@ -396,7 +396,7 @@ function RegisterForm() {
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Creating your account…</>
                 ) : (
-                  <><ShieldCheck className="w-4 h-4" /> Create Account &amp; Enter Dashboard</>
+                  <><ShieldCheck className="w-4 h-4" /> Activate Account &amp; Continue</>
                 )}
               </button>
 

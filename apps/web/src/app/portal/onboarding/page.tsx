@@ -104,7 +104,6 @@ export default function OnboardingPage() {
   const user = useAuthStore(s => s.user);
   const pendingPlan = useAuthStore(s => s.pendingPlan);
   const clearSession = useAuthStore(s => s.clearSession);
-  const setPendingPlan = useAuthStore(s => s.setPendingPlan);
 
   const planSlug = pendingPlan || DEFAULT_PLAN;
   const plan = PLAN_META[planSlug] || PLAN_META[DEFAULT_PLAN];
@@ -510,14 +509,16 @@ export default function OnboardingPage() {
               </div>
             </div>
 
-            {/* Skip for now — access limited dashboard */}
-            <div className="mt-4 text-center">
-              <button
-                onClick={() => { setPendingPlan(planSlug); router.push('/portal'); }}
-                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                Skip for now → Explore your read-only dashboard first
-              </button>
+            {/* Locked-dashboard notice */}
+            <div className="mt-4 p-4 rounded-xl bg-slate-900/40 border border-slate-800 flex items-start gap-3 text-xs text-slate-500">
+              <Lock className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
+              <span>
+                Your dashboard unlocks immediately after payment is confirmed.{' '}
+                Need to pay by invoice?{' '}
+                <Link href="/contact" className="text-[#14B8A6] hover:underline font-semibold">
+                  Contact our team →
+                </Link>
+              </span>
             </div>
           </div>
         </div>
