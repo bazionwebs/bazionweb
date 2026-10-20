@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import AudioTestimonial from '@/components/testimonials/AudioTestimonial';
 import JsonLd from '@/components/seo/JsonLd';
 import HomepagePricingPreview from '@/components/pricing/HomepagePricingPreview';
 import {
@@ -647,19 +646,6 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Client Testimonial Snippet */}
-          <div className="bg-white rounded-2xl p-8 border border-slate-200/80 max-w-2xl mx-auto shadow-xs text-center">
-            <p className="text-sm md:text-base text-slate-700 italic mb-4 leading-relaxed">
-              &quot;BazionWeb took complete ownership of our website. No more SSL errors, no more slow pages — and when we needed help, someone actually answered.&quot;
-            </p>
-            <div className="font-bold text-sm text-[#0F172A]">Sarah K.</div>
-            <div className="text-xs text-slate-500">Director, Regional Healthcare NGO</div>
-            <AudioTestimonial
-              name="Sarah K."
-              src="/audio/testimonial-sarah.mp3"
-              transcript="BazionWeb took complete ownership of our website. No more SSL errors, no more slow pages — and when we needed help, someone actually answered."
-            />
-          </div>
         </div>
       </section>
 
