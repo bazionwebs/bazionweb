@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { Globe, Shield, Wrench, Server, Zap, LifeBuoy, Twitter, Linkedin, Github, Mail, Phone, MapPin } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
-import MarketSelectorTrigger from '@/components/layout/MarketSelectorTrigger';
 
 const services = [
   { name: 'Website Development', href: '/services/development', icon: Globe },
@@ -41,7 +40,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
           {/* Brand column */}
           <div className="lg:col-span-2">
-            <Logo variant="dark" markClassName="h-20 w-auto" className="mb-6" />
+            <Logo variant="dark" markClassName="h-10 md:h-11 w-auto" textClassName="text-2xl font-black text-white" className="mb-6" />
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm mb-6">
               Complete website lifecycle management for growing businesses.
               One provider, one invoice — development, custom systems, security, and ongoing support.
@@ -154,8 +153,6 @@ export default function Footer() {
               All systems operational
               <span className="text-slate-600 group-hover:text-slate-400 transition-colors">· status.bazionweb.com</span>
             </a>
-            <span className="text-slate-700 hidden md:inline">|</span>
-            <MarketSelectorTrigger variant="footer" />
           </div>
 
           <p className="text-xs text-slate-500">

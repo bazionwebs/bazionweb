@@ -31,22 +31,26 @@ export default function Logo({
   const content = (
     <>
       <Image
-        src="/brand/logo-full.png"
-        alt="BazionWeb – Build, Host n Grow"
-        width={1080}
-        height={1080}
+        src="/brand/logo-mark.png"
+        alt="BazionWeb Logo"
+        width={512}
+        height={282}
         priority={priority}
-        className={cn('h-14 w-auto shrink-0 object-contain', markClassName)}
+        className={cn(
+          'h-10 w-auto shrink-0 object-contain transition-transform duration-200 group-hover:scale-105',
+          variant === 'dark' && 'drop-shadow-[0_2px_10px_rgba(37,99,235,0.4)]',
+          markClassName
+        )}
       />
       {wordmark && (
         <span
           className={cn(
-            'font-extrabold text-xl tracking-tight leading-none',
+            'font-black text-xl tracking-tight leading-none',
             variant === 'light' ? 'text-[#0F172A]' : 'text-white',
-            textClassName,
+            textClassName
           )}
         >
-          BazionWeb
+          Bazion<span className={variant === 'light' ? 'text-[#2563EB]' : 'text-[#38BDF8]'}>Web</span>
         </span>
       )}
     </>
@@ -54,7 +58,7 @@ export default function Logo({
 
   if (href === null) {
     return (
-      <span className={cn('inline-flex items-center gap-3 shrink-0', className)}>
+      <span className={cn('inline-flex items-center gap-2.5 shrink-0 select-none group', className)}>
         {content}
       </span>
     );
@@ -64,7 +68,7 @@ export default function Logo({
     <Link
       href={href}
       aria-label="BazionWeb home"
-      className={cn('inline-flex items-center gap-3 shrink-0', className)}
+      className={cn('inline-flex items-center gap-2.5 shrink-0 select-none group', className)}
     >
       {content}
     </Link>

@@ -19,7 +19,7 @@ interface Props {
 }
 
 export default function ServiceFamilyView({ family }: Props) {
-  const { market, marketDef, openModal } = useMarketPreference();
+  const { market, marketDef } = useMarketPreference();
 
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -131,14 +131,6 @@ export default function ServiceFamilyView({ family }: Props) {
               <strong className="text-[#0F172A] font-bold">
                 {marketDef.flag} {marketDef.shortName} ({marketDef.currency})
               </strong>
-              <span>·</span>
-              <button
-                type="button"
-                onClick={openModal}
-                className="text-[#0D9488] hover:underline font-semibold cursor-pointer"
-              >
-                Change market
-              </button>
             </div>
           </div>
 

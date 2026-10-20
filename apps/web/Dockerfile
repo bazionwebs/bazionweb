@@ -43,7 +43,9 @@ RUN npm run build
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 # Patch-level OS upgrade: ship a base with current advisory fixes
-RUN apk update && apk upgrade --no-cache && apk add --no-cache curl
+RUN apk update && apk upgrade --no-cache && apk add --no-cache curl \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 WORKDIR /app
 

@@ -7,22 +7,14 @@ import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { Check, ArrowRight, ChevronRight } from 'lucide-react';
 
 export default function HomepagePricingPreview() {
-  const { market, marketDef, openModal } = useMarketPreference();
+  const { market, marketDef } = useMarketPreference();
 
   return (
     <div className="space-y-6">
       <div className="flex justify-center">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs text-slate-600">
-          <span>Commercial Market:</span>
-          <span className="font-bold text-slate-800">{marketDef.flag} {marketDef.shortName} ({marketDef.currency})</span>
-          <span className="text-slate-300">·</span>
-          <button
-            type="button"
-            onClick={openModal}
-            className="text-[#2563EB] hover:underline font-semibold cursor-pointer"
-          >
-            Change
-          </button>
+          <span>{marketDef.flag}</span>
+          <span className="font-bold text-slate-800">{marketDef.currency} Pricing Schedule</span>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">

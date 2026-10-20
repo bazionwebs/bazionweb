@@ -53,7 +53,7 @@ function QuoteCalculatorContent() {
   const setSession = useAuthStore(s => s.setSession);
   const setPendingPlan = useAuthStore(s => s.setPendingPlan);
 
-  const { market, marketCode, marketDef, openModal } = useMarketPreference();
+  const { market, marketCode, marketDef } = useMarketPreference();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [config, setConfig] = useState<QuoteConfig>({
     market,
@@ -299,19 +299,12 @@ Please confirm availability and discuss next steps.`;
           </p>
 
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-slate-200">
-            <span className="text-slate-400">Commercial Market:</span>
-            <span className="font-bold text-white flex items-center gap-1.5">
-              <span>{marketDef.flag}</span>
-              <span>{marketDef.name} ({marketDef.currency})</span>
-            </span>
+            <span>{marketDef.flag}</span>
+            <span className="font-semibold text-white">{marketDef.currency} Commercial Schedule</span>
             <span className="text-slate-500">·</span>
-            <button
-              type="button"
-              onClick={openModal}
-              className="text-[#14B8A6] hover:text-teal-300 font-bold underline underline-offset-2 transition-colors cursor-pointer"
-            >
-              Change market
-            </button>
+            <span className="text-slate-300">
+              {marketCode === 'KE' ? 'M-Pesa STK · 16% KRA VAT Inclusive' : 'Card / Wire · 0% Export'}
+            </span>
           </div>
         </div>
       </div>

@@ -18,7 +18,7 @@ interface BundleProps {
 }
 
 export default function SolutionPricingCard({ bundle, addons }: BundleProps) {
-  const { market, marketDef, openModal } = useMarketPreference();
+  const { market, marketDef } = useMarketPreference();
   const buildPrice = market === 'kenya' ? bundle.packagePriceKenya : bundle.packagePriceIntl;
   const carePrice = market === 'kenya' ? bundle.carePriceKenya : bundle.carePriceIntl;
 
@@ -40,15 +40,7 @@ export default function SolutionPricingCard({ bundle, addons }: BundleProps) {
             + {bundle.carePlan} ({carePrice})
           </div>
           <div className="flex items-center md:justify-end gap-1.5 text-[10px] text-slate-400 mt-1">
-            <span>{marketDef.flag} {marketDef.shortName}</span>
-            <span>·</span>
-            <button
-              type="button"
-              onClick={openModal}
-              className="text-[#14B8A6] hover:underline cursor-pointer"
-            >
-              Change
-            </button>
+            <span>{marketDef.flag} {marketDef.shortName} ({marketDef.currency})</span>
           </div>
         </div>
       </div>
