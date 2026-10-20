@@ -145,6 +145,26 @@ describe('PricingService', () => {
       const result = await service.resolveMarket('US');
       expect(result.code).toBe('GLOBAL');
     });
+    it('falls back to first active market when GLOBAL not found', async () => {
+      mockPrisma.market.findUnique.mockResolvedValue(null); // all findUnique calls return null
+      mockPrisma.market.findFirst
+        .mockResolvedValueOnce(null)   // countryCodes lookup
+        .mockResolvedValueOnce(mockMarketKE); // first active fallback
+      const result = await service.resolveMarket('XX');
+      expect(result.code).toBe('KE');
+    });
+
+    it('throws NotFoundException when no active markets exist at all', async () => {
+      mockPrisma.market.findUnique.mockResolvedValue(null);
+      mockPrisma.market.findFirst.mockResolvedValue(null);
+      await expect(service.resolveMarket('XX')).rejects.toThrow('No active commercial markets configured in database.');
+    });
+
+    it('returns preferred market when explicitly requested', async () => {
+      mockPrisma.market.findUnique.mockResolvedValue(mockMarketGlobal);
+      const result = await service.resolveMarket(undefined, 'GLOBAL');
+      expect(result.code).toBe('GLOBAL');
+    });
   });
 
   describe('calculateQuote', () => {
@@ -229,6 +249,78 @@ describe('PricingService', () => {
       expect(quote.breakdown.careMonthly.amount).toBe(12000);
       expect(quote.breakdown.hostingMonthly.amount).toBe(3500);
       expect(quote.breakdown.totalMonthlyRecurring).toBe(15500);
+    });
+
+    it('applies FIXED_DISCOUNT coupon correctly', async () => {
+      const fixedAdj = {
+        ...mockAdjustmentKE,
+        adjustmentType: 'FIXED_DISCOUNT',
+        value: 5000,
+        minSpend: 0,
+        maxDiscount: null,
+        couponCode: 'FLAT5K',
+      };
+      mockPrisma.marketAdjustment.findFirst.mockResolvedValue(fixedAdj);
+
+      const quote = await service.calculateQuote({
+        marketCode: 'KE',
+        packageType: 'business',
+        couponCode: 'FLAT5K',
+      });
+
+      expect(quote.breakdown.discounts.amount).toBe(5000);
+      expect(quote.breakdown.netBuildAmount).toBe(85000);
+    });
+
+    it('caps discount at maxDiscount when exceeded', async () => {
+      const cappedAdj = {
+        ...mockAdjustmentKE,
+        adjustmentType: 'PERCENTAGE_DISCOUNT',
+        value: 50,
+        minSpend: 0,
+        maxDiscount: 10000,
+        couponCode: 'BIG50',
+      };
+      mockPrisma.marketAdjustment.findFirst.mockResolvedValue(cappedAdj);
+
+      const quote = await service.calculateQuote({
+        marketCode: 'KE',
+        packageType: 'business', // 90000 * 50% = 45000, capped to 10000
+        couponCode: 'BIG50',
+      });
+
+      expect(quote.breakdown.discounts.amount).toBe(10000);
+      expect(quote.breakdown.netBuildAmount).toBe(80000);
+    });
+
+    it('calculates exclusive tax (added on top) for non-inclusive markets', async () => {
+      mockPrisma.market.findUnique.mockResolvedValue(mockMarketGlobal);
+      mockPrisma.taxRule.findFirst.mockResolvedValue({
+        id: 'tr-2',
+        marketId: 'market-global-uuid',
+        name: 'Sales Tax 10%',
+        taxType: 'SALES_TAX',
+        rate: 0.10,
+        isInclusive: false,
+        active: true,
+      });
+
+      const quote = await service.calculateQuote({
+        marketCode: 'GLOBAL',
+        packageType: 'business',
+      });
+
+      expect(quote.breakdown.tax.isInclusive).toBe(false);
+      expect(quote.breakdown.tax.taxAmount).toBe(9000); // 90000 * 0.10
+      expect(quote.totalPayableNow).toBe(99000); // 90000 + 9000
+    });
+
+    it('throws NotFoundException when no active price book exists', async () => {
+      mockPrisma.priceBook.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.calculateQuote({ marketCode: 'KE', packageType: 'business' }),
+      ).rejects.toThrow('No active price book found');
     });
   });
 
