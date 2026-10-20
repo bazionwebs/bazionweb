@@ -4,9 +4,9 @@ import Footer from './Footer';
 describe('Footer', () => {
   it('should render the brand name', () => {
     render(<Footer />);
-    expect(screen.getByRole('link', { name: 'BazionWeb home' })).toBeInTheDocument();
-    expect(screen.getByText('Bazion')).toBeInTheDocument();
-    expect(screen.getByText('Web')).toBeInTheDocument();
+    const brandLink = screen.getByRole('link', { name: 'BazionWeb home' });
+    expect(brandLink).toBeInTheDocument();
+    expect(brandLink.textContent).toContain('BazionWeb');
   });
 
   it('should render services links', () => {
