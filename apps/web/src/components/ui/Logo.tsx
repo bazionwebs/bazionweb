@@ -28,10 +28,12 @@ export default function Logo({
   textClassName,
   priority = false,
 }: LogoProps) {
+  const logoSrc = variant === 'dark' ? '/brand/logo-full-dark.png' : '/brand/logo-full.png';
+
   const content = (
     <>
       <Image
-        src="/brand/logo-full.png"
+        src={logoSrc}
         alt="BazionWeb – Build, Host n Grow"
         width={1080}
         height={1080}
