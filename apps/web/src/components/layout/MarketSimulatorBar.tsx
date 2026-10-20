@@ -9,12 +9,34 @@ import { BAZION_MARKET_COOKIE, LEGACY_MARKET_COOKIE } from '@/lib/marketEngine';
 export default function MarketSimulatorBar() {
   const { marketCode, marketDef, setMarket } = useMarketPreference();
   const [mounted, setMounted] = useState(false);
+  const [isAdminOrDev, setIsAdminOrDev] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isVisible, setIsVisible] = useState(true);
   const [source, setSource] = useState<'cookie' | 'auto'>('auto');
 
   useEffect(() => {
     setMounted(true);
+
+    // Strict security & client-protection check:
+    // Only mount for developers in local dev or authenticated admins/staff.
+    const isDev = process.env.NODE_ENV === 'development';
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const hasPreviewParam = params ? (params.has('preview_market') || params.has('dev_preview') || params.get('admin') === '1') : false;
+    const hasAdminSession = typeof window !== 'undefined' ? (
+      document.cookie.includes('bw_access_token') ||
+      window.localStorage.getItem('bw_admin_preview') === 'true' ||
+      window.localStorage.getItem('bw_auth_token') !== null
+    ) : false;
+
+    if (hasPreviewParam && typeof window !== 'undefined') {
+      window.localStorage.setItem('bw_admin_preview', 'true');
+    }
+
+    const authorized = isDev || hasPreviewParam || hasAdminSession;
+    setIsAdminOrDev(authorized);
+
+    if (!authorized) return;
+
     // Check if user previously closed or collapsed it
     const storedState = window.localStorage.getItem('bw_simulator_collapsed');
     if (storedState !== null) {
@@ -30,7 +52,7 @@ export default function MarketSimulatorBar() {
     setSource(hasCookie ? 'cookie' : 'auto');
   }, [marketCode]);
 
-  if (!mounted || !isVisible) return null;
+  if (!mounted || !isAdminOrDev || !isVisible) return null;
 
   const toggleCollapse = () => {
     const next = !isCollapsed;

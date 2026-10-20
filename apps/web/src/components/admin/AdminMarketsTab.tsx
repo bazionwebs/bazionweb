@@ -198,7 +198,7 @@ export default function AdminMarketsTab() {
             </div>
             <div className="flex items-center justify-between pt-3 text-xs">
               <Link
-                href="/pricing?market=ke"
+                href="/pricing?market=ke&dev_preview=1"
                 target="_blank"
                 className="inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300 font-bold"
               >
@@ -250,7 +250,7 @@ export default function AdminMarketsTab() {
             </div>
             <div className="flex items-center justify-between pt-3 text-xs">
               <Link
-                href="/pricing?market=global"
+                href="/pricing?market=global&dev_preview=1"
                 target="_blank"
                 className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 font-bold"
               >
