@@ -34,13 +34,13 @@ const legal = [
 
 export default function Footer() {
   return (
-    <footer className="bg-[#0F172A] text-white">
+    <footer className="relative bg-gradient-to-b from-[#1E293B] via-[#162032] to-[#0F172A] text-white border-t border-slate-700/50">
       {/* Main footer */}
       <div className="container-default py-16 lg:py-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
           {/* Brand column */}
           <div className="lg:col-span-2">
-            <Logo variant="dark" markClassName="h-10 md:h-11 w-auto" textClassName="text-2xl font-black text-white" className="mb-6" />
+            <Logo variant="dark" markClassName="h-14 w-auto" className="mb-6" />
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm mb-6">
               Complete website lifecycle management for growing businesses.
               One provider, one invoice — development, custom systems, security, and ongoing support.
