@@ -4,8 +4,12 @@ import crypto from 'crypto';
 export const dynamic = 'force-dynamic';
 
 /**
- * Fail-closed Paystack webhook (cards). Primary receiver is the API
- * POST /api/v1/webhooks/paystack. This Next route only logs if used.
+ * Paystack webhook — HMAC-verified receiver for charge events.
+ * Primary activation hookpoint for card & mobile-money payments.
+ *
+ * Events handled:
+ *   charge.success → activate subscription (log now; persist to DB when API ready)
+ *   charge.failed  → log for alerting / retry logic
  */
 export async function POST(req: Request) {
   try {
@@ -26,12 +30,35 @@ export async function POST(req: Request) {
     }
 
     const event = JSON.parse(bodyText);
+    const tx = event.data || {};
+
     if (event.event === 'charge.success') {
-      console.log('[Paystack Webhook] Charge Success:', {
-        reference: event.data?.reference,
-        amount: (event.data?.amount || 0) / 100,
-        currency: event.data?.currency,
-        channel: event.data?.channel,
+      const activationPayload = {
+        reference: tx.reference,
+        amount: (tx.amount || 0) / 100,
+        currency: tx.currency,
+        channel: tx.channel,                        // 'card' | 'mobile_money'
+        customerEmail: tx.customer?.email,
+        planSlug: tx.metadata?.planSlug || 'unknown',
+        source: tx.metadata?.source || 'unknown',
+        paidAt: tx.paid_at,
+      };
+
+      console.log('[Paystack] ✅ charge.success — activating subscription:', activationPayload);
+
+      // TODO: POST to internal API to activate subscription in DB:
+      // await fetch(`${process.env.INTERNAL_API_URL}/subscriptions/activate`, {
+      //   method: 'POST',
+      //   headers: { 'x-webhook-secret': process.env.WEBHOOK_INTERNAL_SECRET! },
+      //   body: JSON.stringify(activationPayload),
+      // });
+    }
+
+    if (event.event === 'charge.failed') {
+      console.warn('[Paystack] ❌ charge.failed:', {
+        reference: tx.reference,
+        customerEmail: tx.customer?.email,
+        gatewayResponse: tx.gateway_response,
       });
     }
 

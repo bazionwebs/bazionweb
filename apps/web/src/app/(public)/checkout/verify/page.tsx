@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 
 function VerifyPaymentContent() {
@@ -17,7 +17,9 @@ function VerifyPaymentContent() {
     amount?: number;
     currency?: string;
     channel?: string;
-    receipt?: string;
+    planSlug?: string;
+    customerEmail?: string;
+    paidAt?: string;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -35,7 +37,11 @@ function VerifyPaymentContent() {
 
         if (json.success) {
           setSuccess(true);
-          setData(json);
+          setData({
+            ...json,
+            planSlug: json.metadata?.planSlug || json.planSlug,
+            customerEmail: json.customer?.email || json.customerEmail,
+          });
         } else {
           setErrorMsg(json.message || 'Payment verification could not be confirmed.');
         }
@@ -103,13 +109,28 @@ function VerifyPaymentContent() {
             <div className="flex justify-between items-center pb-2 border-b border-slate-200">
               <span className="text-slate-500">Amount Settled</span>
               <span className="font-bold text-emerald-600 text-sm">
-                KES {(data?.amount || 25000).toLocaleString()}
+                {data?.currency || 'KES'} {(data?.amount ?? 0).toLocaleString()}
               </span>
             </div>
 
+            {data?.planSlug && (
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500 flex items-center gap-1">
+                  <Tag className="w-3 h-3" /> Plan Activated
+                </span>
+                <span className="font-semibold text-slate-700 capitalize">
+                  {data.planSlug.charAt(0).toUpperCase() + data.planSlug.slice(1)} Plan
+                </span>
+              </div>
+            )}
+
             <div className="flex justify-between items-center">
-              <span className="text-slate-500">SLA Response Window</span>
-              <span className="font-semibold text-slate-700">4-Hour Critical Guarantee (Active)</span>
+              <span className="text-slate-500 flex items-center gap-1">
+                <Mail className="w-3 h-3" /> Receipt Sent To
+              </span>
+              <span className="font-semibold text-slate-700 truncate max-w-[180px]">
+                {data?.customerEmail || 'billing on file'}
+              </span>
             </div>
           </div>
 
@@ -124,11 +145,11 @@ function VerifyPaymentContent() {
             </Link>
 
             <button
-              onClick={() => alert(`Downloading official PDF tax receipt for ${reference}`)}
+              onClick={() => window.open(`/api/paystack/verify?reference=${encodeURIComponent(reference || '')}&format=receipt`, '_blank')}
               className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
             >
               <Download className="w-3.5 h-3.5 text-slate-400" />
-              Download KRA eTIMS Tax Receipt (PDF)
+              Download Payment Receipt (PDF)
             </button>
           </div>
         </div>

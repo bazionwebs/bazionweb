@@ -25,16 +25,26 @@ export async function GET(req: Request) {
     const data = await res.json();
 
     if (data.status && data.data.status === 'success') {
-      return NextResponse.json({
+      const tx = data.data;
+
+      // ?format=receipt — future: generate PDF. For now return JSON with receipt hint.
+      const { searchParams: sp } = new URL(req.url);
+      const wantReceipt = sp.get('format') === 'receipt';
+
+      const payload = {
         success: true,
-        status: data.data.status,
-        reference: data.data.reference,
-        amount: data.data.amount / 100,
-        currency: data.data.currency,
-        channel: data.data.channel,
-        paidAt: data.data.paid_at,
-        customer: data.data.customer,
-      });
+        status: tx.status,
+        reference: tx.reference,
+        amount: tx.amount / 100,
+        currency: tx.currency,
+        channel: tx.channel,
+        paidAt: tx.paid_at,
+        customer: tx.customer,           // { email, first_name, last_name }
+        metadata: tx.metadata,           // { planSlug, phone, customer_type, source }
+        ...(wantReceipt ? { receiptNote: 'PDF generation coming soon. Keep this reference for your records.' } : {}),
+      };
+
+      return NextResponse.json(payload);
     }
 
     return NextResponse.json(

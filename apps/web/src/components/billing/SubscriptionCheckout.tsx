@@ -172,10 +172,15 @@ export default function SubscriptionCheckout({
 
   // Card via Paystack (KES/USD) — server-side pricing, fallback to Next.js route
   const handleCardPay = async () => {
+    const clientEmail = email || (typeof window !== 'undefined' ? localStorage.getItem('bw_user_email') : '');
+    if (!clientEmail || !clientEmail.includes('@')) {
+      setFeedback({ type: 'error', message: 'Please enter a valid billing email address to proceed with card payment.' });
+      return;
+    }
+
     setLoading(true);
     setFeedback(null);
 
-    const clientEmail = email || (typeof window !== 'undefined' ? localStorage.getItem('bw_user_email') : '') || 'client@bazionweb.com';
     const amountToCharge = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualKes : currentPlan.priceMonthlyKes;
 
     try {
