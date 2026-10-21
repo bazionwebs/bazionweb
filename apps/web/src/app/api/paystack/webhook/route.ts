@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolveApiBase } from '@/lib/api-base';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,9 +21,7 @@ export async function POST(req: Request) {
     const signature = req.headers.get('x-paystack-signature');
     const secretKey =
       process.env.PAYSTACK_WEBHOOK_SECRET || process.env.PAYSTACK_SECRET_KEY || '';
-    // Env may already carry the /api/v1 prefix — normalize against double-prefixing.
-    const rawBase = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || '';
-    const apiBaseUrl = rawBase.replace(/\/api\/v1\/?$/, '');
+    const apiBaseUrl = resolveApiBase();
 
     if (!secretKey) {
       return NextResponse.json({ error: 'Payments misconfigured' }, { status: 503 });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sendMagicLinkEmail } from '@/lib/email';
+import { resolveApiBase } from '@/lib/api-base';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,10 +22,7 @@ export async function POST(req: Request) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    // Env may already carry the /api/v1 prefix (e.g. https://api.bazionweb.com/api/v1)
-    // — normalize so versioned path segments can never double up.
-    const rawBase = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || '';
-    const apiBaseUrl = rawBase.replace(/\/api\/v1\/?$/, '');
+    const apiBaseUrl = resolveApiBase();
     if (!apiBaseUrl) {
       return NextResponse.json({ error: 'Auth backend not configured' }, { status: 503 });
     }
