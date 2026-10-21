@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Lock, Loader2, CheckCircle2, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
+import { resolveApiV1Base } from '@/lib/api-base';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://api.bazionweb.com/api/v1').replace(/\/$/, '');
+const API_BASE = resolveApiV1Base();
 
 function ClaimContent() {
   const searchParams = useSearchParams();

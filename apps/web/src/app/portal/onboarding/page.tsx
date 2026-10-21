@@ -21,6 +21,7 @@ import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import { resolveApiV1Base } from '@/lib/api-base';
 
 // ─── Plan config (mirrors SubscriptionCheckout) ────────────────────────────────
 const PLAN_META: Record<string, {
@@ -126,7 +127,7 @@ export default function OnboardingPage() {
   // Authenticated billing endpoints live on the NestJS API (JWT-guarded,
   // server-priced). Onboarding is a logged-in flow — reuse the session token.
   const accessToken = useAuthStore(s => s.accessToken);
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api.bazionweb.com/api/v1').replace(/\/$/, '');
+  const apiBase = resolveApiV1Base();
   const [activeMarket, setActiveMarket] = useState<'KE' | 'GLOBAL'>('GLOBAL');
 
   const [tab, setTab] = useState<PayTab>('MPESA');

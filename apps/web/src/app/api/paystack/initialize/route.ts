@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolveApiBase } from '@/lib/api-base';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic';
 const MIGRATION_TARGET = '/api/v1/invoices/guest/subscribe/paystack';
 
 export async function POST() {
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_INTERNAL_URL;
+  const apiBaseUrl = resolveApiBase();
 
   return NextResponse.json(
     {

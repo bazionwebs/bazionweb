@@ -7,8 +7,9 @@ import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
 import type { AuthUser } from '@/store/auth.store';
+import { resolveApiV1Base } from '@/lib/api-base';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://api.bazionweb.com/api/v1').replace(/\/$/, '');
+const API_BASE = resolveApiV1Base();
 
 /**
  * Magic-link verification — SERVER-VERIFIED.

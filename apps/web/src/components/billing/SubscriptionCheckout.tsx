@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Lock
 } from 'lucide-react';
+import { resolveApiV1Base } from '@/lib/api-base';
 
 export interface PlanConfig {
   id: string;
@@ -169,7 +170,7 @@ export default function SubscriptionCheckout({
     }
   };
 
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api.bazionweb.com/api/v1').replace(/\/$/, '');
+  const apiBase = resolveApiV1Base();
 
   // M-Pesa STK via IntaSend (KES) — server-side pricing, phone only.
   const handleMpesaPay = async (e: React.FormEvent) => {

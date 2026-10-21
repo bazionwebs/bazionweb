@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveMarket } from '@/lib/marketEngine';
 import { getPriceBookForMarket, formatCurrency } from '@/lib/priceBooks';
 import { ADD_ON_RATE_CARD } from '@/lib/pricingData';
+import { resolveApiV1Base } from '@/lib/api-base';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     });
 
     const marketCode = resolution.code;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+    const apiUrl = resolveApiV1Base();
 
     // ─── Attempt Centralized Database SSOT Query via API ─────────────────────
     try {

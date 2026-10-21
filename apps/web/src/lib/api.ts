@@ -1,9 +1,10 @@
 import axios from 'axios';
 import type { ApiResponse, QuoteRequest } from '@/types';
 import { useAuthStore } from '@/store/auth.store';
+import { resolveApiV1Base } from '@/lib/api-base';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'https://api.bazionweb.com/api/v1',
+  baseURL: resolveApiV1Base(),
   headers: {
     'Content-Type': 'application/json',
   },

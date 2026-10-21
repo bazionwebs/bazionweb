@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveMarket } from '@/lib/marketEngine';
+import { resolveApiV1Base } from '@/lib/api-base';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     let leadId = `LEAD-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
     // Forward lead to backend API Single Source of Truth
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+    const apiUrl = resolveApiV1Base();
     try {
       const response = await fetch(`${apiUrl}/quotes/submit`, {
         method: 'POST',

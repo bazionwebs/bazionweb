@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth.store';
+import { resolveApiV1Base } from '@/lib/api-base';
 
 export interface Notification {
   id: string;
@@ -18,6 +19,7 @@ export function useNotifications() {
   const [unreadCount,   setUnreadCount]   = useState(0);
   const [loading,       setLoading]       = useState(true);
   const accessToken = useAuthStore(s => s.accessToken);
+  const apiBase = resolveApiV1Base();
 
   // Initial fetch
   useEffect(() => {
@@ -25,7 +27,7 @@ export function useNotifications() {
 
     async function fetchInitial() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications?limit=20`, {
+        const res = await fetch(`${apiBase}/notifications?limit=20`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         const json = await res.json();
@@ -39,13 +41,13 @@ export function useNotifications() {
     }
 
     fetchInitial();
-  }, [accessToken]);
+  }, [accessToken, apiBase]);
 
   // SSE stream for real-time updates
   useEffect(() => {
     if (!accessToken) return;
 
-    const url = `${process.env.NEXT_PUBLIC_API_URL}/notifications/stream`;
+    const url = `${apiBase}/notifications/stream`;
     const es  = new EventSource(`${url}?token=${accessToken}`);
 
     es.onmessage = (event) => {
@@ -61,31 +63,31 @@ export function useNotifications() {
     };
 
     return () => es.close();
-  }, [accessToken]);
+  }, [accessToken, apiBase]);
 
   const markRead = useCallback(async (id: string) => {
     if (!accessToken) return;
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/${id}/read`, {
+      await fetch(`${apiBase}/notifications/${id}/read`, {
         method:  'PATCH',
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch { /* ignore */ }
-  }, [accessToken]);
+  }, [accessToken, apiBase]);
 
   const markAllRead = useCallback(async () => {
     if (!accessToken) return;
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/mark-all-read`, {
+      await fetch(`${apiBase}/notifications/mark-all-read`, {
         method:  'PATCH',
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch { /* ignore */ }
-  }, [accessToken]);
+  }, [accessToken, apiBase]);
 
   return { notifications, unreadCount, loading, markRead, markAllRead };
 }
