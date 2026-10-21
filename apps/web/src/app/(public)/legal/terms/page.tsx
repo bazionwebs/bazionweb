@@ -1,10 +1,10 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description: 'BazionWeb Terms of Service — the contract that governs your use of our managed web services.',
-  alternates: { canonical: 'https://bazionwebs.com/legal/terms' },
+  alternates: { canonical: 'https://bazionweb.com/legal/terms' },
 };
 
 const LAST_UPDATED = 'June 1, 2025';
@@ -109,7 +109,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-[#0F172A] mb-3">10. Contact</h2>
               <p className="text-slate-600 leading-relaxed">
-                Legal notices: <a href="mailto:legal@bazionwebs.com" className="text-[#2563EB] hover:underline">legal@bazionwebs.com</a><br />
+                Legal notices: <a href="mailto:legal@bazionweb.com" className="text-[#2563EB] hover:underline">legal@bazionweb.com</a><br />
                 BazionWeb, Nairobi, Kenya
               </p>
             </section>

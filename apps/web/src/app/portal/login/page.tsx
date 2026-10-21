@@ -240,7 +240,7 @@ export default function PortalLoginPage() {
                 <div className="flex items-center justify-between mb-1">
                   <label htmlFor="password" className="label text-xs mb-0">Password</label>
                   <a
-                    href="https://auth.bazionwebs.com/realms/bazionweb/login-actions/reset-credentials"
+                    href="https://auth.bazionweb.com/realms/bazionweb/login-actions/reset-credentials"
                     className="text-[11px] text-[#2563EB] hover:underline"
                     target="_blank"
                     rel="noopener noreferrer"

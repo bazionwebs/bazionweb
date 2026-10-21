@@ -1,10 +1,10 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import JsonLd from './JsonLd';
 
 export type Crumb = { name: string; href?: string };
 
-const SITE = 'https://bazionwebs.com';
+const SITE = 'https://bazionweb.com';
 
 /** Accessible breadcrumb trail with matching BreadcrumbList structured data. */
 export default function Breadcrumbs({ trail, tone = 'dark' }: { trail: Crumb[]; tone?: 'light' | 'dark' }) {

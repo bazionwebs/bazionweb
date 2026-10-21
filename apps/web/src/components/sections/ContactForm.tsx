@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { Send, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
@@ -176,7 +176,7 @@ export default function ContactForm() {
         {state === 'error' && (
           <div className="flex items-center gap-2 p-4 bg-red-50 rounded-xl text-sm text-red-600">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            Something went wrong. Please try again or email us directly at hello@bazionwebs.com
+            Something went wrong. Please try again or email us directly at hello@bazionweb.com
           </div>
         )}
 

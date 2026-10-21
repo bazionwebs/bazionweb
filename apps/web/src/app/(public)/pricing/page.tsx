@@ -1,4 +1,4 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import PricingView from '@/components/pricing/PricingView';
 import JsonLd from '@/components/seo/JsonLd';
 
@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: 'Transparent Pricing — Websites, E-Commerce & Systems | BazionWeb',
   description:
     'Clear 2026 pricing for websites, e-commerce, custom digital systems, and website care. Kenya market (KES + M-Pesa) and International (USD). No hidden fees.',
-  alternates: { canonical: 'https://bazionwebs.com/pricing' },
+  alternates: { canonical: 'https://bazionweb.com/pricing' },
   keywords: [
     'web design pricing Kenya', 'website development cost Kenya', 'website price KES',
     'web development cost USD', 'website maintenance pricing', 'e-commerce website cost',
@@ -29,7 +29,7 @@ const pricingSchema = {
       price: '25000', priceCurrency: 'KES',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     {
       '@type': 'Offer',
@@ -37,7 +37,7 @@ const pricingSchema = {
       price: '90000', priceCurrency: 'KES',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     {
       '@type': 'Offer',
@@ -45,7 +45,7 @@ const pricingSchema = {
       price: '495', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     {
       '@type': 'Offer',
@@ -53,7 +53,7 @@ const pricingSchema = {
       price: '1500', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     // ── E-Commerce ───────────────────────────────────────────────────────────
     {
@@ -62,7 +62,7 @@ const pricingSchema = {
       price: '90000', priceCurrency: 'KES',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     {
       '@type': 'Offer',
@@ -70,7 +70,7 @@ const pricingSchema = {
       price: '1500', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     // ── Website Care & Maintenance ────────────────────────────────────────────
     {
@@ -79,7 +79,7 @@ const pricingSchema = {
       price: '5000', priceCurrency: 'KES',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     {
       '@type': 'Offer',
@@ -87,7 +87,7 @@ const pricingSchema = {
       price: '75', priceCurrency: 'USD',  // ← corrected: was $49, canonical is $75
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     // ── Custom Systems & Portals ─────────────────────────────────────────────
     {
@@ -96,7 +96,7 @@ const pricingSchema = {
       price: '150000', priceCurrency: 'KES',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
     {
       '@type': 'Offer',
@@ -104,7 +104,7 @@ const pricingSchema = {
       price: '2500', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
-      url: 'https://bazionwebs.com/pricing',
+      url: 'https://bazionweb.com/pricing',
     },
   ],
 };

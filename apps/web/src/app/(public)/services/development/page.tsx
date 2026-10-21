@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import { Globe, Check, ArrowRight, Code, Figma, Zap, Search, Smartphone, Database } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -7,7 +7,7 @@ import JsonLd from '@/components/seo/JsonLd';
 export const metadata: Metadata = {
   title: 'Custom Next.js Web Development & Systems',
   description: 'Custom, responsive websites and web applications engineered on modern Next.js. CMS-integrated, SEO architecture, mobile UX, and high conversion.',
-  alternates: { canonical: 'https://bazionwebs.com/services/development' },
+  alternates: { canonical: 'https://bazionweb.com/services/development' },
 };
 
 const deliverables = [
@@ -37,12 +37,12 @@ export default function WebDevPage() {
           '@type': 'Service',
           name: 'Custom Website Design & Development',
           description: 'Custom, responsive websites and web applications engineered on modern Next.js. CMS-integrated, mobile-first, SEO-ready, and built to convert visitors into clients.',
-          url: 'https://bazionwebs.com/services/development',
-          provider: { '@type': 'Organization', '@id': 'https://bazionwebs.com/#organization', name: 'BazionWeb' },
+          url: 'https://bazionweb.com/services/development',
+          provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
           areaServed: ['Kenya', 'Worldwide'],
           offers: [
-            { '@type': 'Offer', name: 'Launch Website (Kenya)', price: '25000', priceCurrency: 'KES', url: 'https://bazionwebs.com/pricing' },
-            { '@type': 'Offer', name: 'Launch Website (International)', price: '495', priceCurrency: 'USD', url: 'https://bazionwebs.com/pricing' },
+            { '@type': 'Offer', name: 'Launch Website (Kenya)', price: '25000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
+            { '@type': 'Offer', name: 'Launch Website (International)', price: '495', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
           ],
         }}
       />

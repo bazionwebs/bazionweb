@@ -1,4 +1,4 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import ContactForm from '@/components/sections/ContactForm';
 import { Mail, Phone, MapPin, Clock, MessageSquare, Calendar } from 'lucide-react';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -7,15 +7,15 @@ import JsonLd from '@/components/seo/JsonLd';
 export const metadata: Metadata = {
   title: 'Contact Our Engineering & Sales Team | BazionWeb',
   description: 'Get in touch for a free website assessment, custom software consultation, or e-commerce quote. Based in Nairobi, Kenya, serving clients worldwide.',
-  alternates: { canonical: 'https://bazionwebs.com/contact' },
+  alternates: { canonical: 'https://bazionweb.com/contact' },
 };
 
 const contactMethods = [
   {
     icon: Mail,
     label: 'Email us',
-    value: 'hello@bazionwebs.com',
-    href: 'mailto:hello@bazionwebs.com',
+    value: 'hello@bazionweb.com',
+    href: 'mailto:hello@bazionweb.com',
     sub: 'We reply within 24 hours',
   },
   {
@@ -28,8 +28,8 @@ const contactMethods = [
   {
     icon: MessageSquare,
     label: 'Support ticket',
-    value: 'support.bazionwebs.com',
-    href: 'https://support.bazionwebs.com',
+    value: 'support.bazionweb.com',
+    href: 'https://support.bazionweb.com',
     sub: 'Existing clients only',
   },
 ];
@@ -42,16 +42,16 @@ export default function ContactPage() {
           '@context': 'https://schema.org',
           '@type': 'ContactPage',
           name: 'Contact BazionWeb',
-          url: 'https://bazionwebs.com/contact',
+          url: 'https://bazionweb.com/contact',
           description: 'Get in touch for a free website assessment, custom software consultation, or e-commerce quote.',
           mainEntity: {
             '@type': 'Organization',
             name: 'BazionWeb',
-            email: 'hello@bazionwebs.com',
+            email: 'hello@bazionweb.com',
             telephone: '+254721287053',
             contactPoint: {
               '@type': 'ContactPoint',
-              email: 'hello@bazionwebs.com',
+              email: 'hello@bazionweb.com',
               telephone: '+254721287053',
               contactType: 'customer support and sales',
               availableLanguage: ['English', 'Swahili'],

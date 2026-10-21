@@ -140,7 +140,7 @@ export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail:
   </div>
   <div class="footer">
     &copy; ${new Date().getFullYear()} Bazion Technologies Limited. Riverside Square, Nairobi, Kenya.<br>
-    billing@bazionwebs.com &bull; www.bazionwebs.com
+    billing@bazionweb.com &bull; www.bazionweb.com
   </div>
 </body>
 </html>`;
@@ -150,7 +150,7 @@ export async function sendMagicLinkEmail(options: SendMagicLinkOptions): Promise
   const { to, magicLinkUrl } = options;
   const html = generateMagicLinkEmailHtml(magicLinkUrl, to);
   const subject = 'Your BazionWeb Sign-In Link';
-  const fromEmail = process.env.SMTP_FROM || 'BazionWeb <noreply@bazionwebs.com>';
+  const fromEmail = process.env.SMTP_FROM || 'BazionWeb <noreply@bazionweb.com>';
 
   // 1. Check for Resend API Key
   const resendApiKey = process.env.RESEND_API_KEY;

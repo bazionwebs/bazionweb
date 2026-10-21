@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Target, Eye, Heart, Shield, Users, TrendingUp } from 'lucide-react';
 import type { Metadata } from 'next';
@@ -8,7 +8,7 @@ import JsonLd from '@/components/seo/JsonLd';
 export const metadata: Metadata = {
   title: 'About BazionWeb — Digital Systems & Web Engineering Partner',
   description: 'Learn about BazionWeb: our engineering mission, core values, leadership team, and track record in delivering high-converting websites and systems for SMEs worldwide.',
-  alternates: { canonical: 'https://bazionwebs.com/about' },
+  alternates: { canonical: 'https://bazionweb.com/about' },
 };
 
 const values = [
@@ -80,13 +80,13 @@ export default function AboutPage() {
           '@context': 'https://schema.org',
           '@type': 'AboutPage',
           name: 'About BazionWeb',
-          url: 'https://bazionwebs.com/about',
+          url: 'https://bazionweb.com/about',
           description: 'Learn about BazionWeb: our engineering mission, core values, leadership team, and track record.',
           mainEntity: {
             '@type': 'Organization',
             name: 'BazionWeb',
-            url: 'https://bazionwebs.com',
-            logo: 'https://bazionwebs.com/brand/logo.png',
+            url: 'https://bazionweb.com',
+            logo: 'https://bazionweb.com/brand/logo.png',
             sameAs: [
               'https://twitter.com/bazionweb',
               'https://linkedin.com/company/bazionweb',

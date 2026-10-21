@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -56,7 +56,7 @@ const mockClient = {
   contactName: 'Dr. Sarah Kamau',
   role: 'Managing Director & Founder',
   domain: 'acaciahealthcare.co.ke',
-  stagingUrl: 'https://staging-acacia.bazionwebs.com',
+  stagingUrl: 'https://staging-acacia.bazionweb.com',
   productionUrl: 'https://acaciahealthcare.co.ke',
   activePlan: 'Business Cloud Care',
   slaGuarantee: '4-Hour Critical SLA',
@@ -580,7 +580,7 @@ export default function PortalDashboard() {
                           Lead Engineer
                         </div>
                         <div className="text-sm font-bold text-[#0F172A]">Peter Mwangi (Bazion Lead)</div>
-                        <div className="text-xs text-slate-400">peter@bazionwebs.com</div>
+                        <div className="text-xs text-slate-400">peter@bazionweb.com</div>
                       </div>
                     </div>
                   </div>
@@ -859,7 +859,7 @@ export default function PortalDashboard() {
                       {[
                         { type: 'A', name: '@', target: '172.67.194.82', proxy: 'Proxied (Cloudflare)' },
                         { type: 'CNAME', name: 'www', target: 'acaciahealthcare.co.ke', proxy: 'Proxied' },
-                        { type: 'CNAME', name: 'staging', target: 'staging-acacia.bazionwebs.com', proxy: 'Proxied' },
+                        { type: 'CNAME', name: 'staging', target: 'staging-acacia.bazionweb.com', proxy: 'Proxied' },
                         { type: 'TXT', name: '@', target: 'v=spf1 include:_spf.google.com ~all', proxy: 'DNS Only' },
                       ].map((record, i) => (
                         <tr key={i} className="hover:bg-slate-50/50">

@@ -94,7 +94,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
   const formattedAmount = formatCurrency(data.amount, data.currency);
   const formattedDate = formatDate(data.paidAt);
   const channelDisplay = formatChannel(data.channel);
-  const customerEmail = data.customer?.email || 'billing-customer@bazionwebs.com';
+  const customerEmail = data.customer?.email || 'billing-customer@bazionweb.com';
   const customerPhone = data.metadata?.phone || data.customer?.phone || 'On file';
   const customerName = [data.customer?.first_name, data.customer?.last_name].filter(Boolean).join(' ') || customerEmail.split('@')[0];
   const receiptNumber = `REC-${data.reference.toUpperCase()}`;
@@ -531,7 +531,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
           <strong>Bazion Technologies Limited</strong><br>
           Digital Infrastructure & Managed Web Engineering<br>
           Riverside Square, Riverside Drive, Nairobi, Kenya<br>
-          PIN: P051982344X &bull; Tel: +254 721 287 053 &bull; billing@bazionwebs.com &bull; www.bazionwebs.com
+          PIN: P051982344X &bull; Tel: +254 721 287 053 &bull; billing@bazionweb.com &bull; www.bazionweb.com
         </div>
       </div>
       <div class="receipt-meta">
@@ -629,7 +629,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
     <!-- Footer -->
     <div class="receipt-footer">
       <p>Thank you for choosing <strong>Bazion Technologies</strong>. Your subscription and managed services are now active.</p>
-      <p>For billing assistance or questions regarding this transaction, contact <strong>billing@bazionwebs.com</strong> or call <strong>+254 721 287 053</strong>.</p>
+      <p>For billing assistance or questions regarding this transaction, contact <strong>billing@bazionweb.com</strong> or call <strong>+254 721 287 053</strong>.</p>
     </div>
 
   </div>

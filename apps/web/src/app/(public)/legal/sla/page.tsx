@@ -1,10 +1,10 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Service Level Agreement',
   description: 'BazionWeb SLA — uptime guarantees, response times, and service credit definitions per plan.',
-  alternates: { canonical: 'https://bazionwebs.com/legal/sla' },
+  alternates: { canonical: 'https://bazionweb.com/legal/sla' },
 };
 
 export default function SLAPage() {
@@ -111,7 +111,7 @@ export default function SLAPage() {
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">5. Monitoring & Measurement</h2>
             <p className="text-slate-600 leading-relaxed">
-              Uptime is measured by Uptime Kuma checking your site at 60-second intervals from our monitoring server. A site is considered &ldquo;down&rdquo; when three consecutive checks fail with a non-2xx/3xx response. Status is visible at <a href="https://status.bazionwebs.com" className="text-[#2563EB]">status.bazionwebs.com</a>.
+              Uptime is measured by Uptime Kuma checking your site at 60-second intervals from our monitoring server. A site is considered &ldquo;down&rdquo; when three consecutive checks fail with a non-2xx/3xx response. Status is visible at <a href="https://status.bazionweb.com" className="text-[#2563EB]">status.bazionweb.com</a>.
             </p>
           </section>
 

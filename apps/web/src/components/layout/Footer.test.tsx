@@ -1,4 +1,4 @@
-﻿import { render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import Footer from './Footer';
 
 describe('Footer', () => {
@@ -29,7 +29,7 @@ describe('Footer', () => {
 
   it('should render contact info', () => {
     render(<Footer />);
-    expect(screen.getByText('hello@bazionwebs.com')).toBeInTheDocument();
+    expect(screen.getByText('hello@bazionweb.com')).toBeInTheDocument();
     expect(screen.getByText('Remote-first · Worldwide')).toBeInTheDocument();
   });
 });

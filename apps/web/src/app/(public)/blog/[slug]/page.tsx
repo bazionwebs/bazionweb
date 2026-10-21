@@ -184,12 +184,12 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   return {
     title: post.title,
     description: post.excerpt,
-    alternates: { canonical: `https://bazionwebs.com/blog/${params.slug}` },
+    alternates: { canonical: `https://bazionweb.com/blog/${params.slug}` },
     openGraph: {
       title: post.title,
       description: post.excerpt,
       type: 'article',
-      url: `https://bazionwebs.com/blog/${params.slug}`,
+      url: `https://bazionweb.com/blog/${params.slug}`,
       images: [{ url: '/og-image.png', width: 1200, height: 630, alt: post.title }],
     },
     twitter: {
@@ -223,22 +223,22 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
           '@type': 'BlogPosting',
           headline: post.title,
           description: post.excerpt,
-          image: 'https://bazionwebs.com/og-image.png',
+          image: 'https://bazionweb.com/og-image.png',
           datePublished: new Date(post.date).toISOString(),
           author: {
             '@type': 'Organization',
-            '@id': 'https://bazionwebs.com/#organization',
+            '@id': 'https://bazionweb.com/#organization',
             name: 'BazionWeb',
-            url: 'https://bazionwebs.com/',
+            url: 'https://bazionweb.com/',
           },
           publisher: {
             '@type': 'Organization',
-            '@id': 'https://bazionwebs.com/#organization',
+            '@id': 'https://bazionweb.com/#organization',
             name: 'BazionWeb',
-            url: 'https://bazionwebs.com/',
-            logo: 'https://bazionwebs.com/brand/logo.png',
+            url: 'https://bazionweb.com/',
+            logo: 'https://bazionweb.com/brand/logo.png',
           },
-          mainEntityOfPage: `https://bazionwebs.com/blog/${params.slug}`,
+          mainEntityOfPage: `https://bazionweb.com/blog/${params.slug}`,
           keywords: post.tags.join(', '),
         }}
       />

@@ -27,7 +27,7 @@ export function generateMetadata({ params }: Props): Metadata {
   return {
     title: `${data.name} Digital Platforms & Systems | BazionWeb`,
     description: data.heroSubtitle,
-    alternates: { canonical: `https://bazionwebs.com/solutions/${params.slug}` },
+    alternates: { canonical: `https://bazionweb.com/solutions/${params.slug}` },
     keywords: [
       `${data.name} website Kenya`,
       `${data.name} digital platform`,

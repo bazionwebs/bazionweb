@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import JsonLd from '@/components/seo/JsonLd';
 import HomepagePricingPreview from '@/components/pricing/HomepagePricingPreview';
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   title: 'Build. Launch. Manage. Grow. | BazionWeb Digital Engineering',
   description:
     'Digital platforms, websites, and custom systems engineered for businesses, churches, schools, NGOs, and startups. Transparent pricing, 100% client asset ownership, and SLA care.',
-  alternates: { canonical: 'https://bazionwebs.com/' },
+  alternates: { canonical: 'https://bazionweb.com/' },
 };
 
 // ─── Service Families ────────────────────────────────────────────────────────
@@ -233,7 +233,7 @@ export default function HomePage() {
           '@context': 'https://schema.org',
           '@type': 'ProfessionalService',
           name: 'BazionWeb',
-          url: 'https://bazionwebs.com/',
+          url: 'https://bazionweb.com/',
           description:
             'Digital engineering platform: websites, e-commerce, custom software, and managed care plans engineered for businesses and institutions in Kenya and worldwide.',
           telephone: '+254721287053',

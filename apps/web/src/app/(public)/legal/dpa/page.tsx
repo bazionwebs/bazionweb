@@ -1,10 +1,10 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'Data Processing Agreement',
   description: 'BazionWeb Data Processing Agreement (DPA) — GDPR Art. 28 compliant data processing terms.',
-  alternates: { canonical: 'https://bazionwebs.com/legal/dpa' },
+  alternates: { canonical: 'https://bazionweb.com/legal/dpa' },
 };
 
 export default function DPAPage() {
@@ -96,7 +96,7 @@ export default function DPAPage() {
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">6. Requesting a Signed DPA</h2>
             <p className="text-slate-600 leading-relaxed">
-              Enterprise clients and clients subject to GDPR or POPIA may request a countersigned copy of this DPA. Contact: <a href="mailto:legal@bazionwebs.com" className="text-[#2563EB]">legal@bazionwebs.com</a>. We process DPA signature requests within 5 business days.
+              Enterprise clients and clients subject to GDPR or POPIA may request a countersigned copy of this DPA. Contact: <a href="mailto:legal@bazionweb.com" className="text-[#2563EB]">legal@bazionweb.com</a>. We process DPA signature requests within 5 business days.
             </p>
           </section>
 
