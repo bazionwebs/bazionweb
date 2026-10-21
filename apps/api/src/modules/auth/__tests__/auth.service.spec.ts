@@ -396,7 +396,7 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
       user: guestUser,
     });
 
-    const result = await service.verifyMagicLink(raw);
+    const result = await service.verifyMagicLink('single-use-token');
 
     expect(result.data.accessToken).toBeTruthy();
     expect(prisma.refreshToken.update).toHaveBeenCalledWith(
