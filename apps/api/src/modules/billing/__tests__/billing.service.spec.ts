@@ -31,7 +31,8 @@ const mockPrisma = {
     update:     jest.fn(),
     updateMany: jest.fn(),
   },
-  client:  { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+  client:  { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+  user:    { findUnique: jest.fn(), create: jest.fn() },
   plan:    { findUnique: jest.fn() },
   wiseReceivingAccount: { create: jest.fn() },
   paymentLog: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
@@ -468,6 +469,88 @@ describe('BillingService', () => {
       expect(result.provider).toBe('MANUAL_BANK_TRANSFER');
       expect(result.bankTransferDetails.accountNumber).toBe('TEST123');
       expect(mockWiseService.getManualSettlementInstructions).toHaveBeenCalled();
+    });
+  });
+
+  // ── subscribePaystackGuest() — pay-first checkout ───────────────────────────
+
+  describe('subscribePaystackGuest()', () => {
+    const seedPrice = {
+      id: 'plan-growth',
+      name: 'Growth',
+      isActive: true,
+      priceMonthly: 59,
+      priceAnnual: 590,
+      priceMonthlyKes: 7700,
+      priceAnnualKes: 77000,
+    };
+
+    const guestDto = {
+      planId: 'plan-growth',
+      billingCycle: 'MONTHLY' as any,
+      currency: 'KES' as const,
+      email: 'guest@example.com',
+      firstName: 'Jane',
+      lastName: 'Wanjiku',
+    };
+
+    it('creates a passwordless user, guest client, invoice and Paystack URL', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue(seedPrice);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 'user-guest-1', email: guestDto.email });
+      mockPrisma.client.findUnique.mockResolvedValue(null);
+      mockPrisma.client.create.mockResolvedValue({ id: 'client-guest-1', email: guestDto.email, planId: 'plan-growth' });
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-guest', invoiceNumber: 'INV-KE-0001', amount: 7700, currency: 'KES',
+      });
+      mockPrisma.paymentLog.create.mockResolvedValue({ id: 'log-1' });
+      mockPaystackService.initializeTransaction.mockResolvedValue({
+        authorizationUrl: 'https://paystack.test/checkout',
+        reference: 'ps_ref_1',
+      });
+
+      const result = await service.subscribePaystackGuest(guestDto);
+
+      expect(result.status).toBe('REDIRECT_REQUIRED');
+      expect(result.checkoutUrl).toContain('paystack');
+      expect(result.invoiceNumber).toBe('INV-KE-0001');
+      expect(mockPrisma.user.create).toHaveBeenCalled();
+      const createdUser = mockPrisma.user.create.mock.calls[0][0].data;
+      expect(createdUser.role).toBe('CLIENT');
+      expect(createdUser.passwordHash).toBeUndefined(); // claim sets it later
+      const createdClient = mockPrisma.client.create.mock.calls[0][0].data;
+      expect(createdClient.status).toBe('TRIAL');
+      expect(createdClient.planId).toBe('plan-growth');
+      const initCall = mockPaystackService.initializeTransaction.mock.calls[0][0];
+      expect(initCall.amount).toBe(7700); // server pricebook, not client-supplied
+      expect(initCall.metadata.guest).toBe(true);
+    });
+
+    it('reuses an existing email-identity and updates the plan intent', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue(seedPrice);
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-guest-1', email: guestDto.email });
+      mockPrisma.client.findUnique.mockResolvedValue({ id: 'client-guest-1', planId: 'plan-starter' });
+      mockPrisma.client.update.mockResolvedValue({ id: 'client-guest-1', planId: 'plan-growth' });
+      mockPrisma.invoice.create.mockResolvedValue({ id: 'inv-2', invoiceNumber: 'INV-KE-0002', amount: 7700, currency: 'KES' });
+      mockPrisma.paymentLog.create.mockResolvedValue({ id: 'log-2' });
+      mockPaystackService.initializeTransaction.mockResolvedValue({ authorizationUrl: 'https://paystack.test/x', reference: 'ps_ref_2' });
+
+      await service.subscribePaystackGuest(guestDto);
+
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+      expect(mockPrisma.client.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'client-guest-1' }, data: expect.objectContaining({ planId: 'plan-growth' }) }),
+      );
+    });
+
+    it('rejects inactive or unknown plans', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue(null);
+      await expect(service.subscribePaystackGuest(guestDto)).rejects.toThrow(/inactive or does not exist/i);
+    });
+
+    it('rejects plans missing a price in the requested currency', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue({ ...seedPrice, priceMonthlyKes: null, priceMonthly: null });
+      await expect(service.subscribePaystackGuest(guestDto)).rejects.toThrow(/price not configured/i);
     });
   });
 });

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { AuthService, hashPassword } from '../auth.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -276,5 +276,172 @@ describe('AuthService.setUserPassword()', () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'u-2', deletedAt: new Date() });
     await expect(service.setUserPassword('u-2', 'NewStrongPass123!')).resolves.toBeNull();
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.pay-first flows (claim + magic link)', () => {
+  let service: AuthService;
+  let prisma: {
+    user: { findUnique: jest.Mock; update: jest.Mock; create: jest.Mock };
+    client: { findUnique: jest.Mock; update: jest.Mock };
+    refreshToken: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
+  };
+
+  const clientRow = {
+    email: 'guest@example.com',
+    contactName: 'Jane Wanjiku',
+    phone: '+254700000000',
+    status: 'ACTIVE',
+    userId: 'user-guest-1',
+    invoices: [{ id: 'inv-1', paidAt: new Date(Date.now() - 86_400_000) }],
+    subscriptions: [{ id: 'sub-1', status: 'ACTIVE' }],
+  };
+
+  const guestUser = {
+    id: 'user-guest-1',
+    email: 'guest@example.com',
+    firstName: 'Jane',
+    lastName: 'Wanjiku',
+    role: 'CLIENT' as const,
+    keycloakId: null,
+    deletedAt: null,
+    passwordHash: null, // passwordless — created at checkout
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue(guestUser),
+        update: jest.fn().mockResolvedValue({ id: 'user-guest-1' }),
+        create: jest.fn(),
+      },
+      client: {
+        findUnique: jest.fn().mockResolvedValue({
+          ...clientRow,
+          subscriptions: [{ status: 'ACTIVE' }],
+          invoices: [{ paidAt: new Date(Date.now() - 86_400_000) }],
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      refreshToken: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'rt-1', ...data })),
+        findUnique: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: ConfigService, useValue: localConfig() },
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    service = module.get<AuthService>(AuthService);
+  });
+
+  it('claimAccount sets a password on the paid passwordless user and returns a session', async () => {
+    const result = await service.claimAccount({
+      email: 'Guest@example.com',
+      password: 'Claimed123!',
+      firstName: 'Jane',
+      lastName: 'Wanjiku',
+    });
+
+    const hash = prisma.user.update.mock.calls[0][0].data.passwordHash as string;
+    expect(hash).toMatch(/^scrypt\$16384\$8\$1\$/);
+    expect(result.user.email).toBe('guest@example.com');
+    expect(result.user.subscriptionStatus).toBe('ACTIVE');
+    expect(result.data.accessToken).toBeTruthy();
+
+    const decoded = jwt.verify(result.data.accessToken, JWT_SECRET) as any;
+    expect(decoded.subscriptionStatus).toBe('ACTIVE');
+  });
+
+  it('claimAccount refuses emails without paid evidence', async () => {
+    prisma.client.findUnique.mockResolvedValue({
+      ...clientRow,
+      status: 'TRIAL',
+      subscriptions: [{ status: 'PENDING' }],
+      invoices: [],
+    });
+    await expect(service.claimAccount({ email: 'guest@example.com', password: 'Claimed123!' }))
+      .rejects.toThrow(ForbiddenException);
+  });
+
+  it('claimAccount refuses an email that already has a password', async () => {
+    prisma.user.findUnique.mockResolvedValue({ ...guestUser, passwordHash: 'scrypt$16384$8$1$aa$bb' });
+    await expect(service.claimAccount({ email: 'guest@example.com', password: 'Claimed123!' }))
+      .rejects.toThrow(/sign in instead/);
+  });
+
+  it('requestMagicLink mints a single-use token only for real users', async () => {
+    prisma.user.findUnique.mockResolvedValue(guestUser);
+
+    const { magicToken } = await service.requestMagicLink('guest@example.com');
+    expect(magicToken).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+    expect(prisma.refreshToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 'user-guest-1', expiresAt: expect.any(Date) }) }),
+    );
+
+    prisma.user.findUnique.mockResolvedValue(null);
+    const silent = await service.requestMagicLink('nobody@example.com');
+    expect(silent.magicToken).toBe('');
+  });
+
+  it('verifyMagicLink consumes the token and returns a real session', async () => {
+    const { createHash } = require('crypto');
+    const raw = 'single-use-token';
+    const tokenHash = createHash('sha256').update(raw).digest('hex');
+    prisma.refreshToken.findUnique.mockResolvedValue({
+      id: 'rt-1', revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: guestUser,
+    });
+
+    const result = await service.verifyMagicLink(raw);
+
+    expect(result.data.accessToken).toBeTruthy();
+    expect(prisma.refreshToken.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'rt-1' }, data: expect.objectContaining({ revokedAt: expect.any(Date) }) }),
+    );
+    const decoded = jwt.verify(result.data.accessToken, JWT_SECRET) as any;
+    expect(decoded.sub).toBe('user-guest-1');
+  });
+
+  it('verifyMagicLink rejects unknown, revoked or expired tokens', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue(null);
+    await expect(service.verifyMagicLink('garbage')).rejects.toThrow(UnauthorizedException);
+
+    prisma.refreshToken.findUnique.mockResolvedValue({
+      id: 'rt-2', revokedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      user: guestUser,
+    });
+    await expect(service.verifyMagicLink('byte-hash-mismatch')).rejects.toThrow(UnauthorizedException);
+
+    prisma.refreshToken.findUnique.mockResolvedValue({
+      id: 'rt-3', revokedAt: null,
+      expiresAt: new Date(Date.now() - 60_000), // expired
+      user: guestUser,
+    });
+    prisma.refreshToken.findUnique.mockImplementation(() => Promise.resolve({
+      id: 'rt-3', revokedAt: null,
+      expiresAt: new Date(Date.now() - 60_000),
+      user: guestUser,
+    }));
+    await expect(service.verifyMagicLink('another-token')).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('login embeds the subscriptionStatus claim', async () => {
+    prisma.client.findUnique.mockResolvedValue({
+      status: 'ACTIVE',
+      subscriptions: [{ status: 'ACTIVE' }],
+    });
+    prisma.user.findUnique.mockResolvedValue({ ...guestUser, passwordHash: await hashPassword('Password123!') });
+
+    const result = await service.login('guest@example.com', 'Password123!');
+    const decoded = jwt.verify(result.data.accessToken, JWT_SECRET) as any;
+    expect(decoded.subscriptionStatus).toBe('ACTIVE');
   });
 });
