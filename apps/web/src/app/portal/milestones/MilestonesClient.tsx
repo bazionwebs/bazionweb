@@ -138,7 +138,7 @@ const PROJECT_MILESTONES: Milestone[] = [
       },
       {
         id: 'del-3-2',
-        name: 'Safaricom M-Pesa Daraja STK Push & Stripe billing gateway rails',
+        name: 'Safaricom M-Pesa Daraja STK Push & Paystack card billing rails',
         category: 'Full-Stack',
         status: 'verified',
         assignee: 'David K.',

@@ -567,7 +567,7 @@ export default function InvoicesClient() {
                 )}
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                Card / Stripe
+                Card / Paystack
               </button>
             </div>
 
@@ -685,11 +685,11 @@ export default function InvoicesClient() {
               </div>
             )}
 
-            {/* Credit Card / Stripe Tab */}
+            {/* Credit Card / Paystack Tab */}
             {paymentMethodTab === 'card' && (
               <div className="space-y-4">
                 <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 text-xs text-indigo-900 leading-relaxed">
-                  Secure 256-bit SSL encrypted checkout powered by Stripe. All major Visa and Mastercard debit/credit cards accepted.
+                  Secure 256-bit SSL encrypted checkout powered by Paystack. All major Visa, Mastercard, and Verve debit/credit cards accepted with instant 3D-Secure.
                 </div>
 
                 <div>

@@ -55,9 +55,9 @@ export function shortId(id: string | null | undefined, len = 8): string {
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
+  PAYSTACK: 'Paystack Card / M-Pesa',
   INTASEND: 'Mobile Money / Card',
   WISE: 'Bank Transfer',
-  STRIPE: 'Card',
   MANUAL: 'Manual',
 };
 

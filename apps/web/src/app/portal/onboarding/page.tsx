@@ -370,7 +370,7 @@ export default function OnboardingPage() {
                         { id: 'WIRE', label: 'Bank Wire', sub: 'Kenyan RTGS / EFT', Icon: Building2 },
                       ]
                     : [
-                        { id: 'CARD', label: 'International Card', sub: 'Stripe / Cards', Icon: CreditCard },
+                        { id: 'CARD', label: 'International Card', sub: 'Paystack / Cards', Icon: CreditCard },
                         { id: 'WIRE', label: 'International Wire', sub: 'Wise / SWIFT Receiving', Icon: Building2 },
                       ]
                 ).map(({ id, label, sub, Icon }) => (

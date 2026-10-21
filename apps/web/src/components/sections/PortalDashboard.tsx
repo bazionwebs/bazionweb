@@ -101,7 +101,7 @@ const projectMilestones: Milestone[] = [
     estimatedDate: 'Sep 28, 2026',
     deliverables: [
       'Responsive Next.js 14 App Router implementation',
-      'M-Pesa Daraja STK Push & Stripe card gateway',
+      'M-Pesa Daraja STK Push & Paystack card gateway',
       'Doctor appointment booking engine & database schema',
     ],
   },
@@ -463,7 +463,7 @@ export default function PortalDashboard() {
                       Welcome, {contactName}
                     </h2>
                     <p className="text-slate-300 text-sm mt-1 max-w-xl leading-relaxed">
-                      Your Phase 3 engineering sprint is <strong className="text-white">88% complete</strong>. Payment gateways (M-Pesa + Stripe) are integrated and staging is available for client acceptance testing.
+                      Your Phase 3 engineering sprint is <strong className="text-white">88% complete</strong>. Payment gateways (M-Pesa + Paystack) are integrated and staging is available for client acceptance testing.
                     </p>
                   </div>
 
