@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import QueryProvider from '@/components/providers/QueryProvider';
-import AuthGuard from '@/components/auth/AuthGuard';
-import PortalShell from '@/components/portal/PortalShell';
+import PortalGate from '@/components/auth/PortalGate';
 
 export const metadata: Metadata = {
   title: {
@@ -14,12 +13,7 @@ export const metadata: Metadata = {
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return (
     <QueryProvider>
-      <AuthGuard
-        requiredRoles={['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'SUPPORT']}
-        redirectTo="/portal/login"
-      >
-        <PortalShell>{children}</PortalShell>
-      </AuthGuard>
+      <PortalGate>{children}</PortalGate>
     </QueryProvider>
   );
 }
