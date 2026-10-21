@@ -13,7 +13,6 @@ import {
   TrendingDown,
   AlertTriangle,
   ArrowRight,
-  ExternalLink,
 } from 'lucide-react';
 import {
   useAdminClients,
@@ -34,7 +33,6 @@ export default function AdminDashboardPage() {
   const uptimeQuery = useUptime();
   const canSeeBilling = useCanSeeBilling();
 
-  const liveClients = clientsQuery.data?.items ?? [];
   const liveTickets = ticketsQuery.data?.items ?? [];
 
   const openTickets = liveTickets

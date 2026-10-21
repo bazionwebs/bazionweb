@@ -70,6 +70,7 @@ export interface ApiHostingAccount {
   plan: string;
   status: string;
   sslExpiry: string | null;
+  createdAt?: string | null;
   backups?: ApiHostingBackup[];
 }
 

@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import {
   Server,
-  Globe,
   Shield,
   Activity,
   Plus,
@@ -11,10 +10,8 @@ import {
   ExternalLink,
   CheckCircle2,
   AlertTriangle,
-  RefreshCw,
   X,
   HardDrive,
-  Cpu,
 } from 'lucide-react';
 import { useAdminHosting, useAdminClients, useUptime, useUpdateHosting } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
@@ -56,7 +53,7 @@ export default function AdminHostingPage() {
       id: h.id,
       domain: h.domain,
       clientName: clientById[h.clientId] || 'Client',
-      serverIp: h.serverIp || '167.172.54.218',
+      serverIp: h.server || '167.172.54.218',
       plan: h.plan || 'Cloud Managed Tier',
       status: h.status || 'ACTIVE',
       sslValid: telemetry ? !telemetry.sslAlert : true,
@@ -324,6 +321,19 @@ export default function AdminHostingPage() {
                   onChange={e => setServerIp(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Hosting Plan Tier</label>
+                <select
+                  value={plan}
+                  onChange={e => setPlan(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
+                >
+                  <option value="Starter Cloud Container">Starter Cloud Container</option>
+                  <option value="Business Cloud Managed">Business Cloud Managed</option>
+                  <option value="Enterprise High-Availability">Enterprise High-Availability</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

@@ -2,16 +2,10 @@
 
 import React, { useState } from 'react';
 import {
-  FileText,
   Search,
-  CheckCircle2,
   AlertCircle,
   Plus,
-  DollarSign,
-  Download,
   X,
-  CreditCard,
-  Clock,
 } from 'lucide-react';
 import { useAdminInvoices, useCanSeeBilling, useMarkInvoicePaid, useAdminClients } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';

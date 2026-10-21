@@ -2,16 +2,10 @@
 
 import React, { useState } from 'react';
 import {
-  Ticket,
-  Filter,
   Search,
   AlertTriangle,
-  Clock,
   CheckCircle2,
-  UserCheck,
-  Download,
   X,
-  MessageSquare,
 } from 'lucide-react';
 import { useAdminTickets, useUpdateTicket } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';

@@ -6,18 +6,14 @@ import {
   ShieldCheck,
   ShieldAlert,
   Lock,
-  Globe,
   CheckCircle2,
   AlertTriangle,
-  ExternalLink,
-  Key,
 } from 'lucide-react';
-import { useUptime, useAdminClients } from '@/hooks/useAdminData';
+import { useUptime } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError } from '@/components/ui/QueryState';
 
 export default function AdminSecurityPage() {
   const uptimeQuery = useUptime();
-  const clientsQuery = useAdminClients();
 
   const sslAlerts = (uptimeQuery.data?.summary ?? []).filter(s => s.sslAlert);
   const healthySites = (uptimeQuery.data?.summary ?? []).filter(s => !s.sslAlert);

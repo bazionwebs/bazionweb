@@ -2,21 +2,15 @@
 
 import React from 'react';
 import {
-  BarChart2,
-  Activity,
   CheckCircle2,
-  Clock,
-  AlertTriangle,
   Download,
-  Calendar,
 } from 'lucide-react';
-import { useSla, useUptime, useMrr, useCanSeeBilling } from '@/hooks/useAdminData';
+import { useSla, useUptime, useCanSeeBilling } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 
 export default function AdminReportsPage() {
   const slaQuery = useSla();
   const uptimeQuery = useUptime();
-  const mrrQuery = useMrr();
   const canSeeBilling = useCanSeeBilling();
 
   const sla = slaQuery.data;

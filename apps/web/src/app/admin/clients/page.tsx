@@ -3,23 +3,15 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  Users,
   Search,
-  Filter,
   Plus,
-  Eye,
-  Edit2,
   ExternalLink,
-  Shield,
-  Ticket,
-  DollarSign,
   X,
-  CheckCircle,
   AlertCircle,
 } from 'lucide-react';
 import { useAdminClients, useAdminHosting } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
-import { formatDate, formatMoney } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { adminApi } from '@/lib/api';
 
 export default function AdminClientsPage() {
@@ -52,7 +44,7 @@ export default function AdminClientsPage() {
     return {
       id: c.id,
       name: c.businessName,
-      contact: c.contactPerson || '—',
+      contact: c.contactName || '—',
       email: c.email || '—',
       domain: domainByClient[c.id] ?? '—',
       plan: c.plan?.name ?? 'Standard',
