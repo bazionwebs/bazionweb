@@ -5,7 +5,6 @@ import {
   createHash,
   scrypt as _scrypt,
   timingSafeEqual,
-  createHmac,
 } from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../prisma/prisma.service';
