@@ -22,13 +22,11 @@ export const envValidationSchema = Joi.object({
   JWT_EXPIRY: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRY: Joi.string().default('7d'),
 
-  // IntaSend — M-Pesa STK (KES)
+  // IntaSend — M-Pesa STK (KES) — optional until IntaSend is activated
+  // Add INTASEND_PUBLISHABLE_KEY + INTASEND_SECRET_KEY to Render env when enabling M-Pesa STK
   INTASEND_ENVIRONMENT: Joi.string().valid('sandbox', 'production').default('sandbox'),
-  INTASEND_PUBLISHABLE_KEY: Joi.string().min(8).required(),
-  INTASEND_SECRET_KEY: Joi.string()
-    .min(16)
-    .required()
-    .invalid('ISSecretKey_sandbox_placeholder', 'CHANGE_ME', 'placeholder'),
+  INTASEND_PUBLISHABLE_KEY: Joi.string().min(8).optional().allow(''),
+  INTASEND_SECRET_KEY: Joi.string().min(16).optional().allow(''),
 
   // Paystack — Cards + international (KES/USD)
   PAYSTACK_SECRET_KEY: Joi.string().min(8).optional().allow(''),
