@@ -28,12 +28,18 @@ async function main() {
   console.log('🌱 Seeding BazionWeb database...');
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
+  // Fixed IDs so the web catalog, API pricebook and the DB agree without a DB
+  // round-trip. Prices mirror the authoritative checkout catalog (USD + KES);
+  // annual = 10× monthly for service tiers, 10.8× for Care tiers.
   const plans = [
     {
+      id: '11111111-1111-4111-8111-111111111111',
       name: 'Starter',
       tier: PlanTier.STARTER,
-      priceMonthly: 49,
-      priceAnnual: 490,    // 2 months free
+      priceMonthly: 29,
+      priceMonthlyKes: 3800,
+      priceAnnual: 290,
+      priceAnnualKes: 38000,
       uptimeSla: '99.9%',
       p1ResponseMinutes: 60,
       p2ResponseMinutes: 240,
@@ -48,10 +54,13 @@ async function main() {
       maxServiceCredPct: 5,
     },
     {
+      id: '22222222-2222-4222-8222-222222222222',
       name: 'Growth',
       tier: PlanTier.GROWTH,
-      priceMonthly: 99,
-      priceAnnual: 990,
+      priceMonthly: 59,
+      priceMonthlyKes: 7700,
+      priceAnnual: 590,
+      priceAnnualKes: 77000,
       uptimeSla: '99.95%',
       p1ResponseMinutes: 30,
       p2ResponseMinutes: 120,
@@ -66,10 +75,13 @@ async function main() {
       maxServiceCredPct: 10,
     },
     {
+      id: '33333333-3333-4333-8333-333333333333',
       name: 'Business',
       tier: PlanTier.BUSINESS,
-      priceMonthly: 199,
-      priceAnnual: 1990,
+      priceMonthly: 119,
+      priceMonthlyKes: 15500,
+      priceAnnual: 1190,
+      priceAnnualKes: 155000,
       uptimeSla: '99.95%',
       p1ResponseMinutes: 15,
       p2ResponseMinutes: 60,
@@ -84,10 +96,13 @@ async function main() {
       maxServiceCredPct: 15,
     },
     {
+      id: '44444444-4444-4444-8444-444444444444',
       name: 'Enterprise',
       tier: PlanTier.ENTERPRISE,
-      priceMonthly: 0, // Custom — negotiated
-      priceAnnual: 0,
+      priceMonthly: 299,
+      priceMonthlyKes: 39000,
+      priceAnnual: 2990,
+      priceAnnualKes: 390000,
       uptimeSla: '99.99%',
       p1ResponseMinutes: 5,
       p2ResponseMinutes: 30,
@@ -101,15 +116,82 @@ async function main() {
       hasCustomSla: true,
       maxServiceCredPct: 25,
     },
+    {
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'Care Essential',
+      tier: PlanTier.STARTER,
+      priceMonthly: 75,
+      priceMonthlyKes: 5000,
+      priceAnnual: 810,
+      priceAnnualKes: 54000,
+      uptimeSla: '99.9%',
+      p1ResponseMinutes: 60,
+      p2ResponseMinutes: 240,
+      p3ResponseMinutes: 1440,
+      maxBackupRetention: 30,
+      hasMaintenance: true,
+      hasSecurityMgmt: false,
+      hasPerformanceOpt: false,
+      hasUnlimitedUpdates: false,
+      hasDedicatedAM: false,
+      hasCustomSla: false,
+      maxServiceCredPct: 5,
+    },
+    {
+      id: '66666666-6666-4666-8666-666666666666',
+      name: 'Care Business',
+      tier: PlanTier.BUSINESS,
+      priceMonthly: 150,
+      priceMonthlyKes: 10000,
+      priceAnnual: 1620,
+      priceAnnualKes: 108000,
+      uptimeSla: '99.95%',
+      p1ResponseMinutes: 30,
+      p2ResponseMinutes: 120,
+      p3ResponseMinutes: 240,
+      maxBackupRetention: 60,
+      hasMaintenance: true,
+      hasSecurityMgmt: true,
+      hasPerformanceOpt: true,
+      hasUnlimitedUpdates: false,
+      hasDedicatedAM: false,
+      hasCustomSla: false,
+      maxServiceCredPct: 10,
+    },
+    {
+      id: '77777777-7777-4777-8777-777777777777',
+      name: 'Care Professional',
+      tier: PlanTier.ENTERPRISE,
+      priceMonthly: 300,
+      priceMonthlyKes: 20000,
+      priceAnnual: 3240,
+      priceAnnualKes: 216000,
+      uptimeSla: '99.99%',
+      p1ResponseMinutes: 15,
+      p2ResponseMinutes: 60,
+      p3ResponseMinutes: 120,
+      maxBackupRetention: 90,
+      hasMaintenance: true,
+      hasSecurityMgmt: true,
+      hasPerformanceOpt: true,
+      hasUnlimitedUpdates: true,
+      hasDedicatedAM: true,
+      hasCustomSla: false,
+      maxServiceCredPct: 15,
+    },
   ];
 
   for (const plan of plans) {
-    await prisma.plan.upsert({
-      where: { name: plan.name },
-      update: plan,
-      create: plan,
-    });
-    console.log(`  ✓ Plan: ${plan.name}`);
+    // Seed by name: pre-seeded DBs keep their existing row id (FKs to clients/
+    // subscriptions stay intact); fresh DBs get the documented fixed IDs.
+    const existing = await prisma.plan.findUnique({ where: { name: plan.name } });
+    if (existing) {
+      const { id, ...rest } = plan;
+      await prisma.plan.update({ where: { id: existing.id }, data: rest });
+    } else {
+      await prisma.plan.create({ data: plan });
+    }
+    console.log(`  ✓ Plan: ${plan.name} ($${plan.priceMonthly} / KES ${plan.priceMonthlyKes})`);
   }
 
   // ─── Currencies ─────────────────────────────────────────────────────────────

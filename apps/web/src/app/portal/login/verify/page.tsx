@@ -6,7 +6,19 @@ import { Loader2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
+import type { AuthUser } from '@/store/auth.store';
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://api.bazionweb.com/api/v1').replace(/\/$/, '');
+
+/**
+ * Magic-link verification — SERVER-VERIFIED.
+ *
+ * The emailed token is a single-use, DB-backed opaque string. It is sent to
+ * the API (POST /auth/magic-link/verify), which checks its hash, expiry and
+ * revocation before returning a real JWT session. The browser never decodes
+ * or trusts token contents — the previous client-side base64 "auth" that
+ * minted fake sessions is gone.
+ */
 function MagicVerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,60 +37,54 @@ function MagicVerifyContent() {
       return;
     }
 
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 2) {
-        throw new Error('Malformed authentication token.');
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/magic-link/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data?.data?.accessToken) {
+          throw new Error(data.message || 'This sign-in link is invalid or has expired.');
+        }
+
+        if (cancelled) return;
+
+        setEmail(data.user?.email || 'your account');
+        setSession(
+          {
+            id: data.user?.id,
+            email: data.user?.email || '',
+            firstName: data.user?.firstName || '',
+            lastName: data.user?.lastName || '',
+            roles: data.user?.roles || ['CLIENT'],
+            keycloakId: data.user?.keycloakId || '',
+            subscriptionStatus: data.user?.subscriptionStatus,
+          } as AuthUser,
+          data.data.accessToken,
+          data.data.refreshToken,
+          data.data.expiresIn,
+        );
+        setSuccess(true);
+
+        const timer = setTimeout(() => {
+          router.push('/portal');
+        }, 1200);
+        return () => { cancelled = true; clearTimeout(timer); };
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Authentication link is invalid or has expired.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
+    })();
 
-      // Decode base64url payload
-      const base64 = parts[0].replace(/-/g, '+').replace(/_/g, '/');
-      const jsonStr = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const payload = JSON.parse(jsonStr);
-
-      if (!payload.email || !payload.exp) {
-        throw new Error('Invalid token payload.');
-      }
-
-      if (Date.now() > payload.exp) {
-        throw new Error('This sign-in link has expired. Please request a fresh link.');
-      }
-
-      setEmail(payload.email);
-      setSuccess(true);
-
-      // Authenticate session in client store
-      setSession(
-        {
-          id: `usr-${payload.email.replace(/[^a-zA-Z0-9]/g, '')}`,
-          email: payload.email,
-          firstName: payload.email.split('@')[0],
-          lastName: '',
-          roles: ['CLIENT'],
-          keycloakId: `magic-${payload.email}`,
-          subscriptionStatus: 'ACTIVE',
-        },
-        `magic-jwt-${Date.now()}`,
-        `magic-refresh-${Date.now()}`,
-        86400 * 7, // 7 days
-      );
-
-      // Smooth redirection to client hub
-      const timer = setTimeout(() => {
-        router.push('/portal');
-      }, 1200);
-
-      return () => clearTimeout(timer);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Authentication link is invalid or has expired.');
-    } finally {
-      setLoading(false);
-    }
+    return () => { cancelled = true; };
   }, [token, setSession, router]);
 
   return (
@@ -90,9 +96,9 @@ function MagicVerifyContent() {
       {loading && (
         <div className="py-8 space-y-4">
           <Loader2 className="w-10 h-10 animate-spin text-[#2563EB] mx-auto" />
-          <h2 className="text-xl font-bold text-[#0F172A]">Authenticating Secure Link…</h2>
+          <h2 className="text-xl font-bold text-[#0F172A]">Verifying Secure Link…</h2>
           <p className="text-xs text-slate-500">
-            Validating cryptographic token and establishing your encrypted workspace session.
+            Confirming your one-time sign-in token with the server.
           </p>
         </div>
       )}
@@ -104,7 +110,7 @@ function MagicVerifyContent() {
           </div>
           <h2 className="text-2xl font-bold text-[#0F172A]">Welcome Back!</h2>
           <p className="text-xs text-slate-500">
-            Authenticated successfully as <strong className="text-slate-800">{email}</strong>.
+            Signed in as <strong className="text-slate-800">{email}</strong>.
           </p>
           <p className="text-xs text-slate-400">
             Opening your Client Operating Hub…

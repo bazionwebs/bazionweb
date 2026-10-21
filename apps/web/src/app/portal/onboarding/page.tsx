@@ -64,21 +64,21 @@ const PLAN_META: Record<string, {
     accent: 'text-violet-400 border-violet-500/40 bg-violet-500/10',
   },
   starter: {
-    name: 'Care Starter',
+    name: 'Starter',
     priceMonthlyKes: 3800,
     priceMonthlyUsd: 29,
-    priceAnnualKes: 40800,
-    priceAnnualUsd: 312,
+    priceAnnualKes: 38000,
+    priceAnnualUsd: 290,
     features: ['Cloud Deployment', 'Auto SSL', 'Daily Backups', 'Uptime Monitoring', 'Email Support'],
     color: 'from-slate-600 to-slate-700',
     accent: 'text-slate-300 border-slate-500/40 bg-slate-500/10',
   },
   growth: {
-    name: 'Care Growth',
+    name: 'Growth',
     priceMonthlyKes: 7700,
     priceMonthlyUsd: 59,
-    priceAnnualKes: 82800,
-    priceAnnualUsd: 636,
+    priceAnnualKes: 77000,
+    priceAnnualUsd: 590,
     features: ['Everything in Starter', 'WAF Security', 'Malware Scanning', '30-Min P1 Response', 'Monthly Reports'],
     color: 'from-blue-600 to-blue-700',
     accent: 'text-blue-400 border-blue-500/40 bg-blue-500/10',
@@ -87,8 +87,8 @@ const PLAN_META: Record<string, {
     name: 'Business Plan',
     priceMonthlyKes: 15500,
     priceMonthlyUsd: 119,
-    priceAnnualKes: 166800,
-    priceAnnualUsd: 1284,
+    priceAnnualKes: 155000,
+    priceAnnualUsd: 1190,
     features: ['Unlimited Content Updates', 'Staging Environment', 'Core Web Vitals', '15-Min P1 Response'],
     color: 'from-indigo-600 to-blue-700',
     accent: 'text-indigo-400 border-indigo-500/40 bg-indigo-500/10',
@@ -96,6 +96,19 @@ const PLAN_META: Record<string, {
 };
 
 const DEFAULT_PLAN = 'care-business';
+
+// Mirrors the seeded Plan rows (prisma/seed.ts) — the API prices server-side
+// from these IDs; the client never sends amounts.
+const PLAN_ID_BY_SLUG: Record<string, string> = {
+  'care-essential': '55555555-5555-4555-8555-555555555555',
+  'care-business': '66666666-6666-4666-8666-666666666666',
+  'care-professional': '77777777-7777-4777-8777-777777777777',
+  starter: '11111111-1111-4111-8111-111111111111',
+  growth: '22222222-2222-4222-8222-222222222222',
+  business: '33333333-3333-4333-8333-333333333333',
+  enterprise: '44444444-4444-4444-8444-444444444444',
+};
+
 type PayTab = 'MPESA' | 'CARD' | 'WIRE';
 type Cycle = 'MONTHLY' | 'ANNUAL';
 
@@ -109,6 +122,11 @@ export default function OnboardingPage() {
   const plan = PLAN_META[planSlug] || PLAN_META[DEFAULT_PLAN];
 
   const { marketCode } = useMarketPreference();
+
+  // Authenticated billing endpoints live on the NestJS API (JWT-guarded,
+  // server-priced). Onboarding is a logged-in flow — reuse the session token.
+  const accessToken = useAuthStore(s => s.accessToken);
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'https://api.bazionweb.com/api/v1').replace(/\/$/, '');
   const [activeMarket, setActiveMarket] = useState<'KE' | 'GLOBAL'>('GLOBAL');
 
   const [tab, setTab] = useState<PayTab>('MPESA');
@@ -146,25 +164,25 @@ export default function OnboardingPage() {
     e.preventDefault();
     setLoading(true);
     setFeedback(null);
+    if (!accessToken) {
+      setFeedback({ type: 'error', msg: 'Your session expired — please sign in again to pay.' });
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch('/api/paystack/initialize', {
+      const res = await fetch(`${apiBase}/invoices/subscribe/intasend`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
-          email: email || user?.email,
-          amount: displayAmount,
-          planSlug,
-          phone: phone.replace(/[^0-9]/g, ''),
-          currency: 'KES',
+          planId: PLAN_ID_BY_SLUG[planSlug] || PLAN_ID_BY_SLUG[DEFAULT_PLAN],
+          billingCycle: cycle,
+          paymentMethod: 'MPESA',
+          mpesaPhoneNumber: phone.replace(/[^0-9+]/g, ''),
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Payment initialization failed');
-      if (data.authorizationUrl) {
-        window.location.href = data.authorizationUrl;
-      } else {
-        setFeedback({ type: 'info', msg: 'M-Pesa prompt sent! Check your phone and enter your PIN.' });
-      }
+      if (!res.ok) throw new Error(data.message || 'Payment initialization failed');
+      setFeedback({ type: 'info', msg: `M-Pesa prompt sent for invoice ${data.invoiceNumber || data.data?.invoiceNumber || 'your order'}. Check your phone and enter your PIN.` });
     } catch (err: unknown) {
       setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Payment failed' });
     } finally {
@@ -175,20 +193,28 @@ export default function OnboardingPage() {
   async function handleCard() {
     setLoading(true);
     setFeedback(null);
+    if (!accessToken) {
+      setFeedback({ type: 'error', msg: 'Your session expired — please sign in again to pay.' });
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch('/api/paystack/initialize', {
+      const res = await fetch(`${apiBase}/invoices/subscribe/paystack`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
-          email: email || user?.email,
-          amount: displayAmount,
-          planSlug,
-          currency: displayCurrency,
+          planId: PLAN_ID_BY_SLUG[planSlug] || PLAN_ID_BY_SLUG[DEFAULT_PLAN],
+          billingCycle: cycle,
+          currency: isKenya ? 'KES' : 'USD',
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Card gateway error');
-      if (data.authorizationUrl) window.location.href = data.authorizationUrl;
+      if (!res.ok) throw new Error(data.message || 'Card gateway error');
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      throw new Error('Payment gateway did not return a checkout URL');
     } catch (err: unknown) {
       setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Card gateway error' });
       setLoading(false);
@@ -202,7 +228,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!user) {
-      router.replace('/portal/register');
+      router.replace('/portal/login');
     }
   }, [user, router]);
 

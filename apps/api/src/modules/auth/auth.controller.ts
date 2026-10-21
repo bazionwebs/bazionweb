@@ -38,6 +38,40 @@ class SetPasswordDto {
   newPassword: string;
 }
 
+class ClaimAccountDto {
+  @ApiProperty({ example: 'jane@yourcompany.com' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'SecurePass123!', minLength: 8, maxLength: 128 })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password: string;
+
+  @ApiProperty({ required: false, example: 'Jane' })
+  @IsString()
+  @MaxLength(64)
+  firstName?: string;
+
+  @ApiProperty({ required: false, example: 'Wanjiku' })
+  @IsString()
+  @MaxLength(64)
+  lastName?: string;
+}
+
+class MagicLinkRequestDto {
+  @ApiProperty({ example: 'client@example.com' })
+  @IsEmail()
+  email: string;
+}
+
+class MagicLinkVerifyDto {
+  @ApiProperty({ description: 'Single-use magic token from the emailed link' })
+  @IsString()
+  token: string;
+}
+
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
@@ -89,6 +123,48 @@ export class AuthController {
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
+  }
+
+  /**
+   * Convert a paid subscription email into a login account.
+   * POST /api/v1/auth/claim-account — the "account after payment" step.
+   * Requires server-side proof of payment (active subscription or a paid
+   * invoice on the billing email); can never activate an unpaid email.
+   */
+  @Post('claim-account')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Claim an account created by a completed payment' })
+  async claimAccount(@Body() dto: ClaimAccountDto) {
+    return this.authService.claimAccount(dto);
+  }
+
+  /**
+   * Mint a single-use magic-link token for an existing user.
+   * POST /api/v1/auth/magic-link — returns the raw token for the web layer
+   * to email; unknown emails return an identical shape (no enumeration).
+   */
+  @Post('magic-link')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @ApiOperation({ summary: 'Request a one-time sign-in link token' })
+  async requestMagicLink(@Body() dto: MagicLinkRequestDto) {
+    return this.authService.requestMagicLink(dto.email);
+  }
+
+  /**
+   * Consume a magic token and return a real session.
+   * POST /api/v1/auth/magic-link/verify
+   */
+  @Post('magic-link/verify')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Verify a sign-in link token (single use)' })
+  async verifyMagicLink(@Body() dto: MagicLinkVerifyDto) {
+    return this.authService.verifyMagicLink(dto.token);
   }
 
   /**

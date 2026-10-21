@@ -19,7 +19,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { IntaSendService } from './intasend.service';
 import { PaystackService } from './paystack.service';
 import { WiseService } from './wise.service';
-import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto } from './dto/billing.dto';
+import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto, GuestSubscriptionDto } from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -343,6 +343,123 @@ export class BillingService {
       checkoutUrl: init.authorizationUrl,
       reference: init.reference,
       invoiceNumber: invoice.invoiceNumber,
+    };
+  }
+
+  /**
+   * Guest card checkout (Track C) — pay-first, no account needed.
+   * Server-priced: the client supplies a planId, never an amount.
+   * Creates a guest Client keyed by email (no userId) + invoice, then
+   * redirects to Paystack. The webhook activates everything on charge.success;
+   * the customer claims the account afterwards in one step.
+   */
+  async subscribePaystackGuest(dto: GuestSubscriptionDto) {
+    const email = dto.email.trim().toLowerCase();
+    const businessName = dto.businessName?.trim() || 'BazionWeb Client';
+
+    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
+    if (!plan || !plan.isActive) {
+      throw new BadRequestException('The selected subscription plan is inactive or does not exist.');
+    }
+
+    const amount = this.planAmount(plan, dto.billingCycle, dto.currency);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
+    }
+
+    // Guest identity: a passwordless user row (claim sets the password later)
+    // plus its required 1:1 client profile. Email is the join key.
+    let guestUser = await this.prisma.user.findUnique({ where: { email } });
+    if (!guestUser) {
+      guestUser = await this.prisma.user.create({
+        data: {
+          email,
+          role: 'CLIENT',
+          firstName: dto.firstName.trim(),
+          lastName: dto.lastName.trim(),
+          phone: dto.phone,
+        },
+      });
+    }
+
+    let guest = await this.prisma.client.findUnique({ where: { userId: guestUser.id } });
+    if (!guest) {
+      guest = await this.prisma.client.create({
+        data: {
+          userId: guestUser.id,
+          businessName,
+          contactName: `${dto.firstName.trim()} ${dto.lastName.trim()}`.trim(),
+          email,
+          phone: dto.phone,
+          planId: plan.id,
+          status: 'TRIAL',
+        },
+      });
+    } else {
+      // Keep the latest plan intent if the guest switched plans between visits.
+      if (guest.planId !== plan.id || guest.businessName !== businessName) {
+        guest = await this.prisma.client.update({
+          where: { id: guest.id },
+          data: { planId: plan.id, businessName },
+        });
+      }
+    }
+
+    const invoiceNumber = this.newInvoiceNumber(dto.currency === 'KES' ? 'INV-KE' : 'INV-USD');
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 3);
+    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
+
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        clientId: guest.id,
+        invoiceNumber,
+        amount,
+        currency: dto.currency,
+        dueDate,
+        lineItems: [
+          {
+            description: `BazionWeb ${plan.name} (${dto.billingCycle.toLowerCase()}) — card`,
+            amount,
+            currency: dto.currency,
+            quantity: 1,
+          },
+        ],
+      },
+    });
+
+    const init = await this.paystackService.initializeTransaction({
+      email,
+      amount,
+      currency: dto.currency,
+      invoiceNumber: invoice.invoiceNumber,
+      callbackUrl: `${frontendUrl}/checkout/verify`,
+      metadata: { planId: plan.id, billingCycle: dto.billingCycle, clientId: guest.id, guest: true },
+    });
+
+    await this.prisma.paymentLog.create({
+      data: {
+        idempotencyKey: `PAYSTACK_${init.reference}`,
+        provider: PaymentProvider.PAYSTACK,
+        providerRef: init.reference,
+        method: PaymentMethodType.CARD,
+        amount,
+        currency: dto.currency,
+        status: PaymentStatus.PENDING,
+        clientId: guest.id,
+        invoiceId: invoice.id,
+        rawPayload: init as any,
+      },
+    });
+
+    return {
+      status: 'REDIRECT_REQUIRED',
+      method: 'CARD',
+      provider: 'PAYSTACK',
+      checkoutUrl: init.authorizationUrl,
+      reference: init.reference,
+      invoiceNumber: invoice.invoiceNumber,
+      email,
     };
   }
 

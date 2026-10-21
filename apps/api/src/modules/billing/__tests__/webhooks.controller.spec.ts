@@ -15,6 +15,7 @@ function sign(body: unknown): string {
 
 function mockPrisma() {
   return {
+    client: { update: jest.fn().mockResolvedValue({}) },
     paymentLog: { findUnique: jest.fn(), upsert: jest.fn(), create: jest.fn() },
     invoice: { findUnique: jest.fn(), update: jest.fn() },
     subscription: { update: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
@@ -22,8 +23,9 @@ function mockPrisma() {
     wiseReceivingAccount: { findFirst: jest.fn() },
     $transaction: jest.fn((fn: any) =>
       fn({
+        client: { update: jest.fn().mockResolvedValue({}) },
         invoice: { update: jest.fn() },
-        subscription: { update: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
+        subscription: { update: jest.fn(), create: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn() },
         plan: { findFirst: jest.fn() },
         paymentLog: { upsert: jest.fn(), create: jest.fn() },
       }),

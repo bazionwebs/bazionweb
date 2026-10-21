@@ -1,10 +1,11 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   randomBytes,
   createHash,
   scrypt as _scrypt,
   timingSafeEqual,
+  createHmac,
 } from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -216,8 +217,9 @@ export class AuthService {
   private async issueTokenPair(user: {
     id: string; email: string; firstName: string | null;
     lastName: string | null; role: string;
-  }): Promise<TokenPair> {
+ }): Promise<TokenPair> {
     const roles = expandRoles(user.role);
+    const subscriptionStatus = await this.resolveSubscriptionStatus(user.id);
     const accessToken = jwt.sign(
       {
         sub: user.id,
@@ -225,6 +227,7 @@ export class AuthService {
         given_name: user.firstName ?? '',
         family_name: user.lastName ?? '',
         realm_access: { roles },
+        subscriptionStatus,
         iss: 'bazionweb',
         type: 'access',
       },
@@ -251,6 +254,178 @@ export class AuthService {
         accessToken,
         refreshToken: rawRefreshToken,
         expiresIn: Math.floor(accessMs / 1000),
+      },
+    };
+  }
+
+  /**
+   * Derives the client's subscription state for gating the web portal.
+   * ACTIVE only when client.status is ACTIVE (set by paid activation) or an
+   * active subscription exists. Falls back gracefully (undefined → the web
+   * gate re-checks via GET /clients/me).
+   */
+  private async resolveSubscriptionStatus(userId: string): Promise<string | undefined> {
+    try {
+      const client = await this.prisma.client.findUnique({
+        where: { userId },
+        select: { status: true, subscriptions: { select: { status: true }, take: 5, orderBy: { createdAt: 'desc' } } },
+      });
+      if (!client) return undefined;
+      if (client.status === 'ACTIVE') return 'ACTIVE';
+      const sub = client.subscriptions.find(s => s.status === 'ACTIVE');
+      return sub ? 'ACTIVE' : 'PENDING';
+    } catch {
+      return undefined;
+    }
+  }
+
+  // ── Post-purchase account claiming (pay-first flow) ────────────────────────
+  /**
+   * Converts a paid, emailed client into a real login account.
+   * Evidence-first: the email must own a Client with an ACTIVE subscription
+   * (protein paid webhook) or a recent paid invoice (webhook/manual
+   * reconciliation). It can never activate an account for an unpaid email.
+   */
+  async claimAccount(dto: {
+    email: string; password: string; firstName?: string; lastName?: string; company?: string;
+  }): Promise<TokenPair & { user: Record<string, unknown> }> {
+    const email = dto.email.trim().toLowerCase();
+
+    const client = await this.prisma.client.findUnique({
+      where: { email },
+      include: {
+        subscriptions: { select: { id: true, status: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+        invoices: { where: { status: 'PAID' }, select: { id: true, paidAt: true }, orderBy: { paidAt: 'desc' }, take: 1 },
+      },
+    });
+
+    const hasActiveSub = client?.subscriptions?.some(s => s.status === 'ACTIVE') ?? false;
+    const recentPaidInvoice =
+      !!client?.invoices?.[0]?.paidAt && Date.now() - client.invoices[0].paidAt.getTime() < 90 * 86_400_000;
+
+    if (!client || (!hasActiveSub && !recentPaidInvoice)) {
+      throw new ForbiddenException(
+        'No paid subscription found for this email yet. Your payment may still be settling — try again in a few minutes.',
+      );
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      if (existing.deletedAt) throw new ForbiddenException('This account has been closed. Contact support to restore access.');
+      if (existing.passwordHash) {
+        throw new ForbiddenException('This email already has an account. Please sign in instead.');
+      }
+      // Provisioned-but-passwordless user (e.g. staff-created client) → claim it.
+      await this.prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash: await hashPassword(dto.password),
+          firstName: dto.firstName ?? existing.firstName,
+          lastName: dto.lastName ?? existing.lastName,
+          role: existing.role === 'CLIENT' ? 'CLIENT' : existing.role,
+        },
+      });
+      const tokens = await this.issueTokenPair({ ...existing, firstName: dto.firstName ?? existing.firstName, lastName: dto.lastName ?? existing.lastName });
+      return {
+        ...tokens,
+        user: {
+          id: existing.id,
+          email,
+          firstName: dto.firstName ?? existing.firstName,
+          lastName: dto.lastName ?? existing.lastName,
+          roles: expandRoles(existing.role),
+          keycloakId: existing.keycloakId,
+          subscriptionStatus: 'ACTIVE',
+        },
+      };
+    }
+
+    // New user bound to the paid client row.
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        role: 'CLIENT' as const,
+        passwordHash: await hashPassword(dto.password),
+        firstName: dto.firstName ?? client.contactName.split(' ')[0] ?? null,
+        lastName: client.contactName.split(' ').slice(1).join(' ') || null,
+        phone: client.phone,
+      },
+    });
+
+    // Link the ownership only if not already claimed by another user id.
+    if (client.userId && client.userId !== user.id) {
+      throw new ForbiddenException('This client account is already linked to another user. Contact support.');
+    }
+    await this.prisma.client.update({
+      where: { id: client.id },
+      data: { userId: user.id, status: 'ACTIVE' },
+    });
+
+    const tokens = await this.issueTokenPair(user);
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        roles: expandRoles(user.role),
+        keycloakId: user.keycloakId,
+        subscriptionStatus: 'ACTIVE',
+      },
+    };
+  }
+
+  // ── Magic link (single-use DB-backed tokens reused from RefreshToken) ──────
+  /** Issues a one-time, 15-minute login token ONLY for existing users. */
+  async requestMagicLink(email: string): Promise<{ magicToken: string; expiresIn: number }> {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
+    // Silently no-op for unknown emails — the response shape stays identical
+    // so the caller cannot distinguish "sent" from "user not found".
+    if (!user || user.deletedAt) return { magicToken: '', expiresIn: 0 };
+
+    const rawToken = randomBytes(32).toString('base64url');
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 15 * 60_000),
+      },
+    });
+    return { magicToken: rawToken, expiresIn: 900 };
+  }
+
+  /** Consumes a single-use magic token and returns a real session. */
+  async verifyMagicLink(magicToken: string): Promise<TokenPair & { user: Record<string, unknown> }> {
+    const tokenHash = createHash('sha256').update(magicToken).digest('hex');
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    const valid = stored && !stored.revokedAt && stored.expiresAt.getTime() > Date.now() && stored.user && !stored.user.deletedAt;
+    if (!valid) throw new UnauthorizedException('This sign-in link is invalid or has expired.');
+    await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+
+    const user = stored.user;
+    const subStatus = await this.resolveSubscriptionStatus(user.id);
+
+    const tokens = await this.issueTokenPair({
+      id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role,
+    });
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => undefined);
+
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        roles: expandRoles(user.role),
+        keycloakId: user.keycloakId,
+        subscriptionStatus: subStatus ?? 'PENDING',
       },
     };
   }

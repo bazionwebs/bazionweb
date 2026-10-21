@@ -43,6 +43,98 @@ export class WebhooksController {
     return typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
   }
 
+  /**
+   * Idempotent subscription activation shared by the IntaSend and Paystack
+   * webhook branches. Plan resolution order:
+   *   1. invoice.subscriptionId → that subscription's plan (renewal/retry)
+   *   2. provider metadata.planId (echoed by Paystack/IntaSend init)
+   *   3. the client's assigned plan (Client.planId, set at checkout)
+   * Also flips the owning Client to ACTIVE so the portal gate opens.
+   */
+  private async activatePaidSubscription(
+    tx: any,
+    invoice: { id: string; clientId: string; subscriptionId: string | null; client: { planId: string } | null },
+    opts: { provider: PaymentProvider; providerRef: string; metadataPlanId?: string; metadataBillingCycle?: string },
+  ): Promise<void> {
+    const now = new Date();
+
+    let planId = opts.metadataPlanId;
+    if (!planId && invoice.subscriptionId) {
+      const linked = await tx.subscription.findUnique({ where: { id: invoice.subscriptionId }, select: { planId: true } });
+      planId = linked?.planId;
+    }
+    if (!planId) planId = invoice.client?.planId;
+
+    const billingCycle =
+      opts.metadataBillingCycle === 'ANNUAL' || opts.metadataBillingCycle === 'MONTHLY'
+        ? (opts.metadataBillingCycle as BillingCycle)
+        : BillingCycle.MONTHLY;
+
+    if (invoice.subscriptionId) {
+      await tx.subscription.update({
+        where: { id: invoice.subscriptionId },
+        data: {
+          status: SubscriptionStatus.ACTIVE,
+          currentPeriodStart: now,
+          currentPeriodEnd: new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000),
+          renewalDate: new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000),
+          gracePeriodEnd: null,
+          dunningAttemptsCount: 0,
+          lastDunningAt: null,
+          ...(planId ? { planId } : {}),
+        },
+      });
+    } else if (planId) {
+      const existingActive = await tx.subscription.findFirst({
+        where: { clientId: invoice.clientId, status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      if (existingActive) {
+        await tx.subscription.update({
+          where: { id: existingActive.id },
+          data: {
+            status: SubscriptionStatus.ACTIVE,
+            planId,
+            billingCycle,
+            currentPeriodStart: now,
+            currentPeriodEnd: new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000),
+            renewalDate: new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000),
+            gracePeriodEnd: null,
+            dunningAttemptsCount: 0,
+            lastDunningAt: null,
+            cancelledAt: null,
+          },
+        });
+        await tx.invoice.update({ where: { id: invoice.id }, data: { subscriptionId: existingActive.id } });
+      } else {
+        const nextPeriod = new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000);
+        const sub = await tx.subscription.create({
+          data: {
+            clientId: invoice.clientId,
+            planId,
+            billingCycle,
+            status: SubscriptionStatus.ACTIVE,
+            startDate: now,
+            renewalDate: nextPeriod,
+            currentPeriodStart: now,
+            currentPeriodEnd: nextPeriod,
+            provider: opts.provider,
+            providerSubscriptionId: opts.providerRef,
+          },
+        });
+        await tx.invoice.update({ where: { id: invoice.id }, data: { subscriptionId: sub.id } });
+      }
+    }
+
+    // Open the client's access — the web gate reads this state.
+    await tx.client.update({
+      where: { id: invoice.clientId },
+      data: { status: 'ACTIVE' },
+    }).catch((err: Error) => this.logger.warn(`Client status update failed: ${err.message}`));
+  }
+
+
   private intaSendSecret(): string {
     const s = this.config.get<string>('INTASEND_SECRET_KEY', '');
     if (!s) throw new ServiceUnavailableException('IntaSend webhook secret not configured');
@@ -156,42 +248,12 @@ export class WebhooksController {
           data: { status: InvoiceStatus.PAID, paidAt: new Date() },
         });
 
-        const now = new Date();
-        const nextPeriod = new Date(now);
-        nextPeriod.setMonth(nextPeriod.getMonth() + 1);
-
-        if (invoice.subscriptionId) {
-          await tx.subscription.update({
-            where: { id: invoice.subscriptionId },
-            data: {
-              status: SubscriptionStatus.ACTIVE,
-              currentPeriodStart: now,
-              currentPeriodEnd: nextPeriod,
-              gracePeriodEnd: null,
-              dunningAttemptsCount: 0,
-              lastDunningAt: null,
-            },
-          });
-        } else {
-          const plan = await tx.plan.findFirst({ where: { isActive: true } });
-          if (plan) {
-            const sub = await tx.subscription.create({
-              data: {
-                clientId: invoice.clientId,
-                planId: plan.id,
-                billingCycle: BillingCycle.MONTHLY,
-                status: SubscriptionStatus.ACTIVE,
-                startDate: now,
-                renewalDate: nextPeriod,
-                currentPeriodStart: now,
-                currentPeriodEnd: nextPeriod,
-                provider: PaymentProvider.INTASEND,
-                providerSubscriptionId: resolvedRef,
-              },
-            });
-            await tx.invoice.update({ where: { id: invoice.id }, data: { subscriptionId: sub.id } });
-          }
-        }
+        await this.activatePaidSubscription(tx, invoice, {
+          provider: PaymentProvider.INTASEND,
+          providerRef: resolvedRef,
+          metadataPlanId: (payload as any)?.metadata?.planId,
+          metadataBillingCycle: (payload as any)?.metadata?.billingCycle,
+        });
 
         await tx.paymentLog.upsert({
           where: { idempotencyKey },
@@ -291,6 +353,14 @@ export class WebhooksController {
         where: { id: invoice.id },
         data: { status: InvoiceStatus.PAID, paidAt: new Date() },
       });
+
+      await this.activatePaidSubscription(tx, invoice, {
+        provider: PaymentProvider.PAYSTACK,
+        providerRef: reference,
+        metadataPlanId: data.metadata?.planId,
+        metadataBillingCycle: data.metadata?.billingCycle,
+      });
+
       await tx.paymentLog.upsert({
         where: { idempotencyKey },
         create: {
@@ -309,6 +379,7 @@ export class WebhooksController {
       });
     });
 
+    this.logger.log(`Paystack payment processed — invoice ${invoice.invoiceNumber} PAID, subscription activated for client ${invoice.clientId}`);
     return { status: 'PROCESSED' };
   }
 

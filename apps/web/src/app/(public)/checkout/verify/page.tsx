@@ -3,14 +3,12 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag, Lock } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
-import { useAuthStore } from '@/store/auth.store';
 
 function VerifyPaymentContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get('reference') || searchParams.get('trxref');
-  const setSubscriptionStatus = useAuthStore(s => s.setSubscriptionStatus);
 
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -39,7 +37,9 @@ function VerifyPaymentContent() {
 
         if (json.success) {
           setSuccess(true);
-          setSubscriptionStatus('ACTIVE');
+          // NOTE: no client-side entitlement here. Access is granted by the
+          // webhook → API activation; this page only confirms the payment
+          // and points the customer at the one-step account claim.
           setData({
             ...json,
             planSlug: json.metadata?.planSlug || json.planSlug,
@@ -56,7 +56,7 @@ function VerifyPaymentContent() {
     }
 
     verify();
-  }, [reference, setSubscriptionStatus]);
+  }, [reference]);
 
   return (
     <div className="w-full max-w-xl bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100 text-slate-900">
@@ -79,9 +79,9 @@ function VerifyPaymentContent() {
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/80 text-emerald-800 text-[11px] font-bold uppercase tracking-wider mb-2">
               <ShieldCheck className="w-3.5 h-3.5" /> Payment Confirmed
             </span>
-            <h1 className="text-2xl font-extrabold text-[#0F172A]">Subscription Activated!</h1>
+            <h1 className="text-2xl font-extrabold text-[#0F172A]">Payment Confirmed!</h1>
             <p className="text-xs text-slate-500 mt-1">
-              Your Cloud Care maintenance and engineering desk are now fully initialized.
+              One last step: set a password below to unlock your dashboard.
             </p>
           </div>
 
@@ -140,16 +140,24 @@ function VerifyPaymentContent() {
           {/* Action CTAs */}
           <div className="space-y-3 pt-2">
             <Link
-              href="/portal"
+              href={`/portal/claim?ref=${encodeURIComponent(reference || '')}&email=${encodeURIComponent(data?.customerEmail || '')}`}
               className="btn-primary w-full py-3.5 justify-center text-xs font-bold shadow-lg shadow-blue-600/20"
             >
-              Enter Client Operating Hub
+              <Lock className="w-4 h-4" />
+              Create Your Password & Enter Dashboard
               <ArrowRight className="w-4 h-4" />
+            </Link>
+
+            <Link
+              href="/portal/login"
+              className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              Already have an account? Sign in
             </Link>
 
             <button
               onClick={() => window.open(`/api/paystack/verify?reference=${encodeURIComponent(reference || '')}&format=receipt`, '_blank')}
-              className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full py-2 rounded-lg text-slate-500 hover:text-slate-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
             >
               <Download className="w-3.5 h-3.5 text-slate-400" />
               Download Payment Receipt (PDF)

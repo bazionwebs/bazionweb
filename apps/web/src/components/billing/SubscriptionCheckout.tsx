@@ -32,9 +32,11 @@ interface CheckoutProps {
   token?: string;
 }
 
+// IDs mirror the seeded Plan rows (prisma/seed.ts). Prices are display-only:
+// the API re-prices server-side from its pricebook before every charge.
 const AVAILABLE_PLANS: Record<string, PlanConfig> = {
   starter: {
-    id: '11111111-1111-1111-1111-111111111111',
+    id: '11111111-1111-4111-8111-111111111111',
     name: 'Starter',
     slug: 'starter',
     priceMonthlyUsd: 29,
@@ -45,7 +47,7 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
     features: ['Cloud Deployment Configuration', 'Auto SSL Certificates', 'Daily Automated Backups', 'Continuous Uptime Checks', 'Email Support'],
   },
   growth: {
-    id: '22222222-2222-2222-2222-222222222222',
+    id: '22222222-2222-4222-8222-222222222222',
     name: 'Growth',
     slug: 'growth',
     priceMonthlyUsd: 59,
@@ -56,7 +58,7 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
     features: ['Everything in Starter', 'Monthly Core & Plugin Updates', 'Web Application Firewall (WAF)', 'Malware Scanning & Cleanup', '30-Minute P1 Response Support'],
   },
   business: {
-    id: '33333333-3333-3333-3333-333333333333',
+    id: '33333333-3333-4333-8333-333333333333',
     name: 'Business',
     slug: 'business',
     priceMonthlyUsd: 119,
@@ -67,7 +69,7 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
     features: ['Everything in Growth', 'Unlimited Minor Content Updates', 'Core Web Vitals Optimization', 'Staging Environment Setup', '15-Minute P1 Response Support'],
   },
   enterprise: {
-    id: '44444444-4444-4444-4444-444444444444',
+    id: '44444444-4444-4444-8444-444444444444',
     name: 'Enterprise',
     slug: 'enterprise',
     priceMonthlyUsd: 299,
@@ -76,6 +78,39 @@ const AVAILABLE_PLANS: Record<string, PlanConfig> = {
     priceAnnualKes: 390000,
     description: 'Custom coverage, dedicated account manager, quarterly reviews and security testing.',
     features: ['Dedicated Technical Account Manager', 'Priority High-Availability Monitoring', 'Quarterly Security Reviews', 'Annual Disaster Recovery Drills', 'Fast Urgent Escalation'],
+  },
+  'care-essential': {
+    id: '55555555-5555-4555-8555-555555555555',
+    name: 'Care Essential',
+    slug: 'care-essential',
+    priceMonthlyUsd: 75,
+    priceMonthlyKes: 5000,
+    priceAnnualUsd: 810,
+    priceAnnualKes: 54000,
+    description: 'Ongoing care for your live site: updates, fixes, backups and monitoring.',
+    features: ['Monthly Backend & Security Updates', 'Daily Automated Backups', 'Uptime Monitoring', 'Content Change Requests', '2 Business-Hour Support'],
+  },
+  'care-business': {
+    id: '66666666-6666-4666-8666-666666666666',
+    name: 'Care Business',
+    slug: 'care-business',
+    priceMonthlyUsd: 150,
+    priceMonthlyKes: 10000,
+    priceAnnualUsd: 1620,
+    priceAnnualKes: 108000,
+    description: 'Priority care with security management and performance tuning.',
+    features: ['Everything in Care Essential', 'Weekly Performance Reports', 'WAF & Malware Management', '4 Change Requests / Month', '4 Business-Hour Support'],
+  },
+  'care-professional': {
+    id: '77777777-7777-4777-8777-777777777777',
+    name: 'Care Professional',
+    slug: 'care-professional',
+    priceMonthlyUsd: 300,
+    priceMonthlyKes: 20000,
+    priceAnnualUsd: 3240,
+    priceAnnualKes: 216000,
+    description: 'Dedicated priority care for business-critical platforms.',
+    features: ['Everything in Care Business', 'Dedicated Account Manager', 'Quarterly Strategy Reviews', 'Unlimited Minor Updates', '1 Business-Hour Critical Support'],
   },
 };
 
@@ -111,6 +146,8 @@ export default function SubscriptionCheckout({
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>(initialCycle);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GBP'>('USD');
   const [poNumber, setPoNumber] = useState('');
   
@@ -170,63 +207,63 @@ export default function SubscriptionCheckout({
     }
   };
 
-  // Card via Paystack (KES/USD) — server-side pricing, fallback to Next.js route
+  // Card via Paystack (KES/USD) — pay-first. Signed-in users pay through the
+  // authenticated endpoint; guests pay through the public guest endpoint.
+  // Both create an invoice and are activated by the Paystack webhook.
   const handleCardPay = async () => {
-    const clientEmail = email || (typeof window !== 'undefined' ? localStorage.getItem('bw_user_email') : '');
-    if (!clientEmail || !clientEmail.includes('@')) {
-      setFeedback({ type: 'error', message: 'Please enter a valid billing email address to proceed with card payment.' });
-      return;
-    }
-
+    // Note: window.location replaces the page on success — no setLoading reset needed on the happy path.
     setLoading(true);
     setFeedback(null);
 
-    const amountToCharge = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualKes : currentPlan.priceMonthlyKes;
-
     try {
       if (token) {
-        try {
-          const res = await fetch(`${apiBase}/invoices/subscribe/paystack`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({
-              planId: currentPlan.id,
-              billingCycle,
-              currency: 'KES',
-              ...(email ? { email } : {}),
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.checkoutUrl) {
-              window.location.href = data.checkoutUrl;
-              return;
-            }
-          }
-        } catch {
-          // Fall back to direct paystack route below
+        const res = await fetch(`${apiBase}/invoices/subscribe/paystack`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            planId: currentPlan.id,
+            billingCycle,
+            currency: 'KES',
+            ...(email ? { email } : {}),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Card gateway initialization failed');
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+          return;
         }
+        throw new Error('Payment gateway did not return a checkout URL');
       }
 
-      // Direct Paystack checkout initialization
-      const res = await fetch('/api/paystack/initialize', {
+      // Guest checkout — pay first, claim the account after success.
+      const cleanEmail = email.trim();
+      if (!cleanEmail || !cleanEmail.includes('@')) {
+        throw new Error('Please enter a valid billing email — access claim and receipts go to that address.');
+      }
+      if (!firstName.trim() || !lastName.trim()) {
+        throw new Error('Please add your first and last name so we can set up your account.');
+      }
+
+      const res = await fetch(`${apiBase}/invoices/guest/subscribe/paystack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: clientEmail,
-          amount: amountToCharge,
-          planSlug: currentPlan.slug,
+          planId: currentPlan.id,
+          billingCycle,
           currency: 'KES',
-          channels: ['card', 'mobile_money'],
+          email: cleanEmail,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
         }),
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Card gateway initialization failed');
-
-      if (data.authorizationUrl) {
-        window.location.href = data.authorizationUrl;
+      if (!res.ok) throw new Error(data.message || 'Card gateway initialization failed');
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
       }
+      throw new Error('Payment gateway did not return a checkout URL');
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Card gateway error' });
       setLoading(false);
@@ -492,7 +529,49 @@ export default function SubscriptionCheckout({
                   placeholder="billing@yourcompany.com"
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors mb-3"
                 />
+                {email.trim() !== email && (
+                  <span className="text-[11px] text-amber-400 block -mt-2 mb-2">Auto-trimming spaces…</span>
+                )}
               </div>
+
+              {!token && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                      First Name
+                    </label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Jane"
+                      autoComplete="given-name"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Wanjiku"
+                      autoComplete="family-name"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!token && (
+                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-200 text-xs leading-relaxed">
+                  Pay first — <strong>no account needed yet</strong>. Once your payment lands, you&apos;ll set a
+                  password on the confirmation page and your dashboard unlocks instantly. Receipts and access
+                  go to the email above.
+                </div>
+              )}
 
               <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed">
                 Supports Visa, Mastercard, and American Express. Your card details are tokenized securely with Paystack PCI-DSS Level 1 compliance.

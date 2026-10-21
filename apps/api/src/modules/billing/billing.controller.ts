@@ -12,9 +12,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
-import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
+import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto } from './dto/billing.dto';
+import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto, GuestSubscriptionDto } from './dto/billing.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
@@ -23,6 +23,20 @@ import { Throttle } from '@nestjs/throttler';
 @Controller({ path: 'invoices', version: '1' })
 export class BillingController {
   constructor(private readonly svc: BillingService) {}
+
+  /**
+   * Guest checkout (Track C) — pay-first, no account required.
+   * Public because the customer has no login yet; the webhook activates
+   * the subscription and the claim endpoint creates the credentials after.
+   * Throttled hard: anonymous, billing-critical.
+   */
+  @Post('guest/subscribe/paystack')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Guest Paystack card checkout (KES/USD) — pay before signup' })
+  subscribePaystackGuest(@Body() body: GuestSubscriptionDto) {
+    return this.svc.subscribePaystackGuest(body);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List invoices (scoped by role)' })

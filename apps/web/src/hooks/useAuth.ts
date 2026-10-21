@@ -32,6 +32,7 @@ export function useAuth() {
         lastName:   decoded.family_name ?? '',
         roles:      decoded.realm_access?.roles ?? [],
         keycloakId: decoded.sub,
+        subscriptionStatus: decoded.subscriptionStatus,
       },
       at,
       rt,
