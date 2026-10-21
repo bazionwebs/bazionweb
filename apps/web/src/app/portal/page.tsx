@@ -47,7 +47,7 @@ export default function PortalDashboardPage() {
           <div>
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-400 text-xs font-bold tracking-wider uppercase mb-3">
               <Sparkles className="w-3.5 h-3.5" />
-              Active Engineering Sprint
+              Active Engineering Sprint • {workspaceDomain}
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Welcome back, {contactName}
