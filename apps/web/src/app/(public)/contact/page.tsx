@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import ContactForm from '@/components/sections/ContactForm';
-import { Mail, Phone, MapPin, Clock, MessageSquare, Calendar } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock, Calendar } from 'lucide-react';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
 
@@ -25,13 +25,9 @@ const contactMethods = [
     href: 'tel:+254721287053',
     sub: 'Mon–Fri, 8am–6pm (UTC+3)',
   },
-  {
-    icon: MessageSquare,
-    label: 'Support ticket',
-    value: 'support.bazionweb.com',
-    href: 'https://support.bazionweb.com',
-    sub: 'Existing clients only',
-  },
+  // TODO: restore the support-ticket card (value: 'support.bazionweb.com',
+  // icon: MessageSquare) once the Zammad portal is live —
+  // see infrastructure/scripts/setup-support.sh and CHANGELOG.
 ];
 
 export default function ContactPage() {

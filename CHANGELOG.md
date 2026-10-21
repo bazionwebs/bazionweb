@@ -19,12 +19,16 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - GitHub community health files: CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, PR template, issue templates
 - Lighthouse CI configuration (`.lighthouserc.json`)
 - Comprehensive `.env.example` with all required variables annotated
+- Zammad 7 support stack in `docker-compose.yml`: railsserver, websocket, scheduler, zammad-nginx plus dedicated memcached, Redis, and Elasticsearch services on a dedicated `zammad_production` database
+- `infrastructure/scripts/setup-support.sh` provisioning script for `support.bazionweb.com`
+- Nginx vhost reference for `support.bazionweb.com` in `bazionweb.conf`
 
 ### Changed
 - Updated `Subscription` and `Invoice` Prisma models with billing relations
 - Updated CI/CD workflow to use conditional `npm ci` / `npm install` fallback
 - Updated README with correct repository URL, billing system docs, and updated badge URLs
 - Updated `/pricing` page CTAs to link to `/checkout`
+- Replaced placeholder single-container Zammad service with the official pinned per-role Zammad image (`ghcr.io/zammad/zammad`)
 
 ### Fixed
 - CI error: `npm ci` failing when `apps/web/package-lock.json` was missing

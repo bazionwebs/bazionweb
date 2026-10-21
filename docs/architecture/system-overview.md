@@ -61,15 +61,15 @@
 | uptime-kuma | louislam/uptime-kuma:1 | 3001 | Uptime monitoring |
 | grafana | grafana/grafana | 3000 | Metrics dashboards |
 | loki | grafana/loki | 3100 | Log aggregation |
-| zammad | zammad/zammad | 8080 | Support ticket system |
+| zammad-nginx | ghcr.io/zammad/zammad | 8080 | Support ticketing entrypoint (railsserver, websocket, scheduler, elasticsearch, memcached, redis alongside) |
 
 ---
 
 ## Network Topology
 
 Two Docker networks:
-- **bazionweb-public**: Web, API, Keycloak, NPM, Uptime Kuma (externally accessible via NPM)
-- **bazionweb-internal**: DB, Redis, Strapi, Grafana, Loki (never directly exposed)
+- **bazionweb-public**: Web, API, Keycloak, NPM, Uptime Kuma, Zammad nginx (externally accessible via NPM)
+- **bazionweb-internal**: DB, Redis, Strapi, Grafana, Loki, Zammad stack (memcached, redis, elasticsearch, init, railsserver, websocket, scheduler)
 
 All cross-service communication uses Docker internal DNS (`service_name:port`).
 

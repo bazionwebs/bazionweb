@@ -22,6 +22,9 @@ volumes:
   grafana_data:
   uptime_kuma_data:
   zammad_data:
+  zammad_backup:
+  zammad_redis_data:
+  zammad_es_data:
   nginx_data:
   nginx_letsencrypt:
 
@@ -300,22 +303,206 @@ services:
       - "3100"
 
   # ── Zammad (Support Ticketing) ───────────────────────────────────────────────
-  zammad:
-    image: zammad/zammad-docker-compose:latest
-    container_name: bazionweb-support
-    restart: unless-stopped
+  # Official Zammad 7 layout — one container per role. zammad-nginx:8080 is the
+  # single entrypoint Nginx Proxy Manager forwards support.bazionweb.com to.
+  #
+  # Zammad requires PostgreSQL, Redis, Memcached and Elasticsearch — these are
+  # provisioned below (dedicated instance per service, internal network only).
+  # Records are stored in a dedicated `zammad_production` database created on
+  # first start (POSTGRESQL_DB_CREATE), separate from the main app database.
+  # ─────────────────────────────────────────────────────────────────────────────
+  zammad-init:
+    image: ghcr.io/zammad/zammad:${ZAMMAD_VERSION:-7.2.2-0012}
+    container_name: bazionweb-support-init
+    restart: on-failure
+    command: ["zammad-init"]
+    user: "0:0"
     environment:
+      MEMCACHE_SERVERS: zammad-memcached:11211
       POSTGRESQL_HOST: db
-      POSTGRESQL_DB: ${DB_NAME}
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DB: ${ZAMMAD_DB_NAME:-zammad_production}
       POSTGRESQL_USER: ${DB_USER}
       POSTGRESQL_PASS: ${DB_PASSWORD}
-    volumes:
-      - zammad_data:/opt/zammad
+      POSTGRESQL_OPTIONS: "?pool=50"
+      POSTGRESQL_DB_CREATE: "true"
+      REDIS_URL: redis://zammad-redis:6379
+      ELASTICSEARCH_HOST: zammad-elasticsearch
+      ELASTICSEARCH_PORT: "9200"
+      TZ: Africa/Nairobi
     depends_on:
       db:
+        condition: service_healthy
+      zammad-redis:
+        condition: service_healthy
+      zammad-memcached:
+        condition: service_healthy
+    networks:
+      - bazionweb-internal
+
+  zammad-railsserver:
+    image: ghcr.io/zammad/zammad:${ZAMMAD_VERSION:-7.2.2-0012}
+    container_name: bazionweb-support-rails
+    restart: unless-stopped
+    command: ["zammad-railsserver"]
+    environment:
+      MEMCACHE_SERVERS: zammad-memcached:11211
+      POSTGRESQL_HOST: db
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DB: ${ZAMMAD_DB_NAME:-zammad_production}
+      POSTGRESQL_USER: ${DB_USER}
+      POSTGRESQL_PASS: ${DB_PASSWORD}
+      POSTGRESQL_OPTIONS: "?pool=50"
+      REDIS_URL: redis://zammad-redis:6379
+      ELASTICSEARCH_HOST: zammad-elasticsearch
+      ELASTICSEARCH_PORT: "9200"
+      TZ: Africa/Nairobi
+    depends_on:
+      zammad-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3000"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+    networks:
+      - bazionweb-internal
+
+  zammad-websocket:
+    image: ghcr.io/zammad/zammad:${ZAMMAD_VERSION:-7.2.2-0012}
+    container_name: bazionweb-support-ws
+    restart: unless-stopped
+    command: ["zammad-websocket"]
+    environment:
+      MEMCACHE_SERVERS: zammad-memcached:11211
+      POSTGRESQL_HOST: db
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DB: ${ZAMMAD_DB_NAME:-zammad_production}
+      POSTGRESQL_USER: ${DB_USER}
+      POSTGRESQL_PASS: ${DB_PASSWORD}
+      POSTGRESQL_OPTIONS: "?pool=50"
+      REDIS_URL: redis://zammad-redis:6379
+      ELASTICSEARCH_HOST: zammad-elasticsearch
+      ELASTICSEARCH_PORT: "9200"
+      TZ: Africa/Nairobi
+    depends_on:
+      zammad-init:
+        condition: service_completed_successfully
+    networks:
+      - bazionweb-internal
+
+  zammad-scheduler:
+    image: ghcr.io/zammad/zammad:${ZAMMAD_VERSION:-7.2.2-0012}
+    container_name: bazionweb-support-jobs
+    restart: unless-stopped
+    command: ["zammad-scheduler"]
+    environment:
+      MEMCACHE_SERVERS: zammad-memcached:11211
+      POSTGRESQL_HOST: db
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DB: ${ZAMMAD_DB_NAME:-zammad_production}
+      POSTGRESQL_USER: ${DB_USER}
+      POSTGRESQL_PASS: ${DB_PASSWORD}
+      POSTGRESQL_OPTIONS: "?pool=50"
+      REDIS_URL: redis://zammad-redis:6379
+      ELASTICSEARCH_HOST: zammad-elasticsearch
+      ELASTICSEARCH_PORT: "9200"
+      TZ: Africa/Nairobi
+    depends_on:
+      zammad-init:
+        condition: service_completed_successfully
+    networks:
+      - bazionweb-internal
+
+  zammad-nginx:
+    image: ghcr.io/zammad/zammad:${ZAMMAD_VERSION:-7.2.2-0012}
+    container_name: bazionweb-support
+    restart: unless-stopped
+    command: ["zammad-nginx"]
+    expose:
+      - "8080"
+    depends_on:
+      zammad-railsserver:
         condition: service_healthy
     networks:
       - bazionweb-internal
       - bazionweb-public
+
+  zammad-memcached:
+    image: memcached:1.6-alpine
+    container_name: bazionweb-support-cache
+    restart: unless-stopped
+    command: ["memcached", "-m", "256M"]
     expose:
-      - "8080"
+      - "11211"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "11211"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    networks:
+      - bazionweb-internal
+
+  zammad-redis:
+    image: redis:7-alpine
+    container_name: bazionweb-support-redis
+    restart: unless-stopped
+    volumes:
+      - zammad_redis_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    networks:
+      - bazionweb-internal
+
+  zammad-elasticsearch:
+    image: elasticsearch:9.5.5
+    container_name: bazionweb-support-search
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: ${ELASTICSEARCH_JAVA_OPTS:--Xms1g -Xmx1g}
+    volumes:
+      - zammad_es_data:/usr/share/elasticsearch/data
+    networks:
+      - bazionweb-internal
+
+  zammad-backup:
+    image: ghcr.io/zammad/zammad:${ZAMMAD_VERSION:-7.2.2-0012}
+    container_name: bazionweb-support-backup
+    restart: unless-stopped
+    command: ["zammad-backup"]
+    user: "0:0"
+    environment:
+      POSTGRESQL_HOST: db
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DB: ${ZAMMAD_DB_NAME:-zammad_production}
+      POSTGRESQL_USER: ${DB_USER}
+      POSTGRESQL_PASS: ${DB_PASSWORD}
+      POSTGRESQL_OPTIONS: "?pool=50"
+      REDIS_URL: redis://zammad-redis:6379
+      TZ: Africa/Nairobi
+      BACKUP_DIR: /var/tmp/zammad
+      BACKUP_TIME: "03:00"
+      BACKUP_ON_START: "false"
+      HOLD_DAYS: "30"
+    volumes:
+      - zammad_data:/opt/zammad/storage
+      - zammad_backup:/var/tmp/zammad
+    depends_on:
+      db:
+        condition: service_healthy
+      zammad-redis:
+        condition: service_healthy
+      zammad-memcached:
+        condition: service_healthy
+    networks:
+      - bazionweb-internal
