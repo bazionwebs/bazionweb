@@ -21,7 +21,10 @@ export async function POST(req: Request) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_INTERNAL_URL;
+    // Env may already carry the /api/v1 prefix (e.g. https://api.bazionweb.com/api/v1)
+    // — normalize so versioned path segments can never double up.
+    const rawBase = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || '';
+    const apiBaseUrl = rawBase.replace(/\/api\/v1\/?$/, '');
     if (!apiBaseUrl) {
       return NextResponse.json({ error: 'Auth backend not configured' }, { status: 503 });
     }
