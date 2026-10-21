@@ -50,7 +50,9 @@ export async function POST(req: Request) {
       }
     } else {
       // For custom quotes / invoices, enforce strict minimum threshold
-      const minAmount = normalizedCurrency === 'USD' ? 5 : 500;
+      // PAYSTACK_MIN_KES env can override (default 100 for testing, raise to 500 in production)
+      const minKes = Number(process.env.PAYSTACK_MIN_KES ?? 100);
+      const minAmount = normalizedCurrency === 'USD' ? 5 : minKes;
       if (numericAmount < minAmount) {
         return NextResponse.json({
           error: `Payment amount is below minimum processing threshold (${normalizedCurrency} ${minAmount}).`,
