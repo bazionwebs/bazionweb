@@ -390,9 +390,6 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
   });
 
   it('verifyMagicLink consumes the token and returns a real session', async () => {
-    const { createHash } = require('crypto');
-    const raw = 'single-use-token';
-    const tokenHash = createHash('sha256').update(raw).digest('hex');
     prisma.refreshToken.findUnique.mockResolvedValue({
       id: 'rt-1', revokedAt: null,
       expiresAt: new Date(Date.now() + 60_000),

@@ -176,3 +176,37 @@ export function useSla() {
     ...opts,
   });
 }
+
+export function useMarkInvoicePaid() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.markInvoicePaid(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'mrr'] });
+    },
+  });
+}
+
+export function useUpdateHosting() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { status?: string; serverIp?: string } }) =>
+      adminApi.updateHosting(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'hosting'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'uptime'] });
+    },
+  });
+}
+
+export function useSystemHealth() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'health'],
+    queryFn: () => adminApi.getHealth().then(r => r.data),
+    enabled: !!token,
+    refetchInterval: 30_000,
+    ...opts,
+  });
+}

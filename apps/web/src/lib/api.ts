@@ -124,6 +124,22 @@ export const adminApi = {
   getUptime: (days = 30) => api.get('/reports/uptime', { params: { days } }).then(r => r.data),
 
   getSla: () => api.get('/reports/sla').then(r => r.data),
+
+  markInvoicePaid: (id: string) => api.patch(`/invoices/${id}/mark-paid`).then(r => r.data),
+
+  generateInvoice: (data: { clientId: string; subscriptionId?: string; amount: number; notes?: string }) =>
+    api.post('/invoices/generate', data).then(r => r.data),
+
+  createClient: (data: { businessName: string; contactName: string; email: string; phone?: string; planId?: string }) =>
+    api.post('/clients', data).then(r => r.data),
+
+  createHosting: (data: { clientId: string; domain: string; serverIp?: string; plan?: string }) =>
+    api.post('/hosting', data).then(r => r.data),
+
+  updateHosting: (id: string, data: { status?: string; serverIp?: string }) =>
+    api.patch(`/hosting/${id}`, data).then(r => r.data),
+
+  getHealth: () => api.get('/health').then(r => r.data),
 };
 
 export default api;
