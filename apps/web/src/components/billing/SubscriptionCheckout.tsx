@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   CreditCard, 
   Smartphone, 
@@ -14,6 +14,7 @@ import {
   Lock
 } from 'lucide-react';
 import { resolveApiV1Base } from '@/lib/api-base';
+import { useAuthStore } from '@/store/auth.store';
 
 export interface PlanConfig {
   id: string;
@@ -138,8 +139,14 @@ export interface WiseBankAccount {
 export default function SubscriptionCheckout({
   initialPlanSlug = 'growth',
   initialCycle = 'MONTHLY',
-  token = '',
+  token: tokenProp = '',
 }: CheckoutProps) {
+  // Session-aware checkout: the public /checkout page doesn't pass a token prop,
+  // but a signed-in visitor still carries one in the auth store. Pick it up so
+  // M-Pesa / corporate rails don't refuse paying customers with "Please sign in".
+  const storeToken = useAuthStore(s => s.accessToken);
+  const storeUser = useAuthStore(s => s.user);
+  const token = tokenProp || storeToken || '';
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(
     AVAILABLE_PLANS[initialPlanSlug] ? initialPlanSlug : 'growth'
   );
@@ -151,11 +158,19 @@ export default function SubscriptionCheckout({
   const [lastName, setLastName] = useState('');
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GBP'>('USD');
   const [poNumber, setPoNumber] = useState('');
-  
+
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [wiseAccount, setWiseAccount] = useState<WiseBankAccount | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Prefill the billing email from the session (once) — users jumping here from
+  // the portal shouldn't retype it.
+  useEffect(() => {
+    if (storeUser?.email) {
+      setEmail(prev => prev || storeUser.email);
+    }
+  }, [storeUser]);
 
   const currentPlan = AVAILABLE_PLANS[selectedPlanSlug] || AVAILABLE_PLANS['growth'];
 
@@ -172,13 +187,55 @@ export default function SubscriptionCheckout({
 
   const apiBase = resolveApiV1Base();
 
+  // Browser-level network failure (API down / CORS blocked) surfaces as a bare
+  // "Failed to fetch" — replace it with an actionable message instead.
+  const paymentFailedMessage = (err: unknown, fallback: string): string => {
+    if (err instanceof TypeError && /failed to fetch/i.test(err?.message ?? '')) {
+      return `Payment server unreachable (${apiBase}). Ensure the BazionWeb API is running and matches NEXT_PUBLIC_API_URL, then retry.`;
+    }
+    return (err instanceof Error ? err.message : null) || fallback;
+  };
+
   // M-Pesa STK via IntaSend (KES) — server-side pricing, phone only.
   const handleMpesaPay = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanPhone = phone.replace(/[^0-9+]/g, '');
+
     if (!token) {
-      setFeedback({ type: 'error', message: 'Please sign in to pay with M-Pesa.' });
+      // Guest pay-first: no account needed. Email becomes the claim identity;
+      // the invoice is created server-side and the webhook activates it.
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes('@')) {
+        setFeedback({ type: 'error', message: 'Enter a valid billing email — the PIN prompt, receipt, and account-claim link all go to that address.' });
+        return;
+      }
+      setLoading(true);
+      setFeedback(null);
+      try {
+        const res = await fetch(`${apiBase}/invoices/guest/subscribe/intasend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: currentPlan.id,
+            billingCycle,
+            email: cleanEmail,
+            mpesaPhoneNumber: cleanPhone,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'M-Pesa initialization failed');
+        setFeedback({
+          type: 'info',
+          message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter PIN. Invoice ${data.invoiceNumber}. After payment, claim your dashboard at /portal/claim with ${cleanEmail}.`,
+        });
+      } catch (err: unknown) {
+        setFeedback({ type: 'error', message: paymentFailedMessage(err, 'M-Pesa payment request failed') });
+      } finally {
+        setLoading(false);
+      }
       return;
     }
+
     setLoading(true);
     setFeedback(null);
 
@@ -190,7 +247,7 @@ export default function SubscriptionCheckout({
           planId: currentPlan.id,
           billingCycle,
           paymentMethod: 'MPESA',
-          mpesaPhoneNumber: phone.replace(/[^0-9+]/g, ''),
+          mpesaPhoneNumber: cleanPhone,
         }),
       });
 
@@ -202,7 +259,7 @@ export default function SubscriptionCheckout({
         message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter PIN. Invoice ${data.invoiceNumber}.`,
       });
     } catch (err: unknown) {
-      setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Payment request failed' });
+      setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Payment request failed') });
     } finally {
       setLoading(false);
     }
@@ -266,7 +323,7 @@ export default function SubscriptionCheckout({
       }
       throw new Error('Payment gateway did not return a checkout URL');
     } catch (err: unknown) {
-      setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Card gateway error' });
+      setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Card gateway error') });
       setLoading(false);
     }
   };
@@ -274,10 +331,44 @@ export default function SubscriptionCheckout({
   // Manual B2B bank transfer (Wise = payouts/invoice links only — no virtual accounts in KE).
   const handleWiseInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+
     if (!token) {
-      setFeedback({ type: 'error', message: 'Please sign in to generate a corporate invoice.' });
+      // Guest invoice: corporate wire intent without an account. Activation
+      // stays manual (our team confirms the wire after the transfer lands).
+      if (!cleanEmail || !cleanEmail.includes('@')) {
+        setFeedback({ type: 'error', message: 'Enter a valid billing email — the invoice and claim link go to that address.' });
+        return;
+      }
+      setLoading(true);
+      setFeedback(null);
+      try {
+        const res = await fetch(`${apiBase}/invoices/guest/corporate-invoice/bank-transfer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId: currentPlan.id,
+            billingCycle,
+            currency,
+            email: cleanEmail,
+            purchaseOrderNumber: poNumber || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Invoice generation failed');
+        setWiseAccount(data);
+        setFeedback({
+          type: 'success',
+          message: `Corporate invoice ${data.invoiceNumber} ready. Wire to ${data.bankTransferDetails?.beneficiary} with reference ${data.paymentReference}. After we confirm the transfer, claim the dashboard at /portal/claim with ${cleanEmail}.`,
+        });
+      } catch (err: unknown) {
+        setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Corporate invoice generation failed') });
+      } finally {
+        setLoading(false);
+      }
       return;
     }
+
     setLoading(true);
     setFeedback(null);
 
@@ -305,7 +396,7 @@ export default function SubscriptionCheckout({
         message: `Corporate invoice ${data.invoiceNumber} ready. Wire to ${data.bankTransferDetails?.beneficiary} with reference ${data.paymentReference}. Admin confirms on receipt.`,
       });
     } catch (err: unknown) {
-      setFeedback({ type: 'error', message: (err instanceof Error ? err.message : null) || 'Corporate invoice generation failed' });
+      setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Corporate invoice generation failed') });
     } finally {
       setLoading(false);
     }
@@ -515,8 +606,11 @@ export default function SubscriptionCheckout({
           {activeTab === 'CARD' && (
             <div className="space-y-4">
               <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400 text-xs font-medium">Card Renewal Amount</span>
-                <span className="text-xl font-bold text-white font-mono">${currentPriceUsd.toLocaleString()} USD</span>
+                <span className="text-slate-400 text-xs font-medium">Card charge (billed in KES)</span>
+                <span className="text-xl font-bold text-white font-mono">
+                  KES {currentPriceKes.toLocaleString()}
+                  <span className="ml-2 text-xs text-slate-500 font-sans">≈ ${currentPriceUsd.toLocaleString()}</span>
+                </span>
               </div>
 
               <div>
@@ -576,6 +670,7 @@ export default function SubscriptionCheckout({
 
               <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed">
                 Supports Visa, Mastercard, and American Express. Your card details are tokenized securely with Paystack PCI-DSS Level 1 compliance.
+                Cards are charged in KES — international card issuers convert automatically.
               </div>
 
               <button
@@ -592,6 +687,12 @@ export default function SubscriptionCheckout({
           {/* Tab 3: Wise Corporate Wire */}
           {activeTab === 'WISE' && (
             <div className="space-y-4">
+              {!token && (
+                <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-200 text-xs leading-relaxed">
+                  No account needed yet — enter your billing email and we&apos;ll generate the invoice. After our team
+                  confirms your wire, claim the dashboard at <strong>/portal/claim</strong> with that email.
+                </div>
+              )}
               {!wiseAccount ? (
                 <form onSubmit={handleWiseInvoice} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
