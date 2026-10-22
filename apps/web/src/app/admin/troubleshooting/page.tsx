@@ -44,11 +44,11 @@ export default function AdminTroubleshootingPage() {
     },
     {
       id: 'WH-84919',
-      gateway: 'INTASEND',
-      event: 'payment.success',
+      gateway: 'PAYSTACK',
+      event: 'charge.success',
       status: 'PROCESSED',
       timestamp: '14 mins ago',
-      reference: 'IS_MPESA_784912',
+      reference: 'PS_MPESA_784912',
       amount: 'KES 15,000',
       client: 'Parkview Law LLP',
     },
@@ -319,7 +319,7 @@ export default function AdminTroubleshootingPage() {
             <div>
               <h3 className="font-bold text-slate-900 text-sm">Payment Gateway Webhook Stream</h3>
               <p className="text-xs text-slate-400">
-                Inspect raw Paystack and IntaSend events, verify HMAC signatures, and re-dispatch failed events
+                Inspect raw Paystack webhook events, verify HMAC signatures, and re-dispatch failed events
               </p>
             </div>
             <button

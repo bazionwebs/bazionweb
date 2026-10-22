@@ -122,7 +122,7 @@ export default function AdminInvoicesPage() {
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="text-xs text-emerald-600 font-medium">Collected Revenue (Paid)</div>
           <div className="text-2xl font-black text-emerald-600 mt-1">{formatMoney(totalPaid)}</div>
-          <div className="text-[11px] text-slate-400 mt-1">Reconciled via Paystack & IntaSend</div>
+          <div className="text-[11px] text-slate-400 mt-1">Reconciled via Paystack</div>
         </div>
         <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
           <div className="text-xs text-rose-600 font-medium">Overdue Outstanding</div>

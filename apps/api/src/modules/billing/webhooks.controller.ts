@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import {
@@ -17,12 +16,10 @@ import {
   PaymentProvider,
   PaymentMethodType,
 } from '@prisma/client';
-import * as crypto from 'crypto';
 import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
-import { WiseService } from './wise.service';
 
 @ApiTags('webhooks')
 @Controller({ path: 'webhooks', version: '1' })
@@ -33,7 +30,6 @@ export class WebhooksController {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly paystack: PaystackService,
-    private readonly wise: WiseService,
   ) {}
 
   // Exact bytes for HMAC — requires NestFactory rawBody:true (see main.ts).
@@ -44,10 +40,10 @@ export class WebhooksController {
   }
 
   /**
-   * Idempotent subscription activation shared by the IntaSend and Paystack
-   * webhook branches. Plan resolution order:
-   *   1. invoice.subscriptionId → that subscription's plan (renewal/retry)
-   *   2. provider metadata.planId (echoed by Paystack/IntaSend init)
+   * Idempotent subscription activation for Paystack webhooks.
+   * Plan resolution order:
+   *   1. invoice.subscriptionId -> that subscription's plan (renewal/retry)
+   *   2. provider metadata.planId (echoed by Paystack init)
    *   3. the client's assigned plan (Client.planId, set at checkout)
    * Also flips the owning Client to ACTIVE so the portal gate opens.
    */
@@ -132,152 +128,6 @@ export class WebhooksController {
       where: { id: invoice.clientId },
       data: { status: 'ACTIVE' },
     }).catch((err: Error) => this.logger.warn(`Client status update failed: ${err.message}`));
-  }
-
-
-  private intaSendSecret(): string {
-    const s = this.config.get<string>('INTASEND_SECRET_KEY', '');
-    if (!s) throw new ServiceUnavailableException('IntaSend webhook secret not configured');
-    return s;
-  }
-
-  private requireIntaSendSignature(rawBody: Buffer | string, signature: string | undefined): void {
-    const secret = this.intaSendSecret();
-    if (!signature) {
-      throw new ServiceUnavailableException('Missing IntaSend signature');
-    }
-    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-    const a = Buffer.from(signature, 'utf8');
-    const b = Buffer.from(expected, 'utf8');
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      this.logger.warn('IntaSend signature verification failed');
-      throw new ServiceUnavailableException('Invalid IntaSend webhook signature');
-    }
-  }
-
-  /**
-   * IntaSend IPN — M-Pesa STK only.
-   */
-  @Post('intasend')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'IntaSend Payment Notification Webhook (M-Pesa)' })
-  async handleIntaSendWebhook(
-    @Req() req: Request,
-    @Headers('intasend-signature') signature?: string,
-  ) {
-    const payload = req.body ?? {};
-
-    // Handshake must come before verification (IntaSend requirement).
-    if (payload.challenge) {
-      this.logger.log('Responding to IntaSend Webhook Verification Handshake');
-      return { challenge: payload.challenge };
-    }
-
-    this.requireIntaSendSignature(this.rawBody(req), signature);
-
-    const {
-      invoice_id,
-      state,
-      api_ref: invoiceNumber,
-      value: amount,
-      account,
-      tracking_id,
-    } = payload;
-
-    this.logger.log(`IntaSend webhook: ref=${invoiceNumber || invoice_id} state=${state}`);
-
-    const resolvedRef = String(invoice_id || tracking_id || invoiceNumber || '');
-    if (!resolvedRef) return { status: 'IGNORED_NO_REFERENCE' };
-    // Key idempotency on provider reference, not on event state transition
-    const idempotencyKey = `INTASEND_EVENT_${resolvedRef}`;
-
-    const existingLog = await this.prisma.paymentLog.findUnique({ where: { idempotencyKey } });
-    if (existingLog && existingLog.status === PaymentStatus.SUCCESS) {
-      return { status: 'ALREADY_PROCESSED' };
-    }
-
-    const invoice = invoiceNumber
-      ? await this.prisma.invoice.findUnique({
-          where: { invoiceNumber },
-          include: { client: true, subscription: true },
-        })
-      : null;
-
-    if (!invoice) {
-      // Persist orphan for manual reconciliation — never silently drop money.
-      // clientId: null avoids foreign key constraint violation against Client table.
-      await this.prisma.paymentLog.upsert({
-        where: { idempotencyKey },
-        create: {
-          idempotencyKey,
-          provider: PaymentProvider.INTASEND,
-          providerRef: resolvedRef,
-          method: PaymentMethodType.MPESA,
-          amount: Number(amount) || 0,
-          currency: 'KES',
-          status: PaymentStatus.FAILED,
-          errorMessage: `Orphan: no invoice for api_ref ${invoiceNumber}`,
-          clientId: null,
-          rawPayload: payload,
-        },
-        update: { rawPayload: payload },
-      }).catch((err) => {
-        this.logger.error(`Failed to persist IntaSend orphan payment log: ${err.message}`, err.stack);
-      });
-      this.logger.warn(`IntaSend orphan recorded for api_ref ${invoiceNumber}`);
-      return { status: 'ORPHAN_TRANSACTION_RECORDED' };
-    }
-
-    const paidAmount = Number(amount);
-    const expectedAmount = Number(invoice.amount);
-    if (
-      amount !== undefined &&
-      amount !== null &&
-      amount !== '' &&
-      !Number.isNaN(paidAmount) &&
-      paidAmount < expectedAmount - 0.01
-    ) {
-      this.logger.warn(`IntaSend amount mismatch for ${invoiceNumber}: ${paidAmount} < ${expectedAmount}`);
-      return { status: 'AMOUNT_MISMATCH' };
-    }
-
-    if (state === 'COMPLETE' || state === 'SUCCESSFUL') {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.invoice.update({
-          where: { id: invoice.id },
-          data: { status: InvoiceStatus.PAID, paidAt: new Date() },
-        });
-
-        await this.activatePaidSubscription(tx, invoice, {
-          provider: PaymentProvider.INTASEND,
-          providerRef: resolvedRef,
-          metadataPlanId: (payload as any)?.metadata?.planId,
-          metadataBillingCycle: (payload as any)?.metadata?.billingCycle,
-        });
-
-        await tx.paymentLog.upsert({
-          where: { idempotencyKey },
-          create: {
-            idempotencyKey,
-            provider: PaymentProvider.INTASEND,
-            providerRef: resolvedRef,
-            method: account?.startsWith('254') ? PaymentMethodType.MPESA : PaymentMethodType.CARD,
-            amount: Number(amount) || Number(invoice.amount),
-            currency: invoice.currency,
-            status: PaymentStatus.SUCCESS,
-            clientId: invoice.clientId,
-            invoiceId: invoice.id,
-            rawPayload: payload,
-          },
-          update: { status: PaymentStatus.SUCCESS, rawPayload: payload },
-        });
-      });
-      this.logger.log(`Subscription activated for client ${invoice.clientId} via IntaSend`);
-    } else if (state === 'FAILED') {
-      await this.handlePaymentFailure(invoice, payload, idempotencyKey, PaymentProvider.INTASEND);
-    }
-
-    return { status: 'PROCESSED' };
   }
 
   /**
@@ -384,136 +234,119 @@ export class WebhooksController {
   }
 
   /**
-   * Wise webhook — payout status only (transfer.state-change).
-   * Collections are manual bank transfers reconciled by admin mark-paid.
+   * Safaricom Daraja Lipa Na M-Pesa STK Push Callback.
+   * Dispatched asynchronously when the subscriber enters PIN or cancels.
    */
-  @Post('wise')
+  @Post('daraja')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Wise payout status webhook' })
-  async handleWiseWebhook(
-    @Req() req: Request,
-    @Headers('x-signature-sha256') signature?: string,
-  ) {
-    this.wise.verifyWebhookSignature(this.rawBody(req), signature);
+  @ApiOperation({ summary: 'Safaricom Daraja Lipa Na M-Pesa STK Callback' })
+  async handleDarajaWebhook(@Req() req: Request) {
+    const payload = req.body ?? {};
+    const stkCallback = payload?.Body?.stkCallback;
 
-    const { event_type, data } = req.body ?? {};
-    this.logger.log(`Wise webhook: ${event_type} ref=${data?.payment_reference || data?.resource?.id}`);
-
-    if (event_type !== 'transfer.state-change' && event_type !== 'balance-account-credit') {
-      return { status: 'IGNORED' };
+    if (!stkCallback) {
+      this.logger.warn('Received Daraja callback without stkCallback body');
+      return { ResultCode: 0, ResultDesc: 'Accepted' };
     }
 
-    const paymentRef = data?.payment_reference || data?.reference;
-    if (!paymentRef) return { status: 'IGNORED_NO_REFERENCE' };
+    const { CheckoutRequestID, ResultCode, ResultDesc, CallbackMetadata } = stkCallback;
+    this.logger.log(
+      `Daraja callback: checkoutRequestId=${CheckoutRequestID} resultCode=${ResultCode} desc=${ResultDesc}`,
+    );
 
-    const receivingAccount = await this.prisma.wiseReceivingAccount.findFirst({
-      where: { paymentReference: paymentRef },
-      include: { invoice: true, client: true },
+    if (!CheckoutRequestID) {
+      return { ResultCode: 0, ResultDesc: 'Accepted' };
+    }
+
+    const idempotencyKey = `DARAJA_${CheckoutRequestID}`;
+
+    const existingLog = await this.prisma.paymentLog.findUnique({
+      where: { idempotencyKey },
+      include: { invoice: { include: { client: true } } },
     });
-    if (!receivingAccount) {
-      this.logger.warn(`Wise unmatched reference: ${paymentRef}`);
-      return { status: 'UNMATCHED_REFERENCE' };
+
+    if (existingLog && existingLog.status === PaymentStatus.SUCCESS) {
+      return { ResultCode: 0, ResultDesc: 'Accepted' };
     }
 
-    const creditAmount = Number(data?.amount || data?.resource?.amount || 0);
-    const expectedAmount = Number(receivingAccount.invoice.amount);
-    if (creditAmount > 0 && creditAmount < expectedAmount - 0.01) {
-      return { status: 'AMOUNT_MISMATCH' };
+    // ResultCode !== 0 means cancelled, timeout, or insufficient balance
+    if (ResultCode !== 0) {
+      this.logger.warn(`Daraja payment unsuccessful: ${ResultDesc} (code ${ResultCode})`);
+      if (existingLog) {
+        await this.prisma.paymentLog.update({
+          where: { idempotencyKey },
+          data: {
+            status: PaymentStatus.FAILED,
+            errorMessage: ResultDesc || `Daraja error code ${ResultCode}`,
+            rawPayload: payload,
+          },
+        });
+      }
+      return { ResultCode: 0, ResultDesc: 'Accepted' };
     }
 
-    const idempotencyKey = `WISE_CREDIT_${paymentRef}_${event_type}_${creditAmount || 'na'}`;
-    const currency = String(data?.currency || data?.resource?.currency || receivingAccount.currency);
+    // Success (ResultCode === 0): extract metadata items
+    const metadataItems: Array<{ Name: string; Value: any }> = CallbackMetadata?.Item || [];
+    const getMetaValue = (name: string) => metadataItems.find((i) => i.Name === name)?.Value;
+
+    const receiptNumber = String(getMetaValue('MpesaReceiptNumber') || CheckoutRequestID);
+    const paidAmount = Number(getMetaValue('Amount'));
+
+    const invoice = existingLog?.invoice;
+    if (!invoice) {
+      this.logger.warn(`Daraja orphan: no invoice found for checkoutRequestId ${CheckoutRequestID}`);
+      await this.prisma.paymentLog.upsert({
+        where: { idempotencyKey },
+        create: {
+          idempotencyKey,
+          provider: PaymentProvider.DARAJA,
+          providerRef: receiptNumber,
+          method: PaymentMethodType.MPESA,
+          amount: paidAmount || 0,
+          currency: 'KES',
+          status: PaymentStatus.FAILED,
+          errorMessage: `Orphan Daraja transaction: no invoice linked for ${CheckoutRequestID}`,
+          rawPayload: payload,
+        },
+        update: { rawPayload: payload },
+      });
+      return { ResultCode: 0, ResultDesc: 'Accepted' };
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.invoice.update({
-        where: { id: receivingAccount.invoiceId },
+        where: { id: invoice.id },
         data: { status: InvoiceStatus.PAID, paidAt: new Date() },
       });
 
-      const now = new Date();
-      const nextPeriod = new Date(now);
-      nextPeriod.setFullYear(nextPeriod.getFullYear() + 1);
-
-      const defaultPlan = await tx.plan.findFirst({ where: { isActive: true } });
-      if (defaultPlan) {
-        await tx.subscription.create({
-          data: {
-            clientId: receivingAccount.clientId,
-            planId: defaultPlan.id,
-            billingCycle: BillingCycle.ANNUAL,
-            status: SubscriptionStatus.ACTIVE,
-            startDate: now,
-            renewalDate: nextPeriod,
-            currentPeriodStart: now,
-            currentPeriodEnd: nextPeriod,
-            provider: PaymentProvider.MANUAL_BANK_TRANSFER,
-            providerSubscriptionId: `BANK-${paymentRef}`,
-          },
-        });
-      }
-
-      await tx.paymentLog.upsert({
-        where: { idempotencyKey },
-        create: {
-          idempotencyKey,
-          provider: PaymentProvider.MANUAL_BANK_TRANSFER,
-          providerRef: String(data?.id || data?.resource?.id || paymentRef),
-          method: PaymentMethodType.BANK_TRANSFER,
-          amount: creditAmount || Number(receivingAccount.invoice.amount),
-          currency,
-          status: PaymentStatus.SUCCESS,
-          clientId: receivingAccount.clientId,
-          invoiceId: receivingAccount.invoiceId,
-          rawPayload: req.body,
-        },
-        update: { status: PaymentStatus.SUCCESS, rawPayload: req.body },
+      await this.activatePaidSubscription(tx, invoice, {
+        provider: PaymentProvider.DARAJA,
+        providerRef: receiptNumber,
       });
-    });
-
-    return { status: 'PROCESSED' };
-  }
-
-  private async handlePaymentFailure(invoice: any, payload: any, idempotencyKey: string, provider: PaymentProvider) {
-    const gracePeriodDays = 3;
-    const now = new Date();
-    const graceEnd = new Date(now.getTime() + gracePeriodDays * 24 * 60 * 60 * 1000);
-
-    await this.prisma.$transaction(async (tx) => {
-      if (invoice.subscriptionId) {
-        const sub = await tx.subscription.findUnique({ where: { id: invoice.subscriptionId } });
-        const currentAttempts = (sub?.dunningAttemptsCount || 0) + 1;
-        const isPastGrace = currentAttempts >= 3;
-
-        await tx.subscription.update({
-          where: { id: invoice.subscriptionId },
-          data: {
-            status: isPastGrace ? SubscriptionStatus.SUSPENDED : SubscriptionStatus.PAST_DUE,
-            gracePeriodEnd: isPastGrace ? null : graceEnd,
-            dunningAttemptsCount: currentAttempts,
-            lastDunningAt: now,
-          },
-        });
-      }
 
       await tx.paymentLog.upsert({
         where: { idempotencyKey },
         create: {
           idempotencyKey,
-          provider,
-          method: invoice.currency === 'KES' ? PaymentMethodType.MPESA : PaymentMethodType.CARD,
-          amount: Number(invoice.amount),
-          currency: invoice.currency,
-          status: PaymentStatus.FAILED,
-          errorMessage: payload?.failed_reason || 'Charge declined by gateway',
+          provider: PaymentProvider.DARAJA,
+          providerRef: receiptNumber,
+          method: PaymentMethodType.MPESA,
+          amount: Number.isFinite(paidAmount) ? paidAmount : Number(invoice.amount),
+          currency: 'KES',
+          status: PaymentStatus.SUCCESS,
           clientId: invoice.clientId,
           invoiceId: invoice.id,
           rawPayload: payload,
         },
         update: {
-          status: PaymentStatus.FAILED,
-          errorMessage: payload?.failed_reason || 'Charge declined by gateway',
+          status: PaymentStatus.SUCCESS,
+          providerRef: receiptNumber,
+          rawPayload: payload,
         },
       });
     });
+
+    this.logger.log(`Daraja payment verified: Invoice ${invoice.invoiceNumber} PAID, receipt=${receiptNumber}`);
+    return { ResultCode: 0, ResultDesc: 'Accepted' };
   }
 }

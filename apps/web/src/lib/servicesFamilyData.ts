@@ -332,7 +332,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       },
       {
         title: 'Global Credit Card Checkout',
-        description: 'Stripe and IntaSend 3D-Secure payment rails allow diaspora and international customers to buy effortlessly.',
+        description: 'Paystack 3D-Secure payment rails allow diaspora and international customers to buy effortlessly.',
       },
       {
         title: 'Automated Inventory & Invoices',
@@ -364,7 +364,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       },
     ],
     outOfScope: [
-      'Third-party payment transaction percentage charges (Safaricom, Stripe, IntaSend fees).',
+      'Third-party payment transaction percentage charges (Safaricom, Paystack fees).',
       'Ongoing product photoshoot and image editing (client supplies product media).',
       'Physical warehousing, packing, and courier delivery operations.',
     ],

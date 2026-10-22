@@ -191,7 +191,7 @@ export default function AdminMarketsTab() {
               </div>
               <div>
                 <span className="text-slate-400 block text-[11px]">Payment Rails:</span>
-                <strong className="text-white">M-Pesa STK, IntaSend, Wire</strong>
+                <strong className="text-white">M-Pesa STK, Paystack Card, Wire</strong>
               </div>
               <div>
                 <span className="text-slate-400 block text-[11px]">Target Geography:</span>
@@ -243,7 +243,7 @@ export default function AdminMarketsTab() {
               </div>
               <div>
                 <span className="text-slate-400 block text-[11px]">Payment Rails:</span>
-                <strong className="text-white">Stripe, Paystack Card, Wise</strong>
+                <strong className="text-white">Paystack Card, Bank Wire</strong>
               </div>
               <div>
                 <span className="text-slate-400 block text-[11px]">Target Geography:</span>

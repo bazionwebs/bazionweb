@@ -22,23 +22,19 @@ export const envValidationSchema = Joi.object({
   JWT_EXPIRY: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRY: Joi.string().default('7d'),
 
-  // IntaSend — M-Pesa STK (KES) — optional until IntaSend is activated
-  // Add INTASEND_PUBLISHABLE_KEY + INTASEND_SECRET_KEY to Render env when enabling M-Pesa STK
-  INTASEND_ENVIRONMENT: Joi.string().valid('sandbox', 'production').default('sandbox'),
-  INTASEND_PUBLISHABLE_KEY: Joi.string().min(8).optional().allow(''),
-  INTASEND_SECRET_KEY: Joi.string().min(16).optional().allow(''),
-
-  // Paystack — Cards + international (KES/USD)
+  // Paystack — Cards + M-Pesa (KES/USD)
   PAYSTACK_SECRET_KEY: Joi.string().min(8).optional().allow(''),
   PAYSTACK_WEBHOOK_SECRET: Joi.string().min(8).optional().allow(''),
   // Alias: Paystack signs with the secret key itself; webhook secret optional.
   // If PAYSTACK_WEBHOOK_SECRET unset, PAYSTACK_SECRET_KEY is used.
 
-  // Wise — payouts + invoice links only (no virtual receiving accounts in KE)
-  WISE_ENVIRONMENT: Joi.string().valid('sandbox', 'production').default('sandbox'),
-  WISE_API_TOKEN: Joi.string().min(8).optional().allow(''),
-  WISE_PROFILE_ID: Joi.string().min(1).optional().allow(''),
-  WISE_WEBHOOK_SECRET: Joi.string().min(8).optional().allow(''),
+  // Safaricom Daraja — M-Pesa STK (KES)
+  DARAJA_ENVIRONMENT: Joi.string().valid('sandbox', 'production').default('sandbox'),
+  DARAJA_CONSUMER_KEY: Joi.string().optional().allow(''),
+  DARAJA_CONSUMER_SECRET: Joi.string().optional().allow(''),
+  DARAJA_BUSINESS_SHORTCODE: Joi.string().optional().allow('').default('174379'),
+  DARAJA_PASSKEY: Joi.string().optional().allow(''),
+  DARAJA_CALLBACK_URL: Joi.string().uri().optional().allow(''),
 
   // Manual B2B settlement (used instead of Wise virtual accounts)
   BANK_BENEFICIARY: Joi.string().optional().allow(''),

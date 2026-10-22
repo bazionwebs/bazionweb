@@ -59,6 +59,7 @@ enum PaymentProvider {
   PAYSTACK
   WISE
   MANUAL_BANK_TRANSFER
+  DARAJA
 }
 
 enum PaymentMethodType {

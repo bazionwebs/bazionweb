@@ -74,11 +74,11 @@ export const MARKETS: Record<MarketCode, MarketDefinition> = {
     countryCodes: ['*'], // Catch-all for non-domestic visitors
     commercialTermsTitle: 'International Commercial Terms & Global Master SLAs',
     supportScope: 'Worldwide coverage across UTC-5 to UTC+3 with dedicated project management',
-    paymentRailDescription: 'Stripe, Global Visa/Mastercard/Amex & SWIFT/Wise Bank Wire',
+    paymentRailDescription: 'Paystack, Global Visa/Mastercard/Amex & SWIFT Bank Wire',
     paymentMethods: [
-      { id: 'card', name: 'International Card', description: 'Visa, Mastercard, Amex via Stripe', isPrimary: true },
-      { id: 'wire', name: 'International Wire / SWIFT', description: 'USD/EUR corporate receiving accounts via Wise' },
-      { id: 'paypal', name: 'PayPal / Corporate Checkout', description: 'Standard international payment rails' },
+      { id: 'card', name: 'International Card', description: 'Visa, Mastercard, Amex via Paystack', isPrimary: true },
+      { id: 'wire', name: 'International Wire / SWIFT', description: 'USD/EUR corporate receiving accounts via Bank Wire' },
+      { id: 'paypal', name: 'Corporate Invoicing', description: 'Standard international B2B invoice settlement' },
     ],
   },
   // Future planned markets (Architectural headroom)

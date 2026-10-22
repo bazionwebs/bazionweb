@@ -117,7 +117,7 @@ export default function MarketSelectorModal() {
                   💳 International Cards
                 </span>
                 <span className="inline-flex items-center gap-1 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
-                  🌐 Wise / SWIFT Wire
+                  🌐 SWIFT Bank Wire
                 </span>
                 <span className="inline-flex items-center gap-1 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
                   🌍 Global Master SLA

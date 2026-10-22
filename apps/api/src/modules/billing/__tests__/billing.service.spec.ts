@@ -40,21 +40,9 @@ const mockPrisma = {
   $transaction: jest.fn((cb) => (typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb))),
 };
 
-import { IntaSendService } from '../intasend.service';
 import { PaystackService } from '../paystack.service';
-import { WiseService } from '../wise.service';
+import { DarajaService } from '../daraja.service';
 import { ConfigService } from '@nestjs/config';
-
-const mockIntaSendService = {
-  createSubscriptionPlan: jest.fn(),
-  subscribeMpesa: jest.fn(),
-  createCardCheckout: jest.fn(),
-  verifyWebhookSignature: jest.fn(),
-  getOrCreateCustomer: jest.fn(),
-  triggerMpesaStkPush: jest.fn(),
-  createCheckoutSession: jest.fn(),
-  getPublishableKey: jest.fn(),
-};
 
 const mockPaystackService = {
   initializeTransaction: jest.fn(),
@@ -63,19 +51,19 @@ const mockPaystackService = {
   verifyWebhookSignature: jest.fn(),
 };
 
-const mockWiseService = {
-  getReceivingAccount: jest.fn(),
-  verifyWebhookSignature: jest.fn(),
-  getManualSettlementInstructions: jest.fn().mockReturnValue({
-    beneficiary: 'BazionWeb Technologies Ltd',
-    accountNumber: 'TEST123',
-    referenceNote: 'ref',
-  }),
+const mockDarajaService = {
+  initiateStkPush: jest.fn(),
+  queryStkStatus: jest.fn(),
+  formatPhoneNumber: jest.fn((p: string) => p),
+  getAccessToken: jest.fn().mockResolvedValue('test_token'),
 };
 
 const mockConfigService = {
   get: jest.fn((key: string, def?: any) => {
     if (key === 'FRONTEND_URL') return 'https://bazionweb.com';
+    if (key === 'BANK_BENEFICIARY') return 'BazionWeb Technologies Ltd';
+    if (key === 'BANK_ACCOUNT_NUMBER') return 'TEST123';
+    if (key === 'BANK_SWIFT_BIC') return 'TESTBIC';
     return def;
   }),
 };
@@ -91,9 +79,8 @@ describe('BillingService', () => {
         BillingService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEvents },
-        { provide: IntaSendService, useValue: mockIntaSendService },
         { provide: PaystackService, useValue: mockPaystackService },
-        { provide: WiseService, useValue: mockWiseService },
+        { provide: DarajaService, useValue: mockDarajaService },
         { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
@@ -259,9 +246,9 @@ describe('BillingService', () => {
     });
   });
 
-  // ── subscribeIntaSend() ───────────────────────────────────────────────────────
+  // ── subscribeMpesa() ──────────────────────────────────────────────────────────
 
-  describe('subscribeIntaSend()', () => {
+  describe('subscribeMpesa()', () => {
     const mockPlan = {
       id: 'plan-growth',
       name: 'Growth',
@@ -272,7 +259,7 @@ describe('BillingService', () => {
       priceAnnual: { toNumber: () => 990 },
     };
 
-    it('charges M-Pesa via Paystack primary (IntaSend not called)', async () => {
+    it('charges M-Pesa via Paystack STK', async () => {
       mockPrisma.client.findUnique.mockResolvedValue({
         id: 'client-uuid-1',
         email: 'test@example.com',
@@ -291,12 +278,11 @@ describe('BillingService', () => {
         raw: { reference: 'MPESA_INV-KE-12345678' },
       });
 
-      const result = await service.subscribeIntaSend(
+      const result = await service.subscribeMpesa(
         { id: 'user-uuid-1', email: 'test@example.com' },
         {
           planId: 'plan-growth',
           billingCycle: 'MONTHLY' as any,
-          paymentMethod: 'MPESA',
           mpesaPhoneNumber: '0712345678',
         },
       );
@@ -304,44 +290,8 @@ describe('BillingService', () => {
       expect(mockPaystackService.chargeMpesaStk).toHaveBeenCalledWith(
         expect.objectContaining({ amount: 12900, phone: '0712345678' }),
       );
-      expect(mockIntaSendService.triggerMpesaStkPush).not.toHaveBeenCalled();
       expect(result.provider).toBe('PAYSTACK');
       expect(result.invoiceNumber).toBe('INV-KE-12345678');
-    });
-
-    it('falls back to IntaSend when Paystack STK fails', async () => {
-      mockPrisma.client.findUnique.mockResolvedValue({
-        id: 'client-uuid-1',
-        email: 'test@example.com',
-        phone: '254712345678',
-        user: { firstName: 'Peter', lastName: 'Kimani' },
-      });
-      mockPrisma.plan.findUnique.mockResolvedValue(mockPlan);
-      mockPrisma.invoice.create.mockResolvedValue({
-        id: 'inv-1',
-        invoiceNumber: 'INV-KE-12345678',
-        amount: 12900,
-      });
-      mockPaystackService.chargeMpesaStk.mockRejectedValueOnce(new Error('Paystack down'));
-      mockIntaSendService.triggerMpesaStkPush.mockResolvedValue({
-        invoiceId: 'IS_INV_1',
-        trackingId: 'IS_TRK_1',
-        state: 'PENDING',
-        customerMessage: 'Prompt sent',
-      });
-
-      const result = await service.subscribeIntaSend(
-        { id: 'user-uuid-1', email: 'test@example.com' },
-        {
-          planId: 'plan-growth',
-          billingCycle: 'MONTHLY' as any,
-          paymentMethod: 'MPESA',
-          mpesaPhoneNumber: '0712345678',
-        },
-      );
-
-      expect(mockIntaSendService.triggerMpesaStkPush).toHaveBeenCalled();
-      expect(result.provider).toBe('INTASEND_FALLBACK');
     });
 
     it('creates Paystack card checkout via subscribePaystack (server pricing)', async () => {
@@ -384,12 +334,11 @@ describe('BillingService', () => {
       mockPrisma.plan.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.subscribeIntaSend(
+        service.subscribeMpesa(
           { id: 'user-uuid-1' },
           {
             planId: 'non-existent',
             billingCycle: 'MONTHLY' as any,
-            paymentMethod: 'MPESA',
             mpesaPhoneNumber: '0712345678',
           },
         ),
@@ -404,19 +353,19 @@ describe('BillingService', () => {
       mockPrisma.plan.findUnique.mockResolvedValue(mockPlan);
 
       await expect(
-        service.subscribeIntaSend(
+        service.subscribeMpesa(
           { id: 'user-uuid-1' },
           {
             planId: 'plan-growth',
             billingCycle: 'MONTHLY' as any,
-            paymentMethod: 'MPESA',
-          } as any,
+            mpesaPhoneNumber: '',
+          },
         ),
       ).rejects.toThrow();
     });
   });
 
-  // ── createBankTransferInvoice() (manual — Wise receiving unavailable in KE) ──
+  // ── createBankTransferInvoice() (manual bank transfer) ──────────────────────
 
   describe('createBankTransferInvoice()', () => {
     it('creates invoice + manual receiving account from env bank details', async () => {
@@ -468,7 +417,6 @@ describe('BillingService', () => {
       expect(result.status).toBe('INVOICE_GENERATED');
       expect(result.provider).toBe('MANUAL_BANK_TRANSFER');
       expect(result.bankTransferDetails.accountNumber).toBe('TEST123');
-      expect(mockWiseService.getManualSettlementInstructions).toHaveBeenCalled();
     });
   });
 
@@ -680,7 +628,6 @@ describe('BillingService', () => {
       const createdUser = mockPrisma.user.create.mock.calls[0][0].data;
       expect(createdUser.email).toBe('billing@acmecorp.com');
       expect(createdUser.firstName).toBe('Corporate'); // default placeholder
-      expect(mockWiseService.getManualSettlementInstructions).toHaveBeenCalled();
     });
 
     it('rejects unknown plans', async () => {

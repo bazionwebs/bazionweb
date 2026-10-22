@@ -19,8 +19,7 @@ export interface PaystackInitResult {
 }
 
 /**
- * Paystack — Cards + M-Pesa STK (primary) + international.
- * IntaSend kept as fallback for M-Pesa (>150k, Till/Paybill, outages).
+ * Paystack — Cards + M-Pesa STK + international.
  * Fail-closed: missing secret throws 503, gateway errors throw 502. No demo fallbacks.
  */
 @Injectable()
@@ -73,7 +72,7 @@ export class PaystackService {
           email: params.email,
           amount: amountInSubunits,
           currency: params.currency,
-          channels: ['card'], // cards-only: M-Pesa stays on IntaSend
+          channels: ['card'], // cards-only: initializeTransaction is for card checkout
           callback_url: params.callbackUrl,
           metadata: {
             invoiceNumber: params.invoiceNumber,

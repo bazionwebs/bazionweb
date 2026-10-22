@@ -35,12 +35,12 @@
 BazionWeb is a full-stack managed website lifecycle platform for SMEs, corporates, and institutions. It handles everything from initial design and development to ongoing hosting, maintenance, security management, and performance optimization — all under a single subscription.
 
 **Core capabilities:**
-- 📱 **Mobile Money** — Pay via M-Pesa (IntaSend STK Push)
-- 💳 **Card Payments** — International Visa/Mastercard via IntaSend tokenization
-- 🏦 **Corporate Wire Transfers** — B2B invoicing with Wise virtual IBAN/ACH accounts (USD/EUR/GBP)
+- 📱 **Mobile Money** — Pay via M-Pesa (Paystack STK Push)
+- 💳 **Card Payments** — International Visa/Mastercard/Amex via Paystack
+- 🏦 **Corporate Wire Transfers** — B2B invoicing with direct manual wire settlement (KES/USD/EUR/GBP)
 - 📊 **Client Portal** — Subscription management, invoicing, project tracking, support tickets
 - 🔐 **Admin Dashboard** — Full CRUD across clients, billing, hosting, and reports
-- 🔔 **Webhook State Machine** — Idempotent IPN processing, dunning sequences, automated renewals
+- 🔔 **Webhook State Machine** — Idempotent webhook processing, dunning sequences, automated renewals
 
 ---
 
@@ -83,8 +83,8 @@ bazionweb/
 | **Cache / Queue** | Redis | 7 |
 | **Authentication** | Keycloak (OIDC/JWT + MFA) | 23 |
 | **CMS** | Strapi | 5 |
-| **Payments (Mobile)** | IntaSend (M-Pesa STK + Card) | REST v1 |
-| **Payments (Corporate)** | Wise (Virtual IBAN/ACH) | REST v1 |
+| **Payments** | Paystack (M-Pesa STK + Cards) | REST v1 |
+| **B2B Invoicing** | Manual Bank Wire Settlement | Net-14 |
 | **Reverse Proxy** | Nginx | 1.26 |
 | **Monitoring** | Uptime Kuma, Grafana, Loki | — |
 | **Object Storage** | Backblaze B2 (S3-compatible) | — |
@@ -95,22 +95,22 @@ bazionweb/
 
 ## Billing System
 
-BazionWeb uses a **three-rail payment architecture**:
+BazionWeb uses a streamlined payment architecture:
 
-### Track A — IntaSend (M-Pesa & Cards)
-- `POST /api/v1/invoices/subscribe/intasend`
+### Track A — Paystack (M-Pesa & Cards)
+- `POST /api/v1/invoices/subscribe/mpesa`
 - Triggers M-Pesa STK Push for mobile-money clients
-- Generates secure card tokenization checkout sessions for international clients
-- IntaSend IPN webhooks at `POST /api/v1/webhooks/intasend`
+- `POST /api/v1/invoices/subscribe/paystack`
+- Generates secure card checkout sessions for local & international clients
+- Paystack webhooks at `POST /api/v1/webhooks/paystack`
 
-### Track B — Wise (Corporate Bank Transfers)
-- `POST /api/v1/invoices/corporate-invoice/wise`
-- Allocates a dedicated virtual receiving account (USD ACH/Wire, EUR SEPA, GBP Faster Payments)
-- Generates PDF-ready B2B invoice with unique payment reference
-- Wise webhooks at `POST /api/v1/webhooks/wise`
+### Track B — B2B Bank Transfers
+- `POST /api/v1/invoices/corporate-invoice/bank-transfer`
+- Generates PDF-ready B2B invoice with unique payment reference and remittance instructions
+- Admin confirms payment upon bank clearance
 
 ### Track C — Webhook State Machine
-- HMAC-SHA256 signature verification on all incoming webhooks
+- HMAC-SHA512 signature verification on Paystack webhooks
 - Idempotent deduplication via `payment_logs.idempotency_key`
 - Automated subscription lifecycle: `TRIAL → ACTIVE → PAST_DUE → SUSPENDED`
 - 3-stage dunning sequence with configurable grace periods
@@ -205,16 +205,14 @@ KEYCLOAK_REALM=bazionweb
 KEYCLOAK_CLIENT_ID=bazionweb-api
 KEYCLOAK_CLIENT_SECRET=<from-keycloak-admin>
 
-# IntaSend Payments
-INTASEND_ENVIRONMENT=sandbox
-INTASEND_PUBLISHABLE_KEY=ISPubKey_...
-INTASEND_SECRET_KEY=ISSecretKey_...
+# Paystack Payments (Cards + M-Pesa STK)
+PAYSTACK_SECRET_KEY=sk_test_...
+PAYSTACK_WEBHOOK_SECRET=...
 
-# Wise Corporate Billing
-WISE_ENVIRONMENT=sandbox
-WISE_API_TOKEN=<wise-api-token>
-WISE_PROFILE_ID=<wise-profile-id>
-WISE_WEBHOOK_SECRET=whsec_...
+# Manual Bank Transfer Settlement
+BANK_BENEFICIARY="BazionWeb Technologies Ltd"
+BANK_ACCOUNT_NUMBER="0123456789"
+BANK_SWIFT_BIC="TESTKENA"
 
 # App
 FRONTEND_URL=http://localhost:3000

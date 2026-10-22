@@ -196,7 +196,7 @@ export default function SubscriptionCheckout({
     return (err instanceof Error ? err.message : null) || fallback;
   };
 
-  // M-Pesa STK via IntaSend (KES) — server-side pricing, phone only.
+  // M-Pesa STK via Paystack (KES) — server-side pricing, phone only.
   const handleMpesaPay = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = phone.replace(/[^0-9+]/g, '');
@@ -212,7 +212,7 @@ export default function SubscriptionCheckout({
       setLoading(true);
       setFeedback(null);
       try {
-        const res = await fetch(`${apiBase}/invoices/guest/subscribe/intasend`, {
+        const res = await fetch(`${apiBase}/invoices/guest/subscribe/mpesa`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -240,13 +240,12 @@ export default function SubscriptionCheckout({
     setFeedback(null);
 
     try {
-      const res = await fetch(`${apiBase}/invoices/subscribe/intasend`, {
+      const res = await fetch(`${apiBase}/invoices/subscribe/mpesa`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           planId: currentPlan.id,
           billingCycle,
-          paymentMethod: 'MPESA',
           mpesaPhoneNumber: cleanPhone,
         }),
       });
@@ -489,7 +488,7 @@ export default function SubscriptionCheckout({
         {/* Security Badge */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-3 text-xs text-slate-400">
           <Lock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>256-Bit SSL Encrypted Checkout. Backed by Paystack (M-Pesa STK Push + Global Cards) and Wise (Corporate Wire) APIs.</span>
+          <span>256-Bit SSL Encrypted Checkout. Backed by Paystack (M-Pesa STK Push + Global Cards) and Direct Wire Transfer.</span>
         </div>
       </div>
 
@@ -540,7 +539,7 @@ export default function SubscriptionCheckout({
               }`}
             >
               <Building2 className="w-4 h-4" />
-              <span>Corporate (Wise)</span>
+              <span>Corporate Wire</span>
             </button>
           </div>
 
@@ -602,7 +601,7 @@ export default function SubscriptionCheckout({
             </form>
           )}
 
-          {/* Tab 2: Credit / Debit Card (IntaSend) */}
+          {/* Tab 2: Credit / Debit Card (Paystack) */}
           {activeTab === 'CARD' && (
             <div className="space-y-4">
               <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">

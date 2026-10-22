@@ -3,6 +3,7 @@ import {
   NotFoundException, 
   ForbiddenException, 
   BadRequestException, 
+  ServiceUnavailableException,
   Logger 
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
@@ -16,10 +17,16 @@ import {
   InvoiceStatus 
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { IntaSendService } from './intasend.service';
 import { PaystackService } from './paystack.service';
-import { WiseService } from './wise.service';
-import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto } from './dto/billing.dto';
+import { DarajaService } from './daraja.service';
+import { 
+  MpesaSubscriptionDto, 
+  PaystackSubscriptionDto, 
+  BankTransferInvoiceDto, 
+  GuestSubscriptionDto, 
+  GuestMpesaSubscriptionDto, 
+  GuestBankTransferInvoiceDto 
+} from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -30,9 +37,8 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventEmitter2,
-    private readonly intasendService: IntaSendService,
     private readonly paystackService: PaystackService,
-    private readonly wiseService: WiseService,
+    private readonly darajaService: DarajaService,
     private readonly config: ConfigService,
   ) {}
 
@@ -79,6 +85,36 @@ export class BillingService {
 
   private newInvoiceNumber(prefix: string): string {
     return `${prefix}-${Date.now().toString().slice(-8)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  }
+
+  private getManualSettlementInstructions(currency: 'USD' | 'EUR' | 'GBP', paymentReference: string) {
+    const beneficiary = this.config.get<string>('BANK_BENEFICIARY', 'BazionWeb Technologies Ltd');
+    const accountNumber = this.config.get<string>('BANK_ACCOUNT_NUMBER', '');
+    const routingNumber = this.config.get<string>('BANK_ROUTING_NUMBER', '');
+    const iban = this.config.get<string>('BANK_IBAN', '');
+    const swiftBic = this.config.get<string>('BANK_SWIFT_BIC', '');
+    const line = this.config.get<string>('BANK_ADDRESS_LINE', '');
+    const city = this.config.get<string>('BANK_ADDRESS_CITY', '');
+    const country = this.config.get<string>('BANK_ADDRESS_COUNTRY', '');
+
+    if (!accountNumber && !iban) {
+      throw new ServiceUnavailableException(
+        'Bank transfer details not configured — contact billing@bazionweb.com',
+      );
+    }
+
+    return {
+      beneficiary,
+      accountNumber: accountNumber || undefined,
+      routingNumber: routingNumber || undefined,
+      iban: iban || undefined,
+      swiftBic: swiftBic || undefined,
+      bankAddress:
+        line || city || country
+          ? { addressFirstLine: line, city, country }
+          : undefined,
+      referenceNote: `Quote payment reference "${paymentReference}" on your bank remittance advice.`,
+    };
   }
 
   async findAll(user: any, filters: { scope?: string; status?: string; page: number; limit: number }) {
@@ -134,10 +170,9 @@ export class BillingService {
   }
 
   /**
-   * Track A: M-Pesa STK (KES) — Paystack /charge primary, IntaSend fallback.
-   * Route kept as /subscribe/intasend for backwards compat. Amount from server pricebook.
+   * Track A: M-Pesa STK (KES) — Paystack STK Push.
    */
-  async subscribeIntaSend(user: any, dto: IntaSendSubscriptionDto) {
+  async subscribeMpesa(user: any, dto: MpesaSubscriptionDto) {
     if (!dto.mpesaPhoneNumber) {
       throw new BadRequestException('Phone number is required to trigger M-Pesa prompt.');
     }
@@ -164,9 +199,8 @@ export class BillingService {
   }
 
   /**
-   * Shared M-Pesa STK initiation (Paystack primary ≤150k, IntaSend fallback).
+   * Shared M-Pesa STK initiation via Paystack.
    * Used by both the authenticated route and guest (pay-first) checkout.
-   * Returns the same dashboard-agnostic payload either way.
    */
   private async initMpesaStk(args: {
     client: { id: string; email: string; user?: { firstName?: string | null; lastName?: string | null } | null };
@@ -203,22 +237,25 @@ export class BillingService {
       },
     });
 
-    // Primary: Paystack STK (1.5%). Amounts >150k exceed Paystack M-Pesa cap → IntaSend.
-    if (amount <= 150_000) {
+    const hasDaraja = Boolean(
+      this.config.get<string>('DARAJA_CONSUMER_KEY') &&
+      this.config.get<string>('DARAJA_CONSUMER_SECRET')
+    );
+
+    if (hasDaraja) {
       try {
-        const stk = await this.paystackService.chargeMpesaStk({
-          email: client.email,
-          amount,
+        const stk = await this.darajaService.initiateStkPush({
           phone,
+          amount,
           invoiceNumber: invoice.invoiceNumber,
-          metadata: { planId: plan.id, billingCycle, clientId: client.id },
+          description: `BazionWeb ${plan.name}`,
         });
 
         await this.prisma.paymentLog.create({
           data: {
-            idempotencyKey: `PAYSTACK_${stk.reference}`,
-            provider: PaymentProvider.PAYSTACK,
-            providerRef: stk.reference,
+            idempotencyKey: `DARAJA_${stk.checkoutRequestId}`,
+            provider: PaymentProvider.DARAJA,
+            providerRef: stk.checkoutRequestId,
             method: PaymentMethodType.MPESA,
             amount,
             currency: 'KES',
@@ -226,48 +263,37 @@ export class BillingService {
             clientId: client.id,
             invoiceId: invoice.id,
             ...(userId ? { userId } : {}),
-            rawPayload: stk.raw as any,
+            rawPayload: stk as any,
           },
         });
 
         return {
           status: 'PENDING_STK_INPUT',
           method: 'MPESA',
-          provider: 'PAYSTACK',
+          provider: 'DARAJA',
           message:
-            stk.displayText || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
+            stk.customerMessage || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
           invoiceNumber: invoice.invoiceNumber,
-          trackingId: stk.reference,
+          trackingId: stk.checkoutRequestId,
         };
       } catch (err: any) {
-        // Fail over to IntaSend below — log reason, never expose gateway internals.
-        this.logger.warn(
-          `Paystack STK failed for ${invoice.invoiceNumber}, falling back to IntaSend: ${err?.message}`,
-        );
+        this.logger.warn(`Daraja STK push failed for ${invoice.invoiceNumber}, falling back to Paystack: ${err?.message}`);
       }
     }
 
-    // Fallback: IntaSend STK (3%) — >150k tickets, Till/Paybill, Paystack outages.
-    await this.intasendService.getOrCreateCustomer({
+    const stk = await this.paystackService.chargeMpesaStk({
       email: client.email,
-      first_name: client.user?.firstName || 'Client',
-      last_name: client.user?.lastName || 'Account',
-      phone_number: phone,
-    });
-
-    const stkResult = await this.intasendService.triggerMpesaStkPush({
-      phoneNumber: phone,
       amount,
-      currency: 'KES',
-      narrative: `BazionWeb ${plan.name}`,
+      phone,
       invoiceNumber: invoice.invoiceNumber,
+      metadata: { planId: plan.id, billingCycle, clientId: client.id },
     });
 
     await this.prisma.paymentLog.create({
       data: {
-        idempotencyKey: `INTASEND_STK_${stkResult.trackingId}_${invoice.id}`,
-        provider: PaymentProvider.INTASEND,
-        providerRef: stkResult.trackingId,
+        idempotencyKey: `PAYSTACK_${stk.reference}`,
+        provider: PaymentProvider.PAYSTACK,
+        providerRef: stk.reference,
         method: PaymentMethodType.MPESA,
         amount,
         currency: 'KES',
@@ -275,18 +301,23 @@ export class BillingService {
         clientId: client.id,
         invoiceId: invoice.id,
         ...(userId ? { userId } : {}),
-        rawPayload: stkResult as any,
+        rawPayload: stk.raw as any,
       },
     });
 
     return {
       status: 'PENDING_STK_INPUT',
       method: 'MPESA',
-      provider: 'INTASEND_FALLBACK',
-      message: stkResult.customerMessage,
+      provider: 'PAYSTACK',
+      message:
+        stk.displayText || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
       invoiceNumber: invoice.invoiceNumber,
-      trackingId: stkResult.trackingId,
+      trackingId: stk.reference,
     };
+  }
+
+  async queryMpesaStatus(checkoutRequestId: string) {
+    return this.darajaService.queryStkStatus(checkoutRequestId);
   }
 
   /**
@@ -422,11 +453,7 @@ export class BillingService {
   }
 
   /**
-   * Guest M-Pesa checkout (Track C) — pay-first, no account needed.
-   * Server-priced KES: the guest supplies email/phone only. Creates the guest
-   * identity + invoice, then runs the same Paystack STK → IntaSend fallback
-   * rail as signed-in users. The webhook activates everything on charge.success
-   * / IntaSend COMPLETE; the customer claims the account afterwards.
+   * Guest M-Pesa checkout (Track C) — pay-first via Paystack, no account needed.
    */
   async subscribeMpesaGuest(dto: GuestMpesaSubscriptionDto) {
     if (!dto.mpesaPhoneNumber) {
@@ -462,11 +489,7 @@ export class BillingService {
   }
 
   /**
-   * Guest card checkout (Track C) — pay-first, no account needed.
-   * Server-priced: the client supplies a planId, never an amount.
-   * Creates a guest Client keyed by email (no userId) + invoice, then
-   * redirects to Paystack. The webhook activates everything on charge.success;
-   * the customer claims the account afterwards in one step.
+   * Guest card checkout (Track C) — pay-first via Paystack, no account needed.
    */
   async subscribePaystackGuest(dto: GuestSubscriptionDto) {
     const email = dto.email.trim().toLowerCase();
@@ -551,8 +574,7 @@ export class BillingService {
   }
 
   /**
-   * Track B: Manual B2B bank-transfer invoice (Wise virtual accounts unavailable in KE).
-   * Wise is used for invoice links / payouts only — never for receiving details.
+   * Track B: Manual B2B bank-transfer invoice.
    */
   async createBankTransferInvoice(user: any, dto: BankTransferInvoiceDto) {
     const client = await this.resolveClient(user, {
@@ -609,7 +631,7 @@ export class BillingService {
     const invoiceNumber = this.newInvoiceNumber('B2B-INV');
     const paymentReference = `BW-${(client.businessName || 'CORP').substring(0, 3).toUpperCase()}-${invoiceNumber.slice(-5)}`;
 
-    const bankDetails = this.wiseService.getManualSettlementInstructions(
+    const bankDetails = this.getManualSettlementInstructions(
       dto.currency === 'KES' ? 'USD' : (dto.currency as 'USD' | 'EUR' | 'GBP'),
       paymentReference,
     );
@@ -692,11 +714,6 @@ export class BillingService {
         referenceNote: bankDetails.referenceNote,
       },
     };
-  }
-
-  /** @deprecated Alias — use createBankTransferInvoice */
-  async createWiseCorporateInvoice(user: any, dto: WiseCorporateInvoiceDto) {
-    return this.createBankTransferInvoice(user, dto);
   }
 
   async generate(dto: { clientId: string; subscriptionId?: string; amount: number; notes?: string }) {

@@ -307,7 +307,7 @@ export default function InvoicesClient() {
             <div className="flex justify-between text-xs">
               <span className="text-slate-400">Payment Channel:</span>
               <span className="font-bold text-emerald-700">
-                {providerLabel(activeSubscription?.provider ?? 'INTASEND')}
+                {providerLabel(activeSubscription?.provider ?? 'PAYSTACK')}
               </span>
             </div>
           </div>

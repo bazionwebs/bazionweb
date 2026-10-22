@@ -14,7 +14,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto } from './dto/billing.dto';
+import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto } from './dto/billing.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
@@ -39,13 +39,13 @@ export class BillingController {
   }
 
   /**
-   * Guest M-Pesa (Track C) — STK Push before signup, no account required.
-   * Same public contract as guest card checkout; webhook activates on success.
+   * Guest M-Pesa (Track C) — Paystack STK Push before signup, no account required.
+   * Same public contract as guest card checkout; Paystack webhook activates on success.
    */
-  @Post('guest/subscribe/intasend')
+  @Post('guest/subscribe/mpesa')
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiOperation({ summary: 'Guest M-Pesa STK checkout (KES) — pay before signup' })
+  @ApiOperation({ summary: 'Guest M-Pesa STK checkout via Paystack (KES) — pay before signup' })
   subscribeMpesaGuest(@Body() body: GuestMpesaSubscriptionDto) {
     return this.svc.subscribeMpesaGuest(body);
   }
@@ -74,11 +74,19 @@ export class BillingController {
     return this.svc.findAll(req.user, { scope, status, page: +page, limit: +limit });
   }
 
-  @Post('subscribe/intasend')
+  @Post('subscribe/mpesa')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({ summary: 'Initialize IntaSend M-Pesa STK Push (KES)' })
-  subscribeIntaSend(@Request() req: any, @Body() body: IntaSendSubscriptionDto) {
-    return this.svc.subscribeIntaSend(req.user, body);
+  @ApiOperation({ summary: 'Initialize M-Pesa STK Push via Daraja / Paystack (KES)' })
+  subscribeMpesa(@Request() req: any, @Body() body: MpesaSubscriptionDto) {
+    return this.svc.subscribeMpesa(req.user, body);
+  }
+
+  @Get('mpesa/query/:checkoutRequestId')
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Query Safaricom Daraja STK Push transaction status' })
+  queryMpesaStatus(@Param('checkoutRequestId') checkoutRequestId: string) {
+    return this.svc.queryMpesaStatus(checkoutRequestId);
   }
 
   @Post('subscribe/paystack')
@@ -92,12 +100,6 @@ export class BillingController {
   @ApiOperation({ summary: 'Generate B2B invoice with manual bank-transfer details' })
   createBankTransferInvoice(@Request() req: any, @Body() body: BankTransferInvoiceDto) {
     return this.svc.createBankTransferInvoice(req.user, body);
-  }
-
-  @Post('corporate-invoice/wise')
-  @ApiOperation({ summary: 'DEPRECATED — alias for bank-transfer (Wise receiving unavailable in KE)' })
-  createWiseCorporateInvoice(@Request() req: any, @Body() body: WiseCorporateInvoiceDto) {
-    return this.svc.createWiseCorporateInvoice(req.user, body);
   }
 
   @Get(':id')

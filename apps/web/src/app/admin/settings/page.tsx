@@ -64,7 +64,6 @@ export default function AdminSettingsPage() {
 
   // ── Webhooks state
   const [webhookUrl, setWebhookUrl] = useState('https://api.bazionweb.com/webhooks/paystack');
-  const [intasendUrl, setIntasendUrl] = useState('https://api.bazionweb.com/webhooks/intasend');
   const [webhookSaved, setWebhookSaved] = useState(false);
 
   const handleInvite = (e: React.FormEvent) => {
@@ -380,36 +379,19 @@ export default function AdminSettingsPage() {
               Payment Gateway Webhook Endpoints
             </h3>
             <p className="text-xs text-slate-400 mb-5">
-              Configure the HTTPS endpoints that Paystack and IntaSend call for payment events. All endpoints use HMAC SHA-256 signature verification.
+              Configure the HTTPS endpoint that Paystack calls for payment events (Cards and M-Pesa STK). Requests use HMAC SHA-512 signature verification.
             </p>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Paystack Webhook URL
+                  Paystack Webhook URL (Cards & M-Pesa)
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="url"
                     value={webhookUrl}
                     onChange={e => setWebhookUrl(e.target.value)}
-                    className="flex-1 px-3 py-2 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
-                  />
-                  <span className="px-2.5 py-2 rounded-xl bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center">
-                    Active
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  IntaSend / M-Pesa Webhook URL
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={intasendUrl}
-                    onChange={e => setIntasendUrl(e.target.value)}
                     className="flex-1 px-3 py-2 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
                   />
                   <span className="px-2.5 py-2 rounded-xl bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center">

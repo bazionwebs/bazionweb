@@ -2,7 +2,7 @@ import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, Matches } fr
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BillingCycle } from '@prisma/client';
 
-export class IntaSendSubscriptionDto {
+export class MpesaSubscriptionDto {
   @ApiProperty({ description: 'Plan ID to subscribe to' })
   @IsUUID()
   @IsNotEmpty()
@@ -12,11 +12,6 @@ export class IntaSendSubscriptionDto {
   @IsEnum(BillingCycle)
   @IsNotEmpty()
   billingCycle: BillingCycle;
-
-  @ApiProperty({ enum: ['MPESA'], description: 'Payment method rail — M-Pesa via IntaSend STK' })
-  @IsEnum(['MPESA'])
-  @IsNotEmpty()
-  paymentMethod: 'MPESA';
 
   @ApiProperty({ description: 'M-Pesa phone number, e.g. 254712345678' })
   @IsString()
@@ -69,11 +64,8 @@ export class BankTransferInvoiceDto {
   purchaseOrderNumber?: string;
 }
 
-/** @deprecated Use BankTransferInvoiceDto — kept for backwards compat */
-export class WiseCorporateInvoiceDto extends BankTransferInvoiceDto {}
-
 /**
- * Pay-first guest M-Pesa checkout — STK Push before signup.
+ * Pay-first guest M-Pesa checkout — Paystack STK Push before signup.
  * Names are optional so the coupon-light form only needs email + phone;
  * claim-account later fills the real identity.
  */

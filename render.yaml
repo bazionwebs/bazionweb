@@ -135,28 +135,12 @@ services:
         sync: false
       - key: FRONTEND_URL
         value: https://bazionweb.com
-      # IntaSend — M-Pesa STK (KES)
-      - key: INTASEND_ENVIRONMENT
-        value: production
-      - key: INTASEND_PUBLISHABLE_KEY
-        sync: false
-      - key: INTASEND_SECRET_KEY
-        sync: false
-      # Paystack — cards + international (KES/USD)
+      # Paystack — cards + M-Pesa STK (KES/USD)
       - key: PAYSTACK_SECRET_KEY
         sync: false
       - key: PAYSTACK_WEBHOOK_SECRET
         sync: false
-      # Wise — payouts + invoice links only (no virtual receiving in KE)
-      - key: WISE_ENVIRONMENT
-        value: production
-      - key: WISE_API_TOKEN
-        sync: false
-      - key: WISE_PROFILE_ID
-        sync: false
-      - key: WISE_WEBHOOK_SECRET
-        sync: false
-      # Manual B2B settlement (replaces Wise virtual accounts)
+      # Manual B2B settlement (bank transfer)
       - key: BANK_BENEFICIARY
         sync: false
       - key: BANK_ACCOUNT_NUMBER

@@ -178,13 +178,12 @@ export default function OnboardingPage() {
       return;
     }
     try {
-      const res = await fetch(`${apiBase}/invoices/subscribe/intasend`, {
+      const res = await fetch(`${apiBase}/invoices/subscribe/mpesa`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
           planId: PLAN_ID_BY_SLUG[planSlug] || PLAN_ID_BY_SLUG[DEFAULT_PLAN],
           billingCycle: cycle,
-          paymentMethod: 'MPESA',
           mpesaPhoneNumber: phone.replace(/[^0-9+]/g, ''),
         }),
       });
@@ -392,7 +391,7 @@ export default function OnboardingPage() {
                       ]
                     : [
                         { id: 'CARD', label: 'International Card', sub: 'Paystack / Cards', Icon: CreditCard },
-                        { id: 'WIRE', label: 'International Wire', sub: 'Wise / SWIFT Receiving', Icon: Building2 },
+                        { id: 'WIRE', label: 'International Wire', sub: 'SWIFT / Wire Receiving', Icon: Building2 },
                       ]
                 ).map(({ id, label, sub, Icon }) => (
                   <button

@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
             paymentRails:
               marketCode === 'KE'
                 ? ['M-Pesa STK Push', 'Kenyan Bank Wire / RTGS', 'Local Visa / Mastercard']
-                : ['International Visa / Mastercard', 'Wise Wire Transfer', 'ACH / SEPA Direct'],
+                : ['International Visa / Mastercard (Paystack)', 'SWIFT Bank Wire', 'ACH / SEPA Direct'],
             title:
               marketCode === 'KE'
                 ? 'Kenya Commercial Terms & SME SLAs'

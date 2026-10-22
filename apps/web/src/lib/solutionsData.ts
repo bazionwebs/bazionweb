@@ -336,7 +336,7 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       {
         question: 'Can we accept donations in foreign currencies like USD or EUR?',
         answer:
-          'Yes. We integrate Stripe and IntaSend international payment gateways that settle funds directly to your organization\'s bank account.',
+          'Yes. We integrate Paystack international payment gateways that settle funds directly to your organization\'s bank account.',
       },
       {
         question: 'Is the platform compliant with the Kenya Data Protection Act 2019?',
