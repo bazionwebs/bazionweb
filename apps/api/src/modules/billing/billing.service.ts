@@ -534,6 +534,7 @@ export class BillingService {
         status: PaymentStatus.PENDING,
         clientId: guest.id,
         invoiceId: invoice.id,
+        userId,
         rawPayload: init as any,
       },
     });
