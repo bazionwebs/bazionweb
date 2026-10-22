@@ -16,7 +16,8 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
   const { isAuthenticated, hasRole, isTokenExpired, refresh } = useAuth();
   const user = useAuthStore(s => s.user);
   const refreshToken = useAuthStore(s => s.refreshToken);
-  const hasHydrated = useAuthStore(s => s._hasHydrated);
+  const storeHydrated = useAuthStore(s => s._hasHydrated);
+  const hasHydrated = storeHydrated || (typeof window !== 'undefined' && !!useAuthStore.persist?.hasHydrated?.());
   const router = useRouter();
   const pathname = usePathname();
   const [checking, setChecking] = useState(true);

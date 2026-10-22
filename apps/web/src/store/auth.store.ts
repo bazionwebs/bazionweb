@@ -95,9 +95,6 @@ export const useAuthStore = create<AuthState>()(
         setItem: () => {},
         removeItem: () => {},
       })),
-      onRehydrateStorage: () => () => {
-        useAuthStore.setState({ _hasHydrated: true });
-      },
       partialize: (state) => ({
         user:         state.user,
         accessToken:  state.accessToken,
@@ -108,3 +105,13 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 );
+
+if (typeof window !== 'undefined') {
+  if (useAuthStore.persist?.hasHydrated()) {
+    useAuthStore.setState({ _hasHydrated: true });
+  }
+  useAuthStore.persist?.onFinishHydration(() => {
+    useAuthStore.setState({ _hasHydrated: true });
+  });
+}
+
