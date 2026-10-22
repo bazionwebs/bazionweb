@@ -19,7 +19,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { IntaSendService } from './intasend.service';
 import { PaystackService } from './paystack.service';
 import { WiseService } from './wise.service';
-import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto, GuestSubscriptionDto } from './dto/billing.dto';
+import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto } from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -154,7 +154,30 @@ export class BillingService {
       throw new BadRequestException('The selected subscription plan is inactive or does not exist.');
     }
 
-    const amount = this.planAmount(plan, dto.billingCycle, 'KES');
+    return this.initMpesaStk({
+      client,
+      userId: user.id,
+      phone: dto.mpesaPhoneNumber,
+      plan,
+      billingCycle: dto.billingCycle,
+    });
+  }
+
+  /**
+   * Shared M-Pesa STK initiation (Paystack primary ≤150k, IntaSend fallback).
+   * Used by both the authenticated route and guest (pay-first) checkout.
+   * Returns the same dashboard-agnostic payload either way.
+   */
+  private async initMpesaStk(args: {
+    client: { id: string; email: string; user?: { firstName?: string | null; lastName?: string | null } | null };
+    userId: string | null;
+    phone: string;
+    plan: { id: string; name: string };
+    billingCycle: BillingCycle;
+  }) {
+    const { client, userId, phone, plan, billingCycle } = args;
+
+    const amount = this.planAmount(plan, billingCycle, 'KES');
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException('Plan price is not configured for KES');
     }
@@ -172,7 +195,7 @@ export class BillingService {
         dueDate,
         lineItems: [
           {
-            description: `BazionWeb ${plan.name} (${dto.billingCycle}) Maintenance & Infrastructure`,
+            description: `BazionWeb ${plan.name} (${billingCycle}) Maintenance & Infrastructure`,
             amount,
             quantity: 1,
           },
@@ -186,9 +209,9 @@ export class BillingService {
         const stk = await this.paystackService.chargeMpesaStk({
           email: client.email,
           amount,
-          phone: dto.mpesaPhoneNumber,
+          phone,
           invoiceNumber: invoice.invoiceNumber,
-          metadata: { planId: plan.id, billingCycle: dto.billingCycle, clientId: client.id },
+          metadata: { planId: plan.id, billingCycle, clientId: client.id },
         });
 
         await this.prisma.paymentLog.create({
@@ -202,7 +225,7 @@ export class BillingService {
             status: PaymentStatus.PENDING,
             clientId: client.id,
             invoiceId: invoice.id,
-            userId: user.id,
+            ...(userId ? { userId } : {}),
             rawPayload: stk.raw as any,
           },
         });
@@ -227,13 +250,13 @@ export class BillingService {
     // Fallback: IntaSend STK (3%) — >150k tickets, Till/Paybill, Paystack outages.
     await this.intasendService.getOrCreateCustomer({
       email: client.email,
-      first_name: client.user.firstName || 'Client',
-      last_name: client.user.lastName || 'Account',
-      phone_number: dto.mpesaPhoneNumber,
+      first_name: client.user?.firstName || 'Client',
+      last_name: client.user?.lastName || 'Account',
+      phone_number: phone,
     });
 
     const stkResult = await this.intasendService.triggerMpesaStkPush({
-      phoneNumber: dto.mpesaPhoneNumber,
+      phoneNumber: phone,
       amount,
       currency: 'KES',
       narrative: `BazionWeb ${plan.name}`,
@@ -251,7 +274,7 @@ export class BillingService {
         status: PaymentStatus.PENDING,
         clientId: client.id,
         invoiceId: invoice.id,
-        userId: user.id,
+        ...(userId ? { userId } : {}),
         rawPayload: stkResult as any,
       },
     });
@@ -347,6 +370,98 @@ export class BillingService {
   }
 
   /**
+   * Guest (pay-first) identity — a passwordless user row (claim sets the
+   * password later) plus its required 1:1 client profile. Email is the join
+   * key. Shared by every guest rail: Paystack cards, M-Pesa STK, B2B invoice.
+   */
+  private async resolveGuestIdentity(opts: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    businessName: string;
+    phone?: string;
+    planId: string;
+  }) {
+    let guestUser = await this.prisma.user.findUnique({ where: { email: opts.email } });
+    if (!guestUser) {
+      guestUser = await this.prisma.user.create({
+        data: {
+          email: opts.email,
+          role: 'CLIENT',
+          firstName: opts.firstName,
+          lastName: opts.lastName,
+          phone: opts.phone,
+        },
+      });
+    }
+
+    let guest = await this.prisma.client.findUnique({ where: { userId: guestUser.id } });
+    if (!guest) {
+      guest = await this.prisma.client.create({
+        data: {
+          userId: guestUser.id,
+          businessName: opts.businessName,
+          contactName: `${opts.firstName} ${opts.lastName}`.trim(),
+          email: opts.email,
+          phone: opts.phone,
+          planId: opts.planId,
+          status: 'TRIAL',
+        },
+      });
+    } else {
+      // Keep the latest plan intent if the guest switched plans between visits.
+      if (guest.planId !== opts.planId || guest.businessName !== opts.businessName) {
+        guest = await this.prisma.client.update({
+          where: { id: guest.id },
+          data: { planId: opts.planId, businessName: opts.businessName },
+        });
+      }
+    }
+
+    return { userId: guestUser.id as string, guest };
+  }
+
+  /**
+   * Guest M-Pesa checkout (Track C) — pay-first, no account needed.
+   * Server-priced KES: the guest supplies email/phone only. Creates the guest
+   * identity + invoice, then runs the same Paystack STK → IntaSend fallback
+   * rail as signed-in users. The webhook activates everything on charge.success
+   * / IntaSend COMPLETE; the customer claims the account afterwards.
+   */
+  async subscribeMpesaGuest(dto: GuestMpesaSubscriptionDto) {
+    if (!dto.mpesaPhoneNumber) {
+      throw new BadRequestException('Phone number is required to trigger M-Pesa prompt.');
+    }
+    const email = dto.email.trim().toLowerCase();
+    const firstName = dto.firstName?.trim() || 'Valued';
+    const lastName = dto.lastName?.trim() || 'Client';
+
+    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
+    if (!plan || !plan.isActive) {
+      throw new BadRequestException('The selected subscription plan is inactive or does not exist.');
+    }
+
+    const { userId, guest } = await this.resolveGuestIdentity({
+      email,
+      firstName,
+      lastName,
+      businessName: dto.businessName?.trim() || 'BazionWeb Client',
+      phone: dto.mpesaPhoneNumber,
+      planId: plan.id,
+    });
+
+    const result = await this.initMpesaStk({
+      client: { id: guest.id, email, user: { firstName, lastName } },
+      userId,
+      phone: dto.mpesaPhoneNumber,
+      plan,
+      billingCycle: dto.billingCycle,
+    });
+
+    return { ...result, guest: true, email };
+  }
+
+  /**
    * Guest card checkout (Track C) — pay-first, no account needed.
    * Server-priced: the client supplies a planId, never an amount.
    * Creates a guest Client keyed by email (no userId) + invoice, then
@@ -362,47 +477,18 @@ export class BillingService {
       throw new BadRequestException('The selected subscription plan is inactive or does not exist.');
     }
 
+    const { userId, guest } = await this.resolveGuestIdentity({
+      email,
+      firstName: dto.firstName.trim(),
+      lastName: dto.lastName.trim(),
+      businessName,
+      phone: dto.phone,
+      planId: plan.id,
+    });
+
     const amount = this.planAmount(plan, dto.billingCycle, dto.currency);
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
-    }
-
-    // Guest identity: a passwordless user row (claim sets the password later)
-    // plus its required 1:1 client profile. Email is the join key.
-    let guestUser = await this.prisma.user.findUnique({ where: { email } });
-    if (!guestUser) {
-      guestUser = await this.prisma.user.create({
-        data: {
-          email,
-          role: 'CLIENT',
-          firstName: dto.firstName.trim(),
-          lastName: dto.lastName.trim(),
-          phone: dto.phone,
-        },
-      });
-    }
-
-    let guest = await this.prisma.client.findUnique({ where: { userId: guestUser.id } });
-    if (!guest) {
-      guest = await this.prisma.client.create({
-        data: {
-          userId: guestUser.id,
-          businessName,
-          contactName: `${dto.firstName.trim()} ${dto.lastName.trim()}`.trim(),
-          email,
-          phone: dto.phone,
-          planId: plan.id,
-          status: 'TRIAL',
-        },
-      });
-    } else {
-      // Keep the latest plan intent if the guest switched plans between visits.
-      if (guest.planId !== plan.id || guest.businessName !== businessName) {
-        guest = await this.prisma.client.update({
-          where: { id: guest.id },
-          data: { planId: plan.id, businessName },
-        });
-      }
     }
 
     const invoiceNumber = this.newInvoiceNumber(dto.currency === 'KES' ? 'INV-KE' : 'INV-USD');
@@ -474,6 +560,41 @@ export class BillingService {
       email: user.email,
       planId: dto.planId,
     });
+
+    return this.bankTransferInvoiceFor({ clientId: client.id, businessName: client.businessName }, dto);
+  }
+
+  /**
+   * Guest B2B invoice (Track C) — no account required. Produces the same
+   * invoice + manual settlement instructions; activation stays manual
+   * (admin confirms the wire), so this is lower-risk than paid rails.
+   */
+  async createBankTransferInvoiceGuest(dto: GuestBankTransferInvoiceDto) {
+    const email = dto.email.trim().toLowerCase();
+
+    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
+    if (!plan) {
+      throw new BadRequestException('Plan not found');
+    }
+
+    const { guest } = await this.resolveGuestIdentity({
+      email,
+      firstName: dto.firstName?.trim() || 'Corporate',
+      lastName: dto.lastName?.trim() || 'Client',
+      businessName: dto.businessName?.trim() || 'Corporate Client',
+      phone: dto.phone,
+      planId: plan.id,
+    });
+
+    return this.bankTransferInvoiceFor({ clientId: guest.id, businessName: guest.businessName }, dto);
+  }
+
+  /** Shared B2B invoice core — server-priced, invoice + manual wire details. */
+  private async bankTransferInvoiceFor(
+    owner: { clientId: string; businessName?: string | null },
+    dto: { planId: string; billingCycle: BillingCycle; currency: 'USD' | 'EUR' | 'GBP' | 'KES'; purchaseOrderNumber?: string },
+  ) {
+    const client = { id: owner.clientId, businessName: owner.businessName };
 
     const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
     if (!plan) {

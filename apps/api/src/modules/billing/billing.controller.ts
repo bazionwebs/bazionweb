@@ -14,7 +14,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto, GuestSubscriptionDto } from './dto/billing.dto';
+import { IntaSendSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, WiseCorporateInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto } from './dto/billing.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
@@ -36,6 +36,30 @@ export class BillingController {
   @ApiOperation({ summary: 'Guest Paystack card checkout (KES/USD) — pay before signup' })
   subscribePaystackGuest(@Body() body: GuestSubscriptionDto) {
     return this.svc.subscribePaystackGuest(body);
+  }
+
+  /**
+   * Guest M-Pesa (Track C) — STK Push before signup, no account required.
+   * Same public contract as guest card checkout; webhook activates on success.
+   */
+  @Post('guest/subscribe/intasend')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Guest M-Pesa STK checkout (KES) — pay before signup' })
+  subscribeMpesaGuest(@Body() body: GuestMpesaSubscriptionDto) {
+    return this.svc.subscribeMpesaGuest(body);
+  }
+
+  /**
+   * Guest B2B invoice (Track C) — corporate wire intent without an account.
+   * Generates identity + invoice + manual settlement details only.
+   */
+  @Post('guest/corporate-invoice/bank-transfer')
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @ApiOperation({ summary: 'Guest B2B bank-transfer invoice — no account required' })
+  createBankTransferInvoiceGuest(@Body() body: GuestBankTransferInvoiceDto) {
+    return this.svc.createBankTransferInvoiceGuest(body);
   }
 
   @Get()
