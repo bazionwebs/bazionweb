@@ -553,4 +553,139 @@ describe('BillingService', () => {
       await expect(service.subscribePaystackGuest(guestDto)).rejects.toThrow(/price not configured/i);
     });
   });
+
+  // ── subscribeMpesaGuest() — pay-first M-Pesa checkout ───────────────────────
+
+  describe('subscribeMpesaGuest()', () => {
+    const mpesaPlan = {
+      id: 'plan-growth',
+      name: 'Growth',
+      isActive: true,
+      priceMonthlyKes: 7700,
+      priceAnnualKes: 77000,
+    };
+
+    const guestMpesaDto = {
+      planId: 'plan-growth',
+      billingCycle: 'MONTHLY' as any,
+      email: ' Guest@Example.com ',
+      mpesaPhoneNumber: '0712345678',
+      firstName: 'Jane',
+      lastName: 'Wanjiku',
+    };
+
+    function mockFreshGuest() {
+      mockPrisma.plan.findUnique.mockResolvedValue(mpesaPlan);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 'user-guest-1', email: 'guest@example.com' });
+      mockPrisma.client.findUnique.mockResolvedValue(null);
+      mockPrisma.client.create.mockResolvedValue({ id: 'client-guest-1', email: 'guest@example.com', planId: 'plan-growth' });
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-guest', invoiceNumber: 'INV-KE-0001', amount: 7700, currency: 'KES',
+      });
+      mockPrisma.paymentLog.create.mockResolvedValue({ id: 'log-1' });
+    }
+
+    it('creates guest identity + invoice and triggers Paystack STK (no login required)', async () => {
+      mockFreshGuest();
+      mockPaystackService.chargeMpesaStk.mockResolvedValue({ reference: 'MPESA_REF_1', raw: {} });
+
+      const result = await service.subscribeMpesaGuest(guestMpesaDto);
+
+      expect(result.guest).toBe(true);
+      expect(result.provider).toBe('PAYSTACK');
+      expect(result.email).toBe('guest@example.com'); // normalize email
+      expect(result.invoiceNumber).toBe('INV-KE-0001');
+      const createdUser = mockPrisma.user.create.mock.calls[0][0].data;
+      expect(createdUser.role).toBe('CLIENT');
+      expect(createdUser.phone).toBe('0712345678');
+      const createdClient = mockPrisma.client.create.mock.calls[0][0].data;
+      expect(createdClient.status).toBe('TRIAL');
+      expect(createdClient.planId).toBe('plan-growth');
+      expect(mockPaystackService.chargeMpesaStk).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 7700, phone: '0712345678' }),
+      );
+    });
+
+    it('defaults placeholder names when the guest only supplies email + phone', async () => {
+      mockFreshGuest();
+      mockPaystackService.chargeMpesaStk.mockResolvedValue({ reference: 'MPESA_REF_2', raw: {} });
+
+      await service.subscribeMpesaGuest({
+        planId: 'plan-growth',
+        billingCycle: 'MONTHLY' as any,
+        email: 'anon@example.com',
+        mpesaPhoneNumber: '0712345678',
+      });
+
+      const createdUser = mockPrisma.user.create.mock.calls[0][0].data;
+      expect(createdUser.firstName).toBe('Valued');
+      expect(createdUser.lastName).toBe('Client');
+    });
+
+    it('rejects a missing phone number', async () => {
+      await expect(
+        service.subscribeMpesaGuest({ ...guestMpesaDto, mpesaPhoneNumber: '' }),
+      ).rejects.toThrow(/phone number is required/i);
+    });
+
+    it('rejects inactive or unknown plans', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue(null);
+      await expect(service.subscribeMpesaGuest(guestMpesaDto)).rejects.toThrow(/inactive or does not exist/i);
+    });
+  });
+
+  // ── createBankTransferInvoiceGuest() — pay-first B2B invoice ────────────────
+
+  describe('createBankTransferInvoiceGuest()', () => {
+    const corpPlan = {
+      id: 'plan-enterprise',
+      name: 'Enterprise',
+      isActive: true,
+      priceMonthly: { toNumber: () => 199 },
+      priceAnnual: { toNumber: () => 1990 },
+    };
+
+    const guestCorpDto = {
+      planId: 'plan-enterprise',
+      billingCycle: 'MONTHLY' as any,
+      currency: 'USD' as const,
+      email: 'Billing@AcmeCorp.com',
+      businessName: 'Acme Corp',
+    };
+
+    it('creates guest identity + invoice + manual settlement details without an account', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue(corpPlan);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 'user-guest-2' });
+      mockPrisma.client.findUnique.mockResolvedValue(null);
+      mockPrisma.client.create.mockResolvedValue({ id: 'client-guest-2', businessName: 'Acme Corp' });
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-corp-guest', invoiceNumber: 'B2B-INV-1', amount: 199, currency: 'USD', dueDate: new Date(),
+      });
+      mockPrisma.wiseReceivingAccount.create.mockResolvedValue({
+        accountHolder: 'BazionWeb Technologies Ltd',
+        accountNumber: 'TEST123',
+        routingNumber: null,
+        swiftBic: 'TESTBIC',
+        bankAddress: { country: 'Kenya' },
+      });
+      mockPrisma.paymentLog.create.mockResolvedValue({ id: 'log-corp' });
+
+      const result = await service.createBankTransferInvoiceGuest(guestCorpDto);
+
+      expect(result.status).toBe('INVOICE_GENERATED');
+      expect(result.provider).toBe('MANUAL_BANK_TRANSFER');
+      expect(result.bankTransferDetails.accountNumber).toBe('TEST123');
+      const createdUser = mockPrisma.user.create.mock.calls[0][0].data;
+      expect(createdUser.email).toBe('billing@acmecorp.com');
+      expect(createdUser.firstName).toBe('Corporate'); // default placeholder
+      expect(mockWiseService.getManualSettlementInstructions).toHaveBeenCalled();
+    });
+
+    it('rejects unknown plans', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue(null);
+      await expect(service.createBankTransferInvoiceGuest(guestCorpDto)).rejects.toThrow(/plan not found/i);
+    });
+  });
 });
