@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/auth.store';
@@ -16,6 +16,7 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
   const { isAuthenticated, hasRole, isTokenExpired, refresh } = useAuth();
   const user = useAuthStore(s => s.user);
   const router = useRouter();
+  const pathname = usePathname();
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
@@ -41,9 +42,12 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
 
       // ── Subscription gate ───────────────────────────────────────────────────
       // Non-admin clients with PENDING or missing subscriptionStatus must
-      // complete onboarding (payment) before accessing the dashboard.
+      // complete onboarding (payment) before accessing the dashboard. Never
+      // redirect when already on /portal/onboarding — that caused an infinite
+      // "Authenticating…" loop (redirect target === current page).
       const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some(r => hasRole(r));
-      if (!isAdminRole) {
+      const onOnboarding = pathname === '/portal/onboarding' || pathname.startsWith('/portal/onboarding/');
+      if (!isAdminRole && !onOnboarding) {
         const subStatus = user?.subscriptionStatus;
         if (!subStatus || subStatus === 'PENDING' || subStatus === 'NONE') {
           router.replace('/portal/onboarding');
