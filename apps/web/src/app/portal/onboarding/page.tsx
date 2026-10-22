@@ -118,6 +118,7 @@ export default function OnboardingPage() {
   const user = useAuthStore(s => s.user);
   const pendingPlan = useAuthStore(s => s.pendingPlan);
   const clearSession = useAuthStore(s => s.clearSession);
+  const hasHydrated = useAuthStore(s => s._hasHydrated);
 
   const planSlug = pendingPlan || DEFAULT_PLAN;
   const plan = PLAN_META[planSlug] || PLAN_META[DEFAULT_PLAN];
@@ -228,13 +229,26 @@ export default function OnboardingPage() {
   }
 
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!user) {
       router.replace('/portal/login');
+      return;
     }
-  }, [user, router]);
+    // If the account already has an active subscription, take them straight to dashboard
+    if (user.subscriptionStatus === 'ACTIVE') {
+      router.replace('/portal');
+    }
+  }, [hasHydrated, user, router]);
 
-  if (!user) {
-    return null;
+  if (!hasHydrated || !user) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1D] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="text-sm text-slate-400">Loading your workspace…</span>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,30 +15,53 @@ interface AuthGuardProps {
 export default function AuthGuard({ children, requiredRoles = [], redirectTo = '/portal/login' }: AuthGuardProps) {
   const { isAuthenticated, hasRole, isTokenExpired, refresh } = useAuth();
   const user = useAuthStore(s => s.user);
+  const refreshToken = useAuthStore(s => s.refreshToken);
+  const hasHydrated = useAuthStore(s => s._hasHydrated);
   const router = useRouter();
   const pathname = usePathname();
   const [checking, setChecking] = useState(true);
+  const isRedirectingRef = useRef(false);
+
+  // Safety valve: prevent any infinite deadlock
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setChecking(false);
+    }, 2500);
+
+    return () => clearTimeout(safetyTimer);
+  }, [pathname]);
 
   useEffect(() => {
+    // Wait until hydration completes
+    if (!hasHydrated) {
+      return;
+    }
+
+    let active = true;
+
     async function check() {
-      // If token expired, try refresh first
-      if (isTokenExpired()) {
+      // If token expired and a refresh token is present, try refresh first
+      if (isTokenExpired() && refreshToken) {
         await refresh();
+        if (!active) return;
       }
 
-      // Redirecting to the page we're already on is a no-op in the App Router:
-      // `checking` would stay true forever ("Authenticating…" deadlock). Guard
-      // every redirect; when the target is the current path, render instead.
       const normalizedPath = pathname.replace(/\/+$/, '') || '/';
       const redirectUnlessHere = (target: string): boolean => {
-        if (target.replace(/\/+$/, '') === normalizedPath) return false;
+        const normTarget = target.replace(/\/+$/, '') || '/';
+        if (normTarget === normalizedPath) return false;
+        isRedirectingRef.current = true;
         router.replace(target);
+        // Release checking after transition delay so we never deadlock
+        setTimeout(() => {
+          if (active) setChecking(false);
+        }, 500);
         return true;
       };
 
       if (!isAuthenticated()) {
         if (redirectUnlessHere(redirectTo)) return;
-        setChecking(false);
+        if (active) setChecking(false);
         return;
       }
 
@@ -47,10 +70,7 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
         const permitted = requiredRoles.some(r => hasRole(r));
         if (!permitted) {
           if (redirectUnlessHere('/portal')) return;
-          // Signed in but the persisted session lacks a usable role while
-          // already on /portal — don't deadlock; let the page render and the
-          // API enforce authorization on each call.
-          setChecking(false);
+          if (active) setChecking(false);
           return;
         }
       }
@@ -58,8 +78,7 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       // ── Subscription gate ───────────────────────────────────────────────────
       // Non-admin clients with PENDING or missing subscriptionStatus must
       // complete onboarding (payment) before accessing the dashboard. Never
-      // redirect when already on /portal/onboarding — that caused an infinite
-      // "Authenticating…" loop (redirect target === current page).
+      // redirect when already on /portal/onboarding.
       const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some(r => hasRole(r));
       const onOnboarding = normalizedPath === '/portal/onboarding' || normalizedPath.startsWith('/portal/onboarding/');
       if (!isAdminRole && !onOnboarding) {
@@ -70,17 +89,23 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       }
       // ────────────────────────────────────────────────────────────────────────
 
-      setChecking(false);
+      if (active) setChecking(false);
     }
+
     check();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => {
+      active = false;
+    };
+  }, [pathname, hasHydrated, refreshToken, user?.subscriptionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (checking) {
+    const isOnboarding = pathname === '/portal/onboarding' || pathname.startsWith('/portal/onboarding/');
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+      <div className={`min-h-screen ${isOnboarding ? 'bg-[#0A0F1D]' : 'bg-[#F8FAFC]'} flex items-center justify-center`}>
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-[#2563EB]" />
-          <span className="text-sm text-slate-400">Authenticating…</span>
+          <span className={`text-sm ${isOnboarding ? 'text-slate-400' : 'text-slate-500'}`}>Authenticating…</span>
         </div>
       </div>
     );

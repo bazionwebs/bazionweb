@@ -24,8 +24,19 @@ export default function PortalGate({ children }: { children: React.ReactNode }) 
     return <>{children}</>;
   }
 
+  // Onboarding has its own standalone full-screen layout.
+  // It requires authentication, but must NOT be nested inside PortalShell.
+  const isOnboarding = pathname === '/portal/onboarding' || pathname.startsWith('/portal/onboarding/');
+  if (isOnboarding) {
+    return (
+      <AuthGuard key="onboarding-guard" requiredRoles={['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'SUPPORT']} redirectTo="/portal/login">
+        {children}
+      </AuthGuard>
+    );
+  }
+
   return (
-    <AuthGuard requiredRoles={['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'SUPPORT']} redirectTo="/portal/login">
+    <AuthGuard key="portal-shell-guard" requiredRoles={['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'SUPPORT']} redirectTo="/portal/login">
       <PortalShell>{children}</PortalShell>
     </AuthGuard>
   );

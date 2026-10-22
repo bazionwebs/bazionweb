@@ -15,6 +15,7 @@ export interface AuthUser {
 }
 
 interface AuthState {
+  _hasHydrated: boolean;
   user: AuthUser | null;
   accessToken: string | null;
   refreshToken: string | null;
@@ -22,6 +23,7 @@ interface AuthState {
   pendingPlan: string | null; // plan slug selected during registration
 
   // Actions
+  setHasHydrated: (state: boolean) => void;
   setSession: (user: AuthUser, accessToken: string, refreshToken: string, expiresIn: number) => void;
   clearSession: () => void;
   setPendingPlan: (planSlug: string | null) => void;
@@ -34,11 +36,16 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
+      _hasHydrated: false,
       user:         null,
       accessToken:  null,
       refreshToken: null,
       expiresAt:    null,
       pendingPlan:  null,
+
+      setHasHydrated: (state: boolean) => {
+        set({ _hasHydrated: state });
+      },
 
       setSession: (user, accessToken, refreshToken, expiresIn) => {
         set({
@@ -83,7 +90,14 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name:    'bazionweb-auth',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => (typeof window !== 'undefined' ? sessionStorage : {
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => {},
+      })),
+      onRehydrateStorage: () => () => {
+        useAuthStore.setState({ _hasHydrated: true });
+      },
       partialize: (state) => ({
         user:         state.user,
         accessToken:  state.accessToken,
@@ -94,4 +108,3 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 );
-

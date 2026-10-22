@@ -71,6 +71,7 @@ export default function PortalLoginPage() {
         lastName: 'Kamau',
         roles: ['CLIENT'],
         keycloakId: 'client-demo-acacia',
+        subscriptionStatus: 'ACTIVE',
       },
       'demo-secure-access-token-xyz',
       'demo-secure-refresh-token-xyz',
