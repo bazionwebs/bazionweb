@@ -55,7 +55,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
   effectiveFrom: '2026-01-01',
   effectiveUntil: '2026-12-31',
   status: 'active',
-  paymentRails: ['M-Pesa STK Push', 'Kenyan Bank Wire / RTGS', 'Local Visa / Mastercard'],
+  paymentRails: ['M-Pesa STK Push', 'Local Visa / Mastercard'],
   items: {
     // Websites
     'website-launch': {
@@ -279,7 +279,7 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
   effectiveFrom: '2026-01-01',
   effectiveUntil: '2026-12-31',
   status: 'active',
-  paymentRails: ['International Visa / Mastercard / Amex (Paystack)', 'SWIFT Bank Wire', 'Corporate Invoicing'],
+  paymentRails: ['International Visa / Mastercard / Amex (Paystack)'],
   items: {
     // Websites (Aggressive Market-Penetration Tier)
     'website-launch': {

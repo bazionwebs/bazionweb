@@ -75,9 +75,6 @@ export default function MarketSelectorModal() {
                   📱 M-Pesa STK
                 </span>
                 <span className="inline-flex items-center gap-1 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
-                  🏦 Local Bank Wire
-                </span>
-                <span className="inline-flex items-center gap-1 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
                   🇰🇪 Kenya Commercial Terms
                 </span>
               </div>
@@ -110,14 +107,11 @@ export default function MarketSelectorModal() {
                 </span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed mb-2.5">
-                Global commercial price book for worldwide clients. Includes international contract terms, multi-timezone project coordination, and international card/wire payment rails.
+                Global commercial price book for worldwide clients. Includes international contract terms, multi-timezone project coordination, and international card payment via Paystack.
               </p>
               <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
                 <span className="inline-flex items-center gap-1 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
                   💳 International Cards
-                </span>
-                <span className="inline-flex items-center gap-1 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
-                  🌐 SWIFT Bank Wire
                 </span>
                 <span className="inline-flex items-center gap-1 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
                   🌍 Global Master SLA

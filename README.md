@@ -37,7 +37,6 @@ BazionWeb is a full-stack managed website lifecycle platform for SMEs, corporate
 **Core capabilities:**
 - 📱 **Mobile Money** — Pay via M-Pesa (Paystack STK Push)
 - 💳 **Card Payments** — International Visa/Mastercard/Amex via Paystack
-- 🏦 **Corporate Wire Transfers** — B2B invoicing with direct manual wire settlement (KES/USD/EUR/GBP)
 - 📊 **Client Portal** — Subscription management, invoicing, project tracking, support tickets
 - 🔐 **Admin Dashboard** — Full CRUD across clients, billing, hosting, and reports
 - 🔔 **Webhook State Machine** — Idempotent webhook processing, dunning sequences, automated renewals
@@ -83,8 +82,7 @@ bazionweb/
 | **Cache / Queue** | Redis | 7 |
 | **Authentication** | Keycloak (OIDC/JWT + MFA) | 23 |
 | **CMS** | Strapi | 5 |
-| **Payments** | Paystack (M-Pesa STK + Cards) | REST v1 |
-| **B2B Invoicing** | Manual Bank Wire Settlement | Net-14 |
+| **Payments** | Paystack (M-Pesa STK via Daraja + Cards) | REST v1 |
 | **Reverse Proxy** | Nginx | 1.26 |
 | **Monitoring** | Uptime Kuma, Grafana, Loki | — |
 | **Object Storage** | Backblaze B2 (S3-compatible) | — |

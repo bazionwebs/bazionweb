@@ -381,17 +381,15 @@ export default function OnboardingPage() {
               </div>
 
               {/* Payment method tabs */}
-              <div className={`grid ${isKenya ? 'grid-cols-3' : 'grid-cols-2'} gap-0 border-b border-slate-800`}>
+              <div className={`grid ${isKenya ? 'grid-cols-2' : 'grid-cols-1'} gap-0 border-b border-slate-800`}>
                 {(
                   isKenya
                     ? [
                         { id: 'MPESA', label: 'M-Pesa', sub: 'Instant STK Push', Icon: Smartphone },
                         { id: 'CARD', label: 'Local Card', sub: 'Visa / Mastercard', Icon: CreditCard },
-                        { id: 'WIRE', label: 'Bank Wire', sub: 'Kenyan RTGS / EFT', Icon: Building2 },
                       ]
                     : [
                         { id: 'CARD', label: 'International Card', sub: 'Paystack / Cards', Icon: CreditCard },
-                        { id: 'WIRE', label: 'International Wire', sub: 'SWIFT / Wire Receiving', Icon: Building2 },
                       ]
                 ).map(({ id, label, sub, Icon }) => (
                   <button
@@ -509,42 +507,7 @@ export default function OnboardingPage() {
                   </div>
                 )}
 
-                {/* Wire Tab */}
-                {tab === 'WIRE' && (
-                  <div className="space-y-4">
-                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-purple-400 mb-1">Corporate Wire / B2B Invoice</p>
-                      <p className="text-[11px] text-slate-400">For companies requiring official invoices, LPO or PO-based payments. Our team will process your activation within 24 hours of payment confirmation.</p>
-                    </div>
 
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 text-xs">
-                      {[
-                        { label: 'Beneficiary', value: 'BazionWeb Ltd' },
-                        { label: 'Bank', value: 'Equity Bank Kenya · Nairobi Branch' },
-                        { label: 'Account Number', value: '0123456789012' },
-                        { label: 'SWIFT / BIC', value: 'EQBLKENA' },
-                        { label: 'Payment Reference', value: `BWSUB-${Date.now().toString(36).toUpperCase()}` },
-                      ].map(({ label, value }) => (
-                        <div key={label} className="flex justify-between items-center py-2 border-b border-slate-800 last:border-0">
-                          <span className="text-slate-500">{label}</span>
-                          <span className="font-mono font-bold text-white">{value}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300">
-                      After completing the wire transfer, email your remittance advice to <strong>billing@bazionweb.com</strong> referencing your payment code above.
-                    </div>
-
-                    <Link
-                      href="/contact"
-                      className="w-full flex items-center justify-center gap-2 border border-purple-500/40 text-purple-400 hover:bg-purple-500/10 font-semibold py-3.5 rounded-xl transition-all text-sm"
-                    >
-                      <Building2 className="w-4 h-4" />
-                      Contact us to request a formal LPO
-                    </Link>
-                  </div>
-                )}
 
                 {/* Trust row */}
                 <div className="mt-6 pt-5 border-t border-slate-800 flex flex-wrap items-center gap-4 text-xs text-slate-500">

@@ -823,7 +823,7 @@ Please confirm availability and discuss next steps.`;
                     className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 bg-white focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium"
                   >
                     <optgroup label="East Africa (Kenya Price Book & Terms)">
-                      <option value="KE">🇰🇪 Kenya (KES · M-Pesa &amp; Kenyan Bank Wire)</option>
+                      <option value="KE">🇰🇪 Kenya (KES · M-Pesa &amp; Paystack)</option>
                       <option value="UG">🇺🇬 Uganda (East Africa Region)</option>
                       <option value="TZ">🇹🇿 Tanzania (East Africa Region)</option>
                       <option value="RW">🇷🇼 Rwanda (East Africa Region)</option>

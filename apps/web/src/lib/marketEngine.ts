@@ -54,11 +54,10 @@ export const MARKETS: Record<MarketCode, MarketDefinition> = {
     countryCodes: ['KE'],
     commercialTermsTitle: 'Kenya Commercial Terms & SME SLAs',
     supportScope: 'East Africa Time (EAT) priority support with direct WhatsApp & phone dispatch',
-    paymentRailDescription: 'M-Pesa STK Push, Paybill, Kenyan Bank Wire & local Visa/Mastercard',
+    paymentRailDescription: 'M-Pesa STK Push (Daraja) & local Visa/Mastercard via Paystack',
     paymentMethods: [
-      { id: 'mpesa', name: 'M-Pesa', description: 'Instant STK push & Paybill validation', isPrimary: true },
-      { id: 'bank', name: 'Bank Transfer / RTGS', description: 'Kenyan commercial bank invoice settlement' },
-      { id: 'card', name: 'Credit / Debit Card', description: 'Local and regional Visa / Mastercard' },
+      { id: 'mpesa', name: 'M-Pesa', description: 'Instant STK push via Safaricom Daraja API', isPrimary: true },
+      { id: 'card', name: 'Credit / Debit Card', description: 'Local and regional Visa / Mastercard via Paystack' },
     ],
   },
   GLOBAL: {
@@ -74,11 +73,9 @@ export const MARKETS: Record<MarketCode, MarketDefinition> = {
     countryCodes: ['*'], // Catch-all for non-domestic visitors
     commercialTermsTitle: 'International Commercial Terms & Global Master SLAs',
     supportScope: 'Worldwide coverage across UTC-5 to UTC+3 with dedicated project management',
-    paymentRailDescription: 'Paystack, Global Visa/Mastercard/Amex & SWIFT Bank Wire',
+    paymentRailDescription: 'Paystack — Global Visa / Mastercard / Amex',
     paymentMethods: [
       { id: 'card', name: 'International Card', description: 'Visa, Mastercard, Amex via Paystack', isPrimary: true },
-      { id: 'wire', name: 'International Wire / SWIFT', description: 'USD/EUR corporate receiving accounts via Bank Wire' },
-      { id: 'paypal', name: 'Corporate Invoicing', description: 'Standard international B2B invoice settlement' },
     ],
   },
   // Future planned markets (Architectural headroom)

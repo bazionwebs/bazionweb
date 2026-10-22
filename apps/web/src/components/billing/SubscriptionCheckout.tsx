@@ -488,7 +488,7 @@ export default function SubscriptionCheckout({
         {/* Security Badge */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-3 text-xs text-slate-400">
           <Lock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>256-Bit SSL Encrypted Checkout. Backed by Paystack (M-Pesa STK Push + Global Cards) and Direct Wire Transfer.</span>
+          <span>256-Bit SSL Encrypted Checkout. Backed by Paystack (M-Pesa STK Push + Global Cards).</span>
         </div>
       </div>
 
