@@ -26,8 +26,19 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
         await refresh();
       }
 
+      // Redirecting to the page we're already on is a no-op in the App Router:
+      // `checking` would stay true forever ("Authenticating…" deadlock). Guard
+      // every redirect; when the target is the current path, render instead.
+      const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+      const redirectUnlessHere = (target: string): boolean => {
+        if (target.replace(/\/+$/, '') === normalizedPath) return false;
+        router.replace(target);
+        return true;
+      };
+
       if (!isAuthenticated()) {
-        router.replace(redirectTo);
+        if (redirectUnlessHere(redirectTo)) return;
+        setChecking(false);
         return;
       }
 
@@ -35,7 +46,11 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       if (requiredRoles.length > 0) {
         const permitted = requiredRoles.some(r => hasRole(r));
         if (!permitted) {
-          router.replace('/portal');
+          if (redirectUnlessHere('/portal')) return;
+          // Signed in but the persisted session lacks a usable role while
+          // already on /portal — don't deadlock; let the page render and the
+          // API enforce authorization on each call.
+          setChecking(false);
           return;
         }
       }
@@ -46,12 +61,11 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       // redirect when already on /portal/onboarding — that caused an infinite
       // "Authenticating…" loop (redirect target === current page).
       const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some(r => hasRole(r));
-      const onOnboarding = pathname === '/portal/onboarding' || pathname.startsWith('/portal/onboarding/');
+      const onOnboarding = normalizedPath === '/portal/onboarding' || normalizedPath.startsWith('/portal/onboarding/');
       if (!isAdminRole && !onOnboarding) {
         const subStatus = user?.subscriptionStatus;
         if (!subStatus || subStatus === 'PENDING' || subStatus === 'NONE') {
-          router.replace('/portal/onboarding');
-          return;
+          if (redirectUnlessHere('/portal/onboarding')) return;
         }
       }
       // ────────────────────────────────────────────────────────────────────────
