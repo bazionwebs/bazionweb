@@ -65,6 +65,11 @@ services:
         value: https://bazionweb.com
       - key: NEXT_PUBLIC_GA_MEASUREMENT_ID
         sync: false
+      # Email (Resend) — transactional delivery happens in the web app
+      # (src/lib/email.ts: magic links, receipts). Rotate at resend.com,
+      # paste ONLY here or in the Render dashboard — never in files.
+      - key: RESEND_API_KEY
+        sync: false
 
   # ── NestJS API ───────────────────────────────────────────────────────────
   - type: web

@@ -1,0 +1,35 @@
+# BazionWeb gitleaks rules — used by .github/workflows/secret-scan.yml
+# and the local pre-commit hook (scripts/hooks/pre-commit).
+# This config MERGES with gitleaks' built-in default rules.
+title = "BazionWeb custom secret rules"
+
+[[rules]]
+id = "paystack-secret-key"
+description = "Paystack secret key (live or test)"
+regex = '''sk_(?:live|test)_[0-9a-f]{32}\b'''
+keywords = ["sk_live", "sk_test"]
+                # sk_test hits stay flagged: test keys must not be committed either
+
+[[rules]]
+id = "paystack-public-live-key"
+description = "Paystack live public key (public keys are OK in isolation, but pk_live in a file usually travels with its secret)"
+regex = '''pk_live_[0-9a-f]{32}\b'''
+keywords = ["pk_live"]
+
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key (re_<id_key> format)"
+regex = '''re_[A-Za-z0-9_]{20,}\b'''
+keywords = ["re_"]
+
+[allowlist]
+description = "Docs / placeholders that make their home among repos"
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''(^|/)\.gitleaks\.toml$''',
+]
+regexes = [
+  '''CHANGE_ME''',
+  '''gitleaks''',
+  '''sk_test_CHANGE_ME''',
+]
