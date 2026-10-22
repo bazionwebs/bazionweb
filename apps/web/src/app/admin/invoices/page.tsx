@@ -42,7 +42,7 @@ export default function AdminInvoicesPage() {
   const rawInvoices = invoicesQuery.data?.items ?? [];
   const rawClients = clientsQuery.data?.items ?? [];
 
-  const invoices = rawInvoices.map((inv: any) => ({
+  const invoices = rawInvoices.map((inv: Record<string, unknown>) => ({
     id: inv.id,
     invoiceNumber: inv.invoiceNumber || `INV-${shortId(inv.id, 6)}`,
     clientName: inv.client?.businessName || 'Client',
@@ -87,8 +87,9 @@ export default function AdminInvoicesPage() {
       setAmount('');
       setNotes('');
       invoicesQuery.refetch();
-    } catch (err: any) {
-      setErrorMsg(err?.response?.data?.message || 'Failed to generate invoice.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate invoice.';
+      setErrorMsg((err as { response?: { data?: { message?: string } } })?.response?.data?.message || msg);
     } finally {
       setSubmitting(false);
     }

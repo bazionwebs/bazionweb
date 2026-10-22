@@ -37,7 +37,7 @@ export default function AdminHostingPage() {
   const rawClients = clientsQuery.data?.items ?? [];
   const uptimeSummary = uptimeQuery.data?.summary ?? [];
 
-  const uptimeByDomain: Record<string, any> = {};
+  const uptimeByDomain: Record<string, { sslAlert?: boolean; sslDaysLeft?: number; backups?: { total: number; failed: number; successRate: number } }> = {};
   uptimeSummary.forEach(u => {
     uptimeByDomain[u.domain] = u;
   });
@@ -84,14 +84,15 @@ export default function AdminHostingPage() {
       setClientId('');
       setDomain('');
       hostingQuery.refetch();
-    } catch (err: any) {
-      setErrorMsg(err?.response?.data?.message || 'Failed to provision hosting account.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to provision hosting account.';
+      setErrorMsg((err as { response?: { data?: { message?: string } } })?.response?.data?.message || msg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleToggleStatus = async (account: any) => {
+  const handleToggleStatus = async (account: { id: string; domain: string; status: string }) => {
     const nextStatus = account.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     if (confirm(`Change status of ${account.domain} to ${nextStatus}?`)) {
       await updateHostingMutation.mutateAsync({

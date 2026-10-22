@@ -17,7 +17,7 @@ import { adminApi } from '@/lib/api';
 export default function AdminClientsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [selectedClient, setSelectedClient] = useState<any | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Record<string, unknown> | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -82,8 +82,9 @@ export default function AdminClientsPage() {
       setEmail('');
       setPhone('');
       clientsQuery.refetch();
-    } catch (err: any) {
-      setErrorMsg(err?.response?.data?.message || 'Failed to create client. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create client. Please try again.';
+      setErrorMsg((err as { response?: { data?: { message?: string } } })?.response?.data?.message || msg);
     } finally {
       setSubmitting(false);
     }

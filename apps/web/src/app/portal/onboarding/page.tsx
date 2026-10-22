@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   CreditCard,
   Smartphone,
-  Building2,
   ArrowRight,
   Loader2,
   ShieldCheck,

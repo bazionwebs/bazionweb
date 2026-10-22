@@ -15,7 +15,7 @@ export default function AdminTicketsPage() {
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<Record<string, unknown> | null>(null);
 
   const ticketsQuery = useAdminTickets();
   const updateTicketMutation = useUpdateTicket();

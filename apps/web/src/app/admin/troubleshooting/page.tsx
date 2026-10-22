@@ -27,7 +27,15 @@ export default function AdminTroubleshootingPage() {
 
   // ── DNS Diagnostic State
   const [dnsDomain, setDnsDomain] = useState('acaciahealthcare.co.ke');
-  const [dnsResults, setDnsResults] = useState<any | null>(null);
+  const [dnsResults, setDnsResults] = useState<{
+    domain: string;
+    ip: string;
+    cloudflareProxied: boolean;
+    sslValid: boolean;
+    sslIssuer: string;
+    sslExpires: string;
+    records: { type: string; name: string; target: string; ttl?: string; priority?: number }[];
+  } | null>(null);
   const [dnsChecking, setDnsChecking] = useState(false);
 
   // ── Webhook Inspector State
@@ -132,7 +140,7 @@ export default function AdminTroubleshootingPage() {
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTool(tab.id as any)}
+            onClick={() => setActiveTool(tab.id as 'health' | 'dns' | 'webhooks' | 'reconciliation' | 'impersonation')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
               activeTool === tab.id
                 ? 'bg-slate-900 text-white shadow-sm'
@@ -296,7 +304,7 @@ export default function AdminTroubleshootingPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                    {dnsResults.records.map((r: any, i: number) => (
+                    {dnsResults.records.map((r: { type: string; name: string; target: string; ttl?: string }, i: number) => (
                       <tr key={i} className="hover:bg-slate-50">
                         <td className="py-2 px-3 font-bold text-[#2563EB]">{r.type}</td>
                         <td className="py-2 px-3 text-slate-700">{r.name}</td>
