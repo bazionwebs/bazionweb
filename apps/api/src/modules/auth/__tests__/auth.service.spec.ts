@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+ï»¿import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
@@ -305,7 +305,7 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     role: 'CLIENT' as const,
     keycloakId: null,
     deletedAt: null,
-    passwordHash: null, // passwordless — created at checkout
+    passwordHash: null, // passwordless ï¿½ created at checkout
   };
 
   const claimedUser = {
@@ -454,7 +454,7 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
 
   it('requestClaimLink only emails paid, unclaimed accounts', async () => {
     prisma.user.findUnique.mockResolvedValue(unclaimedUser);
-    const { claimToken, expiresIn } = await service.requestClaimLink('Guest@example.com');
+    const { claimToken, expiresIn } = await service.requestClaimLink('Guest@example.com', true); // BFF-authorised caller
     expect(claimToken).toMatch(/^claim_[A-Za-z0-9_-]{20,}$/);
     expect(expiresIn).toBe(900);
     expect(prisma.refreshToken.create).toHaveBeenCalledWith(
@@ -462,7 +462,7 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     );
 
     prisma.user.findUnique.mockResolvedValue(claimedUser);
-    expect((await service.requestClaimLink('guest@example.com')).claimToken).toBe('');
+    expect((await service.requestClaimLink('guest@example.com', true)).claimToken).toBe(''); // claimed user => empty even with auth
 
     prisma.user.findUnique.mockResolvedValue(unclaimedUser);
     prisma.client.findUnique.mockResolvedValue({
@@ -471,7 +471,7 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
       subscriptions: [],
       invoices: [],
     });
-    expect((await service.requestClaimLink('guest@example.com')).claimToken).toBe('');
+    expect((await service.requestClaimLink('guest@example.com', true)).claimToken).toBe(''); // claimed user => empty even with auth
 
     prisma.user.findUnique.mockResolvedValue(null);
     expect((await service.requestClaimLink('nobody@example.com')).claimToken).toBe('');
@@ -479,7 +479,7 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
 
   it('requestMagicLink only mints a token for claimed accounts', async () => {
     prisma.user.findUnique.mockResolvedValue(claimedUser);
-    const { magicToken } = await service.requestMagicLink('guest@example.com');
+    const { magicToken } = await service.requestMagicLink('guest@example.com', true); // BFF-authorised caller
     expect(magicToken).toMatch(/^magic_[A-Za-z0-9_-]{20,}$/);
     expect(prisma.refreshToken.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: 'user-guest-1', expiresAt: expect.any(Date) }) }),

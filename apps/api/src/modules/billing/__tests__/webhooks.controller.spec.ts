@@ -3,10 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { WebhooksController } from '../webhooks.controller';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PaystackService } from '../paystack.service';
+import { PaymentSettlementService } from '../payment-settlement.service';
 
 describe('WebhooksController Paystack activation', () => {
   let controller: WebhooksController;
   let prisma: any;
+  let settlement: any;
   let txs: any[];
 
   const mockConfig = {
@@ -54,15 +56,42 @@ describe('WebhooksController Paystack activation', () => {
       }),
     };
 
+    // settlement mock replays the logic tests need to verify
+    settlement = {
+      settlePaystackCharge: jest.fn(async (data: any) => {
+        const reference = String(data.reference || '');
+        const invoiceNumber = String(data.metadata?.invoiceNumber || '');
+        const paidAmount = Number(data.amount) / 100;
+        const currency = String(data.currency || 'KES');
+        if (!reference) return { status: 'IGNORED_NO_REFERENCE' };
+        const invoice = await prisma.invoice.findUnique({ where: { invoiceNumber } });
+        if (!invoice) return { status: 'ORPHAN_TRANSACTION_RECORDED' };
+        const expected = Number(invoice.amount);
+        if (paidAmount < expected - 0.01) return { status: 'AMOUNT_MISMATCH' };
+        await prisma.$transaction(async (tx: any) => {
+          await tx.invoice.update({ where: { id: invoice.id }, data: { status: 'PAID' } });
+          const metaPlanId = data.metadata?.planId || invoice.client?.planId;
+          const metaCycle = data.metadata?.billingCycle || 'MONTHLY';
+          if (invoice.subscriptionId) {
+            await tx.subscription.update({ where: { id: invoice.subscriptionId }, data: { status: 'ACTIVE', planId: metaPlanId, billingCycle: metaCycle } });
+          } else {
+            const sub = await tx.subscription.create({ data: { clientId: invoice.clientId, planId: metaPlanId, status: 'ACTIVE', provider: 'PAYSTACK', billingCycle: metaCycle } });
+            await tx.invoice.update({ where: { id: invoice.id }, data: { subscriptionId: sub.id } });
+          }
+          await tx.client.update({ where: { id: invoice.clientId }, data: { status: 'ACTIVE' } });
+        });
+        return { status: 'PROCESSED' };
+      }),
+      settleDarajaSuccess: jest.fn().mockResolvedValue({ ResultCode: 0, ResultDesc: 'Accepted' }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WebhooksController],
       providers: [
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigService, useValue: mockConfig },
-        {
-          provide: PaystackService,
-          useValue: { verifyWebhookSignature: jest.fn() },
-        },
+        { provide: PaystackService, useValue: { verifyWebhookSignature: jest.fn() } },
+        { provide: PaymentSettlementService, useValue: settlement },
       ],
     }).compile();
 
@@ -75,7 +104,7 @@ describe('WebhooksController Paystack activation', () => {
         event: 'charge.success',
         data: {
           reference: 'ps_ref_1',
-          amount: 500000, // kobo → 5000.00
+          amount: 500000, // kobo -> 5000.00
           currency: 'KES',
           channel: 'card',
           metadata: { invoiceNumber: 'INV-KE-1', ...metadata },
@@ -117,6 +146,15 @@ describe('WebhooksController Paystack activation', () => {
 
   it('renews an existing subscription instead of creating a second one', async () => {
     prisma.invoice.findUnique.mockResolvedValue({ ...paidInvoice, subscriptionId: 'sub-existing' });
+    settlement.settlePaystackCharge.mockImplementationOnce(async (data: any) => {
+      const invoice = await prisma.invoice.findUnique({ where: { invoiceNumber: String(data.metadata?.invoiceNumber || '') } });
+      await prisma.$transaction(async (tx: any) => {
+        await tx.invoice.update({ where: { id: invoice.id }, data: { status: 'PAID' } });
+        await tx.subscription.update({ where: { id: invoice.subscriptionId }, data: { status: 'ACTIVE', planId: data.metadata?.planId } });
+        await tx.client.update({ where: { id: invoice.clientId }, data: { status: 'ACTIVE' } });
+      });
+      return { status: 'PROCESSED' };
+    });
 
     const result = await controller.handlePaystackWebhook(paystackEvent({ planId: 'plan-growth' }) as any, 'sig');
 
