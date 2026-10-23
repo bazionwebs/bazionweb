@@ -87,7 +87,7 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       packagePriceIntl: '$950',          // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Business',
       carePriceKenya: 'KSh 10,000/mo',
-      carePriceIntl: '$89/mo',
+      carePriceIntl: '$150/mo',
       summary: 'Custom 10-page website, CMS integration, lead capture pipeline, and 30-day post-launch warranty.',
     },
     recommendedAddons: [
@@ -168,7 +168,7 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       packagePriceIntl: '$1,750',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Business',
       carePriceKenya: 'KSh 10,000/mo',
-      carePriceIntl: '$89/mo',
+      carePriceIntl: '$150/mo',
       summary: 'Up to 15 pages, sermon archive, events manager, M-Pesa integration, and 60-day warranty.',
     },
     recommendedAddons: [
@@ -472,7 +472,7 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       packagePriceIntl: '$1,750',        // ← canonical: priceBooks.ts GLOBAL-2026-v1
       carePlan: 'Care Essential',
       carePriceKenya: 'KSh 5,000/mo',
-      carePriceIntl: '$39/mo',
+      carePriceIntl: '$75/mo',
       summary: 'Up to 15 pages, practice area index, partner profiles, appointment intake, and 60-day support.',
     },
     recommendedAddons: [

@@ -3,13 +3,14 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { BillingController } from './billing.controller';
 import { WebhooksController } from './webhooks.controller';
 import { BillingService } from './billing.service';
+import { PlansController } from './plans.controller';
 import { PaystackService } from './paystack.service';
 import { DarajaService } from './daraja.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
   imports: [PrismaModule, ScheduleModule],
-  controllers: [BillingController, WebhooksController],
+  controllers: [BillingController, PlansController, WebhooksController],
   providers: [BillingService, PaystackService, DarajaService],
   exports: [BillingService, PaystackService, DarajaService],
 })

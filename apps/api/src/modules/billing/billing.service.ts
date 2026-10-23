@@ -25,7 +25,9 @@ import {
   BankTransferInvoiceDto, 
   GuestSubscriptionDto, 
   GuestMpesaSubscriptionDto, 
-  GuestBankTransferInvoiceDto 
+  GuestBankTransferInvoiceDto,
+  PayInvoiceMpesaDto,
+  PayInvoiceCardDto 
 } from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -199,6 +201,105 @@ export class BillingService {
   }
 
   /**
+   * Shared M-Pesa STK initiation via Paystack / Daraja.
+   * Used by both the authenticated route and guest (pay-first) checkout.
+   * `invoice` is pre-created; PaymentLog links the STK attempt to it so the
+   * Daraja/Paystack webhooks settle THAT invoice on success.
+   */
+  private async pushMpesaStk(args: {
+    client: { id: string; email: string; user?: { firstName?: string | null; lastName?: string | null } | null };
+    userId: string | null;
+    phone: string;
+    invoice: { id: string; invoiceNumber: string; amount: number; currency: string };
+    description: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    const { client, userId, phone, invoice, description, metadata } = args;
+    const amount = Number(invoice.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Invoice amount is not configured for M-Pesa payment.');
+    }
+
+    const hasDaraja = Boolean(
+      this.config.get<string>('DARAJA_CONSUMER_KEY') &&
+      this.config.get<string>('DARAJA_CONSUMER_SECRET')
+    );
+
+    if (hasDaraja) {
+      try {
+        const stk = await this.darajaService.initiateStkPush({
+          phone,
+          amount,
+          invoiceNumber: invoice.invoiceNumber,
+          description,
+        });
+
+        await this.prisma.paymentLog.create({
+          data: {
+            idempotencyKey: `DARAJA_${stk.checkoutRequestId}`,
+            provider: PaymentProvider.DARAJA,
+            providerRef: stk.checkoutRequestId,
+            method: PaymentMethodType.MPESA,
+            amount,
+            currency: 'KES',
+            status: PaymentStatus.PENDING,
+            clientId: client.id,
+            invoiceId: invoice.id,
+            ...(userId ? { userId } : {}),
+            rawPayload: stk as any,
+          },
+        });
+
+        return {
+          status: 'PENDING_STK_INPUT',
+          method: 'MPESA',
+          provider: 'DARAJA',
+          message:
+            stk.customerMessage || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
+          invoiceNumber: invoice.invoiceNumber,
+          trackingId: stk.checkoutRequestId,
+        };
+      } catch (err: any) {
+        this.logger.warn(`Daraja STK push failed for ${invoice.invoiceNumber}, falling back to Paystack: ${err?.message}`);
+      }
+    }
+
+    const stk = await this.paystackService.chargeMpesaStk({
+      email: client.email,
+      amount,
+      phone,
+      invoiceNumber: invoice.invoiceNumber,
+      metadata: { clientId: client.id, ...(metadata ?? {}) },
+    });
+
+    await this.prisma.paymentLog.create({
+      data: {
+        idempotencyKey: `PAYSTACK_${stk.reference}`,
+        provider: PaymentProvider.PAYSTACK,
+        providerRef: stk.reference,
+        method: PaymentMethodType.MPESA,
+        amount,
+        currency: 'KES',
+        status: PaymentStatus.PENDING,
+        clientId: client.id,
+        invoiceId: invoice.id,
+        ...(userId ? { userId } : {}),
+        rawPayload: stk.raw as any,
+      },
+    });
+
+    return {
+      status: 'PENDING_STK_INPUT',
+      method: 'MPESA',
+      provider: 'PAYSTACK',
+      message:
+        stk.displayText || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
+      invoiceNumber: invoice.invoiceNumber,
+      trackingId: stk.reference,
+    };
+  }
+
+  /**
    * Shared M-Pesa STK initiation via Paystack.
    * Used by both the authenticated route and guest (pay-first) checkout.
    */
@@ -237,87 +338,113 @@ export class BillingService {
       },
     });
 
-    const hasDaraja = Boolean(
-      this.config.get<string>('DARAJA_CONSUMER_KEY') &&
-      this.config.get<string>('DARAJA_CONSUMER_SECRET')
-    );
-
-    if (hasDaraja) {
-      try {
-        const stk = await this.darajaService.initiateStkPush({
-          phone,
-          amount,
-          invoiceNumber: invoice.invoiceNumber,
-          description: `BazionWeb ${plan.name}`,
-        });
-
-        await this.prisma.paymentLog.create({
-          data: {
-            idempotencyKey: `DARAJA_${stk.checkoutRequestId}`,
-            provider: PaymentProvider.DARAJA,
-            providerRef: stk.checkoutRequestId,
-            method: PaymentMethodType.MPESA,
-            amount,
-            currency: 'KES',
-            status: PaymentStatus.PENDING,
-            clientId: client.id,
-            invoiceId: invoice.id,
-            ...(userId ? { userId } : {}),
-            rawPayload: stk as any,
-          },
-        });
-
-        return {
-          status: 'PENDING_STK_INPUT',
-          method: 'MPESA',
-          provider: 'DARAJA',
-          message:
-            stk.customerMessage || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
-          invoiceNumber: invoice.invoiceNumber,
-          trackingId: stk.checkoutRequestId,
-        };
-      } catch (err: any) {
-        this.logger.warn(`Daraja STK push failed for ${invoice.invoiceNumber}, falling back to Paystack: ${err?.message}`);
-      }
-    }
-
-    const stk = await this.paystackService.chargeMpesaStk({
-      email: client.email,
-      amount,
+    return this.pushMpesaStk({
+      client,
+      userId,
       phone,
-      invoiceNumber: invoice.invoiceNumber,
-      metadata: { planId: plan.id, billingCycle, clientId: client.id },
+      invoice: { id: invoice.id, invoiceNumber: invoice.invoiceNumber, amount, currency: invoice.currency },
+      description: `BazionWeb ${plan.name}`,
+      metadata: { planId: plan.id, billingCycle },
     });
-
-    await this.prisma.paymentLog.create({
-      data: {
-        idempotencyKey: `PAYSTACK_${stk.reference}`,
-        provider: PaymentProvider.PAYSTACK,
-        providerRef: stk.reference,
-        method: PaymentMethodType.MPESA,
-        amount,
-        currency: 'KES',
-        status: PaymentStatus.PENDING,
-        clientId: client.id,
-        invoiceId: invoice.id,
-        ...(userId ? { userId } : {}),
-        rawPayload: stk.raw as any,
-      },
-    });
-
-    return {
-      status: 'PENDING_STK_INPUT',
-      method: 'MPESA',
-      provider: 'PAYSTACK',
-      message:
-        stk.displayText || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
-      invoiceNumber: invoice.invoiceNumber,
-      trackingId: stk.reference,
-    };
   }
 
   async queryMpesaStatus(checkoutRequestId: string) {
     return this.darajaService.queryStkStatus(checkoutRequestId);
+  }
+
+  /** Shared ownership + payability validation for invoice payment rails. */
+  private async assertPayableInvoice(id: string, user: any) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id },
+      include: { client: { include: { user: true } } },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+
+    const isStaff = ['ADMIN', 'SUPER_ADMIN'].some(r => user.roles?.includes(r));
+    if (!isStaff && invoice.client.userId !== user.id) {
+      throw new ForbiddenException('Access denied');
+    }
+    if (invoice.status === InvoiceStatus.PAID || invoice.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException('This invoice is already settled and cannot accept new payments.');
+    }
+
+    return invoice;
+  }
+
+  /**
+   * Settle an existing PENDING/OVERDUE invoice with an M-Pesa STK Push.
+   * The webhook (Daraja or Paystack) marks the invoice PAID on success.
+   */
+  async payInvoiceMpesa(user: any, id: string, dto: PayInvoiceMpesaDto) {
+    const invoice = await this.assertPayableInvoice(id, user);
+
+    if (invoice.currency !== 'KES') {
+      throw new BadRequestException(
+        'M-Pesa is only available for KES invoices — settle this invoice by card instead.'
+      );
+    }
+
+    return this.pushMpesaStk({
+      client: invoice.client,
+      userId: user.id,
+      phone: dto.mpesaPhoneNumber,
+      invoice: { id: invoice.id, invoiceNumber: invoice.invoiceNumber, amount: Number(invoice.amount), currency: invoice.currency },
+      description: `BazionWeb invoice ${invoice.invoiceNumber}`,
+      metadata: { purpose: 'invoice_payment' },
+    });
+  }
+
+  /**
+   * Settle an existing PENDING/OVERDUE invoice by card via a Paystack redirect.
+   * The Paystack webhook marks the invoice PAID on success.
+   */
+  async payInvoiceCard(user: any, id: string, dto: PayInvoiceCardDto) {
+    const invoice = await this.assertPayableInvoice(id, user);
+
+    const amount = Number(invoice.amount);
+    if (invoice.currency !== 'KES' && invoice.currency !== 'USD') {
+      throw new BadRequestException(
+        `Card checkout does not support ${invoice.currency} invoices — use M-Pesa or bank transfer.`
+      );
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Invoice amount is not configured for card payment.');
+    }
+
+    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
+    const init = await this.paystackService.initializeTransaction({
+      email: dto.email || invoice.client.email || user.email,
+      amount,
+      currency: invoice.currency,
+      invoiceNumber: invoice.invoiceNumber,
+      callbackUrl: `${frontendUrl}/portal/invoices?card_settled=1`,
+      metadata: { clientId: invoice.clientId, purpose: 'invoice_payment' },
+    });
+
+    await this.prisma.paymentLog.create({
+      data: {
+        idempotencyKey: `PAYSTACK_${init.reference}`,
+        provider: PaymentProvider.PAYSTACK,
+        providerRef: init.reference,
+        method: PaymentMethodType.CARD,
+        amount,
+        currency: invoice.currency,
+        status: PaymentStatus.PENDING,
+        clientId: invoice.clientId,
+        invoiceId: invoice.id,
+        userId: user.id,
+        rawPayload: init as any,
+      },
+    });
+
+    return {
+      status: 'REDIRECT_REQUIRED',
+      method: 'CARD',
+      provider: 'PAYSTACK',
+      checkoutUrl: init.authorizationUrl,
+      reference: init.reference,
+      invoiceNumber: invoice.invoiceNumber,
+    };
   }
 
   /**

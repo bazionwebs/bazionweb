@@ -15,106 +15,13 @@ import {
 } from 'lucide-react';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { useAuthStore } from '@/store/auth.store';
-
-export interface PlanConfig {
-  id: string;
-  name: string;
-  slug: string;
-  priceMonthlyUsd: number;
-  priceMonthlyKes: number;
-  priceAnnualUsd: number;
-  priceAnnualKes: number;
-  description: string;
-  features: string[];
-}
+import { DEFAULT_PLAN_SLUG, planMarketing, usePlans } from '@/lib/plans';
 
 interface CheckoutProps {
   initialPlanSlug?: string;
   initialCycle?: 'MONTHLY' | 'ANNUAL';
   token?: string;
 }
-
-// IDs mirror the seeded Plan rows (prisma/seed.ts). Prices are display-only:
-// the API re-prices server-side from its pricebook before every charge.
-const AVAILABLE_PLANS: Record<string, PlanConfig> = {
-  starter: {
-    id: '11111111-1111-4111-8111-111111111111',
-    name: 'Starter',
-    slug: 'starter',
-    priceMonthlyUsd: 29,
-    priceMonthlyKes: 3800,
-    priceAnnualUsd: 290,
-    priceAnnualKes: 38000,
-    description: 'SSL, daily backups, and continuous monitoring. Everything to stay online reliably.',
-    features: ['Cloud Deployment Configuration', 'Auto SSL Certificates', 'Daily Automated Backups', 'Continuous Uptime Checks', 'Email Support'],
-  },
-  growth: {
-    id: '22222222-2222-4222-8222-222222222222',
-    name: 'Growth',
-    slug: 'growth',
-    priceMonthlyUsd: 59,
-    priceMonthlyKes: 7700,
-    priceAnnualUsd: 590,
-    priceAnnualKes: 77000,
-    description: 'Adds full maintenance, WAF security management, and priority response to your stack.',
-    features: ['Everything in Starter', 'Monthly Core & Plugin Updates', 'Web Application Firewall (WAF)', 'Malware Scanning & Cleanup', '30-Minute P1 Response Support'],
-  },
-  business: {
-    id: '33333333-3333-4333-8333-333333333333',
-    name: 'Business',
-    slug: 'business',
-    priceMonthlyUsd: 119,
-    priceMonthlyKes: 15500,
-    priceAnnualUsd: 1190,
-    priceAnnualKes: 155000,
-    description: 'Complete lifecycle management. Performance optimization, unlimited updates, strategy calls.',
-    features: ['Everything in Growth', 'Unlimited Minor Content Updates', 'Core Web Vitals Optimization', 'Staging Environment Setup', '15-Minute P1 Response Support'],
-  },
-  enterprise: {
-    id: '44444444-4444-4444-8444-444444444444',
-    name: 'Enterprise',
-    slug: 'enterprise',
-    priceMonthlyUsd: 299,
-    priceMonthlyKes: 39000,
-    priceAnnualUsd: 2990,
-    priceAnnualKes: 390000,
-    description: 'Custom coverage, dedicated account manager, quarterly reviews and security testing.',
-    features: ['Dedicated Technical Account Manager', 'Priority High-Availability Monitoring', 'Quarterly Security Reviews', 'Annual Disaster Recovery Drills', 'Fast Urgent Escalation'],
-  },
-  'care-essential': {
-    id: '55555555-5555-4555-8555-555555555555',
-    name: 'Care Essential',
-    slug: 'care-essential',
-    priceMonthlyUsd: 75,
-    priceMonthlyKes: 5000,
-    priceAnnualUsd: 810,
-    priceAnnualKes: 54000,
-    description: 'Ongoing care for your live site: updates, fixes, backups and monitoring.',
-    features: ['Monthly Backend & Security Updates', 'Daily Automated Backups', 'Uptime Monitoring', 'Content Change Requests', '2 Business-Hour Support'],
-  },
-  'care-business': {
-    id: '66666666-6666-4666-8666-666666666666',
-    name: 'Care Business',
-    slug: 'care-business',
-    priceMonthlyUsd: 150,
-    priceMonthlyKes: 10000,
-    priceAnnualUsd: 1620,
-    priceAnnualKes: 108000,
-    description: 'Priority care with security management and performance tuning.',
-    features: ['Everything in Care Essential', 'Weekly Performance Reports', 'WAF & Malware Management', '4 Change Requests / Month', '4 Business-Hour Support'],
-  },
-  'care-professional': {
-    id: '77777777-7777-4777-8777-777777777777',
-    name: 'Care Professional',
-    slug: 'care-professional',
-    priceMonthlyUsd: 300,
-    priceMonthlyKes: 20000,
-    priceAnnualUsd: 3240,
-    priceAnnualKes: 216000,
-    description: 'Dedicated priority care for business-critical platforms.',
-    features: ['Everything in Care Business', 'Dedicated Account Manager', 'Quarterly Strategy Reviews', 'Unlimited Minor Updates', '1 Business-Hour Critical Support'],
-  },
-};
 
 type PaymentTab = 'MPESA' | 'CARD' | 'WISE';
 
@@ -147,9 +54,8 @@ export default function SubscriptionCheckout({
   const storeToken = useAuthStore(s => s.accessToken);
   const storeUser = useAuthStore(s => s.user);
   const token = tokenProp || storeToken || '';
-  const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(
-    AVAILABLE_PLANS[initialPlanSlug] ? initialPlanSlug : 'growth'
-  );
+  const { plans, bySlug, loading: plansLoading, error: plansError } = usePlans();
+  const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(initialPlanSlug);
   const [activeTab, setActiveTab] = useState<PaymentTab>('MPESA');
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>(initialCycle);
   const [phone, setPhone] = useState('');
@@ -172,10 +78,50 @@ export default function SubscriptionCheckout({
     }
   }, [storeUser]);
 
-  const currentPlan = AVAILABLE_PLANS[selectedPlanSlug] || AVAILABLE_PLANS['growth'];
+  // Keep the selected slug valid as the server catalog loads or changes.
+  useEffect(() => {
+    if (!plans.length || bySlug[selectedPlanSlug]) return;
+    setSelectedPlanSlug(bySlug[DEFAULT_PLAN_SLUG] ? DEFAULT_PLAN_SLUG : plans[0].slug);
+  }, [plans, bySlug, selectedPlanSlug]);
+
+  const currentPlan = bySlug[selectedPlanSlug] ?? bySlug[DEFAULT_PLAN_SLUG] ?? plans[0];
+  const marketing = currentPlan ? planMarketing(currentPlan.slug) : null;
+  const annualDiscountPct = currentPlan?.annualDiscountPct ?? 0;
+
+  if (plansLoading) {
+    return (
+      <div className="w-full max-w-5xl mx-auto py-24 flex flex-col items-center gap-3 text-slate-400">
+        <Loader2 className="w-8 h-8 animate-spin text-[#2563EB]" />
+        <span className="text-sm">Loading live plan catalog…</span>
+      </div>
+    );
+  }
+
+  if (plansError || !currentPlan || !marketing) {
+    return (
+      <div className="w-full max-w-lg mx-auto my-16 p-6 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold">Plans are temporarily unavailable</p>
+            <p className="mt-1 text-xs text-red-200/80">
+              {plansError || 'The plan catalog is empty. Please try again in a moment.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-3 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-xs font-bold hover:bg-red-500/30"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const currentPriceKes = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualKes : currentPlan.priceMonthlyKes;
-  const currentPriceUsd = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualUsd : currentPlan.priceMonthlyUsd;
+  const currentPriceUsd = billingCycle === 'ANNUAL' ? currentPlan.priceAnnual : currentPlan.priceMonthly;
 
   const copyToClipboard = (text: string, fieldName: string) => {
     if (typeof navigator !== 'undefined') {
@@ -226,7 +172,7 @@ export default function SubscriptionCheckout({
         if (!res.ok) throw new Error(data.message || 'M-Pesa initialization failed');
         setFeedback({
           type: 'info',
-          message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter PIN. Invoice ${data.invoiceNumber}. After payment, claim your dashboard at /portal/claim with ${cleanEmail}.`,
+          message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter PIN. Invoice ${data.invoiceNumber}. Once payment settles, claim your dashboard at /portal/claim with ${cleanEmail} — we will email a one-time link to verify it is yours.`,
         });
       } catch (err: unknown) {
         setFeedback({ type: 'error', message: paymentFailedMessage(err, 'M-Pesa payment request failed') });
@@ -358,7 +304,7 @@ export default function SubscriptionCheckout({
         setWiseAccount(data);
         setFeedback({
           type: 'success',
-          message: `Corporate invoice ${data.invoiceNumber} ready. Wire to ${data.bankTransferDetails?.beneficiary} with reference ${data.paymentReference}. After we confirm the transfer, claim the dashboard at /portal/claim with ${cleanEmail}.`,
+          message: `Corporate invoice ${data.invoiceNumber} ready. Wire to ${data.bankTransferDetails?.beneficiary} with reference ${data.paymentReference}. After we confirm the transfer, claim the dashboard at /portal/claim with ${cleanEmail} — we will email a one-time link to verify it is yours.`,
         });
       } catch (err: unknown) {
         setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Corporate invoice generation failed') });
@@ -417,19 +363,19 @@ export default function SubscriptionCheckout({
           <div className="mt-4 space-y-2">
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Select Tier</label>
             <div className="grid grid-cols-2 gap-2">
-              {Object.values(AVAILABLE_PLANS).map((p) => (
+              {plans.map((p) => (
                 <button
                   key={p.slug}
                   type="button"
                   onClick={() => setSelectedPlanSlug(p.slug)}
                   className={`p-3 rounded-xl border text-left transition-all ${
-                    selectedPlanSlug === p.slug
+                    currentPlan.slug === p.slug
                       ? 'border-[#2563EB] bg-[#2563EB]/15 text-white font-semibold shadow-md'
                       : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
                   }`}
                 >
                   <div className="text-sm font-bold">{p.name}</div>
-                  <div className="text-xs text-slate-400">${p.priceMonthlyUsd}/mo</div>
+                  <div className="text-xs text-slate-400">${p.priceMonthly}/mo</div>
                 </button>
               ))}
             </div>
@@ -456,7 +402,7 @@ export default function SubscriptionCheckout({
                     billingCycle === 'ANNUAL' ? 'bg-[#2563EB] text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Annual <span className="text-[10px] text-emerald-300 font-bold bg-emerald-950 px-1 rounded">-17%</span>
+                  Annual <span className="text-[10px] text-emerald-300 font-bold bg-emerald-950 px-1 rounded">-{annualDiscountPct}%</span>
                 </button>
               </div>
             </div>
@@ -466,7 +412,7 @@ export default function SubscriptionCheckout({
           <div className="mt-5 pt-4 border-t border-slate-800 space-y-2">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Plan Highlights</span>
             <ul className="space-y-2 text-xs text-slate-300">
-              {currentPlan.features.map((f, idx) => (
+              {marketing.features.map((f, idx) => (
                 <li key={idx} className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                   <span>{f}</span>
@@ -661,9 +607,9 @@ export default function SubscriptionCheckout({
 
               {!token && (
                 <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-200 text-xs leading-relaxed">
-                  Pay first — <strong>no account needed yet</strong>. Once your payment lands, you&apos;ll set a
-                  password on the confirmation page and your dashboard unlocks instantly. Receipts and access
-                  go to the email above.
+                   Pay first — <strong>no account needed yet</strong>. Once your payment lands, we email a
+                   one-time claim link to the address above. Open it to set a password and unlock the dashboard;
+                   knowing the email alone is never enough.
                 </div>
               )}
 
@@ -688,8 +634,9 @@ export default function SubscriptionCheckout({
             <div className="space-y-4">
               {!token && (
                 <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-200 text-xs leading-relaxed">
-                  No account needed yet — enter your billing email and we&apos;ll generate the invoice. After our team
-                  confirms your wire, claim the dashboard at <strong>/portal/claim</strong> with that email.
+                   No account needed yet — enter your billing email and we&apos;ll generate the invoice. After our team
+                   confirms your wire, claim the dashboard at <strong>/portal/claim</strong>; we email a one-time
+                   link to verify that address first.
                 </div>
               )}
               {!wiseAccount ? (

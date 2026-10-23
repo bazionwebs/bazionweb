@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Globe,
   Check,
-  Copy,
   ShieldCheck,
-  CheckCircle2,
   ExternalLink,
 } from 'lucide-react';
 import { useClientHosting } from '@/hooks/usePortalData';
@@ -47,24 +45,8 @@ const assetSovereigntyChecklist = [
   },
 ];
 
-const dnsRecords = [
-  { type: 'A', name: '@', target: '172.67.194.82', proxy: 'Proxied (Cloudflare)', ttl: 'Auto' },
-  { type: 'CNAME', name: 'www', target: 'acaciahealthcare.co.ke', proxy: 'Proxied', ttl: 'Auto' },
-  { type: 'CNAME', name: 'staging', target: 'staging-acacia.bazionweb.com', proxy: 'Proxied', ttl: 'Auto' },
-  { type: 'TXT', name: '@', target: 'v=spf1 include:_spf.google.com ~all', proxy: 'DNS Only', ttl: '300' },
-  { type: 'MX', name: '@', target: 'mail.acaciahealthcare.co.ke', proxy: 'DNS Only', ttl: '300' },
-];
-
 export default function AssetsClient() {
   const { data: hostingAccounts } = useClientHosting();
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(id);
-    setTimeout(() => setCopiedKey(null), 2000);
-  };
-
   const hostingAccount = hostingAccounts?.[0];
 
   return (
@@ -144,54 +126,13 @@ export default function AssetsClient() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100 text-xs">
-            <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500 text-left">
-              <tr>
-                <th className="py-3 px-4">Type</th>
-                <th className="py-3 px-4">Name</th>
-                <th className="py-3 px-4">Target Value</th>
-                <th className="py-3 px-4">Proxy Status</th>
-                <th className="py-3 px-4">TTL</th>
-                <th className="py-3 px-4">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {dnsRecords.map((record, i) => (
-                <tr key={i} className="hover:bg-slate-50/50">
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 font-mono">
-                      {record.type}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-mono font-semibold text-slate-700">{record.name}</td>
-                  <td className="py-3 px-4 font-mono text-slate-600 max-w-xs truncate">{record.target}</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                      {record.proxy}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-slate-400">{record.ttl}</td>
-                  <td className="py-3 px-4">
-                    <button
-                      onClick={() => copyToClipboard(record.target, `dns-${i}`)}
-                      className="text-xs text-[#2563EB] hover:underline flex items-center gap-1 font-semibold"
-                    >
-                      {copiedKey === `dns-${i}` ? (
-                        <>
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3" /> Copy
-                        </>
-                      )}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="p-10 text-center border border-dashed border-slate-200 rounded-xl">
+          <ShieldCheck className="w-9 h-9 text-slate-300 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-slate-600">DNS records are managed by your engineering team</p>
+          <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+            Live DNS, proxy, and TLS records are not exposed in the portal yet. Ask your lead engineer
+            for the current Cloudflare zone export or a read-only audit link.
+          </p>
         </div>
       </div>
     </div>

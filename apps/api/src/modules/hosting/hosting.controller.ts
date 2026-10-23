@@ -6,10 +6,11 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { HostingService } from './hosting.service';
 import { CreateHostingAccountDto } from './dto/create-hosting-account.dto';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
+import { SubscriptionGuard } from '../../common/guards/subscription.guard';
 
 @ApiTags('hosting')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SubscriptionGuard)
 @Controller({ path: 'hosting', version: '1' })
 export class HostingController {
   constructor(private readonly svc: HostingService) {}

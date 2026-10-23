@@ -47,28 +47,29 @@ function MagicVerifyContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
         });
-        const data = await res.json().catch(() => ({}));
+        const body = await res.json().catch(() => ({}));
+        const payload = body?.data ?? body;
 
-        if (!res.ok || !data?.data?.accessToken) {
-          throw new Error(data.message || 'This sign-in link is invalid or has expired.');
+        if (!res.ok || !payload?.accessToken) {
+          throw new Error(body.message || 'This sign-in link is invalid or has expired.');
         }
 
         if (cancelled) return;
 
-        setEmail(data.user?.email || 'your account');
+        setEmail(payload.user?.email || 'your account');
         setSession(
           {
-            id: data.user?.id,
-            email: data.user?.email || '',
-            firstName: data.user?.firstName || '',
-            lastName: data.user?.lastName || '',
-            roles: data.user?.roles || ['CLIENT'],
-            keycloakId: data.user?.keycloakId || '',
-            subscriptionStatus: data.user?.subscriptionStatus,
+            id: payload.user?.id,
+            email: payload.user?.email || '',
+            firstName: payload.user?.firstName || '',
+            lastName: payload.user?.lastName || '',
+            roles: payload.user?.roles || ['CLIENT'],
+            keycloakId: payload.user?.keycloakId || '',
+            subscriptionStatus: payload.user?.subscriptionStatus,
           } as AuthUser,
-          data.data.accessToken,
-          data.data.refreshToken,
-          data.data.expiresIn,
+          payload.accessToken,
+          payload.refreshToken,
+          payload.expiresIn,
         );
         setSuccess(true);
 

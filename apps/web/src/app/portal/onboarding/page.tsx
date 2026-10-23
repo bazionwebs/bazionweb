@@ -21,93 +21,9 @@ import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { resolveApiV1Base } from '@/lib/api-base';
+import { planMarketing, usePlans } from '@/lib/plans';
 
-// ─── Plan config (mirrors SubscriptionCheckout) ────────────────────────────────
-const PLAN_META: Record<string, {
-  name: string;
-  priceMonthlyKes: number;
-  priceMonthlyUsd: number;
-  priceAnnualKes: number;
-  priceAnnualUsd: number;
-  features: string[];
-  color: string;
-  accent: string;
-}> = {
-  'care-essential': {
-    name: 'Care Essential',
-    priceMonthlyKes: 5000,
-    priceMonthlyUsd: 75,
-    priceAnnualKes: 54000,
-    priceAnnualUsd: 810,
-    features: ['CMS & Plugin Updates', 'Offsite Backups', 'Security Monitoring', '1 hr Support/mo', 'Uptime Alerts'],
-    color: 'from-teal-600 to-emerald-600',
-    accent: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
-  },
-  'care-business': {
-    name: 'Care Business',
-    priceMonthlyKes: 10000,
-    priceMonthlyUsd: 150,
-    priceAnnualKes: 108000,
-    priceAnnualUsd: 1620,
-    features: ['Weekly CMS Updates', 'Daily Backups', 'Core Web Vitals', 'SEO Health Audits', '2 hrs Support/mo'],
-    color: 'from-blue-600 to-indigo-600',
-    accent: 'text-blue-400 border-blue-500/40 bg-blue-500/10',
-  },
-  'care-professional': {
-    name: 'Care Professional',
-    priceMonthlyKes: 20000,
-    priceMonthlyUsd: 300,
-    priceAnnualKes: 216000,
-    priceAnnualUsd: 3240,
-    features: ['Active Development', 'SEO Monitoring', '5 hrs Support/mo', 'Quarterly Strategy Call', 'Emergency Hotline'],
-    color: 'from-violet-600 to-purple-600',
-    accent: 'text-violet-400 border-violet-500/40 bg-violet-500/10',
-  },
-  starter: {
-    name: 'Starter',
-    priceMonthlyKes: 3800,
-    priceMonthlyUsd: 29,
-    priceAnnualKes: 38000,
-    priceAnnualUsd: 290,
-    features: ['Cloud Deployment', 'Auto SSL', 'Daily Backups', 'Uptime Monitoring', 'Email Support'],
-    color: 'from-slate-600 to-slate-700',
-    accent: 'text-slate-300 border-slate-500/40 bg-slate-500/10',
-  },
-  growth: {
-    name: 'Growth',
-    priceMonthlyKes: 7700,
-    priceMonthlyUsd: 59,
-    priceAnnualKes: 77000,
-    priceAnnualUsd: 590,
-    features: ['Everything in Starter', 'WAF Security', 'Malware Scanning', '30-Min P1 Response', 'Monthly Reports'],
-    color: 'from-blue-600 to-blue-700',
-    accent: 'text-blue-400 border-blue-500/40 bg-blue-500/10',
-  },
-  business: {
-    name: 'Business Plan',
-    priceMonthlyKes: 15500,
-    priceMonthlyUsd: 119,
-    priceAnnualKes: 155000,
-    priceAnnualUsd: 1190,
-    features: ['Unlimited Content Updates', 'Staging Environment', 'Core Web Vitals', '15-Min P1 Response'],
-    color: 'from-indigo-600 to-blue-700',
-    accent: 'text-indigo-400 border-indigo-500/40 bg-indigo-500/10',
-  },
-};
-
-const DEFAULT_PLAN = 'care-business';
-
-// Mirrors the seeded Plan rows (prisma/seed.ts) — the API prices server-side
-// from these IDs; the client never sends amounts.
-const PLAN_ID_BY_SLUG: Record<string, string> = {
-  'care-essential': '55555555-5555-4555-8555-555555555555',
-  'care-business': '66666666-6666-4666-8666-666666666666',
-  'care-professional': '77777777-7777-4777-8777-777777777777',
-  starter: '11111111-1111-4111-8111-111111111111',
-  growth: '22222222-2222-4222-8222-222222222222',
-  business: '33333333-3333-4333-8333-333333333333',
-  enterprise: '44444444-4444-4444-8444-444444444444',
-};
+const DEFAULT_ONBOARDING_PLAN = 'care-business';
 
 type PayTab = 'MPESA' | 'CARD' | 'WIRE';
 type Cycle = 'MONTHLY' | 'ANNUAL';
@@ -125,8 +41,10 @@ export default function OnboardingPage() {
     setMounted(true);
   }, []);
 
-  const planSlug = pendingPlan || DEFAULT_PLAN;
-  const plan = PLAN_META[planSlug] || PLAN_META[DEFAULT_PLAN];
+  const { plans, bySlug, loading: plansLoading, error: plansError } = usePlans();
+  const pendingSlug = pendingPlan || DEFAULT_ONBOARDING_PLAN;
+  const plan = bySlug[pendingSlug] ?? bySlug[DEFAULT_ONBOARDING_PLAN] ?? plans[0];
+  const marketing = plan ? planMarketing(plan.slug) : null;
 
   const { marketCode } = useMarketPreference();
 
@@ -162,15 +80,16 @@ export default function OnboardingPage() {
   }, [marketCode]);
 
   const isKenya = activeMarket === 'KE';
-  const displayCurrency = isKenya ? 'KES' : 'USD';
-  const displayAmount = cycle === 'ANNUAL'
-    ? (isKenya ? plan.priceAnnualKes : plan.priceAnnualUsd)
-    : (isKenya ? plan.priceMonthlyKes : plan.priceMonthlyUsd);
 
   async function handleMpesa(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setFeedback(null);
+    if (!plan) {
+      setFeedback({ type: 'error', msg: 'Plans are still loading — try again in a moment.' });
+      setLoading(false);
+      return;
+    }
     if (!accessToken) {
       setFeedback({ type: 'error', msg: 'Your session expired — please sign in again to pay.' });
       setLoading(false);
@@ -181,7 +100,7 @@ export default function OnboardingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
-          planId: PLAN_ID_BY_SLUG[planSlug] || PLAN_ID_BY_SLUG[DEFAULT_PLAN],
+          planId: plan.id,
           billingCycle: cycle,
           mpesaPhoneNumber: phone.replace(/[^0-9+]/g, ''),
         }),
@@ -199,6 +118,11 @@ export default function OnboardingPage() {
   async function handleCard() {
     setLoading(true);
     setFeedback(null);
+    if (!plan) {
+      setFeedback({ type: 'error', msg: 'Plans are still loading — try again in a moment.' });
+      setLoading(false);
+      return;
+    }
     if (!accessToken) {
       setFeedback({ type: 'error', msg: 'Your session expired — please sign in again to pay.' });
       setLoading(false);
@@ -209,7 +133,7 @@ export default function OnboardingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
-          planId: PLAN_ID_BY_SLUG[planSlug] || PLAN_ID_BY_SLUG[DEFAULT_PLAN],
+          planId: plan.id,
           billingCycle: cycle,
           currency: isKenya ? 'KES' : 'USD',
         }),
@@ -255,6 +179,47 @@ export default function OnboardingPage() {
     );
   }
 
+  if (plansLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1D] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="text-sm text-slate-400">Loading live plan catalog…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (plansError || !plan || !marketing) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1D] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-red-500/10 border border-red-500/30 rounded-2xl p-6 text-red-300">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Plans are temporarily unavailable</p>
+              <p className="mt-1 text-xs text-red-200/80">
+                {plansError || 'The plan catalog is empty. Please try again in a moment.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-3 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-xs font-bold hover:bg-red-500/30"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const displayCurrency = isKenya ? 'KES' : 'USD';
+  const displayAmount = cycle === 'ANNUAL'
+    ? (isKenya ? plan.priceAnnualKes : plan.priceAnnual)
+    : (isKenya ? plan.priceMonthlyKes : plan.priceMonthly);
+
   return (
     <div className="min-h-screen bg-[#0A0F1D] text-slate-100">
       {/* ── Top Nav ─────────────────────────────────────── */}
@@ -293,7 +258,7 @@ export default function OnboardingPage() {
           {/* ── Left: Plan Summary ─────────────────────── */}
           <div className="lg:col-span-4 space-y-4">
             {/* Plan card */}
-            <div className={`rounded-2xl p-6 bg-gradient-to-br ${plan.color} relative overflow-hidden`}>
+            <div className={`rounded-2xl p-6 bg-gradient-to-br ${marketing.color} relative overflow-hidden`}>
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-4">
@@ -310,7 +275,7 @@ export default function OnboardingPage() {
                   <span className="text-white/60 text-sm ml-1">/{cycle === 'MONTHLY' ? 'mo' : 'yr'}</span>
                 </div>
                 <ul className="space-y-2">
-                  {plan.features.map((f, i) => (
+                  {marketing.features.map((f, i) => (
                     <li key={i} className="flex items-center gap-2 text-xs text-white/85">
                       <CheckCircle2 className="w-3.5 h-3.5 text-white/60 shrink-0" />
                       {f}
@@ -343,7 +308,9 @@ export default function OnboardingPage() {
                   }`}
                 >
                   Annual
-                  <span className="text-[9px] text-emerald-300 font-extrabold bg-emerald-900/60 px-1.5 py-0.5 rounded">-10%</span>
+                  <span className="text-[9px] text-emerald-300 font-extrabold bg-emerald-900/60 px-1.5 py-0.5 rounded">
+                    -{plan.annualDiscountPct}%
+                  </span>
                 </button>
               </div>
             </div>

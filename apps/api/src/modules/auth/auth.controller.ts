@@ -43,6 +43,10 @@ class ClaimAccountDto {
   @IsEmail()
   email: string;
 
+  @ApiProperty({ description: 'Single-use claim token from the emailed link' })
+  @IsString()
+  claimToken: string;
+
   @ApiProperty({ example: 'SecurePass123!', minLength: 8, maxLength: 128 })
   @IsString()
   @MinLength(8)
@@ -126,10 +130,23 @@ export class AuthController {
   }
 
   /**
+   * Email a single-use claim link to a paid, not-yet-claimed billing address.
+   * POST /api/v1/auth/claim-link
+   */
+  @Post('claim-link')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @ApiOperation({ summary: 'Request a one-time account-claim link' })
+  async requestClaimLink(@Body() dto: MagicLinkRequestDto) {
+    return this.authService.requestClaimLink(dto.email);
+  }
+
+  /**
    * Convert a paid subscription email into a login account.
    * POST /api/v1/auth/claim-account — the "account after payment" step.
-   * Requires server-side proof of payment (active subscription or a paid
-   * invoice on the billing email); can never activate an unpaid email.
+   * Requires the emailed claim token (proof of inbox ownership) plus
+   * server-side proof of payment; can never activate an unpaid email.
    */
   @Post('claim-account')
   @Public()

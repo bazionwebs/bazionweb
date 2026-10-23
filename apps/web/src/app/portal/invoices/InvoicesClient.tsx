@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Download,
   FileText,
@@ -20,7 +20,13 @@ import {
   Building,
   RefreshCw,
 } from 'lucide-react';
-import { useClientInvoices, useClientProfile, ApiInvoice } from '@/hooks/usePortalData';
+import {
+  useClientInvoices,
+  useClientProfile,
+  usePayInvoiceMpesa,
+  usePayInvoiceCard,
+  ApiInvoice,
+} from '@/hooks/usePortalData';
 import { TableSkeletonRows, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatMoney, formatDate, titleCase, providerLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -47,18 +53,30 @@ const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
 export default function InvoicesClient() {
   const { data: liveInvoices = [], isLoading, isError, refetch } = useClientInvoices();
   const { data: liveClient } = useClientProfile();
+  const mpesaPay = usePayInvoiceMpesa();
+  const cardPay = usePayInvoiceCard();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'PENDING' | 'OVERDUE'>('ALL');
   const [selectedInvoiceForPay, setSelectedInvoiceForPay] = useState<ApiInvoice | null>(null);
-  const [paymentMethodTab, setPaymentMethodTab] = useState<'mpesa' | 'card' | 'paybill'>('mpesa');
-  const [phoneNumber, setPhoneNumber] = useState('0712 345 678');
-  const [stkPushSending, setStkPushSending] = useState(false);
-  const [stkPushSuccess, setStkPushSuccess] = useState<string | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [paymentMethodTab, setPaymentMethodTab] = useState<'mpesa' | 'card'>('mpesa');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [stkResult, setStkResult] = useState<{ message: string; provider: string; invoiceNumber: string } | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [cardReturnNotice, setCardReturnNotice] = useState(false);
 
   const activeSubscription = liveClient?.subscriptions?.[0];
   const planPrice = activeSubscription?.plan?.priceMonthly ?? liveClient?.plan?.priceMonthly;
+
+  // Detect the return from a Paystack card redirect (?card_settled=1).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.search.includes('card_settled=1')) {
+      setCardReturnNotice(true);
+      refetch();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [refetch]);
 
   const paidInvoices = useMemo(() => liveInvoices.filter(i => i.status === 'PAID'), [liveInvoices]);
   const overdueInvoices = useMemo(() => liveInvoices.filter(i => i.status === 'OVERDUE'), [liveInvoices]);
@@ -88,21 +106,48 @@ export default function InvoicesClient() {
     });
   }, [liveInvoices, searchQuery, statusFilter]);
 
-  const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2500);
+  const handleTriggerSTK = async () => {
+    if (!selectedInvoiceForPay || mpesaPay.isPending) return;
+    const phone = phoneNumber.trim() || liveClient?.phone;
+    if (!phone) {
+      setPayError('Please enter a valid M-Pesa phone number.');
+      return;
+    }
+    setPayError(null);
+    try {
+      const res: any = await mpesaPay.mutateAsync({
+        invoiceId: selectedInvoiceForPay.id,
+        mpesaPhoneNumber: phone,
+      });
+      const payload = res?.data ?? res;
+      setStkResult({
+        message: payload?.message || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
+        provider: payload?.provider || 'DARAJA',
+        invoiceNumber: payload?.invoiceNumber || selectedInvoiceForPay.invoiceNumber,
+      });
+      setTimeout(() => refetch(), 10000);
+      setTimeout(() => refetch(), 30000);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setPayError(msg || 'Could not send the M-Pesa prompt. Check the number and try again.');
+    }
   };
 
-  const handleTriggerSTK = () => {
-    setStkPushSending(true);
-    setStkPushSuccess(null);
-    setTimeout(() => {
-      setStkPushSending(false);
-      setStkPushSuccess(
-        `✓ STK Prompt transmitted to ${phoneNumber}. Please input your M-Pesa PIN on your phone to authorize settlement.`
-      );
-    }, 1400);
+  const handleCardPay = async () => {
+    if (!selectedInvoiceForPay || cardPay.isPending) return;
+    setPayError(null);
+    try {
+      const res: any = await cardPay.mutateAsync({ invoiceId: selectedInvoiceForPay.id });
+      const payload = res?.data ?? res;
+      if (payload?.checkoutUrl) {
+        window.location.href = payload.checkoutUrl;
+      } else {
+        setPayError('Card checkout could not be opened. Please try again.');
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setPayError(msg || 'Card checkout could not be opened. Please try again.');
+    }
   };
 
   return (
@@ -116,13 +161,13 @@ export default function InvoicesClient() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/20 text-emerald-400 text-xs font-semibold mb-3">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Official KRA eTIMS Validated • PIN: P051938291X</span>
+              <span>M-Pesa & Card Payments Settled Automatically</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
               Billing Center & Cloud Subscriptions
             </h1>
             <p className="text-sm text-slate-300 mt-2 leading-relaxed">
-              Transparent itemized commercial statements, automated Safaricom Daraja M-Pesa reconciliations, and instant downloadable KRA eTIMS fiscal tax receipts.
+              Itemized commercial statements with real-time status. Settle invoices by M-Pesa STK Push or card — payments reconcile to the exact invoice automatically.
             </p>
           </div>
 
@@ -151,16 +196,16 @@ export default function InvoicesClient() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Building className="w-4 h-4 text-blue-400" />
-              <span>Client Entity: <strong className="text-white font-semibold">{liveClient?.businessName ?? 'Acacia Healthcare'}</strong></span>
+              <span>Client Entity: <strong className="text-white font-semibold">{liveClient?.businessName ?? 'Your organization'}</strong></span>
             </div>
             <div className="hidden sm:flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-teal-400" />
-              <span>Default Channel: <strong className="text-white font-semibold">M-Pesa Daraja Express</strong></span>
+              <span>Invoices on Record: <strong className="text-white font-semibold">{liveInvoices.length}</strong></span>
             </div>
           </div>
           <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Automatic Monthly Reconciliation Active
+            {pendingInvoices.length + overdueInvoices.length} invoice{(pendingInvoices.length + overdueInvoices.length) !== 1 ? 's' : ''} awaiting settlement
           </span>
         </div>
       </div>
@@ -177,7 +222,7 @@ export default function InvoicesClient() {
                 Action Required: {overdueInvoices.length} Overdue Invoice ({formatMoney(totalOverdue)})
               </div>
               <p className="text-xs text-rose-700 mt-0.5">
-                Service continuity guarantee requires settlement. Avoid automated Cloudflare staging suspension by clearing balance.
+                Service continuity requires settlement. Please clear your balance to maintain uninterrupted access.
               </p>
             </div>
           </div>
@@ -427,8 +472,7 @@ export default function InvoicesClient() {
                       </td>
 
                       <td className="py-3.5 px-4 font-medium text-[#0F172A] max-w-xs">
-                        <div className="truncate">{inv.notes ?? 'Cloud Care Managed Retainer & Hosting'}</div>
-                        <div className="text-[10px] text-slate-400">Includes Cloudflare Edge & Daily Backup</div>
+                        <div className="truncate">{inv.notes || <span className="text-slate-400 italic">Subscription & Maintenance</span>}</div>
                       </td>
 
                       <td className="py-3.5 px-4 font-black text-[#0F172A]">
@@ -445,11 +489,11 @@ export default function InvoicesClient() {
                       <td className="py-3.5 px-4">
                         {isPaid ? (
                           <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                            <QrCode className="w-3 h-3 text-emerald-600" />
-                            <span>eTIMS Validated</span>
+                            <FileText className="w-3 h-3 text-emerald-600" />
+                            <span>Receipt On Record</span>
                           </div>
                         ) : (
-                          <span className="text-[11px] text-slate-400">Pending Receipt</span>
+                          <span className="text-[11px] text-slate-400">Pending Settlement</span>
                         )}
                       </td>
 
@@ -517,7 +561,8 @@ export default function InvoicesClient() {
               <button
                 onClick={() => {
                   setSelectedInvoiceForPay(null);
-                  setStkPushSuccess(null);
+                  setStkResult(null);
+                  setPayError(null);
                 }}
                 className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
               >
@@ -526,12 +571,12 @@ export default function InvoicesClient() {
             </div>
 
             {/* Payment Method Selector Tabs */}
-            <div className="grid grid-cols-3 gap-2 p-1 rounded-2xl bg-slate-100 mb-6 text-xs font-bold text-slate-600">
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100 mb-6 text-xs font-bold text-slate-600">
               <button
                 type="button"
                 onClick={() => {
                   setPaymentMethodTab('mpesa');
-                  setStkPushSuccess(null);
+                  setPayError(null);
                 }}
                 className={cn(
                   'py-2 rounded-xl transition-all flex items-center justify-center gap-1.5',
@@ -544,22 +589,8 @@ export default function InvoicesClient() {
               <button
                 type="button"
                 onClick={() => {
-                  setPaymentMethodTab('paybill');
-                  setStkPushSuccess(null);
-                }}
-                className={cn(
-                  'py-2 rounded-xl transition-all flex items-center justify-center gap-1.5',
-                  paymentMethodTab === 'paybill' ? 'bg-white text-blue-700 shadow-xs' : 'hover:text-slate-900'
-                )}
-              >
-                <Building className="w-3.5 h-3.5" />
-                Paybill Till
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   setPaymentMethodTab('card');
-                  setStkPushSuccess(null);
+                  setPayError(null);
                 }}
                 className={cn(
                   'py-2 rounded-xl transition-all flex items-center justify-center gap-1.5',
@@ -567,28 +598,100 @@ export default function InvoicesClient() {
                 )}
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                Card / Paystack
+                Card Checkout
               </button>
             </div>
 
             {/* M-Pesa STK Push Tab */}
             {paymentMethodTab === 'mpesa' && (
               <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 text-xs text-emerald-900 leading-relaxed">
-                  Enter your Safaricom M-Pesa number below. An instant Daraja STK Push prompt will be sent directly to your mobile phone.
-                </div>
+                {stkResult ? (
+                  <div className="space-y-3">
+                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 leading-relaxed flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>M-Pesa prompt sent</strong> — {stkResult.message}
+                        <br />
+                        Invoice <span className="font-mono font-bold">{stkResult.invoiceNumber}</span> will settle automatically upon PIN confirmation.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedInvoiceForPay(null);
+                        setStkResult(null);
+                      }}
+                      className="w-full py-3 bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors"
+                    >
+                      Done — Watching for Prompt
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 text-xs text-emerald-900 leading-relaxed">
+                      Enter your Safaricom M-Pesa number. An instant STK Push prompt will be sent directly to your phone.
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    M-Pesa Phone Number
-                  </label>
-                  <input
-                    type="text"
-                    value={phoneNumber}
-                    onChange={e => setPhoneNumber(e.target.value)}
-                    placeholder="0712 345 678"
-                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
-                  />
+                    {selectedInvoiceForPay.currency !== 'KES' && (
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+                        This invoice is billed in {selectedInvoiceForPay.currency}. M-Pesa supports KES invoices; please use the card checkout option instead.
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        M-Pesa Phone Number
+                      </label>
+                      <input
+                        type="text"
+                        value={phoneNumber || liveClient?.phone || ''}
+                        onChange={e => setPhoneNumber(e.target.value)}
+                        placeholder="0712 345 678"
+                        className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                      />
+                    </div>
+
+                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs flex justify-between items-center">
+                      <span className="text-slate-500">Payable Balance:</span>
+                      <span className="text-base font-black text-[#0F172A]">
+                        {formatMoney(selectedInvoiceForPay.amount, selectedInvoiceForPay.currency)}
+                      </span>
+                    </div>
+
+                    {payError && (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-900">
+                        {payError}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleTriggerSTK}
+                      disabled={mpesaPay.isPending || selectedInvoiceForPay.currency !== 'KES'}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {mpesaPay.isPending ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Sending M-Pesa Prompt…
+                        </>
+                      ) : (
+                        <>
+                          <Smartphone className="w-4 h-4" />
+                          Send M-Pesa STK Push
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Card / Paystack Tab */}
+            {paymentMethodTab === 'card' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 text-xs text-indigo-900 leading-relaxed">
+                  Pay securely via card. You will be redirected to complete the 3D-Secure payment through our payment partner Paystack.
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs flex justify-between items-center">
@@ -598,141 +701,29 @@ export default function InvoicesClient() {
                   </span>
                 </div>
 
-                {stkPushSuccess && (
-                  <div className="p-3 rounded-xl bg-emerald-100/70 border border-emerald-300 text-xs font-semibold text-emerald-900 animate-fade-in flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>{stkPushSuccess}</span>
+                {payError && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-900">
+                    {payError}
                   </div>
                 )}
 
                 <button
                   type="button"
-                  onClick={handleTriggerSTK}
-                  disabled={stkPushSending}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  onClick={handleCardPay}
+                  disabled={cardPay.isPending}
+                  className="w-full py-3 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {stkPushSending ? (
+                  {cardPay.isPending ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      Transmitting Daraja Prompt…
+                      Opening Secure Checkout…
                     </>
                   ) : (
                     <>
-                      <Smartphone className="w-4 h-4" />
-                      Send M-Pesa STK Push
+                      <CreditCard className="w-4 h-4" />
+                      Pay {formatMoney(selectedInvoiceForPay.amount, selectedInvoiceForPay.currency)} by Card
                     </>
                   )}
-                </button>
-              </div>
-            )}
-
-            {/* Manual Paybill Instructions Tab */}
-            {paymentMethodTab === 'paybill' && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/80 text-xs text-blue-900 leading-relaxed">
-                  Open the M-Pesa menu on your handset &rarr; Select <strong>Lipa na M-Pesa</strong> &rarr; <strong>Paybill</strong>.
-                </div>
-
-                <div className="space-y-2.5">
-                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">Business Number (Paybill)</div>
-                      <div className="font-mono font-black text-sm text-[#0F172A]">4082219</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy('4082219', 'paybill')}
-                      className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1"
-                    >
-                      {copiedKey === 'paybill' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copiedKey === 'paybill' ? 'Copied' : 'Copy'}
-                    </button>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">Account Number</div>
-                      <div className="font-mono font-black text-sm text-[#0F172A]">{selectedInvoiceForPay.invoiceNumber}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(selectedInvoiceForPay.invoiceNumber, 'acc')}
-                      className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1"
-                    >
-                      {copiedKey === 'acc' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copiedKey === 'acc' ? 'Copied' : 'Copy'}
-                    </button>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">Amount</div>
-                      <div className="font-mono font-black text-sm text-[#0F172A]">
-                        {formatMoney(selectedInvoiceForPay.amount, selectedInvoiceForPay.currency)}
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-emerald-600 font-bold">Auto-Reconciled</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedInvoiceForPay(null)}
-                  className="w-full py-3 bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors"
-                >
-                  I Have Completed Payment
-                </button>
-              </div>
-            )}
-
-            {/* Credit Card / Paystack Tab */}
-            {paymentMethodTab === 'card' && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 text-xs text-indigo-900 leading-relaxed">
-                  Secure 256-bit SSL encrypted checkout powered by Paystack. All major Visa, Mastercard, and Verve debit/credit cards accepted with instant 3D-Secure.
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Card Number</label>
-                  <input
-                    type="text"
-                    disabled
-                    value="•••• •••• •••• 4242"
-                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-700"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Expires</label>
-                    <input
-                      type="text"
-                      disabled
-                      value="12 / 28"
-                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-700"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">CVC</label>
-                    <input
-                      type="password"
-                      disabled
-                      value="•••"
-                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-700"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStkPushSuccess('✓ Card payment authorized successfully. Receipt dispatched to registered email.');
-                    setTimeout(() => setSelectedInvoiceForPay(null), 2500);
-                  }}
-                  className="w-full py-3 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                >
-                  <CreditCard className="w-4 h-4" />
-                  Charge {formatMoney(selectedInvoiceForPay.amount, selectedInvoiceForPay.currency)}
                 </button>
               </div>
             )}

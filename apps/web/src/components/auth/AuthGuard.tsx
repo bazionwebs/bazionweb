@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/auth.store';
+import { resolveApiV1Base } from '@/lib/api-base';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -13,9 +14,10 @@ interface AuthGuardProps {
 }
 
 export default function AuthGuard({ children, requiredRoles = [], redirectTo = '/portal/login' }: AuthGuardProps) {
-  const { isAuthenticated, hasRole, isTokenExpired, refresh } = useAuth();
+  const { isAuthenticated, hasRole, isTokenExpired, refresh, logout } = useAuth();
   const user = useAuthStore(s => s.user);
   const refreshToken = useAuthStore(s => s.refreshToken);
+  const setSubscriptionStatus = useAuthStore(s => s.setSubscriptionStatus);
   const storeHydrated = useAuthStore(s => s._hasHydrated);
   const hasHydrated = storeHydrated || (typeof window !== 'undefined' && !!useAuthStore.persist?.hasHydrated?.());
   const router = useRouter();
@@ -77,14 +79,45 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       }
 
       // ── Subscription gate ───────────────────────────────────────────────────
-      // Non-admin clients with PENDING or missing subscriptionStatus must
-      // complete onboarding (payment) before accessing the dashboard. Never
-      // redirect when already on /portal/onboarding.
+      // The Zustand session is client-editable, so it is only a cache. Confirm
+      // entitlement against the API before trusting it. Non-admin clients with
+      // PENDING/NONE must complete onboarding (payment) before using the
+      // dashboard. Never redirect when already on /portal/onboarding.
       const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some(r => hasRole(r));
       const onOnboarding = normalizedPath === '/portal/onboarding' || normalizedPath.startsWith('/portal/onboarding/');
-      if (!isAdminRole && !onOnboarding) {
-        const subStatus = user?.subscriptionStatus;
-        if (!subStatus || subStatus === 'PENDING' || subStatus === 'NONE') {
+      let subStatus = user?.subscriptionStatus;
+
+      if (!isAdminRole) {
+        const liveToken = useAuthStore.getState().accessToken;
+        if (liveToken) {
+          try {
+            const res = await fetch(`${resolveApiV1Base()}/clients/me`, {
+              headers: { Authorization: `Bearer ${liveToken}` },
+              signal: AbortSignal.timeout(6000),
+            });
+
+            if (res.status === 401) {
+              await logout();
+              if (active) setChecking(false);
+              return;
+            }
+
+            if (res.ok) {
+              const body = await res.json().catch(() => ({}));
+              const client = body?.data ?? body;
+              const entitled =
+                client?.status === 'ACTIVE' ||
+                (Array.isArray(client?.subscriptions) && client.subscriptions.length > 0);
+              subStatus = entitled ? 'ACTIVE' : 'PENDING';
+              setSubscriptionStatus(subStatus);
+            }
+          } catch {
+            // Network failure: fall back to the cached status. Server-side
+            // SubscriptionGuard remains the authority on every API call.
+          }
+        }
+
+        if (!onOnboarding && (!subStatus || subStatus === 'PENDING' || subStatus === 'NONE')) {
           if (redirectUnlessHere('/portal/onboarding')) return;
         }
       }

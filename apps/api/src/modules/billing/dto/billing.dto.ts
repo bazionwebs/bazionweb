@@ -42,6 +42,23 @@ export class PaystackSubscriptionDto {
   email?: string;
 }
 
+/** Pay an existing (PENDING/OVERDUE) invoice with an M-Pesa STK Push. */
+export class PayInvoiceMpesaDto {
+  @ApiProperty({ description: 'M-Pesa phone number, e.g. 254712345678' })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^(\+?254|0)?[17]\d{8}$/, { message: 'Valid Safaricom phone number required' })
+  mpesaPhoneNumber: string;
+}
+
+/** Pay an existing (PENDING/OVERDUE) invoice by card via a Paystack redirect. */
+export class PayInvoiceCardDto {
+  @ApiPropertyOptional({ description: 'Receipt email (defaults to client email)' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
+
 export class BankTransferInvoiceDto {
   @ApiProperty({ description: 'Plan ID to invoice for' })
   @IsUUID()

@@ -321,7 +321,7 @@ export const CARE_PLANS: CarePlan[] = [
     id: 'care-essential',
     name: 'Care Essential',
     kenyaPrice: 'KSh 5,000/month',
-    intlPrice: '$39/month',
+    intlPrice: '$75/month',
     hours: '1 hour support/month',
     description: 'Peace-of-mind maintenance keeping your site secure, updated, and bug-free.',
     features: [
@@ -333,7 +333,7 @@ export const CARE_PLANS: CarePlan[] = [
       '1 hour allocated for content edits or support',
       'Monthly digital health summary report',
     ],
-    ctaHref: '/portal/register?plan=care-essential',
+    ctaHref: '/checkout?plan=care-essential',
   },
   {
     id: 'care-business',
@@ -341,7 +341,7 @@ export const CARE_PLANS: CarePlan[] = [
     badge: 'Most Popular',
     popular: true,
     kenyaPrice: 'KSh 10,000/month',
-    intlPrice: '$89/month',
+    intlPrice: '$150/month',
     hours: 'Up to 2 hours support/month',
     description: 'Proactive management with weekly update cycles, SEO health reviews, and priority turnaround.',
     features: [
@@ -355,14 +355,14 @@ export const CARE_PLANS: CarePlan[] = [
       'Up to 2 support hours for content & enhancements',
       'Same-day priority support response',
     ],
-    ctaHref: '/portal/register?plan=care-business',
+    ctaHref: '/checkout?plan=care-business',
   },
   {
     id: 'care-professional',
     name: 'Care Professional',
     badge: 'Mission-Critical',
     kenyaPrice: 'KSh 20,000/month',
-    intlPrice: '$189/month',
+    intlPrice: '$300/month',
     hours: 'Up to 5 hours support/month',
     description: 'Full digital engineering partnership for companies requiring ongoing development and optimization.',
     features: [
@@ -376,7 +376,7 @@ export const CARE_PLANS: CarePlan[] = [
       'Quarterly digital strategy & performance call',
       'Priority emergency response channel (WhatsApp & phone)',
     ],
-    ctaHref: '/portal/register?plan=care-professional',
+    ctaHref: '/checkout?plan=care-professional',
   },
   {
     id: 'care-enterprise',

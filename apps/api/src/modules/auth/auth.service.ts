@@ -31,6 +31,10 @@ const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const KEY_LEN = 64;
 
+// Token purpose prefixes keep claim and sign-in links from being interchangeable.
+const MAGIC_TOKEN_PREFIX = 'magic_';
+const CLAIM_TOKEN_PREFIX = 'claim_';
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const key = (await scryptAsync(password, salt, KEY_LEN, {
@@ -280,111 +284,184 @@ export class AuthService {
 
   // ── Post-purchase account claiming (pay-first flow) ────────────────────────
   /**
-   * Converts a paid, emailed client into a real login account.
-   * Evidence-first: the email must own a Client with an ACTIVE subscription
-   * (protein paid webhook) or a recent paid invoice (webhook/manual
-   * reconciliation). It can never activate an account for an unpaid email.
+   * Paid evidence lookup. A client is "paid" only if it has an ACTIVE
+   * subscription or a recent PAID invoice. Guest checkouts create a TRIAL
+   * client with no subscription, so they never pass this check before the
+   * payment webhook settles.
    */
-  async claimAccount(dto: {
-    email: string; password: string; firstName?: string; lastName?: string; company?: string;
-  }): Promise<TokenPair & { user: Record<string, unknown> }> {
-    const email = dto.email.trim().toLowerCase();
-
+  private async loadPaidEvidence(email: string) {
     const client = await this.prisma.client.findUnique({
       where: { email },
       include: {
-        subscriptions: { select: { id: true, status: true }, orderBy: { createdAt: 'desc' }, take: 1 },
-        invoices: { where: { status: 'PAID' }, select: { id: true, paidAt: true }, orderBy: { paidAt: 'desc' }, take: 1 },
+        subscriptions: { select: { id: true, status: true }, orderBy: { createdAt: 'desc' }, take: 5 },
+        invoices: {
+          where: { status: 'PAID' },
+          select: { id: true, paidAt: true },
+          orderBy: { paidAt: 'desc' },
+          take: 1,
+        },
       },
     });
 
     const hasActiveSub = client?.subscriptions?.some(s => s.status === 'ACTIVE') ?? false;
     const recentPaidInvoice =
-      !!client?.invoices?.[0]?.paidAt && Date.now() - client.invoices[0].paidAt.getTime() < 90 * 86_400_000;
+      !!client?.invoices?.[0]?.paidAt &&
+      Date.now() - client.invoices[0].paidAt.getTime() < 90 * 86_400_000;
 
-    if (!client || (!hasActiveSub && !recentPaidInvoice)) {
+    return { client, paid: !!client && (hasActiveSub || recentPaidInvoice) };
+  }
+
+  /**
+   * Step 1 of account claim: email a single-use claim link.
+   *
+   * Account claim is pay-first, but the billing email alone is not proof of
+   * inbox ownership. Issuing a link to that address proves the claimant
+   * controls it before any password is set. Unknown, unpaid, or already
+   * claimed emails return the same empty shape (no enumeration).
+   */
+  async requestClaimLink(email: string): Promise<{ claimToken: string; expiresIn: number }> {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (!user || user.deletedAt || user.passwordHash) {
+      return { claimToken: '', expiresIn: 0 };
+    }
+
+    const { paid } = await this.loadPaidEvidence(cleanEmail);
+    if (!paid) return { claimToken: '', expiresIn: 0 };
+
+    const rawToken = `${CLAIM_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 15 * 60_000),
+      },
+    });
+    return { claimToken: rawToken, expiresIn: 900 };
+  }
+
+  /**
+   * Step 2 of account claim: consume the emailed claim token, set the
+   * password, and issue a real session. The token is single-use and bound to
+   * the paid user; the password is never sent over email.
+   */
+  async claimAccount(dto: {
+    email: string; password: string; claimToken: string;
+    firstName?: string; lastName?: string; company?: string;
+  }): Promise<TokenPair & { user: Record<string, unknown> }> {
+    const email = dto.email.trim().toLowerCase();
+
+    if (!dto.claimToken?.startsWith(CLAIM_TOKEN_PREFIX)) {
+      throw new ForbiddenException(
+        'Verify your email first. Open the claim link we sent to your billing address.',
+      );
+    }
+
+    const tokenHash = createHash('sha256').update(dto.claimToken).digest('hex');
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (
+      !stored ||
+      stored.revokedAt ||
+      stored.expiresAt.getTime() <= Date.now() ||
+      !stored.user ||
+      stored.user.deletedAt
+    ) {
+      throw new ForbiddenException('This claim link is invalid or has expired. Request a new one.');
+    }
+    if (stored.user.email !== email) {
+      throw new ForbiddenException('This claim link was issued for a different email address.');
+    }
+    if (stored.user.passwordHash) {
+      throw new ForbiddenException('This email already has an account. Please sign in instead.');
+    }
+
+    const { client, paid } = await this.loadPaidEvidence(email);
+    if (!client || !paid) {
       throw new ForbiddenException(
         'No paid subscription found for this email yet. Your payment may still be settling — try again in a few minutes.',
       );
     }
-
-    const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      if (existing.deletedAt) throw new ForbiddenException('This account has been closed. Contact support to restore access.');
-      if (existing.passwordHash) {
-        throw new ForbiddenException('This email already has an account. Please sign in instead.');
-      }
-      // Provisioned-but-passwordless user (e.g. staff-created client) → claim it.
-      await this.prisma.user.update({
-        where: { id: existing.id },
-        data: {
-          passwordHash: await hashPassword(dto.password),
-          firstName: dto.firstName ?? existing.firstName,
-          lastName: dto.lastName ?? existing.lastName,
-          role: existing.role === 'CLIENT' ? 'CLIENT' : existing.role,
-        },
-      });
-      const tokens = await this.issueTokenPair({ ...existing, firstName: dto.firstName ?? existing.firstName, lastName: dto.lastName ?? existing.lastName });
-      return {
-        ...tokens,
-        user: {
-          id: existing.id,
-          email,
-          firstName: dto.firstName ?? existing.firstName,
-          lastName: dto.lastName ?? existing.lastName,
-          roles: expandRoles(existing.role),
-          keycloakId: existing.keycloakId,
-          subscriptionStatus: 'ACTIVE',
-        },
-      };
+    if (client.userId && client.userId !== stored.user.id) {
+      throw new ForbiddenException('This client account is already linked to another user. Contact support.');
     }
 
-    // New user bound to the paid client row.
-    const user = await this.prisma.user.create({
+    // Consume the token atomically so two tabs cannot both claim.
+    const consumed = await this.prisma.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (consumed.count === 0) {
+      throw new ForbiddenException('This claim link has already been used. Request a new one.');
+    }
+
+    const existing = stored.user;
+    const firstName = dto.firstName ?? existing.firstName;
+    const lastName = dto.lastName ?? existing.lastName;
+
+    await this.prisma.user.update({
+      where: { id: existing.id },
       data: {
-        email,
-        role: 'CLIENT' as const,
         passwordHash: await hashPassword(dto.password),
-        firstName: dto.firstName ?? client.contactName.split(' ')[0] ?? null,
-        lastName: client.contactName.split(' ').slice(1).join(' ') || null,
-        phone: client.phone,
+        firstName,
+        lastName,
+        role: existing.role === 'CLIENT' ? 'CLIENT' : existing.role,
       },
     });
 
-    // Link the ownership only if not already claimed by another user id.
-    if (client.userId && client.userId !== user.id) {
-      throw new ForbiddenException('This client account is already linked to another user. Contact support.');
-    }
     await this.prisma.client.update({
       where: { id: client.id },
-      data: { userId: user.id, status: 'ACTIVE' },
+      data: { userId: existing.id, status: 'ACTIVE' },
     });
 
-    const tokens = await this.issueTokenPair(user);
+    const tokens = await this.issueTokenPair({ ...existing, firstName, lastName });
     return {
       ...tokens,
       user: {
-        id: user.id,
+        id: existing.id,
         email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        roles: expandRoles(user.role),
-        keycloakId: user.keycloakId,
+        firstName,
+        lastName,
+        roles: expandRoles(existing.role),
+        keycloakId: existing.keycloakId,
         subscriptionStatus: 'ACTIVE',
       },
     };
   }
 
   // ── Magic link (single-use DB-backed tokens reused from RefreshToken) ──────
-  /** Issues a one-time, 15-minute login token ONLY for existing users. */
+  /**
+   * Magic links are for accounts that have already been claimed. Passwordless
+   * guest identities created at checkout must complete the email-verified
+   * claim flow first — otherwise the billing email alone would be enough to
+   * open a portal session.
+   */
+  private canUseMagicLink(user: {
+    passwordHash: string | null;
+    keycloakId: string | null;
+    role: string;
+  }): boolean {
+    const isStaff = ['SUPPORT', 'ADMIN', 'SUPER_ADMIN'].includes(user.role);
+    const hasLocalPassword = !!user.passwordHash;
+    const hasKeycloakIdentity =
+      !!user.keycloakId && !user.keycloakId.startsWith('pending-');
+    return isStaff || hasLocalPassword || hasKeycloakIdentity;
+  }
+
+  /** Issues a one-time, 15-minute login token ONLY for claimed accounts. */
   async requestMagicLink(email: string): Promise<{ magicToken: string; expiresIn: number }> {
     const cleanEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
-    // Silently no-op for unknown emails — the response shape stays identical
-    // so the caller cannot distinguish "sent" from "user not found".
-    if (!user || user.deletedAt) return { magicToken: '', expiresIn: 0 };
+    // Silently no-op for unknown/unclaimed emails — the response shape stays
+    // identical so the caller cannot distinguish "sent" from "not eligible".
+    if (!user || user.deletedAt || !this.canUseMagicLink(user)) {
+      return { magicToken: '', expiresIn: 0 };
+    }
 
-    const rawToken = randomBytes(32).toString('base64url');
+    const rawToken = `${MAGIC_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
     await this.prisma.refreshToken.create({
       data: {
         tokenHash: createHash('sha256').update(rawToken).digest('hex'),
@@ -397,14 +474,34 @@ export class AuthService {
 
   /** Consumes a single-use magic token and returns a real session. */
   async verifyMagicLink(magicToken: string): Promise<TokenPair & { user: Record<string, unknown> }> {
+    if (!magicToken?.startsWith(MAGIC_TOKEN_PREFIX)) {
+      throw new UnauthorizedException('This sign-in link is invalid or has expired.');
+    }
+
     const tokenHash = createHash('sha256').update(magicToken).digest('hex');
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
       include: { user: true },
     });
 
-    const valid = stored && !stored.revokedAt && stored.expiresAt.getTime() > Date.now() && stored.user && !stored.user.deletedAt;
-    if (!valid) throw new UnauthorizedException('This sign-in link is invalid or has expired.');
+    if (
+      !stored ||
+      stored.revokedAt ||
+      stored.expiresAt.getTime() <= Date.now() ||
+      !stored.user ||
+      stored.user.deletedAt
+    ) {
+      throw new UnauthorizedException('This sign-in link is invalid or has expired.');
+    }
+
+    // Defense in depth: revoke and reject tokens belonging to unclaimed guests.
+    if (!this.canUseMagicLink(stored.user)) {
+      await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+      throw new ForbiddenException(
+        'This sign-in link is only available after your account is claimed. Use the claim link from your payment confirmation.',
+      );
+    }
+
     await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
 
     const user = stored.user;

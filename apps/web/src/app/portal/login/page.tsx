@@ -2,16 +2,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Loader2, AlertCircle, Mail, Sparkles, KeyRound, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AlertCircle, Mail, KeyRound, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useAuthStore } from '@/store/auth.store';
 import Logo from '@/components/ui/Logo';
 
 export default function PortalLoginPage() {
-  const router = useRouter();
   const { login } = useAuth();
-  const setSession = useAuthStore(s => s.setSession);
 
   const [authMethod, setAuthMethod] = useState<'magic-link' | 'password'>('magic-link');
   const [email, setEmail] = useState('');
@@ -28,7 +24,7 @@ export default function PortalLoginPage() {
     try {
       await login(email, password);
     } catch {
-      setError('Invalid credentials. If you do not have an active account, explore the Demo Workspace below.');
+      setError('Invalid credentials. If you recently paid, claim your account from the link in your payment confirmation.');
     } finally {
       setLoading(false);
     }
@@ -60,24 +56,6 @@ export default function PortalLoginPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function launchDemoWorkspace() {
-    setSession(
-      {
-        id: 'client-demo-acacia',
-        email: 'sarah.kamau@acaciahealthcare.co.ke',
-        firstName: 'Dr. Sarah',
-        lastName: 'Kamau',
-        roles: ['CLIENT'],
-        keycloakId: 'client-demo-acacia',
-        subscriptionStatus: 'ACTIVE',
-      },
-      'demo-secure-access-token-xyz',
-      'demo-secure-refresh-token-xyz',
-      86400 * 7, // 7 days
-    );
-    router.push('/portal');
   }
 
   return (
@@ -192,21 +170,10 @@ export default function PortalLoginPage() {
                     </p>
                   </div>
 
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Open the link from your inbox to finish signing in. It expires in 15 minutes.
+                  </p>
                   <div className="pt-2 space-y-2">
-                    <button
-                      onClick={() => {
-                        if (deliveryInfo?.previewUrl) {
-                          window.location.href = deliveryInfo.previewUrl;
-                        } else {
-                          launchDemoWorkspace();
-                        }
-                      }}
-                      className="btn-primary w-full py-2.5 text-xs font-bold shadow-md justify-center flex items-center gap-1.5"
-                    >
-                      Authenticate Now (Instant Access)
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-
                     <button
                       type="button"
                       onClick={() => { setMagicLinkSent(false); setDeliveryInfo(null); }}
@@ -240,14 +207,13 @@ export default function PortalLoginPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label htmlFor="password" className="label text-xs mb-0">Password</label>
-                  <a
-                    href="https://auth.bazionweb.com/realms/bazionweb/login-actions/reset-credentials"
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMethod('magic-link'); setMagicLinkSent(false); setError(''); }}
                     className="text-[11px] text-[#2563EB] hover:underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
                   >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
                 <div className="relative">
                   <input
@@ -293,16 +259,13 @@ export default function PortalLoginPage() {
             </form>
           )}
 
-          {/* Quick Demo Workspace Access */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={launchDemoWorkspace}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold hover:bg-slate-100 transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#2563EB]" />
-              <span>Explore Demo Client Workspace (1-Click)</span>
-            </button>
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+            <p className="text-[11px] text-slate-400">
+              Just completed payment?{' '}
+              <Link href="/portal/claim" className="font-semibold text-[#2563EB] hover:underline">
+                Claim your account
+              </Link>
+            </p>
           </div>
         </div>
 

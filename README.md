@@ -119,12 +119,13 @@ BazionWeb uses a streamlined payment architecture:
 
 | Plan | Price (USD) | Price (KES) | Uptime SLA | P1 Response |
 |------|------------|------------|-----------|-------------|
-| **Starter** | $49/mo | KES 6,400/mo | 99.9% | 1 hour |
-| **Growth** | $99/mo | KES 12,900/mo | 99.95% | 30 min |
-| **Business** | $199/mo | KES 25,900/mo | 99.95% | 15 min |
-| **Enterprise** | Custom | Custom | 99.99% | 5 min |
+| **Starter** | $29/mo | KES 3,800/mo | 99.9% | 1 hour |
+| **Growth** | $59/mo | KES 7,700/mo | 99.95% | 30 min |
+| **Business** | $119/mo | KES 15,500/mo | 99.95% | 15 min |
+| **Enterprise** | $299/mo | KES 39,000/mo | 99.99% | 5 min |
 
-Annual billing available with **17% discount** (2 months free).
+Annual billing is priced per plan in `prisma/seed.ts` (service tiers ≈17% off,
+Care retainers ≈10% off) and surfaced live by `GET /api/v1/plans`.
 
 ---
 

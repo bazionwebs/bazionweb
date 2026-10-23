@@ -5,6 +5,11 @@ interface SendMagicLinkOptions {
   magicLinkUrl: string;
 }
 
+interface SendClaimLinkOptions {
+  to: string;
+  claimLinkUrl: string;
+}
+
 interface SendEmailResult {
   success: boolean;
   delivered: boolean;
@@ -146,10 +151,37 @@ export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail:
 </html>`;
 }
 
-export async function sendMagicLinkEmail(options: SendMagicLinkOptions): Promise<SendEmailResult> {
-  const { to, magicLinkUrl } = options;
-  const html = generateMagicLinkEmailHtml(magicLinkUrl, to);
-  const subject = 'Your BazionWeb Sign-In Link';
+export function generateClaimLinkEmailHtml(claimLinkUrl: string, recipientEmail: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Claim your BazionWeb account</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0B0F17;color:#F8FAFC;margin:0;padding:32px 16px;">
+  <div style="max-width:540px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:40px 32px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">Bazion<span style="color:#2563EB;">Web</span></div>
+      <div style="display:inline-block;padding:4px 12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#34D399;border-radius:9999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;">Payment confirmed</div>
+    </div>
+    <h2 style="font-size:20px;font-weight:700;color:#FFFFFF;margin:0 0 12px;text-align:center;">Claim your client hub</h2>
+    <p style="font-size:14px;color:#94A3B8;line-height:1.6;margin:0 0 24px;text-align:center;">
+      Your payment is confirmed for <strong>${recipientEmail}</strong>. Open the secure link below to set your password and activate the workspace.
+    </p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="${claimLinkUrl}" style="display:inline-block;background:linear-gradient(135deg,#2563EB 0%,#1D4ED8 100%);color:#FFFFFF;font-weight:700;font-size:14px;padding:14px 32px;border-radius:12px;text-decoration:none;box-shadow:0 4px 14px rgba(37,99,235,0.4);" target="_blank">Claim My Account &rarr;</a>
+    </div>
+    <div style="font-size:12px;color:#64748B;text-align:center;line-height:1.5;border-top:1px solid #334155;padding-top:24px;margin-top:24px;">
+      This link is valid for <strong>15 minutes</strong> and can only be used once. We will never ask for your password by email. If you did not make this payment, you can ignore this message or contact billing@bazionweb.com.
+      <span style="word-break:break-all;color:#38BDF8;font-size:11px;margin-top:8px;display:block;">${claimLinkUrl}</span>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+async function sendEmail(to: string, subject: string, html: string, fallbackUrl: string): Promise<SendEmailResult> {
   const fromEmail = process.env.SMTP_FROM || 'BazionWeb <noreply@bazionweb.com>';
 
   // 1. Check for Resend API Key
@@ -212,14 +244,34 @@ export async function sendMagicLinkEmail(options: SendMagicLinkOptions): Promise
   }
 
   // 3. Fallback when SMTP is not yet configured on this environment
-  console.log(`[Email] ⚠️ No live SMTP or Resend credentials detected. Magic link for ${to}:`);
-  console.log(`[Email] 🔗 ${magicLinkUrl}`);
+  console.log(`[Email] ⚠️ No live SMTP or Resend credentials detected. ${subject} for ${to}:`);
+  console.log(`[Email] 🔗 ${fallbackUrl}`);
 
   return {
     success: true,
     delivered: false,
     provider: 'local-development',
-    previewUrl: magicLinkUrl,
-    message: 'Live SMTP/Resend credentials not yet added to .env.local. Magic link generated for development.',
+    previewUrl: fallbackUrl,
+    message: 'Live SMTP/Resend credentials not yet added to .env.local. Link generated for development.',
   };
+}
+
+export async function sendMagicLinkEmail(options: SendMagicLinkOptions): Promise<SendEmailResult> {
+  const { to, magicLinkUrl } = options;
+  return sendEmail(
+    to,
+    'Your BazionWeb Sign-In Link',
+    generateMagicLinkEmailHtml(magicLinkUrl, to),
+    magicLinkUrl,
+  );
+}
+
+export async function sendClaimLinkEmail(options: SendClaimLinkOptions): Promise<SendEmailResult> {
+  const { to, claimLinkUrl } = options;
+  return sendEmail(
+    to,
+    'Claim your BazionWeb account',
+    generateClaimLinkEmailHtml(claimLinkUrl, to),
+    claimLinkUrl,
+  );
 }

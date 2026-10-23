@@ -16,9 +16,9 @@ test.describe('Pricing page', () => {
   });
 
   test('shows correct pricing', async ({ page }) => {
-    await expect(page.getByText('$49')).toBeVisible();
-    await expect(page.getByText('$99')).toBeVisible();
-    await expect(page.getByText('$199')).toBeVisible();
+    await expect(page.getByText('$29')).toBeVisible();
+    await expect(page.getByText('$59')).toBeVisible();
+    await expect(page.getByText('$119')).toBeVisible();
   });
 
   test('Growth plan is marked as Most Popular', async ({ page }) => {

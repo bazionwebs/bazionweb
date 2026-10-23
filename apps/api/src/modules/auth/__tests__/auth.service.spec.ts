@@ -284,10 +284,10 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
   let prisma: {
     user: { findUnique: jest.Mock; update: jest.Mock; create: jest.Mock };
     client: { findUnique: jest.Mock; update: jest.Mock };
-    refreshToken: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
+    refreshToken: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
   };
 
-  const clientRow = {
+  const paidClient = {
     email: 'guest@example.com',
     contactName: 'Jane Wanjiku',
     phone: '+254700000000',
@@ -297,7 +297,7 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     subscriptions: [{ id: 'sub-1', status: 'ACTIVE' }],
   };
 
-  const guestUser = {
+  const unclaimedUser = {
     id: 'user-guest-1',
     email: 'guest@example.com',
     firstName: 'Jane',
@@ -305,28 +305,37 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     role: 'CLIENT' as const,
     keycloakId: null,
     deletedAt: null,
-    passwordHash: null, // passwordless â€” created at checkout
+    passwordHash: null, // passwordless — created at checkout
   };
+
+  const claimedUser = {
+    ...unclaimedUser,
+    passwordHash: 'scrypt$16384$8$1$aa$bb',
+  };
+
+  const validTokenRow = (user: typeof unclaimedUser | typeof claimedUser) => ({
+    id: 'rt-1',
+    revokedAt: null,
+    expiresAt: new Date(Date.now() + 60_000),
+    user,
+  });
 
   beforeEach(async () => {
     prisma = {
       user: {
-        findUnique: jest.fn().mockResolvedValue(guestUser),
+        findUnique: jest.fn().mockResolvedValue(unclaimedUser),
         update: jest.fn().mockResolvedValue({ id: 'user-guest-1' }),
         create: jest.fn(),
       },
       client: {
-        findUnique: jest.fn().mockResolvedValue({
-          ...clientRow,
-          subscriptions: [{ status: 'ACTIVE' }],
-          invoices: [{ paidAt: new Date(Date.now() - 86_400_000) }],
-        }),
+        findUnique: jest.fn().mockResolvedValue(paidClient),
         update: jest.fn().mockResolvedValue({}),
       },
       refreshToken: {
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'rt-1', ...data })),
         findUnique: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
 
@@ -340,10 +349,13 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     service = module.get<AuthService>(AuthService);
   });
 
-  it('claimAccount sets a password on the paid passwordless user and returns a session', async () => {
+  it('claimAccount consumes the emailed token, sets a password, and returns a session', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue(validTokenRow(unclaimedUser));
+
     const result = await service.claimAccount({
       email: 'Guest@example.com',
       password: 'Claimed123!',
+      claimToken: 'claim_valid-token',
       firstName: 'Jane',
       lastName: 'Wanjiku',
     });
@@ -354,49 +366,137 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     expect(result.user.subscriptionStatus).toBe('ACTIVE');
     expect(result.data.accessToken).toBeTruthy();
 
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'rt-1', revokedAt: null } }),
+    );
+    expect(prisma.client.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'ACTIVE', userId: 'user-guest-1' }),
+      }),
+    );
+
     const decoded = jwt.verify(result.data.accessToken, JWT_SECRET) as any;
     expect(decoded.subscriptionStatus).toBe('ACTIVE');
   });
 
+  it('claimAccount refuses to run without an emailed claim token', async () => {
+    await expect(service.claimAccount({
+      email: 'guest@example.com',
+      password: 'Claimed123!',
+      claimToken: '',
+    })).rejects.toThrow(/Verify your email first/);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('claimAccount refuses an invalid, expired, or reused token', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue(null);
+    await expect(service.claimAccount({
+      email: 'guest@example.com',
+      password: 'Claimed123!',
+      claimToken: 'claim_expired',
+    })).rejects.toThrow(/invalid or has expired/);
+
+    prisma.refreshToken.findUnique.mockResolvedValue({
+      ...validTokenRow(unclaimedUser),
+      revokedAt: new Date(),
+    });
+    await expect(service.claimAccount({
+      email: 'guest@example.com',
+      password: 'Claimed123!',
+      claimToken: 'claim_reused',
+    })).rejects.toThrow(/invalid or has expired/);
+  });
+
+  it('claimAccount refuses a token issued for a different email', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue(validTokenRow(unclaimedUser));
+    await expect(service.claimAccount({
+      email: 'attacker@example.com',
+      password: 'Claimed123!',
+      claimToken: 'claim_valid-token',
+    })).rejects.toThrow(/different email address/);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
   it('claimAccount refuses emails without paid evidence', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue(validTokenRow(unclaimedUser));
     prisma.client.findUnique.mockResolvedValue({
-      ...clientRow,
+      ...paidClient,
       status: 'TRIAL',
       subscriptions: [{ status: 'PENDING' }],
       invoices: [],
     });
-    await expect(service.claimAccount({ email: 'guest@example.com', password: 'Claimed123!' }))
-      .rejects.toThrow(ForbiddenException);
+    await expect(service.claimAccount({
+      email: 'guest@example.com',
+      password: 'Claimed123!',
+      claimToken: 'claim_valid-token',
+    })).rejects.toThrow(ForbiddenException);
   });
 
   it('claimAccount refuses an email that already has a password', async () => {
-    prisma.user.findUnique.mockResolvedValue({ ...guestUser, passwordHash: 'scrypt$16384$8$1$aa$bb' });
-    await expect(service.claimAccount({ email: 'guest@example.com', password: 'Claimed123!' }))
-      .rejects.toThrow(/sign in instead/);
+    prisma.refreshToken.findUnique.mockResolvedValue(validTokenRow(claimedUser));
+    await expect(service.claimAccount({
+      email: 'guest@example.com',
+      password: 'Claimed123!',
+      claimToken: 'claim_valid-token',
+    })).rejects.toThrow(/sign in instead/);
   });
 
-  it('requestMagicLink mints a single-use token only for real users', async () => {
-    prisma.user.findUnique.mockResolvedValue(guestUser);
+  it('claimAccount refuses when another tab already consumed the token', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue(validTokenRow(unclaimedUser));
+    prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.claimAccount({
+      email: 'guest@example.com',
+      password: 'Claimed123!',
+      claimToken: 'claim_valid-token',
+    })).rejects.toThrow(/already been used/);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
 
-    const { magicToken } = await service.requestMagicLink('guest@example.com');
-    expect(magicToken).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+  it('requestClaimLink only emails paid, unclaimed accounts', async () => {
+    prisma.user.findUnique.mockResolvedValue(unclaimedUser);
+    const { claimToken, expiresIn } = await service.requestClaimLink('Guest@example.com');
+    expect(claimToken).toMatch(/^claim_[A-Za-z0-9_-]{20,}$/);
+    expect(expiresIn).toBe(900);
     expect(prisma.refreshToken.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: 'user-guest-1', expiresAt: expect.any(Date) }) }),
     );
 
+    prisma.user.findUnique.mockResolvedValue(claimedUser);
+    expect((await service.requestClaimLink('guest@example.com')).claimToken).toBe('');
+
+    prisma.user.findUnique.mockResolvedValue(unclaimedUser);
+    prisma.client.findUnique.mockResolvedValue({
+      ...paidClient,
+      status: 'TRIAL',
+      subscriptions: [],
+      invoices: [],
+    });
+    expect((await service.requestClaimLink('guest@example.com')).claimToken).toBe('');
+
     prisma.user.findUnique.mockResolvedValue(null);
-    const silent = await service.requestMagicLink('nobody@example.com');
-    expect(silent.magicToken).toBe('');
+    expect((await service.requestClaimLink('nobody@example.com')).claimToken).toBe('');
+  });
+
+  it('requestMagicLink only mints a token for claimed accounts', async () => {
+    prisma.user.findUnique.mockResolvedValue(claimedUser);
+    const { magicToken } = await service.requestMagicLink('guest@example.com');
+    expect(magicToken).toMatch(/^magic_[A-Za-z0-9_-]{20,}$/);
+    expect(prisma.refreshToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 'user-guest-1', expiresAt: expect.any(Date) }) }),
+    );
+
+    // Passwordless checkout guest (unclaimed) must use the claim flow instead.
+    prisma.user.findUnique.mockResolvedValue(unclaimedUser);
+    expect((await service.requestMagicLink('guest@example.com')).magicToken).toBe('');
+
+    prisma.user.findUnique.mockResolvedValue(null);
+    expect((await service.requestMagicLink('nobody@example.com')).magicToken).toBe('');
   });
 
   it('verifyMagicLink consumes the token and returns a real session', async () => {
-    prisma.refreshToken.findUnique.mockResolvedValue({
-      id: 'rt-1', revokedAt: null,
-      expiresAt: new Date(Date.now() + 60_000),
-      user: guestUser,
-    });
+    prisma.refreshToken.findUnique.mockResolvedValue(validTokenRow(claimedUser));
 
-    const result = await service.verifyMagicLink('single-use-token');
+    const result = await service.verifyMagicLink('magic_single-use-token');
 
     expect(result.data.accessToken).toBeTruthy();
     expect(prisma.refreshToken.update).toHaveBeenCalledWith(
@@ -406,28 +506,36 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     expect(decoded.sub).toBe('user-guest-1');
   });
 
-  it('verifyMagicLink rejects unknown, revoked or expired tokens', async () => {
-    prisma.refreshToken.findUnique.mockResolvedValue(null);
+  it('verifyMagicLink revokes and rejects a token for an unclaimed guest', async () => {
+    prisma.refreshToken.findUnique.mockResolvedValue(validTokenRow(unclaimedUser));
+    await expect(service.verifyMagicLink('magic_unclaimed-token')).rejects.toThrow(
+      /only available after your account is claimed/,
+    );
+    expect(prisma.refreshToken.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'rt-1' } }),
+    );
+  });
+
+  it('verifyMagicLink rejects unknown, revoked, expired, or claim-purpose tokens', async () => {
     await expect(service.verifyMagicLink('garbage')).rejects.toThrow(UnauthorizedException);
 
-    prisma.refreshToken.findUnique.mockResolvedValue({
-      id: 'rt-2', revokedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
-      user: guestUser,
-    });
-    await expect(service.verifyMagicLink('byte-hash-mismatch')).rejects.toThrow(UnauthorizedException);
+    prisma.refreshToken.findUnique.mockResolvedValue(null);
+    await expect(service.verifyMagicLink('magic_unknown')).rejects.toThrow(UnauthorizedException);
 
     prisma.refreshToken.findUnique.mockResolvedValue({
-      id: 'rt-3', revokedAt: null,
-      expiresAt: new Date(Date.now() - 60_000), // expired
-      user: guestUser,
+      ...validTokenRow(claimedUser),
+      revokedAt: new Date(),
     });
-    prisma.refreshToken.findUnique.mockImplementation(() => Promise.resolve({
-      id: 'rt-3', revokedAt: null,
+    await expect(service.verifyMagicLink('magic_revoked')).rejects.toThrow(UnauthorizedException);
+
+    prisma.refreshToken.findUnique.mockResolvedValue({
+      ...validTokenRow(claimedUser),
       expiresAt: new Date(Date.now() - 60_000),
-      user: guestUser,
-    }));
-    await expect(service.verifyMagicLink('another-token')).rejects.toThrow(UnauthorizedException);
+    });
+    await expect(service.verifyMagicLink('magic_expired')).rejects.toThrow(UnauthorizedException);
+
+    // A claim token must not be usable as a sign-in token.
+    await expect(service.verifyMagicLink('claim_valid-token')).rejects.toThrow(UnauthorizedException);
   });
 
   it('login embeds the subscriptionStatus claim', async () => {
@@ -435,7 +543,7 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
       status: 'ACTIVE',
       subscriptions: [{ status: 'ACTIVE' }],
     });
-    prisma.user.findUnique.mockResolvedValue({ ...guestUser, passwordHash: await hashPassword('Password123!') });
+    prisma.user.findUnique.mockResolvedValue({ ...claimedUser, passwordHash: await hashPassword('Password123!') });
 
     const result = await service.login('guest@example.com', 'Password123!');
     const decoded = jwt.verify(result.data.accessToken, JWT_SECRET) as any;

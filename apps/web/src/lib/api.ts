@@ -98,6 +98,15 @@ export const portalApi = {
 
   createTicket: (data: { subject: string; priority: string; category: string; body: string }) =>
     api.post('/tickets', data).then(r => r.data),
+
+  addTicketComment: (ticketId: string, body: string) =>
+    api.post(`/tickets/${ticketId}/comments`, { body }).then(r => r.data),
+
+  payInvoiceMpesa: (invoiceId: string, data: { mpesaPhoneNumber: string }) =>
+    api.post(`/invoices/${invoiceId}/pay/mpesa`, data).then(r => r.data),
+
+  payInvoiceCard: (invoiceId: string, data: { email?: string } = {}) =>
+    api.post(`/invoices/${invoiceId}/pay/card`, data).then(r => r.data),
 };
 
 // ─── Staff (admin/support) ───────────────────────────────────────────────────

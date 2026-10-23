@@ -634,7 +634,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
           'Up to 2 support hours for content & enhancements',
           'Same-day priority support response',
         ],
-        ctaHref: '/portal/register?plan=care-business',
+        ctaHref: '/checkout?plan=care-business',
       },
       {
         id: 'care-pro',
@@ -656,7 +656,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
           'Quarterly digital strategy & performance call',
           'Priority emergency response channel (WhatsApp & phone)',
         ],
-        ctaHref: '/portal/register?plan=care-professional',
+        ctaHref: '/checkout?plan=care-professional',
       },
     ],
     keyFeatures: [

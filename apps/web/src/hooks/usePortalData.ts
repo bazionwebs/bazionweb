@@ -36,6 +36,7 @@ export interface ApiClient {
 export interface ApiTicket {
   id: string;
   subject: string;
+  description?: string | null;
   priority: 'P1' | 'P2' | 'P3' | 'P4' | string;
   status: string;
   category: string;
@@ -43,6 +44,7 @@ export interface ApiTicket {
   slaBreached?: boolean;
   client?: { businessName: string } | null;
   assignee?: { firstName: string | null; lastName: string | null } | null;
+  _count?: { comments: number };
 }
 
 export interface ApiInvoice {
@@ -60,6 +62,29 @@ export interface ApiInvoice {
 export interface ApiHostingBackup {
   status: string;
   createdAt: string;
+}
+
+export interface ApiProjectTask {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+  completedAt: string | null;
+}
+
+export interface ApiProject {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  completionPct: number;
+  startDate: string | null;
+  dueDate: string | null;
+  stagingUrl: string | null;
+  productionUrl: string | null;
+  tasks?: ApiProjectTask[];
 }
 
 export interface ApiHostingAccount {
@@ -113,6 +138,16 @@ export function useClientProfile() {
   });
 }
 
+export function useClientProjects() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['portal', 'projects'],
+    queryFn: () => portalApi.getMyProjects().then(r => (r.data ?? []) as ApiProject[]),
+    enabled: !!token,
+    ...opts,
+  });
+}
+
 export function useClientHosting() {
   const token = useToken();
   return useQuery({
@@ -140,6 +175,35 @@ export function useCreateTicket() {
       portalApi.createTicket(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['portal', 'tickets'] });
+    },
+  });
+}
+
+export function useAddTicketComment() {
+  return useMutation({
+    mutationFn: (input: { ticketId: string; body: string }) =>
+      portalApi.addTicketComment(input.ticketId, input.body),
+  });
+}
+
+export function usePayInvoiceMpesa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { invoiceId: string; mpesaPhoneNumber: string }) =>
+      portalApi.payInvoiceMpesa(input.invoiceId, { mpesaPhoneNumber: input.mpesaPhoneNumber }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'invoices'] });
+    },
+  });
+}
+
+export function usePayInvoiceCard() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { invoiceId: string; email?: string }) =>
+      portalApi.payInvoiceCard(input.invoiceId, input.email ? { email: input.email } : {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'invoices'] });
     },
   });
 }

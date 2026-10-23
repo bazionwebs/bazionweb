@@ -24,6 +24,7 @@ import {
 import {
   useClientTickets,
   useCreateTicket,
+  useAddTicketComment,
 } from '@/hooks/usePortalData';
 import { TableSkeletonRows, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatDate, titleCase, shortId } from '@/lib/format';
@@ -137,6 +138,7 @@ export default function SupportClient() {
     refetch,
   } = useClientTickets();
   const createTicket = useCreateTicket();
+  const addTicketComment = useAddTicketComment();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -210,11 +212,17 @@ export default function SupportClient() {
     );
   };
 
-  const handleSendQuickReply = (ticketId: string) => {
-    if (!quickReplyText.trim()) return;
-    setReplyFeedback(`Your note for request #${shortId(ticketId, 6)} has been appended to the ticket log. Engineering notified.`);
-    setQuickReplyText('');
-    setTimeout(() => setReplyFeedback(null), 5000);
+  const handleSendQuickReply = async (ticketId: string) => {
+    if (!quickReplyText.trim() || addTicketComment.isPending) return;
+    try {
+      await addTicketComment.mutateAsync({ ticketId, body: quickReplyText.trim() });
+      setQuickReplyText('');
+      setReplyFeedback(`Your note for request #${shortId(ticketId, 6)} was posted to the ticket thread.`);
+      setTimeout(() => setReplyFeedback(null), 5000);
+    } catch {
+      setReplyFeedback('Could not post your note. Please try again.');
+      setTimeout(() => setReplyFeedback(null), 5000);
+    }
   };
 
   return (
@@ -525,9 +533,15 @@ export default function SupportClient() {
                                   </div>
                                 </div>
 
-                                <p className="text-xs text-slate-600 leading-relaxed">
-                                  Detailed investigation logged for client Acacia Healthcare. Assigned engineer is triaging reverse proxy telemetry and verifying staging sandbox patches.
-                                </p>
+                                {t.description ? (
+                                  <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
+                                    {t.description}
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-slate-400 italic">
+                                    No additional details were provided in the request.
+                                  </p>
+                                )}
                               </div>
 
                               {/* Engineer Triage & Activity Trail */}
@@ -539,13 +553,17 @@ export default function SupportClient() {
                                   </div>
                                   <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">
-                                      {t.assignee?.firstName ? t.assignee.firstName[0] : 'D'}
+                                      {t.assignee?.firstName ? t.assignee.firstName[0] : <User className="w-4 h-4 text-slate-400" />}
                                     </div>
                                     <div>
                                       <div className="text-xs font-bold text-[#0F172A]">
-                                        {t.assignee?.firstName ? `${t.assignee.firstName} ${t.assignee.lastName ?? ''}` : 'David K. (Senior Lead)'}
+                                        {t.assignee?.firstName
+                                          ? `${t.assignee.firstName} ${t.assignee.lastName ?? ''}`
+                                          : 'Awaiting triage'}
                                       </div>
-                                      <div className="text-[11px] text-slate-400">Cloud Infrastructure & Full-Stack Lead</div>
+                                      <div className="text-[11px] text-slate-400">
+                                        {t.assignee ? 'Assigned Systems Engineer' : 'An engineer will pick this up within the SLA window'}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -553,12 +571,12 @@ export default function SupportClient() {
                                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
                                   <div className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
                                     <ShieldAlert className="w-3.5 h-3.5 text-emerald-600" />
-                                    Triage Health Status
+                                    Request Status
                                   </div>
                                   <div className="text-xs text-slate-600 space-y-1">
-                                    <div>• Origin server metrics: <strong className="text-emerald-600 font-semibold">Healthy</strong></div>
-                                    <div>• Edge Cache: <strong className="text-blue-600 font-semibold">Active</strong></div>
-                                    <div>• Audit Log: <span className="font-mono text-[11px] text-slate-500">TRG-{shortId(t.id, 6)}</span></div>
+                                    <div>• Triage status: <strong className="font-semibold">{titleCase(t.status)}</strong></div>
+                                    <div>• Response window: <strong className="font-semibold">{SLA_TARGETS[t.priority]?.label ?? '24 hours'}</strong></div>
+                                    <div>• Messages on record: <strong className="font-semibold">{t._count?.comments ?? 0}</strong></div>
                                   </div>
                                 </div>
                               </div>
@@ -570,7 +588,7 @@ export default function SupportClient() {
                                     <MessageSquare className="w-3.5 h-3.5 text-[#2563EB]" />
                                     Add Follow-Up Note / Reply to Engineering
                                   </div>
-                                  <span className="text-[11px] text-slate-400">Directly syncs to engineering Slack/PagerDuty</span>
+                                  <span className="text-[11px] text-slate-400">Posts directly to the shared ticket thread</span>
                                 </div>
 
                                 <div className="flex gap-2">

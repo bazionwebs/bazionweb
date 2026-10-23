@@ -14,7 +14,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto } from './dto/billing.dto';
+import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto } from './dto/billing.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
@@ -106,6 +106,37 @@ export class BillingController {
   @ApiOperation({ summary: 'Get invoice by ID' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
     return this.svc.findOne(id, req.user);
+  }
+
+  /**
+   * Pay an existing PENDING/OVERDUE invoice via M-Pesa STK Push.
+   * The webhook settles this exact invoice on success — no new invoice is
+   * created, unlike the subscription rails above.
+   */
+  @Post(':id/pay/mpesa')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Settle an invoice by M-Pesa STK Push (KES invoices only)' })
+  payInvoiceMpesa(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req: any,
+    @Body() body: PayInvoiceMpesaDto,
+  ) {
+    return this.svc.payInvoiceMpesa(req.user, id, body);
+  }
+
+  /**
+   * Pay an existing PENDING/OVERDUE invoice by card — returns a Paystack
+   * hosted-checkout redirect; the webhook settles this exact invoice.
+   */
+  @Post(':id/pay/card')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Settle an invoice by card via Paystack redirect (KES/USD)' })
+  payInvoiceCard(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req: any,
+    @Body() body: PayInvoiceCardDto,
+  ) {
+    return this.svc.payInvoiceCard(req.user, id, body);
   }
 
   @Post('generate')
