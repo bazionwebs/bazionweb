@@ -13,7 +13,7 @@ import {
   X,
   HardDrive,
 } from 'lucide-react';
-import { useAdminHosting, useAdminClients, useUptime, useUpdateHosting } from '@/hooks/useAdminData';
+import { useAdminHosting, useAdminClients, useUptime, useUpdateHosting, UptimeSite } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatDate } from '@/lib/format';
 import { adminApi } from '@/lib/api';
@@ -37,7 +37,7 @@ export default function AdminHostingPage() {
   const rawClients = clientsQuery.data?.items ?? [];
   const uptimeSummary = uptimeQuery.data?.summary ?? [];
 
-  const uptimeByDomain: Record<string, { sslAlert?: boolean; sslDaysLeft?: number; backups?: { total: number; failed: number; successRate: number } }> = {};
+  const uptimeByDomain: Record<string, UptimeSite> = {};
   uptimeSummary.forEach(u => {
     uptimeByDomain[u.domain] = u;
   });
@@ -57,7 +57,7 @@ export default function AdminHostingPage() {
       plan: h.plan || 'Cloud Managed Tier',
       status: h.status || 'ACTIVE',
       sslValid: telemetry ? !telemetry.sslAlert : true,
-      sslDays: telemetry?.sslDaysLeft ?? 84,
+      sslDays: telemetry?.sslDaysLeft != null ? telemetry.sslDaysLeft : 84,
       backups: telemetry?.backups ?? { total: 30, failed: 0, successRate: 100 },
       createdAt: h.createdAt ? formatDate(h.createdAt) : '—',
     };

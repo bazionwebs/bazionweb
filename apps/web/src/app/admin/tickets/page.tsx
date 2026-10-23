@@ -11,11 +11,27 @@ import { useAdminTickets, useUpdateTicket } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { timeAgo, shortId } from '@/lib/format';
 
+interface TicketRow {
+  raw: unknown;
+  id: string;
+  rawId: string;
+  client: string;
+  subject: string;
+  priority: string;
+  status: string;
+  category: string;
+  assignee: string;
+  slaBreached: boolean;
+  age: string;
+  createdDate: string;
+}
+
+
 export default function AdminTicketsPage() {
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [selectedTicket, setSelectedTicket] = useState<Record<string, unknown> | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<TicketRow | null>(null);
 
   const ticketsQuery = useAdminTickets();
   const updateTicketMutation = useUpdateTicket();

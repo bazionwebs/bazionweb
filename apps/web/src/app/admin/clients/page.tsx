@@ -14,10 +14,24 @@ import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QuerySta
 import { formatDate } from '@/lib/format';
 import { adminApi } from '@/lib/api';
 
+interface ClientRow {
+  id: string;
+  name: string;
+  contact: string;
+  email: string;
+  domain: string;
+  plan: string;
+  tier: string;
+  status: string;
+  tickets: number;
+  mrr: number;
+  renewal: string;
+}
+
 export default function AdminClientsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [selectedClient, setSelectedClient] = useState<Record<string, unknown> | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

@@ -12,6 +12,18 @@ import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QuerySta
 import { formatMoney, formatDate, shortId } from '@/lib/format';
 import { adminApi } from '@/lib/api';
 
+interface RawInvoice {
+  id: string;
+  invoiceNumber?: string | null;
+  client?: { businessName?: string };
+  amount?: number | string | null;
+  currency?: string | null;
+  status?: string | null;
+  dueDate?: string | Date | null;
+  createdAt?: string | Date | null;
+}
+
+
 export default function AdminInvoicesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -42,7 +54,7 @@ export default function AdminInvoicesPage() {
   const rawInvoices = invoicesQuery.data?.items ?? [];
   const rawClients = clientsQuery.data?.items ?? [];
 
-  const invoices = rawInvoices.map((inv: Record<string, unknown>) => ({
+  const invoices = (rawInvoices as RawInvoice[]).map((inv) => ({
     id: inv.id,
     invoiceNumber: inv.invoiceNumber || `INV-${shortId(inv.id, 6)}`,
     clientName: inv.client?.businessName || 'Client',
