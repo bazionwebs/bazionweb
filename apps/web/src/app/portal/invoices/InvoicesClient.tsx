@@ -11,9 +11,6 @@ import {
   Search,
   Smartphone,
   ShieldCheck,
-  QrCode,
-  Copy,
-  Check,
   X,
   Zap,
   TrendingUp,
@@ -115,10 +112,10 @@ export default function InvoicesClient() {
     }
     setPayError(null);
     try {
-      const res: any = await mpesaPay.mutateAsync({
+      const res = await mpesaPay.mutateAsync({
         invoiceId: selectedInvoiceForPay.id,
         mpesaPhoneNumber: phone,
-      });
+      }) as { data?: { message?: string; provider?: string; invoiceNumber?: string }; message?: string; provider?: string; invoiceNumber?: string };
       const payload = res?.data ?? res;
       setStkResult({
         message: payload?.message || 'M-Pesa prompt sent! Check your handset and enter PIN to complete.',
@@ -127,8 +124,9 @@ export default function InvoicesClient() {
       });
       setTimeout(() => refetch(), 10000);
       setTimeout(() => refetch(), 30000);
-    } catch (err: any) {
-      const msg = err?.response?.data?.message;
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      const msg = error?.response?.data?.message;
       setPayError(msg || 'Could not send the M-Pesa prompt. Check the number and try again.');
     }
   };
@@ -137,21 +135,39 @@ export default function InvoicesClient() {
     if (!selectedInvoiceForPay || cardPay.isPending) return;
     setPayError(null);
     try {
-      const res: any = await cardPay.mutateAsync({ invoiceId: selectedInvoiceForPay.id });
+      const res = await cardPay.mutateAsync({ invoiceId: selectedInvoiceForPay.id }) as { data?: { checkoutUrl?: string }; checkoutUrl?: string };
       const payload = res?.data ?? res;
       if (payload?.checkoutUrl) {
         window.location.href = payload.checkoutUrl;
       } else {
         setPayError('Card checkout could not be opened. Please try again.');
       }
-    } catch (err: any) {
-      const msg = err?.response?.data?.message;
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      const msg = error?.response?.data?.message;
       setPayError(msg || 'Card checkout could not be opened. Please try again.');
     }
   };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
+      {/* Return notice after Paystack redirect */}
+      {cardReturnNotice && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-900 flex items-center justify-between shadow-xs">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            Your card payment was received. Account statements have been refreshed.
+          </span>
+          <button
+            type="button"
+            onClick={() => setCardReturnNotice(false)}
+            className="p-1 text-emerald-700 hover:text-emerald-900 rounded-lg hover:bg-emerald-100 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Top Banner / Billing Header */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] p-6 sm:p-8 text-white border border-slate-800 shadow-xl">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
