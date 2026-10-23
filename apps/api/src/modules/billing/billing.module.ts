@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { BillingController } from './billing.controller';
 import { WebhooksController } from './webhooks.controller';
 import { BillingService } from './billing.service';
+import { PaymentSettlementService } from './payment-settlement.service';
 import { PlansController } from './plans.controller';
 import { PaystackService } from './paystack.service';
 import { DarajaService } from './daraja.service';
@@ -11,7 +12,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 @Module({
   imports: [PrismaModule, ScheduleModule],
   controllers: [BillingController, PlansController, WebhooksController],
-  providers: [BillingService, PaystackService, DarajaService],
-  exports: [BillingService, PaystackService, DarajaService],
+  providers: [BillingService, PaymentSettlementService, PaystackService, DarajaService],
+  exports: [BillingService, PaymentSettlementService, PaystackService, DarajaService],
 })
 export class BillingModule {}

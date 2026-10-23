@@ -138,8 +138,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Request a one-time account-claim link' })
-  async requestClaimLink(@Body() dto: MagicLinkRequestDto) {
-    return this.authService.requestClaimLink(dto.email);
+  async requestClaimLink(
+    @Body() dto: MagicLinkRequestDto,
+    @Headers('x-internal-dispatch') dispatchSecret?: string,
+  ) {
+    return this.authService.requestClaimLink(
+      dto.email,
+      this.authService.canDispatchTokens(dispatchSecret),
+    );
   }
 
   /**

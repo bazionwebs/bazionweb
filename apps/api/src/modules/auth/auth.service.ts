@@ -113,6 +113,22 @@ export class AuthService {
     return !this.config.get<string>('KEYCLOAK_URL');
   }
 
+  /**
+   * Raw claim/magic tokens are only returned to the Next.js mailer BFF,
+   * never to anonymous API callers. The BFF proves itself with the shared
+   * dispatch secret (INTERNAL_DISPATCH_SECRET, else PAYSTACK_SECRET_KEY).
+   */
+  canDispatchTokens(header?: string): boolean {
+    const expected =
+      this.config.get<string>('INTERNAL_DISPATCH_SECRET', '') ||
+      this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+    if (!expected || !header) return false;
+    const a = Buffer.from(header, 'utf8');
+    const b = Buffer.from(expected, 'utf8');
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  }
+
   private jwtSecret(): string {
     const secret = this.config.get<string>('JWT_SECRET') ?? '';
     if (secret.length < 32) {
@@ -319,7 +335,10 @@ export class AuthService {
    * controls it before any password is set. Unknown, unpaid, or already
    * claimed emails return the same empty shape (no enumeration).
    */
-  async requestClaimLink(email: string): Promise<{ claimToken: string; expiresIn: number }> {
+  async requestClaimLink(email: string, dispatchAuthorized = false): Promise<{ claimToken: string; expiresIn: number }> {
+    if (!dispatchAuthorized) {
+      return { claimToken: '', expiresIn: 0 };
+    }
     const cleanEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
     if (!user || user.deletedAt || user.passwordHash) {
@@ -452,7 +471,10 @@ export class AuthService {
   }
 
   /** Issues a one-time, 15-minute login token ONLY for claimed accounts. */
-  async requestMagicLink(email: string): Promise<{ magicToken: string; expiresIn: number }> {
+  async requestMagicLink(email: string, dispatchAuthorized = false): Promise<{ magicToken: string; expiresIn: number }> {
+    if (!dispatchAuthorized) {
+      return { magicToken: '', expiresIn: 0 };
+    }
     const cleanEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
     // Silently no-op for unknown/unclaimed emails — the response shape stays

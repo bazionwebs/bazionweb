@@ -51,10 +51,15 @@ export class DarajaService {
     const consumerKey = this.config.get<string>('DARAJA_CONSUMER_KEY', '');
     const consumerSecret = this.config.get<string>('DARAJA_CONSUMER_SECRET', '');
     const shortCode = this.config.get<string>('DARAJA_BUSINESS_SHORTCODE', '174379');
+    const environment = this.config.get<string>('DARAJA_ENVIRONMENT', 'sandbox');
+    const sandboxPasskey = 'bfb279f9aa9bdbaca158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
     const passkey = this.config.get<string>(
       'DARAJA_PASSKEY',
-      'bfb279f9aa9bdbaca158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
+      environment === 'production' ? '' : sandboxPasskey,
     );
+    if (!passkey) {
+      throw new ServiceUnavailableException('Daraja passkey is not configured');
+    }
     const callbackUrl = this.config.get<string>(
       'DARAJA_CALLBACK_URL',
       'https://api.bazionweb.com/api/v1/webhooks/daraja',

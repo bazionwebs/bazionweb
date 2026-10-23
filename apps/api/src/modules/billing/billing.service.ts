@@ -3,6 +3,7 @@ import {
   NotFoundException, 
   ForbiddenException, 
   BadRequestException, 
+  ConflictException,
   ServiceUnavailableException,
   Logger 
 } from '@nestjs/common';
@@ -31,6 +32,7 @@ import {
 } from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { checkoutLineItem } from './payment-settlement.service';
 
 @Injectable()
 export class BillingService {
@@ -327,13 +329,17 @@ export class BillingService {
         invoiceNumber,
         amount,
         currency: 'KES',
+        status: InvoiceStatus.SENT,
         dueDate,
         lineItems: [
-          {
+          checkoutLineItem({
             description: `BazionWeb ${plan.name} (${billingCycle}) Maintenance & Infrastructure`,
             amount,
-            quantity: 1,
-          },
+            currency: 'KES',
+            planId: plan.id,
+            billingCycle,
+            purpose: 'subscription',
+          }),
         ],
       },
     });
@@ -349,7 +355,39 @@ export class BillingService {
   }
 
   async queryMpesaStatus(checkoutRequestId: string) {
-    return this.darajaService.queryStkStatus(checkoutRequestId);
+    const ref = String(checkoutRequestId || '').trim();
+    if (!ref) throw new BadRequestException('Missing checkout request id');
+
+    const log = await this.prisma.paymentLog.findFirst({
+      where: {
+        OR: [
+          { idempotencyKey: `DARAJA_${ref}` },
+          { idempotencyKey: `PAYSTACK_${ref}` },
+          { providerRef: ref },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!log) {
+      throw new NotFoundException('No matching checkout was found');
+    }
+    if (log.status === PaymentStatus.SUCCESS || log.status === PaymentStatus.FAILED) {
+      return {
+        responseCode: log.status === PaymentStatus.SUCCESS ? '0' : '1',
+        resultCode: log.status === PaymentStatus.SUCCESS ? '0' : '1',
+        resultDesc: log.status,
+        checkoutRequestId: ref,
+      };
+    }
+    if (log.provider !== PaymentProvider.DARAJA) {
+      return {
+        responseCode: '0',
+        resultCode: '0',
+        resultDesc: log.status,
+        checkoutRequestId: ref,
+      };
+    }
+    return this.darajaService.queryStkStatus(ref);
   }
 
   /** Shared ownership + payability validation for invoice payment rails. */
@@ -418,7 +456,7 @@ export class BillingService {
       currency: invoice.currency,
       invoiceNumber: invoice.invoiceNumber,
       callbackUrl: `${frontendUrl}/portal/invoices?card_settled=1`,
-      metadata: { clientId: invoice.clientId, purpose: 'invoice_payment' },
+      metadata: { clientId: invoice.clientId, purpose: 'invoice_payment', invoiceNumber: invoice.invoiceNumber },
     });
 
     await this.prisma.paymentLog.create({
@@ -480,14 +518,17 @@ export class BillingService {
         invoiceNumber,
         amount,
         currency: dto.currency,
+        status: InvoiceStatus.SENT,
         dueDate,
         lineItems: [
-          {
+          checkoutLineItem({
             description: `BazionWeb ${plan.name} (${dto.billingCycle}) — card`,
             amount,
             currency: dto.currency,
-            quantity: 1,
-          },
+            planId: plan.id,
+            billingCycle: dto.billingCycle,
+            purpose: 'subscription',
+          }),
         ],
       },
     });
@@ -541,6 +582,13 @@ export class BillingService {
     planId: string;
   }) {
     let guestUser = await this.prisma.user.findUnique({ where: { email: opts.email } });
+    if (guestUser?.passwordHash || (guestUser?.keycloakId && !guestUser.keycloakId.startsWith('pending-'))) {
+      throw new ConflictException({
+        statusCode: 409,
+        code: 'ACCOUNT_EXISTS',
+        message: 'An account already exists for this email. Sign in to complete payment.',
+      });
+    }
     if (!guestUser) {
       guestUser = await this.prisma.user.create({
         data: {
@@ -652,14 +700,17 @@ export class BillingService {
         invoiceNumber,
         amount,
         currency: dto.currency,
+        status: InvoiceStatus.SENT,
         dueDate,
         lineItems: [
-          {
+          checkoutLineItem({
             description: `BazionWeb ${plan.name} (${dto.billingCycle.toLowerCase()}) — card`,
             amount,
             currency: dto.currency,
-            quantity: 1,
-          },
+            planId: plan.id,
+            billingCycle: dto.billingCycle,
+            purpose: 'subscription',
+          }),
         ],
       },
     });
@@ -773,15 +824,18 @@ export class BillingService {
           invoiceNumber,
           amount,
           currency: dto.currency,
+          status: InvoiceStatus.SENT,
           dueDate,
           notes: dto.purchaseOrderNumber ? `PO Ref: ${dto.purchaseOrderNumber}` : null,
           lineItems: [
-            {
+            checkoutLineItem({
               description: `Enterprise Lifecycle Management: ${plan.name} (${dto.billingCycle})`,
               amount,
               currency: dto.currency,
-              quantity: 1,
-            },
+              planId: plan.id,
+              billingCycle: dto.billingCycle,
+              purpose: 'subscription',
+            }),
           ],
         },
       });

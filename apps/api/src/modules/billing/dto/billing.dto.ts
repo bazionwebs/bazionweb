@@ -51,6 +51,14 @@ export class PayInvoiceMpesaDto {
   mpesaPhoneNumber: string;
 }
 
+/** Confirm a Paystack transaction from the hosted-checkout return URL. */
+export class ConfirmPaystackDto {
+  @ApiProperty({ description: 'Paystack transaction reference from the callback URL' })
+  @IsString()
+  @IsNotEmpty()
+  reference: string;
+}
+
 /** Pay an existing (PENDING/OVERDUE) invoice by card via a Paystack redirect. */
 export class PayInvoiceCardDto {
   @ApiPropertyOptional({ description: 'Receipt email (defaults to client email)' })

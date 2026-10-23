@@ -12,9 +12,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
+import { PaymentSettlementService } from './payment-settlement.service';
 import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto } from './dto/billing.dto';
+import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto, ConfirmPaystackDto } from './dto/billing.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
@@ -22,7 +23,10 @@ import { Throttle } from '@nestjs/throttler';
 @UseGuards(JwtAuthGuard, MfaGuard)
 @Controller({ path: 'invoices', version: '1' })
 export class BillingController {
-  constructor(private readonly svc: BillingService) {}
+  constructor(
+    private readonly svc: BillingService,
+    private readonly settlement: PaymentSettlementService,
+  ) {}
 
   /**
    * Guest checkout (Track C) — pay-first, no account required.
@@ -84,9 +88,30 @@ export class BillingController {
   @Get('mpesa/query/:checkoutRequestId')
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
-  @ApiOperation({ summary: 'Query Safaricom Daraja STK Push transaction status' })
+  @ApiOperation({ summary: 'Query STK status for a checkout we initiated' })
   queryMpesaStatus(@Param('checkoutRequestId') checkoutRequestId: string) {
     return this.svc.queryMpesaStatus(checkoutRequestId);
+  }
+
+  /**
+   * Return-URL confirmation — Paystack (and Stripe) recommend verifying the
+   * transaction on the callback in addition to the webhook so the customer
+   * is not stuck if the webhook is delayed.
+   */
+  @Post('confirm/paystack')
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Verify a Paystack reference and settle the matching invoice' })
+  confirmPaystack(@Body() body: ConfirmPaystackDto) {
+    return this.settlement.confirmPaystackReference(body.reference);
+  }
+
+  @Get('payments/:ref/status')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Poll payment status for a checkout we initiated (no PII)' })
+  paymentStatus(@Param('ref') ref: string) {
+    return this.settlement.paymentStatus(ref);
   }
 
   @Post('subscribe/paystack')
