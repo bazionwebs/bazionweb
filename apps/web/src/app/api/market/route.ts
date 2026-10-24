@@ -3,6 +3,7 @@ import {
   MARKETS,
   MarketCode,
   normalizeMarketCode,
+  resolveMarket,
   BAZION_MARKET_COOKIE,
   LEGACY_MARKET_COOKIE,
   BAZION_MARKET_HEADER,
@@ -10,14 +11,30 @@ import {
 } from '@/lib/marketEngine';
 
 export async function GET(request: NextRequest) {
-  // Read market from internal middleware header or cookie
-  const headerMarket = request.headers.get(BAZION_MARKET_HEADER);
-  const cookieMarket = request.cookies.get(BAZION_MARKET_COOKIE)?.value;
-  const legacyCookie = request.cookies.get(LEGACY_MARKET_COOKIE)?.value;
+  // Edge middleware was removed for Vercel services compatibility (services
+  // do not support Edge Function outputs). Resolve here with the same priority:
+  // explicit ?market/?currency override → canonical/legacy cookie → IP geolocation → GLOBAL.
+  const params = request.nextUrl.searchParams;
+  const qMarket = params.get('market')?.toLowerCase();
+  const qCurrency = params.get('currency')?.toLowerCase();
+  let userSelection: string | null = null;
+  if (qCurrency === 'kes' || qMarket === 'kenya' || qMarket === 'ke') {
+    userSelection = 'KE';
+  } else if (qCurrency === 'usd' || qMarket === 'international' || qMarket === 'intl' || qMarket === 'global') {
+    userSelection = 'GLOBAL';
+  }
 
-  const rawCode = headerMarket || cookieMarket || legacyCookie || 'GLOBAL';
-  const code: MarketCode = normalizeMarketCode(rawCode);
-  const market = MARKETS[code] || MARKETS.GLOBAL;
+  const geoCountry =
+    request.headers.get('cf-ipcountry') || request.headers.get('x-vercel-ip-country') || '';
+  const resolution = resolveMarket({
+    userSelection,
+    marketCookie:
+      request.cookies.get(BAZION_MARKET_COOKIE)?.value ??
+      request.cookies.get(LEGACY_MARKET_COOKIE)?.value,
+    ipCountry: geoCountry || null,
+  });
+
+  const market = MARKETS[resolution.code] || MARKETS.GLOBAL;
 
   return NextResponse.json({
     marketCode: market.code,
