@@ -62,7 +62,6 @@ describe('WebhooksController Paystack activation', () => {
         const reference = String(data.reference || '');
         const invoiceNumber = String(data.metadata?.invoiceNumber || '');
         const paidAmount = Number(data.amount) / 100;
-        const currency = String(data.currency || 'KES');
         if (!reference) return { status: 'IGNORED_NO_REFERENCE' };
         const invoice = await prisma.invoice.findUnique({ where: { invoiceNumber } });
         if (!invoice) return { status: 'ORPHAN_TRANSACTION_RECORDED' };
