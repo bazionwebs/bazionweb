@@ -38,6 +38,7 @@ export default function Logo({
         width={1080}
         height={1080}
         priority={priority}
+        unoptimized
         className={cn('h-14 w-auto shrink-0 object-contain', markClassName)}
       />
       {wordmark && (
