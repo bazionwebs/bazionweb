@@ -800,7 +800,14 @@ Please confirm availability and discuss next steps.`;
                   <select
                     id="gs-country"
                     value={gCountry}
-                    onChange={e => setGCountry(e.target.value)}
+                    onChange={e => {
+                      const countryCode = e.target.value;
+                      setGCountry(countryCode);
+                      setConfig(prev => ({
+                        ...prev,
+                        market: mapCountryToMarket(countryCode) === 'KE' ? 'kenya' : 'international',
+                      }));
+                    }}
                     className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 bg-white focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium"
                   >
                     <optgroup label="East Africa (Kenya Price Book & Terms)">
