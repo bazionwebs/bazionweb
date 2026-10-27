@@ -12,7 +12,7 @@
     "test": "npm run test --workspaces"
   },
   "devDependencies": {
-    "prisma": "^5.22.0",
+    "prisma": "^7.10.1",
     "typescript": "^5.5.0"
   },
   "dependencies": {
