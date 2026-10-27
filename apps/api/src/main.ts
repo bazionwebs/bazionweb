@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -18,19 +17,22 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   // ── Security ────────────────────────────────────────────────────────────────
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'"],
-        },
-      },
-      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    }),
-  );
+  const securityHeaders: Record<string, string> = {
+    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+  };
+  app.use((_request, response, next) => {
+    for (const [name, value] of Object.entries(securityHeaders)) {
+      response.setHeader(name, value);
+    }
+    if (config.get('NODE_ENV') === 'production') {
+      response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    }
+    next();
+  });
 
   // ── CORS ─────────────────────────────────────────────────────────────────────
   app.enableCors({
