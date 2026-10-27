@@ -16,6 +16,14 @@ export class SubmitQuoteDto {
   company?: string;
 
   @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(2)
+  country?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(40)
+  source?: string;
+
+  @ApiPropertyOptional()
   @IsOptional() @IsString() @MaxLength(20)
   phone?: string;
 

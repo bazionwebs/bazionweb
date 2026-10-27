@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubmitQuoteDto } from './dto/submit-quote.dto';
 import { CalculateQuoteDto } from './dto/calculate-quote.dto';
@@ -24,19 +24,53 @@ export class QuotesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async submit(dto: SubmitQuoteDto) {
-    // Persist to DB for CRM follow-up
-    this.logger.log(`Quote submission from ${dto.email} — plan: ${dto.plan ?? 'unspecified'}`);
+    const country = (dto.country || 'KE').trim().toUpperCase();
+    const market =
+      (await this.prisma.market.findFirst({
+        where: { active: true, countryCodes: { has: country } },
+      })) ||
+      (await this.prisma.market.findFirst({
+        where: { active: true, code: country === 'KE' ? 'KE' : 'GLOBAL' },
+      }));
 
-    // TODO: emit event to trigger:
-    // 1. CRM entry creation
-    // 2. Auto-reply email to lead
-    // 3. Slack notification to sales
+    if (!market) throw new ServiceUnavailableException('Pricing market is not available.');
 
+    const now = new Date();
+    const priceBook = await this.prisma.priceBook.findFirst({
+      where: {
+        marketId: market.id,
+        status: 'active',
+        effectiveFrom: { lte: now },
+        OR: [{ effectiveUntil: null }, { effectiveUntil: { gte: now } }],
+      },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+
+    if (!priceBook) throw new ServiceUnavailableException('No active price book is available.');
+
+    const lead = await this.prisma.lead.create({
+      data: {
+        name: dto.name.trim(),
+        email: dto.email.trim().toLowerCase(),
+        company: dto.company?.trim() || null,
+        phone: dto.phone?.trim() || null,
+        country,
+        marketId: market.id,
+        currency: market.currencyCode,
+        priceBookId: priceBook.id,
+        serviceInterest: dto.service?.trim() || dto.plan || 'Website Development',
+        source: dto.source?.trim() || 'web',
+        notes: dto.message.trim(),
+      },
+      select: { id: true },
+    });
+
+    this.logger.log(`Quote lead ${lead.id} persisted for market ${market.code}`);
     return {
       data: {
         submitted: true,
-        message: 'Thank you! We\'ll be in touch within 24 hours.',
-        referenceId: `QR-${Date.now().toString(36).toUpperCase()}`,
+        message: 'Your request has been recorded. Our team will follow up using the email you provided.',
+        referenceId: lead.id,
       },
     };
   }

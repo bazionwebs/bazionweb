@@ -48,8 +48,8 @@ describe('PricingService', () => {
     { id: 'p1', priceBookId: 'KE-2026-v1', productId: 'website-business', amount: 90000, billingPeriod: 'one-time' },
     { id: 'p2', priceBookId: 'KE-2026-v1', productId: 'rate-extra-page', amount: 2000, billingPeriod: 'one-time' },
     { id: 'p3', priceBookId: 'KE-2026-v1', productId: 'addon-seo-advanced', amount: 25000, billingPeriod: 'one-time' },
-    { id: 'p4', priceBookId: 'KE-2026-v1', productId: 'care-growth', amount: 12000, billingPeriod: 'month' },
-    { id: 'p5', priceBookId: 'KE-2026-v1', productId: 'hosting-business', amount: 3500, billingPeriod: 'month' },
+    { id: 'p4', priceBookId: 'KE-2026-v1', productId: 'care-business', amount: 12000, billingPeriod: 'month' },
+    { id: 'p5', priceBookId: 'KE-2026-v1', productId: 'host-business', amount: 3500, billingPeriod: 'year' },
   ];
 
   const mockTaxRuleKE = {
@@ -108,6 +108,9 @@ describe('PricingService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
     },
+    proposal: { create: jest.fn().mockResolvedValue({ id: 'proposal-1' }) },
+    lead: { create: jest.fn().mockResolvedValue({ id: 'lead-1' }) },
+    $transaction: jest.fn((operations: Promise<unknown>[]) => Promise.all(operations)),
   };
 
   beforeEach(async () => {
@@ -176,6 +179,29 @@ describe('PricingService', () => {
       mockPrisma.marketAdjustment.findFirst.mockResolvedValue(null);
     });
 
+    it('persists a server-priced proposal and CRM lead in one transaction', async () => {
+      const quote = await service.calculateQuote({
+        marketCode: 'KE',
+        countryCode: 'KE',
+        sourceCountry: 'KE',
+        packageType: 'business',
+        clientName: 'Amina Client',
+        clientEmail: 'AMINA@example.com',
+        clientCompany: 'Acacia Ltd',
+      });
+
+      expect(quote.proposalId).toBe('proposal-1');
+      expect(quote.proposalCode).toMatch(/^BZ-KE-2026-/);
+      expect(quote.leadId).toBe('lead-1');
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.proposal.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ clientEmail: 'amina@example.com', status: 'LOCKED', totalAmount: 90000 }),
+      }));
+      expect(mockPrisma.lead.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ email: 'amina@example.com', serviceInterest: 'Website Business' }),
+      }));
+    });
+
     it('calculates standard business package quote correctly with tax inclusive', async () => {
       const quote = await service.calculateQuote({
         marketCode: 'KE',
@@ -238,7 +264,7 @@ describe('PricingService', () => {
       expect(quote.totalPayableNow).toBe(81000);
     });
 
-    it('calculates monthly recurring fees for care and hosting', async () => {
+    it('keeps annual hosting separate from monthly care fees', async () => {
       const quote = await service.calculateQuote({
         marketCode: 'KE',
         packageType: 'business',
@@ -247,8 +273,8 @@ describe('PricingService', () => {
       });
 
       expect(quote.breakdown.careMonthly.amount).toBe(12000);
-      expect(quote.breakdown.hostingMonthly.amount).toBe(3500);
-      expect(quote.breakdown.totalMonthlyRecurring).toBe(15500);
+      expect(quote.breakdown.hostingAnnual.amount).toBe(3500);
+      expect(quote.breakdown.totalMonthlyRecurring).toBe(12000);
     });
 
     it('applies FIXED_DISCOUNT coupon correctly', async () => {

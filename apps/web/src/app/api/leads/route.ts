@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { resolveMarket } from '@/lib/marketEngine';
 import { resolveApiV1Base } from '@/lib/api-base';
 
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
       notes,
     } = body;
 
-    if (!email || !name) {
+    if (typeof email !== 'string' || typeof name !== 'string' || !email.trim() || !name.trim()) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
     }
 
@@ -29,52 +30,50 @@ export async function POST(request: NextRequest) {
       marketCookie: request.cookies.get('bazion_market')?.value,
     });
 
-    let leadId = `LEAD-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-
-    // Forward lead to backend API Single Source of Truth
     const apiUrl = resolveApiV1Base();
-    try {
-      const response = await fetch(`${apiUrl}/quotes/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          company: company?.trim(),
-          phone: phone?.trim(),
-          country: country.trim().toUpperCase(),
-          market: resolution.code,
-          currency: resolution.currency,
-          plan: serviceInterest || 'Website Development',
-          source,
-          message: [
-            notes,
-            proposalId ? `Proposal: ${proposalId}` : null,
-            estimatedBudget ? `Estimated Budget: ${estimatedBudget}` : null,
-          ]
-            .filter(Boolean)
-            .join(' | '),
-        }),
-      });
+    const response = await fetch(`${apiUrl}/quotes/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        company: company?.trim(),
+        phone: phone?.trim(),
+        country: country.trim().toUpperCase(),
+        service: serviceInterest || 'Website Development',
+        source,
+        message: [
+          notes,
+          proposalId ? `Proposal: ${proposalId}` : null,
+          estimatedBudget ? `Estimated Budget: ${estimatedBudget}` : null,
+        ]
+          .filter(Boolean)
+          .join(' | '),
+      }),
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.data?.referenceId) {
-          leadId = data.data.referenceId;
-        }
-      }
-    } catch (apiErr: unknown) {
-      const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
-      console.warn('Backend leads API forward notice (local ID used):', msg);
+    const envelope = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: 'We could not securely record your request. Please try again.' },
+        { status: 502 },
+      );
+    }
+
+    const result = envelope?.data ?? envelope;
+    if (!result?.submitted || !result?.referenceId) {
+      return NextResponse.json({ error: 'We could not confirm that your request was saved.' }, { status: 502 });
     }
 
     return NextResponse.json({
       success: true,
-      leadId,
+      leadId: result.referenceId,
       marketId: resolution.code,
       currency: resolution.currency,
       priceBookId: resolution.priceBookId,
-      message: 'Commercial lead registered successfully',
+      message: result.message,
     });
   } catch (error) {
     console.error('Lead registration error:', error);
@@ -87,10 +86,14 @@ export async function POST(request: NextRequest) {
  * PROTECTED: Prevents unauthorized customer PII disclosure.
  */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  const adminSecret = process.env.ADMIN_API_KEY || process.env.JWT_SECRET;
+  const authHeader = request.headers.get('authorization') || '';
+  const providedSecret = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const adminSecret = process.env.ADMIN_API_KEY || '';
+  const provided = Buffer.from(providedSecret);
+  const expected = Buffer.from(adminSecret);
+  const authorized = expected.length > 0 && provided.length === expected.length && timingSafeEqual(provided, expected);
 
-  if (!authHeader || !adminSecret || !authHeader.includes(adminSecret)) {
+  if (!authorized) {
     return NextResponse.json(
       { error: 'Unauthorized: Access to customer leads requires administrative credentials.' },
       { status: 401 },

@@ -1,91 +1,80 @@
 import { NextResponse } from 'next/server';
-import { generateReceiptHtml, generateErrorReceiptHtml } from './receipt-template';
+import { resolveApiV1Base } from '@/lib/api-base';
+import { generateErrorReceiptHtml, generateReceiptHtml } from './receipt-template';
 
 export const dynamic = 'force-dynamic';
 
-/** Fail-closed verify proxy — returns JSON for API calls or printable HTML receipt when format=receipt */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const reference = searchParams.get('reference');
+  const reference = searchParams.get('reference')?.trim() || '';
   const wantReceipt = searchParams.get('format') === 'receipt';
 
-  try {
-    if (!reference) {
-      if (wantReceipt) {
-        return new Response(generateErrorReceiptHtml('', 'Missing transaction reference in receipt request'), {
+  if (!reference || reference.length > 128) {
+    const message = 'A valid transaction reference is required.';
+    return wantReceipt
+      ? new Response(generateErrorReceiptHtml(reference, message), {
           status: 400,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        });
-      }
-      return NextResponse.json({ error: 'Missing transaction reference' }, { status: 400 });
-    }
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+        })
+      : NextResponse.json({ success: false, status: 'MISSING_REFERENCE', message }, { status: 400 });
+  }
 
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    if (!secretKey) {
-      if (wantReceipt) {
-        return new Response(generateErrorReceiptHtml(reference, 'Payment gateway configuration is missing'), {
-          status: 503,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        });
-      }
-      return NextResponse.json({ error: 'Payments misconfigured' }, { status: 503 });
-    }
-
-    const res = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${secretKey}` },
+  try {
+    const response = await fetch(`${resolveApiV1Base()}/invoices/confirm/paystack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(12000),
+      body: JSON.stringify({ reference }),
     });
+    const envelope = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error('Payment confirmation is temporarily unavailable.');
 
-    const data = await res.json();
+    const payment = envelope?.data ?? envelope;
+    const receiptData = {
+      reference,
+      status: String(payment.status || 'UNVERIFIED'),
+      amount: Number(payment.amount || 0),
+      currency: String(payment.currency || 'KES'),
+      channel: payment.channel,
+      paidAt: payment.paidAt,
+      description: payment.description,
+      customer: { email: payment.email },
+    };
 
-    if (data.status && data.data.status === 'success') {
-      const tx = data.data;
-
-      const payload = {
-        success: true,
-        status: tx.status,
-        reference: tx.reference,
-        amount: tx.amount / 100,
-        currency: tx.currency,
-        channel: tx.channel,
-        paidAt: tx.paid_at,
-        customer: tx.customer,
-        metadata: tx.metadata,
-      };
-
-      if (wantReceipt) {
-        const html = generateReceiptHtml(payload);
-        return new Response(html, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-store, max-age=0',
-          },
+    if (wantReceipt) {
+      if (!payment.paid) {
+        return new Response(generateErrorReceiptHtml(reference, 'This payment has not been confirmed for a BazionWeb invoice.'), {
+          status: 409,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store, max-age=0' },
         });
       }
-
-      return NextResponse.json(payload);
-    }
-
-    if (wantReceipt) {
-      return new Response(generateErrorReceiptHtml(reference, data.message || 'Payment verification failed'), {
-        status: 400,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      return new Response(generateReceiptHtml(receiptData), {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store, max-age=0' },
       });
     }
 
-    return NextResponse.json(
-      { success: false, message: data.message || 'Payment verification failed' },
-      { status: 400 },
-    );
-  } catch (error) {
-    console.error('Paystack verification error:', error);
-    if (wantReceipt) {
-      return new Response(generateErrorReceiptHtml(reference || '', 'An unexpected error occurred while loading your receipt.'), {
-        status: 500,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      });
-    }
-    return NextResponse.json({ error: 'Failed to verify transaction' }, { status: 500 });
+    return NextResponse.json({
+      success: payment.paid === true,
+      status: receiptData.status,
+      reference,
+      amount: receiptData.amount,
+      currency: receiptData.currency,
+      channel: receiptData.channel,
+      description: receiptData.description,
+      paidAt: payment.paidAt,
+      customerEmail: payment.email,
+      invoiceNumber: payment.invoiceNumber,
+      message: payment.paid ? 'Payment confirmed for your BazionWeb invoice.' : 'Payment is still processing or could not be matched to an invoice.',
+    }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+  } catch {
+    const message = 'We could not confirm this payment yet. Please retry in a moment; do not pay again while the status is being checked.';
+    return wantReceipt
+      ? new Response(generateErrorReceiptHtml(reference, message), {
+          status: 503,
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+        })
+      : NextResponse.json({ success: false, status: 'UNAVAILABLE', message }, { status: 503 });
   }
 }

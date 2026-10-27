@@ -4,9 +4,14 @@ import {
   IsNumber,
   IsBoolean,
   IsArray,
+  ArrayMaxSize,
   IsIn,
+  IsEmail,
+  IsInt,
+  Max,
   Min,
   IsISO8601,
+  MaxLength,
 } from 'class-validator';
 
 export class CalculateQuoteDto {
@@ -19,17 +24,21 @@ export class CalculateQuoteDto {
   countryCode?: string; // e.g. 'KE', 'US', 'GB'
 
   @IsString()
-  @IsIn(['starter', 'business', 'ecommerce', 'enterprise'])
-  packageType: 'starter' | 'business' | 'ecommerce' | 'enterprise';
+  @IsIn(['launch', 'business', 'professional', 'ecom-starter', 'ecom-business', 'custom', 'starter', 'ecommerce', 'enterprise'])
+  packageType: 'launch' | 'business' | 'professional' | 'ecom-starter' | 'ecom-business' | 'custom' | 'starter' | 'ecommerce' | 'enterprise';
 
   @IsOptional()
   @IsNumber()
+  @IsInt()
   @Min(0)
+  @Max(100)
   extraPages?: number;
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
+  @MaxLength(80, { each: true })
   selectedAddOns?: string[];
 
   @IsOptional()
@@ -38,25 +47,47 @@ export class CalculateQuoteDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['none', 'starter', 'growth', 'scale'])
-  care?: 'none' | 'starter' | 'growth' | 'scale';
+  @IsIn(['none', 'care-essential', 'care-business', 'care-professional', 'starter', 'growth', 'scale'])
+  care?: 'none' | 'care-essential' | 'care-business' | 'care-professional' | 'starter' | 'growth' | 'scale';
 
   @IsOptional()
   @IsString()
-  @IsIn(['none', 'starter', 'business', 'enterprise'])
-  hosting?: 'none' | 'starter' | 'business' | 'enterprise';
+  @IsIn(['none', 'host-essential', 'host-business', 'host-pro', 'starter', 'business', 'enterprise'])
+  hosting?: 'none' | 'host-essential' | 'host-business' | 'host-pro' | 'starter' | 'business' | 'enterprise';
 
   @IsOptional()
   @IsString()
   couponCode?: string;
 
   @IsOptional()
-  @IsString()
+  @IsEmail()
+  @MaxLength(254)
   clientEmail?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   clientName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  clientCompany?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5)
+  sourceCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  service?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  source?: string;
 }
 
 export class UpsertPriceDto {

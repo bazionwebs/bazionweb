@@ -62,19 +62,6 @@ export default function OnboardingPage() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('bazion_locked_proposal');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.marketCode === 'KE' || parsed.marketCode === 'GLOBAL') {
-          setActiveMarket(parsed.marketCode);
-          if (parsed.marketCode === 'GLOBAL') setTab('CARD');
-          return;
-        }
-      }
-    } catch {
-      /* ignore */
-    }
     setActiveMarket(marketCode === 'KE' ? 'KE' : 'GLOBAL');
     if (marketCode !== 'KE') setTab('CARD');
   }, [marketCode]);

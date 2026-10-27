@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { 
   CreditCard, 
   Smartphone, 
@@ -69,6 +71,27 @@ export default function SubscriptionCheckout({
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [wiseAccount, setWiseAccount] = useState<WiseBankAccount | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [paymentAttempt, setPaymentAttempt] = useState<{ trackingId: string; invoiceNumber: string } | null>(null);
+  const apiBase = resolveApiV1Base();
+  const paymentStatus = useQuery({
+    queryKey: ['checkout-payment-status', paymentAttempt?.trackingId],
+    enabled: Boolean(paymentAttempt?.trackingId),
+    queryFn: async () => {
+      const response = await fetch(`${apiBase}/invoices/payments/${encodeURIComponent(paymentAttempt!.trackingId)}/status`, {
+        cache: 'no-store',
+      });
+      const envelope = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(envelope?.message || 'Could not refresh payment status.');
+      return envelope?.data ?? envelope;
+    },
+    refetchInterval: (query) => {
+      const status = String(query.state.data?.status || '').toUpperCase();
+      if (status === 'SUCCESS' || status === 'FAILED' || query.state.dataUpdateCount >= 40 || query.state.fetchFailureCount >= 4) return false;
+      return 3000;
+    },
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
 
   // Prefill the billing email from the session (once) — users jumping here from
   // the portal shouldn't retype it.
@@ -131,8 +154,6 @@ export default function SubscriptionCheckout({
     }
   };
 
-  const apiBase = resolveApiV1Base();
-
   // Browser-level network failure (API down / CORS blocked) surfaces as a bare
   // "Failed to fetch" — replace it with an actionable message instead.
   const paymentFailedMessage = (err: unknown, fallback: string): string => {
@@ -168,11 +189,14 @@ export default function SubscriptionCheckout({
             mpesaPhoneNumber: cleanPhone,
           }),
         });
-        const data = await res.json();
+        const envelope = await res.json();
+        const data = envelope?.data ?? envelope;
         if (!res.ok) throw new Error(data.message || 'M-Pesa initialization failed');
+        if (!data.trackingId) throw new Error('The payment prompt was not created. Please retry.');
+        setPaymentAttempt({ trackingId: String(data.trackingId), invoiceNumber: String(data.invoiceNumber || '') });
         setFeedback({
           type: 'info',
-          message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter PIN. Invoice ${data.invoiceNumber}. Once payment settles, claim your dashboard at /portal/claim with ${cleanEmail} — we will email a one-time link to verify it is yours.`,
+          message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter your PIN.`,
         });
       } catch (err: unknown) {
         setFeedback({ type: 'error', message: paymentFailedMessage(err, 'M-Pesa payment request failed') });
@@ -196,12 +220,14 @@ export default function SubscriptionCheckout({
         }),
       });
 
-      const data = await res.json();
+      const envelope = await res.json();
+      const data = envelope?.data ?? envelope;
       if (!res.ok) throw new Error(data.message || 'M-Pesa initialization failed');
-
+      if (!data.trackingId) throw new Error('The payment prompt was not created. Please retry.');
+      setPaymentAttempt({ trackingId: String(data.trackingId), invoiceNumber: String(data.invoiceNumber || '') });
       setFeedback({
         type: 'info',
-        message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter PIN. Invoice ${data.invoiceNumber}.`,
+        message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter your PIN.`,
       });
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Payment request failed') });
@@ -498,6 +524,53 @@ export default function SubscriptionCheckout({
             }`}>
               {feedback.type === 'error' ? <AlertCircle className="w-4 h-4 flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
               <div className="leading-relaxed">{feedback.message}</div>
+            </div>
+          )}
+
+          {paymentAttempt && (
+            <div className="mb-5 rounded-xl border border-slate-700 bg-slate-900/70 p-4" role="status" aria-live="polite">
+              {paymentStatus.data?.status === 'SUCCESS' ? (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-emerald-300">Payment confirmed</p>
+                    <p className="mt-1 text-xs text-slate-300">Invoice {paymentAttempt.invoiceNumber} is paid. Continue to your workspace.</p>
+                  </div>
+                  <Link
+                    href={token ? '/portal' : `/portal/claim?email=${encodeURIComponent(email.trim().toLowerCase())}`}
+                    className="btn-primary justify-center px-4 py-2.5 text-xs"
+                  >
+                    {token ? 'Open dashboard' : 'Set up dashboard access'} <ArrowRight className="size-4" />
+                  </Link>
+                </div>
+              ) : paymentStatus.data?.status === 'FAILED' ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-rose-300">Payment was not completed</p>
+                    <p className="mt-1 text-xs text-slate-400">You can safely retry the M-Pesa prompt.</p>
+                  </div>
+                  <button type="button" onClick={() => { setPaymentAttempt(null); setFeedback(null); }} className="text-xs font-bold text-white underline">Try again</button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-white">Waiting for M-Pesa confirmation</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {paymentStatus.isError
+                        ? 'We could not refresh automatically. Do not pay again while checking this request.'
+                        : 'Keep this page open; we are checking automatically. Do not submit another payment.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void paymentStatus.refetch()}
+                    disabled={paymentStatus.isFetching}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-50"
+                  >
+                    {paymentStatus.isFetching && <Loader2 className="size-3.5 animate-spin" />}
+                    Check status
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

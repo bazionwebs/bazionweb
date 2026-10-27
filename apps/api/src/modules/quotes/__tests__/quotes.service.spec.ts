@@ -2,12 +2,19 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { QuotesService } from '../quotes.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 
-const mockPrisma = { $connect: jest.fn(), $disconnect: jest.fn() };
+const mockPrisma = {
+  $connect: jest.fn(),
+  $disconnect: jest.fn(),
+  market: { findFirst: jest.fn().mockResolvedValue({ id: 'market-ke', code: 'KE', currencyCode: 'KES' }) },
+  priceBook: { findFirst: jest.fn().mockResolvedValue({ id: 'KE-2026-v1' }) },
+  lead: { create: jest.fn().mockResolvedValue({ id: 'lead-reference-123' }) },
+};
 
 describe('QuotesService', () => {
   let service: QuotesService;
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         QuotesService,
@@ -151,7 +158,10 @@ describe('QuotesService', () => {
         message: 'We need managed hosting for 3 sites.',
         urgent: true,
       });
-      expect(result.data.referenceId).toMatch(/^QR-/);
+      expect(result.data.referenceId).toBe('lead-reference-123');
+      expect(mockPrisma.lead.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ email: 'bob@example.com', marketId: 'market-ke', priceBookId: 'KE-2026-v1' }),
+      }));
     });
 
     it('returns a confirmation message', async () => {
