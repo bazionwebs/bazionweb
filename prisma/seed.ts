@@ -325,17 +325,17 @@ async function main() {
   // ─── Prices (Authoritative Database SSOT) ──────────────────────────────────
   const priceCatalog = [
     // Kenya prices (KES)
-    { priceBookId: 'KE-2026-v1', productId: 'website-starter', amount: 45000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'website-launch', amount: 45000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'website-business', amount: 90000, billingPeriod: 'one-time' },
-    { priceBookId: 'KE-2026-v1', productId: 'website-ecommerce', amount: 160000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'ecommerce-starter', amount: 160000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'website-enterprise', amount: 350000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'rate-extra-page', amount: 2000, billingPeriod: 'one-time' },
-    { priceBookId: 'KE-2026-v1', productId: 'care-starter', amount: 5000, billingPeriod: 'month' },
-    { priceBookId: 'KE-2026-v1', productId: 'care-growth', amount: 12000, billingPeriod: 'month' },
-    { priceBookId: 'KE-2026-v1', productId: 'care-scale', amount: 25000, billingPeriod: 'month' },
-    { priceBookId: 'KE-2026-v1', productId: 'hosting-starter', amount: 1500, billingPeriod: 'month' },
-    { priceBookId: 'KE-2026-v1', productId: 'hosting-business', amount: 3500, billingPeriod: 'month' },
-    { priceBookId: 'KE-2026-v1', productId: 'hosting-enterprise', amount: 8000, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'care-essential', amount: 5000, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'care-business', amount: 12000, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'care-professional', amount: 25000, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'host-essential', amount: 1500, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'host-business', amount: 3500, billingPeriod: 'month' },
+    { priceBookId: 'KE-2026-v1', productId: 'host-pro', amount: 8000, billingPeriod: 'month' },
     { priceBookId: 'KE-2026-v1', productId: 'addon-copywriting', amount: 15000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'addon-seo-advanced', amount: 25000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'addon-multilingual', amount: 20000, billingPeriod: 'one-time' },
@@ -346,19 +346,19 @@ async function main() {
     { priceBookId: 'KE-2026-v1', productId: 'addon-maintenance-priority', amount: 12000, billingPeriod: 'one-time' },
 
     // Global prices (USD) — Aggressive Market-Penetration Tier (40-60% below US/UK agency rates)
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'website-starter', amount: 450, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'website-launch', amount: 450, billingPeriod: 'one-time' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'website-business', amount: 950, billingPeriod: 'one-time' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'website-professional', amount: 1750, billingPeriod: 'one-time' },
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'website-ecommerce', amount: 890, billingPeriod: 'one-time' },
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'website-ecommerce-business', amount: 1650, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'ecommerce-starter', amount: 890, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'ecommerce-business', amount: 1650, billingPeriod: 'one-time' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'website-enterprise', amount: 3600, billingPeriod: 'one-time' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'rate-extra-page', amount: 40, billingPeriod: 'one-time' },
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-starter', amount: 39, billingPeriod: 'month' },
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-growth', amount: 89, billingPeriod: 'month' },
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-scale', amount: 189, billingPeriod: 'month' },
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'hosting-starter', amount: 49, billingPeriod: 'year' },
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'hosting-business', amount: 99, billingPeriod: 'year' },
-    { priceBookId: 'GLOBAL-2026-v1', productId: 'hosting-enterprise', amount: 189, billingPeriod: 'year' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-essential', amount: 39, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-business', amount: 89, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'care-professional', amount: 189, billingPeriod: 'month' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'host-essential', amount: 49, billingPeriod: 'year' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'host-business', amount: 99, billingPeriod: 'year' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'host-pro', amount: 189, billingPeriod: 'year' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-copywriting', amount: 180, billingPeriod: 'one-time' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-seo-advanced', amount: 220, billingPeriod: 'one-time' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-multilingual', amount: 240, billingPeriod: 'one-time' },
@@ -427,26 +427,26 @@ async function main() {
   }
 
   // ─── Demo Admin User ─────────────────────────────────────────────────────────
-  // Local password comes from ADMIN_PASSWORD env (never committed). Without it
-  // the admin row is created but cannot log in until the password is seeded.
+  // Local password comes from ADMIN_PASSWORD env (never committed).
   const adminPassword = process.env.ADMIN_PASSWORD;
-  const adminPasswordHash = adminPassword ? await hashPassword(adminPassword) : undefined;
-  if (!adminPassword) {
-    console.log('  ! ADMIN_PASSWORD not set — admin created without a local password');
+  if (adminPassword) {
+    const adminPasswordHash = await hashPassword(adminPassword);
+    await prisma.user.upsert({
+      where: { email: 'admin@bazionweb.com' },
+      update: { passwordHash: adminPasswordHash },
+      create: {
+        email: 'admin@bazionweb.com',
+        role: UserRole.SUPER_ADMIN,
+        firstName: 'BazionWeb',
+        lastName: 'Admin',
+        mfaEnabled: true,
+        passwordHash: adminPasswordHash,
+      },
+    });
+    console.log('  ✓ Admin user: admin@bazionweb.com');
+  } else {
+    console.log('  ! ADMIN_PASSWORD not set — skipping admin user seed');
   }
-  await prisma.user.upsert({
-    where: { email: 'admin@bazionweb.com' },
-    update: adminPasswordHash ? { passwordHash: adminPasswordHash } : {},
-    create: {
-      email: 'admin@bazionweb.com',
-      role: UserRole.SUPER_ADMIN,
-      firstName: 'BazionWeb',
-      lastName: 'Admin',
-      mfaEnabled: true,
-      ...(adminPasswordHash ? { passwordHash: adminPasswordHash } : {}),
-    },
-  });
-  console.log('  ✓ Admin user: admin@bazionweb.com');
 
   console.log('✅ Seed complete.');
 }

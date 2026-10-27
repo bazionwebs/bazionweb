@@ -249,7 +249,7 @@ model Plan {
 
 model Client {
   id                   String       @id @default(uuid())
-  userId               String       @unique @map("user_id")
+  userId               String       @unique @map("user_id") @db.Uuid
   businessName         String       @map("business_name")
   contactName          String       @map("contact_name")
   email                String       @unique
@@ -458,7 +458,7 @@ model PaymentLog {
   clientId       String?           @map("client_id")
   subscriptionId String?           @map("subscription_id")
   invoiceId      String?           @map("invoice_id")
-  userId         String?           @map("user_id")
+  userId         String?           @map("user_id") @db.Uuid
   
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
@@ -483,7 +483,7 @@ model Ticket {
   priority   TicketPriority @default(P3)
   status     TicketStatus   @default(OPEN)
   category   TicketCategory @default(OTHER)
-  assignedTo String?        @map("assigned_to")
+  assignedTo String?        @map("assigned_to") @db.Uuid
   resolvedAt DateTime?      @map("resolved_at")
   closedAt   DateTime?      @map("closed_at")
   slaBreached Boolean       @default(false) @map("sla_breached")
@@ -504,7 +504,7 @@ model Ticket {
 model TicketComment {
   id         String   @id @default(uuid())
   ticketId   String   @map("ticket_id")
-  authorId   String   @map("author_id")
+  authorId   String   @map("author_id") @db.Uuid
   body       String
   isInternal Boolean  @default(false) @map("is_internal")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -543,7 +543,7 @@ model Backup {
 
 model AuditLog {
   id           String   @id @default(uuid())
-  userId       String?  @map("user_id")
+  userId       String?  @map("user_id") @db.Uuid
   action       String                    // e.g. "client.create", "ticket.resolve"
   resourceType String   @map("resource_type")
   resourceId   String?  @map("resource_id")
@@ -564,7 +564,7 @@ model AuditLog {
 
 model Notification {
   id        String           @id @default(uuid())
-  userId    String           @map("user_id")
+  userId    String           @map("user_id") @db.Uuid
   type      NotificationType
   title     String
   message   String
