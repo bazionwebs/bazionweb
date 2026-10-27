@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { Suspense } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag, Lock } from 'lucide-react';
@@ -9,54 +10,42 @@ import Logo from '@/components/ui/Logo';
 function VerifyPaymentContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get('reference') || searchParams.get('trxref');
-
-  const [loading, setLoading] = useState(true);
-  const [success, setSuccess] = useState(false);
-  const [data, setData] = useState<{
-    reference?: string;
-    amount?: number;
-    currency?: string;
-    channel?: string;
-    planSlug?: string;
-    customerEmail?: string;
-    paidAt?: string;
-  } | null>(null);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  useEffect(() => {
-    async function verify() {
-      if (!reference) {
-        setLoading(false);
-        setErrorMsg('No payment transaction reference provided.');
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/paystack/verify?reference=${encodeURIComponent(reference)}`);
-        const json = await res.json();
-
-        if (json.success) {
-          setSuccess(true);
-          // NOTE: no client-side entitlement here. Access is granted by the
-          // webhook → API activation; this page only confirms the payment
-          // and points the customer at the one-step account claim.
-          setData({
-            ...json,
-            planSlug: json.metadata?.planSlug || json.planSlug,
-            customerEmail: json.customer?.email || json.customerEmail,
-          });
-        } else {
-          setErrorMsg(json.message || 'Payment verification could not be confirmed.');
-        }
-      } catch {
-        setErrorMsg('Network error communicating with payment verification service.');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    verify();
-  }, [reference]);
+  const verification = useQuery({
+    queryKey: ['checkout-verification', reference],
+    enabled: Boolean(reference),
+    queryFn: async () => {
+      const response = await fetch(`/api/paystack/verify?reference=${encodeURIComponent(reference!)}`, { cache: 'no-store' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || 'Payment verification is temporarily unavailable.');
+      return body as {
+        success: boolean;
+        status: string;
+        amount?: number;
+        currency?: string;
+        channel?: string;
+        description?: string;
+        customerEmail?: string;
+        invoiceNumber?: string;
+        message?: string;
+      };
+    },
+    refetchInterval: (query) => {
+      const status = String(query.state.data?.status || '').toUpperCase();
+      const terminal = ['SUCCESS', 'ALREADY_PROCESSED', 'FAILED', 'AMOUNT_MISMATCH', 'ORPHAN_TRANSACTION_RECORDED'];
+      if (query.state.data?.success || terminal.includes(status) || query.state.dataUpdateCount >= 12 || query.state.fetchFailureCount >= 4) return false;
+      return 5000;
+    },
+    refetchIntervalInBackground: false,
+    retry: 1,
+  });
+  const loading = Boolean(reference) && verification.isPending;
+  const data = verification.data;
+  const success = data?.success === true;
+  const status = String(data?.status || (verification.isError ? 'UNAVAILABLE' : 'PENDING')).toUpperCase();
+  const errorMsg = verification.error instanceof Error
+    ? verification.error.message
+    : data?.message || 'Payment status is still being confirmed.';
+  const isProcessing = Boolean(reference) && ['PENDING', 'PROCESSING', 'UNVERIFIED', 'UNAVAILABLE'].includes(status);
 
   return (
     <div className="w-full max-w-xl bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100 text-slate-900">
@@ -116,14 +105,12 @@ function VerifyPaymentContent() {
               </span>
             </div>
 
-            {data?.planSlug && (
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+            {data?.description && (
+              <div className="flex justify-between items-center gap-3 pb-2 border-b border-slate-200">
                 <span className="text-slate-500 flex items-center gap-1">
-                  <Tag className="w-3 h-3" /> Plan Activated
+                  <Tag className="w-3 h-3" /> Service
                 </span>
-                <span className="font-semibold text-slate-700 capitalize">
-                  {data.planSlug.charAt(0).toUpperCase() + data.planSlug.slice(1)} Plan
-                </span>
+                <span className="text-right font-semibold text-slate-700">{data.description}</span>
               </div>
             )}
 
@@ -160,11 +147,11 @@ function VerifyPaymentContent() {
             </Link>
 
             <button
-              onClick={() => window.open(`/api/paystack/verify?reference=${encodeURIComponent(reference || '')}&format=receipt`, '_blank')}
+              onClick={() => window.open(`/api/paystack/verify?reference=${encodeURIComponent(reference || '')}&format=receipt`, '_blank', 'noopener,noreferrer')}
               className="w-full py-2 rounded-lg text-slate-500 hover:text-slate-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
             >
               <Download className="w-3.5 h-3.5 text-slate-400" />
-              Download Payment Receipt (PDF)
+              View / print payment receipt
             </button>
           </div>
         </div>
@@ -172,26 +159,37 @@ function VerifyPaymentContent() {
 
       {!loading && !success && (
         <div className="text-center py-6 space-y-5">
-          <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto">
-            <AlertCircle className="w-6 h-6" />
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${isProcessing ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+            {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <AlertCircle className="w-6 h-6" />}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-[#0F172A]">Payment Unverified</h2>
+            <h2 className="text-xl font-bold text-[#0F172A]">
+              {!reference ? 'Payment reference missing' : isProcessing ? 'Payment is still processing' : 'Payment could not be confirmed'}
+            </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
-              {errorMsg || 'We could not automatically confirm your transaction. If funds were deducted, please contact engineering support with your reference.'}
+              {!reference
+                ? 'Return to the checkout you started or contact support with your payment receipt.'
+                : `${errorMsg} Do not make another payment while this reference is being checked.`}
             </p>
           </div>
 
-          <div className="p-3 bg-slate-50 rounded-xl font-mono text-xs text-slate-600">
+          <div className="p-3 bg-slate-50 rounded-xl font-mono text-xs text-slate-600 break-all">
             Ref: {reference || 'N/A'}
           </div>
 
-          <div className="flex gap-3 pt-2">
-            <Link
-              href="/checkout"
-              className="btn-primary flex-1 justify-center text-xs py-2.5"
-            >
-              Return to Checkout
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+            {reference && isProcessing && (
+              <button
+                type="button"
+                onClick={() => void verification.refetch()}
+                disabled={verification.isFetching}
+                className="btn-primary flex-1 justify-center text-xs py-2.5 disabled:opacity-50"
+              >
+                {verification.isFetching ? 'Checking…' : 'Check payment status'}
+              </button>
+            )}
+            <Link href="/pricing" className="btn-secondary flex-1 justify-center text-xs py-2.5">
+              Back to plans
             </Link>
             <Link
               href="/contact"

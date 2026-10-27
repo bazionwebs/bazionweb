@@ -18,8 +18,9 @@ import {
 } from './pricing.dto';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard, RequireMfa } from '../../common/guards/mfa.guard';
+import { Throttle } from '@nestjs/throttler';
 
-@Controller('pricing')
+@Controller({ path: 'pricing', version: '1' })
 export class PricingController {
   constructor(
     private readonly pricingService: PricingService,
@@ -47,6 +48,7 @@ export class PricingController {
    * Pulls base rates, add-on rates, tax rules, and coupons exclusively from PostgreSQL.
    */
   @Post('quote')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async calculateQuote(@Body() dto: CalculateQuoteDto) {
     return this.pricingService.calculateQuote(dto);
   }

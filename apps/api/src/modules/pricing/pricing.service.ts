@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PricingAuditService } from './pricing-audit.service';
 import {
@@ -61,7 +62,7 @@ export interface CalculatedQuoteResponse {
       productId?: string;
       amount: number;
     };
-    hostingMonthly: {
+    hostingAnnual: {
       productId?: string;
       amount: number;
     };
@@ -69,6 +70,10 @@ export interface CalculatedQuoteResponse {
   };
   totalPayableNow: number;
   calculatedAt: string;
+  proposalId?: string;
+  proposalCode?: string;
+  leadId?: string;
+  expiresAt?: string;
 }
 
 @Injectable()
@@ -254,13 +259,33 @@ export class PricingService {
     const market = await this.resolveMarket(dto.countryCode, dto.marketCode);
     const priceBook = await this.getActivePriceBook(market.id);
 
-    // 1. Gather all product IDs needed
-    const packageKey = `website-${dto.packageType}`;
+    // 1. Map the public configurator options to canonical price-book product IDs.
+    const packageKeys: Record<CalculateQuoteDto['packageType'], string> = {
+      launch: 'website-launch',
+      business: 'website-business',
+      professional: 'website-professional',
+      'ecom-starter': 'ecommerce-starter',
+      'ecom-business': 'ecommerce-business',
+      custom: 'website-enterprise',
+      starter: 'website-launch',
+      ecommerce: 'ecommerce-starter',
+      enterprise: 'website-enterprise',
+    };
+    const packageKey = packageKeys[dto.packageType];
     const extraPageKey = 'rate-extra-page';
-    const selectedAddOns = dto.selectedAddOns || [];
-    const careKey = dto.care && dto.care !== 'none' ? `care-${dto.care}` : null;
-    const hostingKey =
-      dto.hosting && dto.hosting !== 'none' ? `hosting-${dto.hosting}` : null;
+    const selectedAddOns = [...new Set(dto.selectedAddOns || [])];
+    const careAliases: Record<string, string> = {
+      starter: 'care-essential',
+      growth: 'care-business',
+      scale: 'care-professional',
+    };
+    const hostingAliases: Record<string, string> = {
+      starter: 'host-essential',
+      business: 'host-business',
+      enterprise: 'host-pro',
+    };
+    const careKey = dto.care && dto.care !== 'none' ? careAliases[dto.care] || dto.care : null;
+    const hostingKey = dto.hosting && dto.hosting !== 'none' ? hostingAliases[dto.hosting] || dto.hosting : null;
 
     const allKeysToFetch = [
       packageKey,
@@ -292,24 +317,36 @@ export class PricingService {
     }
 
     // 4. Resolve extra pages
-    const pageRate = priceMap.get(extraPageKey) || 0;
     const extraPagesCount = Number(dto.extraPages) || 0;
+    const configuredPageRate = priceMap.get(extraPageKey);
+    if (extraPagesCount > 0 && configuredPageRate === undefined) {
+      throw new BadRequestException('Additional pages are not priced in the active price book.');
+    }
+    const pageRate = configuredPageRate || 0;
     const extraPagesAmount = extraPagesCount * pageRate;
 
-    // 5. Resolve add-ons
+    // 5. Resolve add-ons. Never silently omit an unpriced selection from a quote.
     const itemizedAddOns: Array<{ productId: string; name: string; amount: number }> = [];
     let addOnsSubtotal = 0;
 
     for (const addonId of selectedAddOns) {
       const addonAmount = priceMap.get(addonId);
-      if (addonAmount !== undefined) {
-        addOnsSubtotal += addonAmount;
-        itemizedAddOns.push({
-          productId: addonId,
-          name: this.formatProductName(addonId),
-          amount: addonAmount,
-        });
+      if (addonAmount === undefined) {
+        throw new BadRequestException(`Add-on ${addonId} is not available in the active price book.`);
       }
+      addOnsSubtotal += addonAmount;
+      itemizedAddOns.push({
+        productId: addonId,
+        name: this.formatProductName(addonId),
+        amount: addonAmount,
+      });
+    }
+
+    if (careKey && !priceMap.has(careKey)) {
+      throw new BadRequestException(`Care plan ${careKey} is not available in the active price book.`);
+    }
+    if (hostingKey && !priceMap.has(hostingKey)) {
+      throw new BadRequestException(`Hosting plan ${hostingKey} is not available in the active price book.`);
     }
 
     // 6. Subtotal Build & Rush Delivery
@@ -384,9 +421,8 @@ export class PricingService {
     // 9. Recurring Care & Hosting
     const careAmount = careKey ? priceMap.get(careKey) || 0 : 0;
     const hostingAmount = hostingKey ? priceMap.get(hostingKey) || 0 : 0;
-    const totalMonthlyRecurring = careAmount + hostingAmount;
 
-    return {
+    const result: CalculatedQuoteResponse = {
       marketCode: market.code,
       marketName: market.name,
       currency: market.currencyCode,
@@ -429,15 +465,73 @@ export class PricingService {
           productId: careKey || undefined,
           amount: careAmount,
         },
-        hostingMonthly: {
+        hostingAnnual: {
           productId: hostingKey || undefined,
           amount: hostingAmount,
         },
-        totalMonthlyRecurring,
+        totalMonthlyRecurring: careAmount,
       },
       totalPayableNow: totalBuildGross,
       calculatedAt: new Date().toISOString(),
     };
+
+    if (dto.clientEmail && dto.clientName) {
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const countryCode = (dto.sourceCountry || dto.countryCode || market.code).trim().toUpperCase();
+      const proposalCode = `BZ-${market.code}-${now.getFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+      const lineItems = [
+        { kind: 'package', productId: packageKey, name: this.formatProductName(packageKey), amount: basePackageAmount, billingPeriod: 'one-time' },
+        ...(extraPagesCount > 0 ? [{ kind: 'extra-pages', productId: extraPageKey, quantity: extraPagesCount, amount: extraPagesAmount, billingPeriod: 'one-time' }] : []),
+        ...itemizedAddOns.map(item => ({ kind: 'add-on', ...item, billingPeriod: 'one-time' })),
+        ...(rushAmount > 0 ? [{ kind: 'rush-delivery', amount: rushAmount, billingPeriod: 'one-time' }] : []),
+        ...(discountAmount > 0 ? [{ kind: 'discount', amount: -discountAmount, code: appliedCoupon }] : []),
+        { kind: 'tax', amount: taxAmount, rate: taxRate, included: isInclusive },
+        ...(careKey ? [{ kind: 'recurring', productId: careKey, amount: careAmount, billingPeriod: 'month' }] : []),
+        ...(hostingKey ? [{ kind: 'recurring', productId: hostingKey, amount: hostingAmount, billingPeriod: 'year' }] : []),
+      ];
+
+      const [proposal, lead] = await this.prisma.$transaction([
+        this.prisma.proposal.create({
+          data: {
+            proposalCode,
+            marketId: market.id,
+            priceBookId: priceBook.id,
+            currency: market.currencyCode,
+            billingCountry: countryCode,
+            clientEmail: dto.clientEmail.trim().toLowerCase(),
+            clientName: dto.clientName.trim(),
+            clientCompany: dto.clientCompany?.trim() || null,
+            lineItems: lineItems as any,
+            totalAmount: totalBuildGross,
+            status: 'LOCKED',
+            expiresAt,
+          },
+          select: { id: true },
+        }),
+        this.prisma.lead.create({
+          data: {
+            name: dto.clientName.trim(),
+            email: dto.clientEmail.trim().toLowerCase(),
+            company: dto.clientCompany?.trim() || null,
+            country: countryCode,
+            marketId: market.id,
+            currency: market.currencyCode,
+            priceBookId: priceBook.id,
+            serviceInterest: dto.service?.trim() || this.formatProductName(packageKey),
+            source: dto.source?.trim() || 'website_quote_calculator',
+          },
+          select: { id: true },
+        }),
+      ]);
+
+      result.proposalId = proposal.id;
+      result.proposalCode = proposalCode;
+      result.leadId = lead.id;
+      result.expiresAt = expiresAt.toISOString();
+    }
+
+    return result;
   }
 
   // ─── Administrative Mutators with Append-Only Audit Logging ────────────────

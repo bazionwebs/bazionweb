@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/auth.store';
+import { useSearchParams } from 'next/navigation';
 import {
   Market,
   ADD_ON_RATE_CARD,
 } from '@/lib/pricingData';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
-import { MARKETS, mapCountryToMarket } from '@/lib/marketEngine';
+import { mapCountryToMarket } from '@/lib/marketEngine';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import {
   Check,
@@ -39,19 +38,16 @@ interface QuoteConfig {
 }
 
 const PACKAGE_DEFAULTS = {
-  launch: { name: 'Launch Website', basePages: 5, kenyaCost: 25000, intlCost: 495 },
-  business: { name: 'Business Website', basePages: 10, kenyaCost: 90000, intlCost: 1500 },
-  professional: { name: 'Professional Website', basePages: 15, kenyaCost: 160000, intlCost: 2850 },
-  'ecom-starter': { name: 'E-Commerce Starter', basePages: 8, kenyaCost: 90000, intlCost: 1500 },
-  'ecom-business': { name: 'E-Commerce Business', basePages: 15, kenyaCost: 175000, intlCost: 2950 },
-  custom: { name: 'Custom Project Build', basePages: 5, kenyaCost: 180000, intlCost: 3200 },
+  launch: { name: 'Launch Website', basePages: 5, kenyaCost: 25000, intlCost: 450 },
+  business: { name: 'Business Website', basePages: 10, kenyaCost: 90000, intlCost: 950 },
+  professional: { name: 'Professional Website', basePages: 15, kenyaCost: 160000, intlCost: 1750 },
+  'ecom-starter': { name: 'E-Commerce Starter', basePages: 8, kenyaCost: 90000, intlCost: 890 },
+  'ecom-business': { name: 'E-Commerce Business', basePages: 15, kenyaCost: 175000, intlCost: 1650 },
+  custom: { name: 'Custom Project Build', basePages: 5, kenyaCost: 320000, intlCost: 3600 },
 };
 
 function QuoteCalculatorContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const setSession = useAuthStore(s => s.setSession);
-  const setPendingPlan = useAuthStore(s => s.setPendingPlan);
 
   const { market, marketCode, marketDef } = useMarketPreference();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -72,6 +68,19 @@ function QuoteCalculatorContent() {
   const [gCompany, setGCompany] = useState('');
   const [gCountry, setGCountry] = useState(marketCode === 'KE' ? 'KE' : 'US');
   const [gLoading, setGLoading] = useState(false);
+  const [submissionError, setSubmissionError] = useState('');
+  const [submittedQuote, setSubmittedQuote] = useState<{
+    proposalCode: string;
+    currencySymbol: string;
+    package: { name: string };
+    totals: {
+      formattedTotalBuild: string;
+      formattedMonthlyCare: string;
+      formattedAnnualHosting: string;
+      formattedTotalYearOne: string;
+    };
+    expiresAt: string;
+  } | null>(null);
 
   // Sync config when market changes
   useEffect(() => {
@@ -123,9 +132,9 @@ function QuoteCalculatorContent() {
 
   // Annual hosting cost (mirrors the hosting options card prices)
   const HOSTING_ANNUAL: Record<string, { kenya: number; intl: number }> = {
-    'host-essential': { kenya: 4500, intl: 60 },
-    'host-business': { kenya: 8500, intl: 120 },
-    'host-pro': { kenya: 15000, intl: 240 },
+    'host-essential': { kenya: 4500, intl: 49 },
+    'host-business': { kenya: 8500, intl: 99 },
+    'host-pro': { kenya: 15000, intl: 189 },
     none: { kenya: 0, intl: 0 },
   };
   const annualHosting =
@@ -148,16 +157,10 @@ function QuoteCalculatorContent() {
     if (!gName.trim() || !gEmail.trim()) return;
 
     setGLoading(true);
+    setSubmissionError('');
 
     try {
-      // 1. Authoritative Level 4 Resolution via Declared Billing Country
-      const authoritativeMarketCode = mapCountryToMarket(gCountry);
-      const authoritativeMarketDef = MARKETS[authoritativeMarketCode] || MARKETS.GLOBAL;
-      const priceBookId = authoritativeMarketDef.activePriceBookId;
-      const authoritativeCurrency = authoritativeMarketDef.currency;
-
-      // 2. Call server-side quote proposal API to lock quote
-      const quoteRes = await fetch('/api/quote', {
+      const response = await fetch('/api/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -169,101 +172,72 @@ function QuoteCalculatorContent() {
           care: config.care,
           hosting: config.hosting,
           clientName: gName.trim(),
-          clientEmail: gEmail.trim(),
+          clientEmail: gEmail.trim().toLowerCase(),
           clientCompany: gCompany.trim(),
         }),
       });
+      const quote = await response.json().catch(() => ({}));
+      if (!response.ok || !quote.success || !quote.proposalCode) {
+        throw new Error(quote.error || 'We could not save your proposal. Please retry.');
+      }
 
-      const proposalData = quoteRes.ok ? await quoteRes.json() : null;
-
-      // 3. Register commercial lead
-      await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: gName.trim(),
-          email: gEmail.trim(),
-          company: gCompany.trim() || undefined,
-          country: gCountry,
-          proposalId: proposalData?.proposalId,
-          serviceInterest: `Website - ${pkgInfo.name}`,
-          estimatedBudget: totalYearOne,
-        }),
-      }).catch(() => {/* ignore background lead capture network drop */});
-
-      // 4. Save locked proposal to localStorage
-      localStorage.setItem('bazion_locked_proposal', JSON.stringify(proposalData || {
-        proposalId: `PROP-LOCAL-${Date.now()}`,
-        marketCode: authoritativeMarketCode,
-        currency: authoritativeCurrency,
-        priceBookId,
-        country: gCountry,
-        packageType: config.packageType,
-        packageName: pkgInfo.name,
-        totalBuild,
-        monthlyCare,
-        annualHosting,
-        totalYearOne,
-        savedAt: new Date().toISOString(),
-      }));
-
-      localStorage.setItem('bazion_saved_quote', JSON.stringify({
-        packageType: config.packageType,
-        packageName: pkgInfo.name,
-        market: authoritativeMarketCode === 'KE' ? 'kenya' : 'international',
-        marketCode: authoritativeMarketCode,
-        priceBookId,
-        currencySymbol: authoritativeMarketDef.currencySymbol,
-        extraPages: config.extraPages,
-        selectedAddOns: config.selectedAddOns,
-        rushDelivery: config.rushDelivery,
-        care: config.care,
-        hosting: config.hosting,
-        baseCost,
-        extraPagesCost,
-        addOnsCost,
-        totalBuild,
-        monthlyCare,
-        annualHosting,
-        totalYearOne,
-        savedAt: new Date().toISOString(),
-      }));
-    } catch {
-      // ignore storage errors
+      setSubmittedQuote(quote);
+      setShowModal(false);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'We could not save your proposal. Please retry.');
+    } finally {
+      setGLoading(false);
     }
+  }
 
-    const parts = gName.trim().split(' ');
-    const firstName = parts[0] || 'Client';
-    const lastName = parts.slice(1).join(' ') || '';
-
-    const chosenPlan = config.care !== 'none' ? config.care : null;
-    setPendingPlan(chosenPlan);
-
-    setSession(
-      {
-        id: `quote-${Date.now()}`,
-        email: gEmail.trim(),
-        firstName,
-        lastName,
-        company: gCompany.trim() || undefined,
-        roles: ['CLIENT'],
-        keycloakId: `quote-${Date.now()}`,
-        subscriptionStatus: 'PENDING',
-      },
-      'provisional-quote-token',
-      'provisional-quote-refresh',
-      86400 * 7,
+  if (submittedQuote) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-4 py-16 sm:py-24">
+        <section className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-10">
+          <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <Check className="size-7" aria-hidden="true" />
+          </div>
+          <p className="text-center text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Proposal saved</p>
+          <h1 className="mt-2 text-center text-3xl font-extrabold tracking-tight text-slate-900">Your project request is recorded</h1>
+          <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-relaxed text-slate-600">
+            We&apos;ve saved the server-priced proposal and your contact details. Our team will follow up at {gEmail.trim()} with the next steps. No account or payment was created in this step.
+          </p>
+          <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Reference</span>
+              <span className="font-mono text-sm font-bold text-slate-900">{submittedQuote.proposalCode}</span>
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-4 text-sm">
+              <span className="text-slate-600">{submittedQuote.package.name} · one-time build</span>
+              <span className="font-bold text-slate-900">{submittedQuote.totals.formattedTotalBuild}</span>
+            </div>
+            {config.care !== 'none' && (
+              <div className="mt-3 flex items-center justify-between gap-4 text-sm text-slate-600">
+                <span>Ongoing care · monthly</span>
+                <span className="font-semibold text-slate-900">{submittedQuote.totals.formattedMonthlyCare}</span>
+              </div>
+            )}
+            {config.hosting !== 'none' && (
+              <div className="mt-3 flex items-center justify-between gap-4 text-sm text-slate-600">
+                <span>Hosting · annual</span>
+                <span className="font-semibold text-slate-900">{submittedQuote.totals.formattedAnnualHosting}</span>
+              </div>
+            )}
+            <div className="mt-4 flex items-center justify-between gap-4 border-t border-slate-200 pt-4 text-sm">
+              <span className="font-bold text-slate-700">Estimated first-year total</span>
+              <span className="text-lg font-extrabold text-blue-700">{submittedQuote.totals.formattedTotalYearOne}</span>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Price book estimate expires {new Date(submittedQuote.expiresAt).toLocaleDateString()} and is subject to final scope approval.
+            </p>
+          </div>
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link href="/pricing" className="btn-primary justify-center px-5 py-3 text-sm">Review service plans</Link>
+            <Link href="/contact" className="btn-secondary justify-center px-5 py-3 text-sm">Contact our team</Link>
+          </div>
+        </section>
+      </main>
     );
-
-    await new Promise(r => setTimeout(r, 600));
-    setGLoading(false);
-    setShowModal(false);
-
-    if (chosenPlan) {
-      router.push(`/portal/onboarding?plan=${chosenPlan}`);
-    } else {
-      router.push('/portal');
-    }
   }
 
   // Pre-formatted message for WhatsApp or Form
@@ -589,7 +563,7 @@ Please confirm availability and discuss next steps.`;
                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 active:scale-[0.98] text-white text-sm font-extrabold transition-all shadow-lg shadow-blue-900/30"
                   >
                     <UserPlus className="w-4 h-4" />
-                    Get Started — Create Free Account
+                    Request a project proposal
                     <ArrowRight className="w-4 h-4" />
                   </button>
                   <div className="flex justify-between gap-3">
@@ -697,7 +671,7 @@ Please confirm availability and discuss next steps.`;
                   className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 active:scale-[0.98] text-white text-sm font-extrabold transition-all shadow-lg shadow-blue-900/30"
                 >
                   <UserPlus className="w-4 h-4" />
-                  Get Started — Free Account
+                  Request a project proposal
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <a
@@ -735,7 +709,9 @@ Please confirm availability and discuss next steps.`;
             {/* Modal header */}
             <div className="bg-gradient-to-br from-[#2563EB] to-indigo-700 px-6 py-6 relative">
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
+                aria-label="Close proposal form"
                 className="absolute right-4 top-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -745,12 +721,12 @@ Please confirm availability and discuss next steps.`;
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Step 1 of 2</p>
-                  <h2 className="text-lg font-extrabold text-white">Create your free account</h2>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Project request</p>
+                    <h2 className="text-lg font-extrabold text-white">Request your proposal</h2>
                 </div>
               </div>
-              <p className="text-blue-200 text-xs leading-relaxed">
-                Your quote is saved automatically. Choose a care plan and pay from your dashboard — no payment needed now.
+                  <p className="text-blue-200 text-xs leading-relaxed">
+                We&apos;ll save a server-priced proposal and your contact details. There&apos;s no payment or account creation at this step.
               </p>
             </div>
 
@@ -767,6 +743,8 @@ Please confirm availability and discuss next steps.`;
                     type="text"
                     required
                     autoFocus
+                    autoComplete="name"
+                    maxLength={100}
                     value={gName}
                     onChange={e => setGName(e.target.value)}
                     placeholder="Jane Wanjiku"
@@ -785,6 +763,8 @@ Please confirm availability and discuss next steps.`;
                     id="gs-email"
                     type="email"
                     required
+                    autoComplete="email"
+                    maxLength={254}
                     value={gEmail}
                     onChange={e => setGEmail(e.target.value)}
                     placeholder="jane@yourcompany.com"
@@ -801,6 +781,7 @@ Please confirm availability and discuss next steps.`;
                   <input
                     id="gs-company"
                     type="text"
+                    maxLength={100}
                     value={gCompany}
                     onChange={e => setGCompany(e.target.value)}
                     placeholder="Acacia Healthcare Ltd"
@@ -850,15 +831,20 @@ Please confirm availability and discuss next steps.`;
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-sm transition-all shadow-lg shadow-blue-900/30 mt-2"
               >
                 {gLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Creating account…</>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Saving proposal…</>
                 ) : (
-                  <><UserPlus className="w-4 h-4" /> Create Account &amp; Enter Dashboard <ArrowRight className="w-4 h-4" /></>
+                  <><UserPlus className="w-4 h-4" /> Submit project request <ArrowRight className="w-4 h-4" /></>
                 )}
               </button>
 
+              {submissionError && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs leading-relaxed text-red-700">
+                  {submissionError}
+                </p>
+              )}
+
               <p className="text-center text-[11px] text-slate-400 leading-relaxed pt-1">
-                No credit card required. Your quote is pre-loaded in the dashboard.
-                By continuing you agree to our{' '}
+                No account or payment is needed to request a proposal. By continuing you agree to our{' '}
                 <a href="/legal/terms" className="text-[#2563EB] hover:underline">Terms</a>.
               </p>
             </form>

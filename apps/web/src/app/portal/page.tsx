@@ -25,15 +25,15 @@ import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export default function PortalDashboardPage() {
-  const { data: liveClient } = useClientProfile();
-  const { data: liveTickets = [] } = useClientTickets();
-  const { data: hostingAccounts = [] } = useClientHosting();
+  const { data: liveClient, isLoading: clientLoading, isError: clientError } = useClientProfile();
+  const { data: liveTickets = [], isLoading: ticketsLoading, isError: ticketsError } = useClientTickets();
+  const { data: hostingAccounts = [], isLoading: hostingLoading, isError: hostingError } = useClientHosting();
   const { data: projects = [] } = useClientProjects();
-  const { data: invoices = [] } = useClientInvoices();
+  const { data: invoices = [], isLoading: invoicesLoading, isError: invoicesError } = useClientInvoices();
 
   const contactName = liveClient?.contactName || liveClient?.businessName || 'there';
   const activeSubscription = liveClient?.subscriptions?.[0];
-  const planName = activeSubscription?.plan?.name ?? liveClient?.plan?.name ?? 'Cloud Care';
+  const planName = activeSubscription?.plan?.name ?? liveClient?.plan?.name ?? (clientLoading ? 'Loading plan…' : 'No plan linked');
   const openTickets = liveTickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS');
   const pendingInvoices = invoices.filter(i => i.status === 'PENDING' || i.status === 'OVERDUE');
   const activeProject = projects[0];
@@ -84,28 +84,34 @@ export default function PortalDashboardPage() {
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan Status</span>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-              {activeSubscription?.status ?? 'Active'}
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${clientError ? 'bg-slate-100 text-slate-600' : activeSubscription?.status === 'ACTIVE' || liveClient?.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+              {clientError ? 'Unavailable' : activeSubscription?.status ?? liveClient?.status ?? (clientLoading ? 'Loading…' : 'Not linked')}
             </span>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight">{planName}</div>
           <div className="text-xs text-slate-500 mt-1">
-            {activeSubscription?.billingCycle ? `${activeSubscription.billingCycle} Billing` : 'Active Client Retainer'}
+            {activeSubscription?.billingCycle
+              ? `${activeSubscription.billingCycle} Billing`
+              : clientLoading
+                ? 'Checking subscription…'
+                : activeSubscription
+                  ? 'Subscription details unavailable'
+                  : 'No active subscription found'}
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Support SLA</span>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-              Guaranteed
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Support Requests</span>
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${activeSubscription ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+              {clientLoading ? 'Checking' : activeSubscription ? 'Plan-specific' : 'Not linked'}
             </span>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight">
-            {openTickets.length > 0 ? `${openTickets.length} In Progress` : '0 Active'}
+            {ticketsLoading ? 'Loading…' : ticketsError ? 'Unavailable' : openTickets.length > 0 ? `${openTickets.length} In Progress` : '0 Active'}
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            {openTickets.length > 0 ? 'Engineering team triaging' : 'All requests resolved'}
+            {ticketsLoading ? 'Loading requests…' : ticketsError ? 'Request status unavailable' : openTickets.length > 0 ? 'Engineering team triaging' : 'No open requests'}
           </div>
         </div>
 
@@ -113,14 +119,14 @@ export default function PortalDashboardPage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Cloud Hosting</span>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">
-              {hostingAccounts.length > 0 ? 'Connected' : 'Provisioning'}
+              {hostingLoading ? 'Checking…' : hostingError ? 'Unavailable' : hostingAccounts[0]?.status ?? 'Not linked'}
             </span>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight truncate">
-            {hostingAccounts[0]?.domain ?? 'Primary Edge'}
+            {hostingAccounts[0]?.domain ?? (hostingLoading ? 'Loading hosting…' : 'No host linked')}
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            {hostingAccounts.length > 0 ? `${hostingAccounts.length} host account(s)` : 'Managed DNS & SSL'}
+            {hostingLoading ? 'Checking linked services…' : hostingError ? 'Hosting status unavailable' : hostingAccounts.length > 0 ? `${hostingAccounts.length} host account(s)` : 'No hosting account on record'}
           </div>
         </div>
 
@@ -131,14 +137,14 @@ export default function PortalDashboardPage() {
               'text-[11px] font-bold px-2 py-0.5 rounded-full',
               pendingInvoices.length > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
             )}>
-              {pendingInvoices.length > 0 ? 'Due' : 'Settled'}
+              {invoicesLoading ? 'Checking…' : invoicesError ? 'Unavailable' : pendingInvoices.length > 0 ? 'Due' : invoices.length > 0 ? 'Settled' : 'No invoices'}
             </span>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight">
-            {pendingInvoices.length > 0 ? `${pendingInvoices.length} Pending` : 'Up to Date'}
+            {invoicesLoading ? 'Loading…' : invoicesError ? 'Unavailable' : pendingInvoices.length > 0 ? `${pendingInvoices.length} Pending` : invoices.length > 0 ? 'Up to Date' : 'No invoices yet'}
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            {invoices.length} statement(s) on record
+            {invoicesLoading ? 'Checking billing history…' : invoicesError ? 'Billing history unavailable' : `${invoices.length} statement(s) on record`}
           </div>
         </div>
       </div>
@@ -236,7 +242,7 @@ export default function PortalDashboardPage() {
                 </div>
                 <div className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#2563EB]" />
-                  <span>Prioritized SLA Response Window</span>
+                  <span>{clientLoading ? 'Checking your support terms' : activeSubscription ? `${planName} response targets` : 'No support SLA linked'}</span>
                 </div>
               </div>
 
@@ -245,7 +251,7 @@ export default function PortalDashboardPage() {
                   Support Channel
                 </div>
                 <div className="text-sm font-bold text-[#0F172A]">Tickets & Engineering Thread</div>
-                <div className="text-xs text-slate-400 mt-0.5">Direct updates from assigned engineers</div>
+                <div className="text-xs text-slate-400 mt-0.5">{activeSubscription ? 'Updates are posted in your assigned support thread.' : 'Contact support to confirm the right service level.'}</div>
               </div>
 
               {openTickets.length > 0 && (

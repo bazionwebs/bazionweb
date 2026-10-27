@@ -5,6 +5,7 @@ export interface ReceiptData {
   currency: string;
   channel?: string;
   paidAt?: string;
+  description?: string;
   customer?: {
     email?: string;
     first_name?: string | null;
@@ -46,7 +47,7 @@ const PLAN_LOOKUP: Record<string, { title: string; subtitle: string; period: str
 
 function formatCurrency(amount: number, currency: string): string {
   const cur = currency ? currency.toUpperCase() : 'KES';
-  return `${cur} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${escapeHtml(cur)} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(dateStr?: string): string {
@@ -84,11 +85,11 @@ function formatChannel(channel?: string): string {
 }
 
 export function generateReceiptHtml(data: ReceiptData): string {
-  const planSlug = data.metadata?.planSlug || 'care-business';
-  const planInfo = PLAN_LOOKUP[planSlug] || {
-    title: planSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-    subtitle: 'Managed Digital Web & Cloud Services',
-    period: 'Subscription Service',
+  const planSlug = data.metadata?.planSlug;
+  const planInfo = (planSlug && PLAN_LOOKUP[planSlug]) || {
+    title: data.description || 'BazionWeb Service',
+    subtitle: 'Service details from your BazionWeb invoice',
+    period: data.metadata?.billingCycle || 'Service payment',
   };
 
   const formattedAmount = formatCurrency(data.amount, data.currency);
@@ -104,7 +105,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Receipt – ${receiptNumber} | BazionWeb</title>
+  <title>Payment Receipt – ${escapeHtml(receiptNumber)} | BazionWeb</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -542,8 +543,8 @@ export function generateReceiptHtml(data: ReceiptData): string {
           Payment Confirmed
         </div>
         <div class="ref-title">Receipt Reference</div>
-        <div class="ref-number">${receiptNumber}</div>
-        <div class="date-text">${formattedDate}</div>
+        <div class="ref-number">${escapeHtml(receiptNumber)}</div>
+        <div class="date-text">${escapeHtml(formattedDate)}</div>
       </div>
     </div>
 
@@ -559,7 +560,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
       <div class="info-col">
         <h3>Payment Breakdown</h3>
         <p><strong>Channel:</strong> ${escapeHtml(channelDisplay)}</p>
-        <p><strong>Status:</strong> Settled &amp; Active</p>
+          <p><strong>Status:</strong> Payment confirmed</p>
         <div class="sub">Paystack Ref: ${escapeHtml(data.reference)}</div>
         <div class="sub">Gateway: Secured 256-bit SSL</div>
       </div>
@@ -628,7 +629,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
 
     <!-- Footer -->
     <div class="receipt-footer">
-      <p>Thank you for choosing <strong>Bazion Technologies</strong>. Your subscription and managed services are now active.</p>
+      <p>Thank you for choosing <strong>Bazion Technologies</strong>. Your payment has been confirmed; view the dashboard for current service status.</p>
       <p>For billing assistance or questions regarding this transaction, contact <strong>billing@bazionweb.com</strong> or call <strong>+254 721 287 053</strong>.</p>
     </div>
 

@@ -38,6 +38,12 @@ export function checkoutLineItem(args: {
   };
 }
 
+function invoiceDescription(lineItems: unknown): string | undefined {
+  if (!Array.isArray(lineItems)) return undefined;
+  const firstItem = lineItems.find((item) => item && typeof item === 'object');
+  return typeof firstItem?.description === 'string' ? firstItem.description : undefined;
+}
+
 function intentFromLineItems(lineItems: unknown): CheckoutIntent {
   const first = Array.isArray(lineItems) ? (lineItems[0] as Record<string, unknown> | undefined) : undefined;
   const purpose = first?.purpose === 'invoice_payment' ? 'invoice_payment' : 'subscription';
@@ -179,6 +185,7 @@ export class PaymentSettlementService {
     invoiceNumber?: string;
     email?: string;
     claimed?: boolean;
+    description?: string;
   }> {
     const reference = String(data.reference || '');
     const invoiceNumber = String(data.metadata?.invoiceNumber || '');
@@ -197,6 +204,7 @@ export class PaymentSettlementService {
         invoiceNumber: existing.invoice?.invoiceNumber,
         email: existing.invoice?.client?.email,
         claimed: Boolean(existing.invoice?.client?.user?.passwordHash),
+        description: invoiceDescription(existing.invoice?.lineItems),
       };
     }
 
@@ -311,6 +319,7 @@ export class PaymentSettlementService {
       invoiceNumber: invoice.invoiceNumber,
       email: invoice.client?.email,
       claimed: Boolean(invoice.client?.user?.passwordHash),
+      description: invoiceDescription(invoice.lineItems),
     };
   }
 
@@ -335,7 +344,9 @@ export class PaymentSettlementService {
         claimed: Boolean(existing.invoice?.client?.user?.passwordHash),
         amount: Number(existing.amount),
         currency: existing.currency,
+        paidAt: existing.invoice?.paidAt?.toISOString(),
         channel: existing.method === PaymentMethodType.MPESA ? 'mobile_money' : 'card',
+        description: invoiceDescription(existing.invoice?.lineItems),
       };
     }
 
@@ -354,7 +365,9 @@ export class PaymentSettlementService {
       paid: settled.status === 'PROCESSED' || settled.status === 'ALREADY_PROCESSED',
       amount: Number(tx.amount) / 100,
       currency: tx.currency,
+      paidAt: tx.paid_at,
       channel: tx.channel,
+      description: settled.description,
     };
   }
 

@@ -4,77 +4,60 @@ import { resolveApiBase } from '@/lib/api-base';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Account-claim link request.
- *
- * The NestJS API only mints a token when the billing email belongs to a paid,
- * not-yet-claimed client. This route delivers that token to the billing inbox
- * so knowing the email address alone is never enough to take over the account.
- */
-export async function POST(req: Request) {
+const GENERIC_RESPONSE = {
+  success: true,
+  message: 'If a paid, unclaimed account exists for this email, a secure link will be sent. Check your inbox and spam folder, or contact support if it does not arrive.',
+};
+
+function getTrustedSiteOrigin() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://bazionweb.com';
   try {
-    const { email } = await req.json();
-
-    if (!email || !email.includes('@')) {
-      return NextResponse.json({ error: 'Valid email address is required' }, { status: 400 });
+    const url = new URL(configured);
+    if (url.protocol === 'https:' || (process.env.NODE_ENV === 'development' && url.hostname === 'localhost')) {
+      return url.origin;
     }
+  } catch {
+    // Fall back to the canonical production origin rather than trusting request headers.
+  }
+  return 'https://bazionweb.com';
+}
 
-    const cleanEmail = email.trim().toLowerCase();
+export async function POST(req: Request) {
+  let cleanEmail = '';
+
+  try {
+    const body = await req.json();
+    const email = typeof body?.email === 'string' ? body.email : '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return NextResponse.json({ error: 'Valid email address is required.' }, { status: 400 });
+    }
+    cleanEmail = email.trim().toLowerCase();
+  } catch {
+    return NextResponse.json({ error: 'Valid email address is required.' }, { status: 400 });
+  }
+
+  try {
     const apiBaseUrl = resolveApiBase();
-    if (!apiBaseUrl) {
-      return NextResponse.json({ error: 'Auth backend not configured' }, { status: 503 });
-    }
+    if (!apiBaseUrl) return NextResponse.json(GENERIC_RESPONSE);
 
     const upstream = await fetch(`${apiBaseUrl}/api/v1/auth/claim-link`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email: cleanEmail }),
+      cache: 'no-store',
       signal: AbortSignal.timeout(10000),
     });
 
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { error: 'Could not process the claim request right now. Please try again shortly.' },
-        { status: upstream.status },
-      );
+    if (!upstream.ok) return NextResponse.json(GENERIC_RESPONSE);
+
+    const { claimToken } = (await upstream.json()) as { claimToken?: string };
+    if (claimToken) {
+      const claimLinkUrl = `${getTrustedSiteOrigin()}/portal/claim?token=${encodeURIComponent(claimToken)}&email=${encodeURIComponent(cleanEmail)}`;
+      await sendClaimLinkEmail({ to: cleanEmail, claimLinkUrl });
     }
-
-    const { claimToken } = (await upstream.json()) as { claimToken: string };
-
-    // Unknown, unpaid, or already-claimed emails return an empty token. Reply
-    // identically so the endpoint cannot be used to enumerate customers.
-    if (!claimToken) {
-      return NextResponse.json({
-        success: true,
-        delivered: true,
-        message: 'If that email has a paid, unclaimed account, a claim link is on its way.',
-      });
-    }
-
-    const host = req.headers.get('host') || 'localhost:3000';
-    const proto = req.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
-    const origin = req.headers.get('origin') || `${proto}://${host}`;
-
-    const claimLinkUrl = `${origin}/portal/claim?token=${encodeURIComponent(claimToken)}&email=${encodeURIComponent(cleanEmail)}`;
-
-    const sendResult = await sendClaimLinkEmail({
-      to: cleanEmail,
-      claimLinkUrl,
-    });
-
-    return NextResponse.json({
-      success: true,
-      delivered: sendResult.delivered,
-      provider: sendResult.provider,
-      message: sendResult.delivered
-        ? `A secure claim link has been delivered to ${cleanEmail}.`
-        : `Claim link generated for ${cleanEmail}.`,
-    });
-  } catch (error: unknown) {
-    console.error('Claim link dispatch error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate claim link' },
-      { status: 500 },
-    );
+  } catch {
+    console.error('Claim link dispatch failed.');
   }
+
+  return NextResponse.json(GENERIC_RESPONSE, { headers: { 'Cache-Control': 'no-store' } });
 }
