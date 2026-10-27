@@ -168,7 +168,7 @@ enum NotificationType {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @db.Uuid
   email       String   @unique
   role        UserRole @default(CLIENT)
   keycloakId  String?  @unique @map("keycloak_id")
@@ -204,7 +204,7 @@ model User {
 model RefreshToken {
   id        String    @id @default(uuid())
   tokenHash String    @unique @map("token_hash")
-  userId    String    @map("user_id")
+  userId    String    @map("user_id") @db.Uuid
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   createdAt DateTime  @default(now()) @map("created_at")
