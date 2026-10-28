@@ -33,8 +33,8 @@ describe('PricingService Performance & Query Optimization', () => {
     { id: 'p2', priceBookId: 'KE-2026-v1', productId: 'rate-extra-page', amount: 2000 },
     { id: 'p3', priceBookId: 'KE-2026-v1', productId: 'addon-seo-advanced', amount: 25000 },
     { id: 'p4', priceBookId: 'KE-2026-v1', productId: 'addon-copywriting', amount: 15000 },
-    { id: 'p5', priceBookId: 'KE-2026-v1', productId: 'care-growth', amount: 12000 },
-    { id: 'p6', priceBookId: 'KE-2026-v1', productId: 'hosting-business', amount: 3500 },
+    { id: 'p5', priceBookId: 'KE-2026-v1', productId: 'care-business', amount: 12000 },
+    { id: 'p6', priceBookId: 'KE-2026-v1', productId: 'host-business', amount: 3500 },
   ];
 
   const mockPrisma = {
@@ -113,8 +113,8 @@ describe('PricingService Performance & Query Optimization', () => {
             'rate-extra-page',
             'addon-seo-advanced',
             'addon-copywriting',
-            'care-growth',
-            'hosting-business',
+            'care-business',
+            'host-business',
           ]),
         },
       },
