@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2,
   CreditCard,
@@ -15,6 +16,7 @@ import {
   AlertCircle,
   ChevronRight,
   Star,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
@@ -30,9 +32,11 @@ type Cycle = 'MONTHLY' | 'ANNUAL';
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const user = useAuthStore(s => s.user);
   const pendingPlan = useAuthStore(s => s.pendingPlan);
   const clearSession = useAuthStore(s => s.clearSession);
+  const setSubscriptionStatus = useAuthStore(s => s.setSubscriptionStatus);
   const storeHydrated = useAuthStore(s => s._hasHydrated);
   const hasHydrated = storeHydrated || (typeof window !== 'undefined' && !!useAuthStore.persist?.hasHydrated?.());
   const [mounted, setMounted] = useState(false);
@@ -60,6 +64,9 @@ export default function OnboardingPage() {
   const [email, setEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
+  const [stkAttempt, setStkAttempt] = useState<{ trackingId: string; invoiceNumber: string } | null>(null);
+  const [payStatus, setPayStatus] = useState<'IDLE' | 'AWAITING' | 'CONFIRMED' | 'FAILED'>('IDLE');
+  const pollTriesRef = useRef(0);
 
   useEffect(() => {
     setActiveMarket(marketCode === 'KE' ? 'KE' : 'GLOBAL');
@@ -92,9 +99,19 @@ export default function OnboardingPage() {
           mpesaPhoneNumber: phone.replace(/[^0-9+]/g, ''),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Payment initialization failed');
-      setFeedback({ type: 'info', msg: `M-Pesa prompt sent for invoice ${data.invoiceNumber || data.data?.invoiceNumber || 'your order'}. Check your phone and enter your PIN.` });
+      const body = await res.json().catch(() => ({}));
+      const data = body?.data ?? body;
+      if (!res.ok) throw new Error(data.message || body.message || 'Payment initialization failed');
+      const trackingId = data.trackingId ?? body.trackingId;
+      const invoiceNumber = String(data.invoiceNumber || body.invoiceNumber || 'your order');
+      setFeedback({ type: 'info', msg: `M-Pesa prompt sent for invoice ${invoiceNumber}. Check your phone and enter your PIN.` });
+      if (trackingId) {
+        // Live sync: poll the settlement status so the dashboard unlocks the
+        // moment the webhook confirms payment — no manual refresh needed.
+        pollTriesRef.current = 0;
+        setStkAttempt({ trackingId: String(trackingId), invoiceNumber });
+        setPayStatus('AWAITING');
+      }
     } catch (err: unknown) {
       setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Payment failed' });
     } finally {
@@ -142,6 +159,63 @@ export default function OnboardingPage() {
     clearSession();
     router.push('/portal/login');
   }
+
+  // ── Payment settlement sync ─────────────────────────────────────────────
+  // Poll the public payment-status endpoint while an M-Pesa STK attempt is
+  // outstanding. On SUCCESS the webhook has already activated the
+  // subscription, so flip the local entitlement cache and enter the portal.
+  useEffect(() => {
+    if (!stkAttempt || payStatus !== 'AWAITING') return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      pollTriesRef.current += 1;
+      try {
+        const res = await fetch(
+          `${apiBase}/invoices/payments/${encodeURIComponent(stkAttempt.trackingId)}/status`,
+          { cache: 'no-store' },
+        );
+        const body = await res.json().catch(() => ({}));
+        const payload = body?.data ?? body;
+        const status = String(payload?.status || '').toUpperCase();
+
+        if (cancelled) return;
+        if (status === 'SUCCESS') {
+          setPayStatus('CONFIRMED');
+          setSubscriptionStatus('ACTIVE');
+          queryClient.invalidateQueries({ queryKey: ['portal'] });
+          setTimeout(() => router.replace('/portal'), 1200);
+          return;
+        }
+        if (status === 'FAILED') {
+          setPayStatus('FAILED');
+          setFeedback({ type: 'error', msg: 'The M-Pesa prompt was not completed or failed. You can try again below.' });
+          return;
+        }
+      } catch {
+        // Transient network error — keep polling until the attempt budget runs out.
+      }
+
+      if (cancelled) return;
+      // Give up after ~2 minutes; the client can retry or pay by card.
+      if (pollTriesRef.current >= 40) {
+        setPayStatus('FAILED');
+        setFeedback({
+          type: 'error',
+          msg: 'We could not confirm the payment in time. If you entered your PIN, give the webhook a minute and reload — otherwise try again.',
+        });
+        return;
+      }
+      setTimeout(poll, 3000);
+    };
+
+    const timer = setTimeout(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [stkAttempt, payStatus, apiBase, queryClient, router, setSubscriptionStatus]);
 
   useEffect(() => {
     if (!hasHydrated && !mounted) return;
@@ -363,6 +437,50 @@ export default function OnboardingPage() {
 
               {/* Tab content */}
               <div className="p-6">
+                {/* Live settlement status — shown while an M-Pesa STK attempt is outstanding */}
+                {payStatus === 'AWAITING' && stkAttempt && (
+                  <div className="mb-5 p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-start gap-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-400 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-blue-300">Awaiting M-Pesa confirmation…</p>
+                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                        Invoice <span className="font-mono text-slate-300">{stkAttempt.invoiceNumber}</span> — enter your PIN on
+                        your handset. This page unlocks your dashboard automatically the moment payment settles.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {payStatus === 'CONFIRMED' && (
+                  <div className="mb-5 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-emerald-400">Payment confirmed — subscription active!</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Opening your dashboard…</p>
+                    </div>
+                  </div>
+                )}
+
+                {payStatus === 'FAILED' && stkAttempt && (
+                  <div className="mb-5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                    <RefreshCw className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-amber-400">Payment not confirmed yet</p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Reference <span className="font-mono text-slate-300">{stkAttempt.trackingId}</span>. Retry the prompt
+                        below or switch to card — do not pay twice for the same invoice.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => { setStkAttempt(null); setPayStatus('IDLE'); }}
+                        className="mt-2 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-[11px] font-bold text-amber-300 hover:bg-amber-500/30"
+                      >
+                        Dismiss &amp; retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Feedback */}
                 {feedback && (
                   <div className={`mb-5 p-3.5 rounded-xl flex items-start gap-3 text-xs border ${
@@ -415,7 +533,7 @@ export default function OnboardingPage() {
 
                     <button
                       type="submit"
-                      disabled={loading || !phone}
+                      disabled={loading || !phone || payStatus === 'AWAITING'}
                       className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-950/40 text-sm"
                     >
                       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Smartphone className="w-4 h-4" /> Send M-Pesa PIN Request <ArrowRight className="w-4 h-4" /></>}

@@ -13,6 +13,12 @@ import {
   Globe,
   CreditCard,
   FolderKanban,
+  Activity,
+  Gauge,
+  ShieldCheck,
+  KeyRound,
+  UserCog,
+  ArrowUpRight,
 } from 'lucide-react';
 import {
   useClientProfile,
@@ -20,6 +26,7 @@ import {
   useClientHosting,
   useClientProjects,
   useClientInvoices,
+  useClientReports,
 } from '@/hooks/usePortalData';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -30,6 +37,7 @@ export default function PortalDashboardPage() {
   const { data: hostingAccounts = [], isLoading: hostingLoading, isError: hostingError } = useClientHosting();
   const { data: projects = [] } = useClientProjects();
   const { data: invoices = [], isLoading: invoicesLoading, isError: invoicesError } = useClientInvoices();
+  const { data: reports = [] } = useClientReports();
 
   const contactName = liveClient?.contactName || liveClient?.businessName || 'there';
   const activeSubscription = liveClient?.subscriptions?.[0];
@@ -37,6 +45,11 @@ export default function PortalDashboardPage() {
   const openTickets = liveTickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS');
   const pendingInvoices = invoices.filter(i => i.status === 'PENDING' || i.status === 'OVERDUE');
   const activeProject = projects[0];
+  const latestReport = reports[0];
+  const recentTickets = liveTickets.slice(0, 3);
+  const nextDueInvoice = pendingInvoices
+    .slice()
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -284,13 +297,164 @@ export default function PortalDashboardPage() {
         </div>
       </div>
 
+      {/* ── Service Health & Recent Activity ───────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Monthly Service Report */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="font-bold text-[#0F172A] text-base flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[#14B8A6]" />
+                Service Health & Reliability
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {latestReport ? `Managed care report — ${latestReport.period}` : 'Managed care performance metrics'}
+              </p>
+            </div>
+            {latestReport && (
+              <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                {latestReport.uptimePercent >= 99.9 ? 'All systems nominal' : `${latestReport.uptimePercent}% uptime`}
+              </span>
+            )}
+          </div>
+
+          {latestReport ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Uptime', value: `${latestReport.uptimePercent}%`, icon: Gauge, tone: 'text-emerald-600 bg-emerald-50' },
+                  { label: 'Lighthouse', value: latestReport.lighthouseScore != null ? `${latestReport.lighthouseScore}` : '—', icon: Sparkles, tone: 'text-blue-600 bg-blue-50' },
+                  { label: 'Incidents', value: `${latestReport.incidentCount}`, icon: ShieldCheck, tone: latestReport.incidentCount > 0 ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50' },
+                  { label: 'Avg Load', value: latestReport.avgLoadTimeMs != null ? `${(latestReport.avgLoadTimeMs / 1000).toFixed(1)}s` : '—', icon: Clock, tone: 'text-teal-600 bg-teal-50' },
+                ].map(stat => (
+                  <div key={stat.label} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center mb-2', stat.tone)}>
+                      <stat.icon className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-lg font-black text-[#0F172A] tracking-tight">{stat.value}</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Backups completed</span>
+                  <span className="font-bold text-[#0F172A]">
+                    {latestReport.backupsCompleted}
+                    {latestReport.backupsFailed > 0 && <span className="text-amber-600"> · {latestReport.backupsFailed} failed</span>}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Security scans clean</span>
+                  <span className="font-bold text-[#0F172A]">{latestReport.securityScansClean}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Tickets resolved</span>
+                  <span className="font-bold text-[#0F172A]">{latestReport.ticketsResolved}/{latestReport.ticketsOpened}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Downtime</span>
+                  <span className="font-bold text-[#0F172A]">{latestReport.totalDowntimeMinutes} min</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="py-8 text-center">
+              <Activity className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <div className="text-sm font-bold text-slate-700">No service report yet</div>
+              <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
+                Your first monthly managed-care report — uptime, performance scores, backups and security scans —
+                appears here after your first full billing cycle.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Recent Support Activity */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-[#0F172A] text-base">Recent Requests</h3>
+            <Link href="/portal/support" className="text-xs font-bold text-[#2563EB] hover:underline inline-flex items-center gap-1">
+              All tickets <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          {ticketsLoading ? (
+            <div className="flex-1 flex items-center justify-center text-xs text-slate-400 py-8">Loading requests…</div>
+          ) : ticketsError ? (
+            <div className="flex-1 flex items-center justify-center text-xs text-slate-400 py-8">Request history unavailable</div>
+          ) : recentTickets.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+              <Ticket className="w-9 h-9 text-slate-200 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-500">No support requests yet</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Your engineering thread starts here.</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5 flex-1">
+              {recentTickets.map(t => (
+                <Link
+                  key={t.id}
+                  href="/portal/support"
+                  className="block p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-100 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-[#0F172A] truncate">{t.subject}</span>
+                    <span className={cn(
+                      'text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wide',
+                      t.status === 'RESOLVED' || t.status === 'CLOSED'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : t.status === 'IN_PROGRESS'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-amber-100 text-amber-700',
+                    )}>
+                      {t.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+                    <span className="font-mono">{t.priority}</span>
+                    <span>·</span>
+                    <span>{formatDate(t.createdAt)}</span>
+                    {typeof t._count?.comments === 'number' && t._count.comments > 0 && (
+                      <>
+                        <span>·</span>
+                        <span>{t._count.comments} reply{t._count.comments === 1 ? '' : 'ies'}</span>
+                      </>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {nextDueInvoice && (
+            <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between">
+              <div>
+                <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Next payment due</div>
+                <div className="text-xs font-bold text-amber-900 mt-0.5">
+                  {nextDueInvoice.currency} {Number(nextDueInvoice.amount).toLocaleString()} · {formatDate(nextDueInvoice.dueDate)}
+                </div>
+              </div>
+              <Link
+                href="/portal/invoices"
+                className="text-[11px] font-bold text-amber-700 hover:underline inline-flex items-center gap-0.5 shrink-0"
+              >
+                Pay <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ── Quick Links ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { href: '/portal/milestones', label: 'Delivery Roadmap', icon: Layers, color: 'text-blue-600', bg: 'bg-blue-50' },
           { href: '/portal/support', label: 'Support & Tickets', icon: Ticket, color: 'text-amber-600', bg: 'bg-amber-50' },
           { href: '/portal/assets', label: 'DNS & Assets', icon: Globe, color: 'text-teal-600', bg: 'bg-teal-50' },
           { href: '/portal/invoices', label: 'Billing & Invoices', icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { href: '/portal/vault', label: 'Credential Vault', icon: KeyRound, color: 'text-purple-600', bg: 'bg-purple-50' },
+          { href: '/portal/account', label: 'Account & Profile', icon: UserCog, color: 'text-slate-600', bg: 'bg-slate-100' },
         ].map(item => (
           <Link
             key={item.href}

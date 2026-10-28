@@ -14,14 +14,15 @@ import {
   Menu,
   X,
   LogOut,
-  Bell,
   ChevronRight,
   Sparkles,
+  UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
 import { useClientTickets, useClientProfile } from '@/hooks/usePortalData';
+import NotificationBell from './NotificationBell';
 
 export interface PortalNavItem {
   id: string;
@@ -37,6 +38,7 @@ export const PORTAL_NAV_ITEMS: PortalNavItem[] = [
   { id: 'vault', href: '/portal/vault', label: 'Encrypted Vault', icon: KeyRound },
   { id: 'support', href: '/portal/support', label: 'Engineering Support', icon: Ticket },
   { id: 'invoices', href: '/portal/invoices', label: 'Invoices & Cloud Care', icon: FileText },
+  { id: 'account', href: '/portal/account', label: 'Account & Profile', icon: UserCog },
 ];
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
@@ -216,16 +218,8 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               <span>Phase 3: Active Sprint</span>
             </div>
 
-            {/* Notifications bell */}
-            {openTicketCount > 0 && (
-              <Link
-                href="/portal/support"
-                className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-              >
-                <Bell className="w-4 h-4" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full ring-2 ring-white" />
-              </Link>
-            )}
+            {/* Notifications — live unread count + dropdown from the API */}
+            <NotificationBell />
 
             {/* User Avatar */}
             <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
