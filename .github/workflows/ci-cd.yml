@@ -11,8 +11,18 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [develop, staging, main]
+    # Docs/CI-only edits don't touch the app — don't burn deploy quota on them.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".editorconfig"
+      - ".dockerignore"
   pull_request:
     branches: [develop, staging, main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,6 +35,30 @@ env:
   NODE_VERSION: "22"
 
 jobs:
+  # ─── Stage 0: Change detection ──────────────────────────────────────────────
+  # Skips the expensive stages (Docker builds, Trivy, migrations) when only
+  # docs or CI config changed. Vercel still auto-deploys the web app on every
+  # push — prefix a docs-only commit title with "[skip deploy]" to skip that.
+  changes:
+    name: "Stage 0 — Detect changed apps"
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'apps/**'
+              - 'packages/**'
+              - 'prisma/**'
+              - 'e2e/**'
+              - 'infrastructure/**'
+              - 'package.json'
+              - 'package-lock.json'
+
   # ─── Stage 1: Lint & Type-check ─────────────────────────────────────────────
   lint:
     name: "Stage 1 — Lint & Type-check"
@@ -127,8 +161,8 @@ jobs:
   build:
     name: "Stage 3 — Build & Push Images"
     runs-on: ubuntu-latest
-    needs: unit-tests
-    if: github.event_name == 'push'
+    needs: [lint, changes]
+    if: github.event_name == 'push' && needs.changes.outputs.code == 'true'
     permissions:
       contents: read
       packages: write
@@ -185,8 +219,8 @@ jobs:
   security-scan:
     name: "Stage 4 — Security Scan (Trivy)"
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push'
+    needs: [build, changes]
+    if: github.event_name == 'push' && needs.changes.outputs.code == 'true'
     permissions:
       contents: read
       packages: read
@@ -274,8 +308,8 @@ jobs:
   migrate:
     name: "Stage 4b — Prisma Migrate (Neon)"
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push'
+    needs: [build, changes]
+    if: github.event_name == 'push' && needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -307,22 +341,41 @@ jobs:
     needs: [build, security-scan, migrate]
     if: github.ref == 'refs/heads/staging'
     environment: staging
+    env:
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'europe-west1' }}
 
     steps:
-      - name: Trigger Render deploy (staging)
-        run: |
-          trigger() {
-            if [ -z "$1" ]; then
-              echo "No deploy hook configured — relying on Render auto-deploy."
-            else
-              curl --fail --silent --show-error -X POST "$1" && echo "Deploy hook triggered."
-            fi
-          }
-          trigger "$RENDER_DEPLOY_HOOK_WEB"
-          trigger "$RENDER_DEPLOY_HOOK_API"
-        env:
-          RENDER_DEPLOY_HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
-          RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+      - uses: actions/checkout@v4
+
+      # Cloud Run replaced Render (suspended free tier). Builds from source via
+      # Cloud Build, so no private-ghcr pull secret is needed on the service.
+      - name: Authenticate to Google Cloud
+        if: env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != ''
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy API to Cloud Run (staging)
+        if: env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != ''
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          region: ${{ env.GCP_REGION }}
+          service: bazionweb-api-staging
+          source: apps/api
+          dockerfile: Dockerfile
+          flags: '--allow-unauthenticated --cpu 1 --memory 512Mi --max-instances 2 --timeout 300s'
+          env_vars: |
+            NODE_ENV=production
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            FRONTEND_URL=${{ vars.STAGING_FRONTEND_URL || 'https://staging.bazionweb.com' }}
+
+      - name: Cloud Run not configured (skipping)
+        if: env.GCP_SA_KEY == '' || env.GCP_PROJECT_ID == ''
+        run: echo "GCP_SA_KEY/GCP_PROJECT_ID secrets not set — skipping Cloud Run deploy (set them once to enable)."
 
   # ─── Stage 6: E2E Tests (Staging) ───────────────────────────────────────────
   e2e-tests:
@@ -395,38 +448,58 @@ jobs:
     environment:
       name: production
       url: https://bazionweb.com
+    env:
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'europe-west1' }}
 
     steps:
-      - name: Trigger Render deploy (production)
-        run: |
-          trigger() {
-            if [ -z "$1" ]; then
-              echo "No deploy hook configured — relying on Render auto-deploy."
-            else
-              curl --fail --silent --show-error -X POST "$1" && echo "Deploy hook triggered."
-            fi
-          }
-          trigger "$RENDER_DEPLOY_HOOK_WEB"
-          trigger "$RENDER_DEPLOY_HOOK_API"
-        env:
-          RENDER_DEPLOY_HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
-          RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+      # Web app deploys to Vercel automatically via the GitHub integration.
+      # The API deploys to Cloud Run here (Render is retired).
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        if: env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != ''
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy API to Cloud Run (production)
+        if: env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != ''
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          region: ${{ env.GCP_REGION }}
+          service: bazionweb-api
+          source: apps/api
+          dockerfile: Dockerfile
+          flags: '--allow-unauthenticated --cpu 1 --memory 512Mi --max-instances 5 --timeout 300s'
+          env_vars: |
+            NODE_ENV=production
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            FRONTEND_URL=${{ vars.PRODUCTION_FRONTEND_URL || 'https://bazionweb.com' }}
+
+      - name: Cloud Run not configured (skipping)
+        if: env.GCP_SA_KEY == '' || env.GCP_PROJECT_ID == ''
+        run: echo "GCP_SA_KEY/GCP_PROJECT_ID secrets not set — skipping Cloud Run deploy (set them once to enable)."
 
       - name: Health check gate
         run: |
-          WEB_URL="${WEB_URL:-https://bazionweb-web.onrender.com}"
+          API_URL="${API_URL:-https://api.bazionweb.com}"
           for i in 1 2 3 4 5 6; do
-            if curl --fail --silent "$WEB_URL/api/health"; then
-              echo "Web healthy at $WEB_URL"
+            STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "$API_URL/api/v1/health" || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "API healthy at $API_URL"
               exit 0
             fi
-            echo "Waiting for web to become healthy… ($i/6)"
+            echo "Waiting for API to become healthy… ($i/6)"
             sleep 20
           done
-          echo "Web health check failed at $WEB_URL/api/health"
+          echo "API health check failed at $API_URL/api/v1/health"
           exit 1
         env:
-          WEB_URL: ${{ secrets.WEB_URL }}
+          API_URL: ${{ secrets.API_URL }}
 
   # ─── Stage 9: Post-Deploy Verification ──────────────────────────────────────
   post-deploy-verify:
