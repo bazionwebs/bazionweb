@@ -9,7 +9,7 @@ import {
 import { formatDate } from '@/lib/format';
 
 export default function PortalAccountPage() {
-  const { data: client, isLoading, isError, refetch } = useClientProfile();
+  const { data: client, isLoading, isError, isFetching, refetch } = useClientProfile();
   const updateProfile = useUpdateClientProfile();
 
   const [businessName, setBusinessName] = useState('');
@@ -65,7 +65,7 @@ export default function PortalAccountPage() {
           onClick={() => refetch()}
           className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl"
         >
-          <Loader2 className={`w-3.5 h-3.5 ${refetch.isPending ? 'animate-spin' : ''}`} />
+          <Loader2 className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           Retry
         </button>
       </div>
