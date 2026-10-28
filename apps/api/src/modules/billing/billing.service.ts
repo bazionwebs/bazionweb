@@ -35,7 +35,7 @@ import {
 } from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { checkoutLineItem } from './payment-settlement.service';
+import { checkoutLineItem, PaymentSettlementService } from './payment-settlement.service';
 
 @Injectable()
 export class BillingService {
@@ -46,6 +46,7 @@ export class BillingService {
     private readonly events: EventEmitter2,
     private readonly paystackService: PaystackService,
     private readonly darajaService: DarajaService,
+    private readonly settlement: PaymentSettlementService,
     private readonly config: ConfigService,
   ) {}
 
@@ -1198,5 +1199,92 @@ export class BillingService {
       this.logger.warn(`Marked ${result.count} invoice(s) as OVERDUE`);
       this.events.emit('invoice.overdue_batch', { count: result.count });
     }
+  }
+
+  /**
+   * Payment reconciliation sweep — runs every 10 minutes.
+   * Webhooks can be missed (deployments, network blips, provider retries), so
+   * payment status must never depend solely on a callback arriving. Any
+   * PENDING payment older than 3 minutes is verified against its provider and
+   * settled through the same idempotent path the webhooks use.
+   */
+  @Cron('*/10 * * * *', { name: 'reconcile-pending-payments' })
+  async reconcilePendingPayments() {
+    const staleBefore = new Date(Date.now() - 3 * 60 * 1000);
+    // Paystack retries webhooks for up to 72h; after that a query is the only truth.
+    const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
+
+    const pending = await this.prisma.paymentLog.findMany({
+      where: {
+        status: PaymentStatus.PENDING,
+        createdAt: { lt: staleBefore, gt: cutoff },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 25,
+    });
+    if (pending.length === 0) return;
+
+    this.logger.log(`Reconciling ${pending.length} stale PENDING payment(s)…`);
+    let settled = 0;
+    let failed = 0;
+    let unresolved = 0;
+
+    for (const log of pending) {
+      try {
+        if (log.provider === PaymentProvider.PAYSTACK && log.providerRef) {
+          const verification = await this.paystackService.verifyTransaction(log.providerRef);
+          const charge = verification?.data;
+          if (charge?.status === 'success') {
+            await this.settlement.settlePaystackCharge(charge);
+            settled++;
+          } else if (['failed', 'abandoned', 'reversed'].includes(charge?.status)) {
+            await this.prisma.paymentLog.update({
+              where: { id: log.id },
+              data: {
+                status: PaymentStatus.FAILED,
+                errorMessage: `Provider status: ${charge.status}`,
+                rawPayload: verification,
+              },
+            });
+            failed++;
+          } else {
+            unresolved++;
+          }
+        } else if (log.provider === PaymentProvider.DARAJA && log.providerRef) {
+          const status = await this.darajaService.queryStkStatus(log.providerRef);
+          if (status.resultCode === '0') {
+            // The status query carries no CallbackMetadata, so the checkout id
+            // doubles as the receipt reference — same fallback the webhook uses.
+            await this.settlement.settleDarajaSuccess({
+              checkoutRequestId: status.checkoutRequestId || log.providerRef,
+              receiptNumber: status.checkoutRequestId || log.providerRef,
+              paidAmount: Number(log.amount),
+              payload: status,
+            });
+            settled++;
+          } else if (['1', '1032', '1037'].includes(status.resultCode)) {
+            // 1 = insufficient funds etc., 1032 = cancelled, 1037 = timed out
+            await this.prisma.paymentLog.update({
+              where: { id: log.id },
+              data: {
+                status: PaymentStatus.FAILED,
+                errorMessage: status.resultDesc || `Daraja result code ${status.resultCode}`,
+                rawPayload: status as any,
+              },
+            });
+            failed++;
+          } else {
+            unresolved++;
+          }
+        } else {
+          unresolved++;
+        }
+      } catch (err) {
+        this.logger.warn(`Reconciliation failed for payment ${log.id} (${log.provider}): ${err?.message ?? err}`);
+        unresolved++;
+      }
+    }
+
+    this.logger.log(`Reconciliation complete — settled=${settled} failed=${failed} unresolved=${unresolved}`);
   }
 }
