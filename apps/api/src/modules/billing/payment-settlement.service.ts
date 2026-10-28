@@ -88,6 +88,13 @@ export class PaymentSettlementService {
     const intent = intentFromLineItems(invoice.lineItems);
     const purpose = opts.metadataPurpose === 'invoice_payment' ? 'invoice_payment' : intent.purpose;
     if (purpose === 'invoice_payment' && !invoice.subscriptionId) {
+      // One-time payment (e.g. a project kickoff deposit): there is no
+      // subscription to activate, but a paying client is an active client —
+      // flip status so the portal guard unlocks after account claim.
+      await tx.client.update({
+        where: { id: invoice.clientId },
+        data: { status: 'ACTIVE' },
+      }).catch((err: Error) => this.logger.warn(`Client status update failed: ${err.message}`));
       return;
     }
 

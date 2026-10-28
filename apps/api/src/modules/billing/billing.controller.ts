@@ -15,7 +15,7 @@ import { BillingService } from './billing.service';
 import { PaymentSettlementService } from './payment-settlement.service';
 import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto, ConfirmPaystackDto } from './dto/billing.dto';
+import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto, ConfirmPaystackDto, AcceptProposalDto, ProposalDepositCardDto, ProposalDepositMpesaDto } from './dto/billing.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
@@ -64,6 +64,36 @@ export class BillingController {
   @ApiOperation({ summary: 'Guest B2B bank-transfer invoice — no account required' })
   createBankTransferInvoiceGuest(@Body() body: GuestBankTransferInvoiceDto) {
     return this.svc.createBankTransferInvoiceGuest(body);
+  }
+
+  /**
+   * Quote-to-close (Track C) — accept a locked proposal and get the kickoff
+   * deposit invoice. Public because the proposer has no login yet; the
+   * settlement webhook activates the client and the claim endpoint creates
+   * the credentials after. Throttled hard: anonymous, billing-critical.
+   */
+  @Post('proposals/:code/accept')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Accept a locked proposal and create the kickoff deposit invoice' })
+  acceptProposal(@Param('code') code: string, @Body() body: AcceptProposalDto) {
+    return this.svc.acceptProposalGuest({ ...body, code });
+  }
+
+  @Post('proposals/:code/pay/card')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Pay a proposal kickoff deposit by card (Paystack hosted checkout)' })
+  payProposalCard(@Param('code') code: string, @Body() body: ProposalDepositCardDto) {
+    return this.svc.payProposalDepositCard(code, body);
+  }
+
+  @Post('proposals/:code/pay/mpesa')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Pay a proposal kickoff deposit via M-Pesa STK Push (KES)' })
+  payProposalMpesa(@Param('code') code: string, @Body() body: ProposalDepositMpesaDto) {
+    return this.svc.payProposalDepositMpesa(code, body);
   }
 
   @Get()

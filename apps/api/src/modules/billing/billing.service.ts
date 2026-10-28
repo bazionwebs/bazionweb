@@ -28,7 +28,10 @@ import {
   GuestMpesaSubscriptionDto, 
   GuestBankTransferInvoiceDto,
   PayInvoiceMpesaDto,
-  PayInvoiceCardDto 
+  PayInvoiceCardDto,
+  AcceptProposalDto,
+  ProposalDepositCardDto,
+  ProposalDepositMpesaDto
 } from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -895,6 +898,217 @@ export class BillingService {
         referenceNote: bankDetails.referenceNote,
       },
     };
+  }
+
+  // ─── Proposal → deposit checkout (quote-to-close) ──────────────────────────
+
+  /** Deposit share of the proposal total charged at kickoff (percent, 10–100). */
+  private proposalDepositPercent(): number {
+    const raw = Number(this.config.get<string>('PROPOSAL_DEPOSIT_PERCENT', '50'));
+    if (!Number.isFinite(raw)) return 50;
+    return Math.min(100, Math.max(10, Math.round(raw)));
+  }
+
+  private depositInvoiceMarker(code: string): string {
+    return `proposal ${code.trim().toUpperCase()}`;
+  }
+
+  private proposalAcceptResponse(proposal: { proposalCode: string; currency: string; totalAmount: any }, invoice: { id: string; invoiceNumber: string; amount: any; currency: string; dueDate: Date }, depositPercent: number) {
+    return {
+      status: 'ACCEPTED',
+      proposalCode: proposal.proposalCode,
+      depositPercent,
+      invoice: {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        amount: Number(invoice.amount),
+        currency: invoice.currency,
+        dueDate: invoice.dueDate.toISOString(),
+      },
+      proposalTotal: Number(proposal.totalAmount),
+    };
+  }
+
+  /**
+   * Guest proposal acceptance (quote-to-close): validates the locked proposal,
+   * provisions the passwordless guest identity, and creates the kickoff-deposit
+   * invoice. Idempotent — re-accepting returns the same deposit invoice.
+   */
+  async acceptProposalGuest(dto: AcceptProposalDto) {
+    const code = dto.code.trim().toUpperCase();
+    const proposal = await this.prisma.proposal.findUnique({ where: { proposalCode: code } });
+    if (!proposal) {
+      throw new NotFoundException('We could not find that proposal. Double-check the reference code.');
+    }
+    if (proposal.status === 'EXPIRED' || proposal.expiresAt < new Date()) {
+      throw new BadRequestException('This proposal has expired. Contact our team for a refreshed quote.');
+    }
+
+    const marker = this.depositInvoiceMarker(code);
+    const findDepositInvoice = () =>
+      this.prisma.invoice.findFirst({
+        where: { notes: { contains: marker }, status: { not: InvoiceStatus.CANCELLED } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+    // Idempotent path: already accepted → hand back the same deposit invoice.
+    if (proposal.status === 'ACCEPTED') {
+      const existing = await findDepositInvoice();
+      if (existing) {
+        return this.proposalAcceptResponse(proposal, existing, this.proposalDepositPercent());
+      }
+    }
+
+    const email = (dto.email || proposal.clientEmail).trim().toLowerCase();
+    const nameParts = (dto.firstName ? `${dto.firstName} ${dto.lastName ?? ''}` : proposal.clientName || 'Valued Client').trim().split(/\s+/);
+    const firstName = nameParts[0] || 'Valued';
+    const lastName = nameParts.slice(1).join(' ') || 'Client';
+
+    // Client.planId is required; a proposal has no plan intent unless a care
+    // plan was quoted. Fall back to the cheapest active plan as placeholder.
+    const fallbackPlan = await this.prisma.plan.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (!fallbackPlan) {
+      throw new ServiceUnavailableException('No plans are configured yet — please contact our team.');
+    }
+
+    const { guest } = await this.resolveGuestIdentity({
+      email,
+      firstName,
+      lastName,
+      businessName: dto.businessName?.trim() || proposal.clientCompany?.trim() || `${firstName}'s Project`,
+      phone: dto.phone,
+      planId: fallbackPlan.id,
+    });
+
+    const depositPercent = this.proposalDepositPercent();
+    const depositAmount = Math.round(Number(proposal.totalAmount) * depositPercent) / 100;
+    if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
+      throw new BadRequestException('Proposal total is not configured for a deposit invoice.');
+    }
+
+    // Claim the proposal atomically so two concurrent accepts cannot double-invoice.
+    const claimed = await this.prisma.proposal.updateMany({
+      where: { id: proposal.id, status: 'LOCKED' },
+      data: { status: 'ACCEPTED' },
+    });
+    if (claimed.count === 0) {
+      const existing = await findDepositInvoice();
+      if (existing) {
+        return this.proposalAcceptResponse(proposal, existing, depositPercent);
+      }
+      throw new ConflictException('This proposal is in another acceptance state. Contact our team.');
+    }
+
+    const invoiceNumber = this.newInvoiceNumber(proposal.currency === 'KES' ? 'INV-KE' : 'INV-USD');
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 7);
+
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        clientId: guest.id,
+        invoiceNumber,
+        amount: depositAmount,
+        currency: proposal.currency,
+        status: InvoiceStatus.SENT,
+        dueDate,
+        notes: `Kickoff deposit (${depositPercent}%) for ${marker}`,
+        lineItems: [
+          checkoutLineItem({
+            description: `Kickoff deposit — ${proposal.proposalCode} (${depositPercent}% of project total)`,
+            amount: depositAmount,
+            currency: proposal.currency,
+            purpose: 'invoice_payment',
+          }),
+        ],
+      },
+    });
+
+    this.logger.log(`Proposal ${code} accepted — deposit invoice ${invoiceNumber} for client ${guest.id}`);
+    return this.proposalAcceptResponse(proposal, invoice, depositPercent);
+  }
+
+  /** Load an accepted proposal's deposit invoice for a payment rail. */
+  private async proposalDepositInvoice(code: string) {
+    const marker = this.depositInvoiceMarker(code);
+    const proposal = await this.prisma.proposal.findUnique({ where: { proposalCode: code.trim().toUpperCase() } });
+    if (!proposal || proposal.status !== 'ACCEPTED') {
+      throw new BadRequestException('Accept the proposal before paying the kickoff deposit.');
+    }
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { notes: { contains: marker }, status: { not: InvoiceStatus.CANCELLED } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!invoice) {
+      throw new NotFoundException('No deposit invoice exists for this proposal yet.');
+    }
+    if (invoice.status === InvoiceStatus.PAID) {
+      throw new BadRequestException('This deposit is already settled.');
+    }
+    return { proposal, invoice };
+  }
+
+  /** Guest card payment for an accepted proposal's kickoff deposit. */
+  async payProposalDepositCard(code: string, dto: ProposalDepositCardDto) {
+    const { proposal, invoice } = await this.proposalDepositInvoice(code);
+    if (invoice.currency !== 'KES' && invoice.currency !== 'USD') {
+      throw new BadRequestException(`Card checkout does not support ${invoice.currency} — use M-Pesa or bank transfer.`);
+    }
+
+    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
+    const amount = Number(invoice.amount);
+    const init = await this.paystackService.initializeTransaction({
+      email: dto.email?.trim().toLowerCase() || proposal.clientEmail,
+      amount,
+      currency: invoice.currency as 'KES' | 'USD',
+      invoiceNumber: invoice.invoiceNumber,
+      callbackUrl: `${frontendUrl}/checkout/verify`,
+      metadata: { clientId: invoice.clientId, purpose: 'invoice_payment', invoiceNumber: invoice.invoiceNumber },
+    });
+
+    await this.prisma.paymentLog.create({
+      data: {
+        idempotencyKey: `PAYSTACK_${init.reference}`,
+        provider: PaymentProvider.PAYSTACK,
+        providerRef: init.reference,
+        method: PaymentMethodType.CARD,
+        amount,
+        currency: invoice.currency,
+        status: PaymentStatus.PENDING,
+        clientId: invoice.clientId,
+        invoiceId: invoice.id,
+        rawPayload: init as any,
+      },
+    });
+
+    return {
+      status: 'REDIRECT_REQUIRED',
+      method: 'CARD',
+      provider: 'PAYSTACK',
+      checkoutUrl: init.authorizationUrl,
+      reference: init.reference,
+      invoiceNumber: invoice.invoiceNumber,
+    };
+  }
+
+  /** Guest M-Pesa STK payment for an accepted proposal's kickoff deposit (KES). */
+  async payProposalDepositMpesa(code: string, dto: ProposalDepositMpesaDto) {
+    const { proposal, invoice } = await this.proposalDepositInvoice(code);
+    if (invoice.currency !== 'KES') {
+      throw new BadRequestException('M-Pesa is only available for KES proposals — pay the deposit by card instead.');
+    }
+
+    return this.pushMpesaStk({
+      client: { id: invoice.clientId, email: proposal.clientEmail },
+      userId: null,
+      phone: dto.mpesaPhoneNumber,
+      invoice: { id: invoice.id, invoiceNumber: invoice.invoiceNumber, amount: Number(invoice.amount), currency: invoice.currency },
+      description: `BazionWeb kickoff deposit ${proposal.proposalCode}`,
+      metadata: { purpose: 'invoice_payment', invoiceNumber: invoice.invoiceNumber },
+    });
   }
 
   async generate(dto: { clientId: string; subscriptionId?: string; amount: number; notes?: string }) {

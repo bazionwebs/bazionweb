@@ -25,7 +25,13 @@ import {
   Sparkles,
   Globe,
   Lock,
+  CreditCard,
+  Smartphone,
+  CalendarDays,
+  Rocket,
+  FolderKanban,
 } from 'lucide-react';
+import { resolveApiV1Base } from '@/lib/api-base';
 
 interface QuoteConfig {
   market: Market;
@@ -81,6 +87,22 @@ function QuoteCalculatorContent() {
     };
     expiresAt: string;
   } | null>(null);
+
+  // Accept & pay kickoff deposit (quote-to-close)
+  const [acceptStage, setAcceptStage] = useState<'idle' | 'confirm' | 'accepted'>('idle');
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState('');
+  const [deposit, setDeposit] = useState<{
+    invoiceNumber: string;
+    amount: number;
+    currency: string;
+    depositPercent: number;
+  } | null>(null);
+  const [payBusy, setPayBusy] = useState<'card' | 'mpesa' | null>(null);
+  const [payError, setPayError] = useState('');
+  const [mpesaPhone, setMpesaPhone] = useState('');
+  const [stk, setStk] = useState<{ trackingId: string; message: string } | null>(null);
+  const [payState, setPayState] = useState<'waiting' | 'paid' | 'failed'>('waiting');
 
   // Sync config when market changes
   useEffect(() => {
@@ -190,7 +212,123 @@ function QuoteCalculatorContent() {
     }
   }
 
+  const proposalApi = (path: string) => `${resolveApiV1Base()}/invoices/proposals/${encodeURIComponent(submittedQuote?.proposalCode ?? '')}${path}`;
+
+  async function handleAcceptProposal() {
+    if (!submittedQuote) return;
+    setAccepting(true);
+    setAcceptError('');
+    try {
+      const nameParts = gName.trim().split(/\s+/);
+      const response = await fetch(proposalApi('/accept'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: submittedQuote.proposalCode,
+          email: gEmail.trim().toLowerCase(),
+          firstName: nameParts[0] || undefined,
+          lastName: nameParts.slice(1).join(' ') || undefined,
+          businessName: gCompany.trim() || undefined,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.invoice) {
+        throw new Error(data.message || 'We could not accept the proposal. Please try again.');
+      }
+      setDeposit({
+        invoiceNumber: data.invoice.invoiceNumber,
+        amount: data.invoice.amount,
+        currency: data.invoice.currency,
+        depositPercent: data.depositPercent,
+      });
+      setAcceptStage('accepted');
+    } catch (error) {
+      setAcceptError(error instanceof Error ? error.message : 'We could not accept the proposal. Please try again.');
+    } finally {
+      setAccepting(false);
+    }
+  }
+
+  async function handlePayDepositCard() {
+    setPayBusy('card');
+    setPayError('');
+    try {
+      const response = await fetch(proposalApi('/pay/card'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: gEmail.trim().toLowerCase() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.checkoutUrl) {
+        throw new Error(data.message || 'Card checkout could not start. Please try again.');
+      }
+      // Paystack hosted checkout; the return URL (/checkout/verify) confirms settlement.
+      window.location.href = data.checkoutUrl;
+    } catch (error) {
+      setPayError(error instanceof Error ? error.message : 'Card checkout could not start. Please try again.');
+      setPayBusy(null);
+    }
+  }
+
+  async function handlePayDepositMpesa() {
+    const phone = mpesaPhone.replace(/\s+/g, '');
+    if (!/^(\+?254|0)?[17]\d{8}$/.test(phone)) {
+      setPayError('Enter a valid Safaricom number, e.g. 0712345678.');
+      return;
+    }
+    setPayBusy('mpesa');
+    setPayError('');
+    try {
+      const response = await fetch(proposalApi('/pay/mpesa'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mpesaPhoneNumber: phone }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.trackingId) {
+        throw new Error(data.message || 'M-Pesa prompt could not be sent. Please try again.');
+      }
+      setStk({ trackingId: String(data.trackingId), message: String(data.message || 'M-Pesa prompt sent. Check your handset and enter your PIN.') });
+    } catch (error) {
+      setPayError(error instanceof Error ? error.message : 'M-Pesa prompt could not be sent. Please try again.');
+    } finally {
+      setPayBusy(null);
+    }
+  }
+
+  // Poll the settlement status while an M-Pesa STK prompt is outstanding.
+  useEffect(() => {
+    if (!stk || payState !== 'waiting') return;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      tries += 1;
+      try {
+        const response = await fetch(`${resolveApiV1Base()}/invoices/payments/${encodeURIComponent(stk.trackingId)}/status`);
+        const data = await response.json().catch(() => ({}));
+        if (data.resultDesc === 'SUCCESS') {
+          setPayState('paid');
+          return;
+        }
+        if (data.resultDesc === 'FAILED') {
+          setPayState('failed');
+          return;
+        }
+      } catch {
+        // Transient network error — keep polling until the budget runs out.
+      }
+      if (tries >= 40) {
+        setPayState('failed');
+        return;
+      }
+      timer = setTimeout(poll, 3000);
+    };
+    timer = setTimeout(poll, 3000);
+    return () => clearTimeout(timer);
+  }, [stk, payState]);
+
   if (submittedQuote) {
+    const isKes = submittedQuote.currencySymbol === 'KSh';
     return (
       <main className="min-h-screen bg-slate-50 px-4 py-16 sm:py-24">
         <section className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-10">
@@ -200,7 +338,7 @@ function QuoteCalculatorContent() {
           <p className="text-center text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Proposal saved</p>
           <h1 className="mt-2 text-center text-3xl font-extrabold tracking-tight text-slate-900">Your project request is recorded</h1>
           <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-relaxed text-slate-600">
-            We&apos;ve saved the server-priced proposal and your contact details. Our team will follow up at {gEmail.trim()} with the next steps. No account or payment was created in this step.
+            We&apos;ve saved the server-priced proposal and your contact details. Accept it below to lock your slot and kick off the build — or our team will follow up at {gEmail.trim()}.
           </p>
           <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
@@ -231,9 +369,196 @@ function QuoteCalculatorContent() {
               Price book estimate expires {new Date(submittedQuote.expiresAt).toLocaleDateString()} and is subject to final scope approval.
             </p>
           </div>
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link href="/pricing" className="btn-primary justify-center px-5 py-3 text-sm">Review service plans</Link>
-            <Link href="/contact" className="btn-secondary justify-center px-5 py-3 text-sm">Contact our team</Link>
+
+          {/* What happens next — set expectations up front */}
+          <div className="mt-8">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">What happens next</h2>
+            <ol className="mt-3 grid gap-3 sm:grid-cols-2">
+              {[
+                { icon: CreditCard, title: 'Pay the kickoff deposit', body: 'Accept the proposal and pay a 50% deposit by card or M-Pesa to reserve your build slot.' },
+                { icon: CalendarDays, title: 'Kickoff within 2 business days', body: 'We confirm scope, timeline, and hand over a milestone plan — no long back-and-forth.' },
+                { icon: FolderKanban, title: 'Track progress in your portal', body: 'Watch milestones, invoices, and messages in a client portal you unlock with your deposit.' },
+                { icon: Rocket, title: 'Launch & handover', body: 'We deploy, hand over credentials, and your care plan keeps everything maintained.' },
+              ].map((item, index) => (
+                <li key={item.title} className="flex gap-3 rounded-2xl border border-slate-100 bg-white p-4">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                    <item.icon className="size-4.5" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">
+                      <span className="mr-1.5 text-slate-400">{index + 1}.</span>
+                      {item.title}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Accept & pay */}
+          <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
+            {acceptStage === 'idle' && (
+              <>
+                <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Ready to start?</p>
+                    <p className="mt-0.5 text-xs text-slate-600">Accept now and pay a 50% kickoff deposit — the balance is invoiced at launch.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAcceptStage('confirm')}
+                    className="btn-primary shrink-0 justify-center px-5 py-3 text-sm"
+                  >
+                    Accept proposal &amp; pay deposit
+                    <ArrowRight className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+                {acceptError && <p className="mt-3 text-xs font-medium text-red-600">{acceptError}</p>}
+              </>
+            )}
+
+            {acceptStage === 'confirm' && (
+              <div>
+                <p className="text-sm font-bold text-slate-900">Confirm your details</p>
+                <dl className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                  <div className="rounded-xl bg-white px-3 py-2">
+                    <dt className="text-xs text-slate-500">Name</dt>
+                    <dd className="font-semibold">{gName.trim()}</dd>
+                  </div>
+                  <div className="rounded-xl bg-white px-3 py-2">
+                    <dt className="text-xs text-slate-500">Email</dt>
+                    <dd className="truncate font-semibold">{gEmail.trim()}</dd>
+                  </div>
+                </dl>
+                {acceptError && <p className="mt-3 text-xs font-medium text-red-600">{acceptError}</p>}
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleAcceptProposal}
+                    disabled={accepting}
+                    className="btn-primary inline-flex items-center justify-center gap-2 px-5 py-3 text-sm disabled:opacity-60"
+                  >
+                    {accepting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="size-4" aria-hidden="true" />}
+                    {accepting ? 'Accepting…' : 'Confirm & create deposit invoice'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAcceptStage('idle'); setAcceptError(''); }}
+                    className="btn-secondary justify-center px-5 py-3 text-sm"
+                  >
+                    Not yet
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {acceptStage === 'accepted' && deposit && (
+              <div>
+                {payState === 'paid' ? (
+                  <div className="text-center">
+                    <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                      <Check className="size-6" aria-hidden="true" />
+                    </div>
+                    <p className="mt-3 text-sm font-bold text-slate-900">Deposit received — your slot is reserved</p>
+                    <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-600">
+                      Invoice {deposit.invoiceNumber} is settled. Create your portal password to follow the build from day one.
+                    </p>
+                    <Link
+                      href={`/portal/claim?email=${encodeURIComponent(gEmail.trim().toLowerCase())}`}
+                      className="btn-primary mt-4 inline-flex justify-center px-5 py-3 text-sm"
+                    >
+                      Set up my portal account
+                      <ArrowRight className="size-4" aria-hidden="true" />
+                    </Link>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-slate-900">Proposal accepted</p>
+                      <span className="font-mono text-xs text-slate-500">{deposit.invoiceNumber}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Kickoff deposit ({deposit.depositPercent}%): <span className="font-bold text-slate-900">{deposit.currency} {deposit.amount.toLocaleString()}</span> — due within 7 days. Choose how to pay:
+                    </p>
+
+                    {stk ? (
+                      <div className="mt-4 rounded-xl bg-white p-4 text-center">
+                        {payState === 'waiting' && (
+                          <>
+                            <Loader2 className="mx-auto size-5 animate-spin text-blue-600" aria-hidden="true" />
+                            <p className="mt-2 text-sm font-semibold text-slate-900">{stk.message}</p>
+                            <p className="mt-1 font-mono text-xs text-slate-500">Ref {stk.trackingId}</p>
+                          </>
+                        )}
+                        {payState === 'failed' && (
+                          <>
+                            <p className="text-sm font-bold text-red-600">Payment not completed</p>
+                            <p className="mt-1 text-xs text-slate-600">The prompt expired or was declined. You can retry below.</p>
+                            <button
+                              type="button"
+                              onClick={() => { setStk(null); setPayState('waiting'); }}
+                              className="btn-secondary mt-3 justify-center px-4 py-2 text-xs"
+                            >
+                              Try M-Pesa again
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={handlePayDepositCard}
+                          disabled={payBusy !== null}
+                          className="btn-primary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm disabled:opacity-60"
+                        >
+                          {payBusy === 'card' ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CreditCard className="size-4" aria-hidden="true" />}
+                          Pay by card
+                        </button>
+                        {isKes && (
+                          <div className="rounded-xl border border-slate-200 bg-white p-3">
+                            <label htmlFor="quote-mpesa-phone" className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                              <Smartphone className="size-4 text-slate-500" aria-hidden="true" />
+                              M-Pesa number
+                            </label>
+                            <div className="mt-2 flex gap-2">
+                              <input
+                                id="quote-mpesa-phone"
+                                type="tel"
+                                inputMode="tel"
+                                autoComplete="tel"
+                                placeholder="0712345678"
+                                value={mpesaPhone}
+                                onChange={(event) => setMpesaPhone(event.target.value)}
+                                className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                              />
+                              <button
+                                type="button"
+                                onClick={handlePayDepositMpesa}
+                                disabled={payBusy !== null}
+                                className="btn-primary shrink-0 px-3 py-2 text-xs disabled:opacity-60"
+                              >
+                                {payBusy === 'mpesa' ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : 'Push'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {payError && <p className="mt-3 text-xs font-medium text-red-600">{payError}</p>}
+                    <p className="mt-3 text-xs text-slate-500">
+                      Prefer bank transfer or have questions? <Link href="/contact" className="font-semibold text-blue-700 underline-offset-2 hover:underline">Contact our team</Link> with reference {submittedQuote.proposalCode}.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 flex flex-col justify-center gap-3 text-center sm:flex-row">
+            <Link href="/pricing" className="btn-secondary justify-center px-5 py-3 text-sm">Review service plans</Link>
+            <Link href="/contact" className="text-sm font-semibold text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline">Contact our team</Link>
           </div>
         </section>
       </main>

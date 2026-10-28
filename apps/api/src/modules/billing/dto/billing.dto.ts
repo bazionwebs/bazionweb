@@ -241,3 +241,59 @@ export class GuestSubscriptionDto {
   @Matches(/^(\+?\d{7,15})$/, { message: 'Valid phone number required' })
   phone?: string;
 }
+
+// ─── Proposal → deposit checkout (quote-to-close) ────────────────────────────
+
+/** Accept a locked proposal and create the kickoff-deposit invoice (guest). */
+export class AcceptProposalDto {
+  @ApiProperty({ description: 'Proposal reference code, e.g. BZ-KE-2026-0U9UI' })
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+
+  @ApiPropertyOptional({ description: 'Billing email (defaults to the proposal email)' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'Customer first name' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^.{1,64}$/, { message: 'First name must be 1-64 characters' })
+  firstName?: string;
+
+  @ApiPropertyOptional({ description: 'Customer last name' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^.{1,64}$/, { message: 'Last name must be 1-64 characters' })
+  lastName?: string;
+
+  @ApiPropertyOptional({ description: 'Business / organisation name' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^.{1,120}$/, { message: 'Business name must be 1-120 characters' })
+  businessName?: string;
+
+  @ApiPropertyOptional({ description: 'Phone number, e.g. +254712345678' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(\+?\d{7,15})$/, { message: 'Valid phone number required' })
+  phone?: string;
+}
+
+/** Pay an accepted proposal's kickoff deposit with a card (Paystack hosted checkout). */
+export class ProposalDepositCardDto {
+  @ApiPropertyOptional({ description: 'Receipt email (defaults to the proposal email)' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
+
+/** Pay an accepted proposal's kickoff deposit with an M-Pesa STK Push (KES only). */
+export class ProposalDepositMpesaDto {
+  @ApiProperty({ description: 'M-Pesa phone number, e.g. 254712345678' })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^(\+?254|0)?[17]\d{8}$/, { message: 'Valid Safaricom phone number required' })
+  mpesaPhoneNumber: string;
+}
