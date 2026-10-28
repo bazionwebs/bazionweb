@@ -83,9 +83,14 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       // entitlement against the API before trusting it. Non-admin clients with
       // PENDING/NONE must complete onboarding (payment) before using the
       // dashboard. Never redirect when already on /portal/onboarding.
+      //
+      // Read the session via getState() — the render-closure `user` can be
+      // stale (null) when persist hydration completes between render and
+      // effect, which wrongly bounced active clients to onboarding.
       const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some(r => hasRole(r));
       const onOnboarding = normalizedPath === '/portal/onboarding' || normalizedPath.startsWith('/portal/onboarding/');
-      let subStatus = user?.subscriptionStatus;
+      const sessionUser = useAuthStore.getState().user;
+      let subStatus = sessionUser?.subscriptionStatus;
 
       if (!isAdminRole) {
         const liveToken = useAuthStore.getState().accessToken;

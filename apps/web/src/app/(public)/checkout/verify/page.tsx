@@ -1,15 +1,30 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag, Lock } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag, Lock, LayoutDashboard } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
+import { useAuthStore } from '@/store/auth.store';
 
 function VerifyPaymentContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const reference = searchParams.get('reference') || searchParams.get('trxref');
+
+  // Session-aware success: a payer who already signed in (e.g. arrived from
+  // /portal/onboarding) should land back in their dashboard, not the guest
+  // claim flow. Guests keep the claim-link path.
+  const storeHydrated = useAuthStore(s => s._hasHydrated);
+  const hasHydrated = storeHydrated || (typeof window !== 'undefined' && !!useAuthStore.persist?.hasHydrated?.());
+  const sessionUser = useAuthStore(s => s.user);
+  const setSubscriptionStatus = useAuthStore(s => s.setSubscriptionStatus);
+  const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    if (hasHydrated) setHasSession(Boolean(sessionUser));
+  }, [hasHydrated, sessionUser]);
   const verification = useQuery({
     queryKey: ['checkout-verification', reference],
     enabled: Boolean(reference),
@@ -70,7 +85,9 @@ function VerifyPaymentContent() {
             </span>
             <h1 className="text-2xl font-extrabold text-[#0F172A]">Payment Confirmed!</h1>
             <p className="text-xs text-slate-500 mt-1">
-              One last step: verify your billing email with a one-time link, then set a password to unlock your dashboard.
+              {hasSession
+                ? 'Your subscription is active. Your dashboard is ready — jump straight back in.'
+                : 'One last step: verify your billing email with a one-time link, then set a password to unlock your dashboard.'}
             </p>
           </div>
 
@@ -126,25 +143,49 @@ function VerifyPaymentContent() {
 
           {/* Action CTAs */}
           <div className="space-y-3 pt-2">
-            <Link
-              href={`/portal/claim?email=${encodeURIComponent(data?.customerEmail || '')}`}
-              className="btn-primary w-full py-3.5 justify-center text-xs font-bold shadow-lg shadow-blue-600/20"
-            >
-              <Lock className="w-4 h-4" />
-              Email Me a Claim Link
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-              We send the link to the billing address above. If your webhook is still settling,
-              wait a minute and request it again.
-            </p>
+            {hasSession ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // The webhook has settled — sync the local entitlement
+                    // cache so the portal guard lets the client straight in.
+                    setSubscriptionStatus('ACTIVE');
+                    router.push('/portal');
+                  }}
+                  className="btn-primary w-full py-3.5 justify-center text-xs font-bold shadow-lg shadow-blue-600/20 flex items-center gap-2"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  Enter Your Dashboard
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                  Signed in as <span className="font-semibold text-slate-600">{sessionUser?.email}</span>. Your plan is now active.
+                </p>
+              </>
+            ) : (
+              <>
+                <Link
+                  href={`/portal/claim?email=${encodeURIComponent(data?.customerEmail || '')}`}
+                  className="btn-primary w-full py-3.5 justify-center text-xs font-bold shadow-lg shadow-blue-600/20"
+                >
+                  <Lock className="w-4 h-4" />
+                  Email Me a Claim Link
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                  We send the link to the billing address above. If your webhook is still settling,
+                  wait a minute and request it again.
+                </p>
 
-            <Link
-              href="/portal/login"
-              className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-            >
-              Already have an account? Sign in
-            </Link>
+                <Link
+                  href="/portal/login"
+                  className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  Already have an account? Sign in
+                </Link>
+              </>
+            )}
 
             <button
               onClick={() => window.open(`/api/paystack/verify?reference=${encodeURIComponent(reference || '')}&format=receipt`, '_blank', 'noopener,noreferrer')}

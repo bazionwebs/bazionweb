@@ -29,6 +29,7 @@ export interface ApiClient {
   email: string;
   phone: string | null;
   status: string;
+  createdAt?: string;
   plan?: ApiPlan | null;
   subscriptions?: ApiSubscription[];
 }
@@ -225,5 +226,79 @@ export function useClientReports() {
     queryFn: () => unwrap<ApiMonthlyReport[]>(portalApi.getMyReports()),
     enabled: !!token,
     ...opts,
+  });
+}
+
+// ─── Notifications ──────────────────────────────────────────────────────────
+
+export interface ApiNotification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  actionUrl: string | null;
+  createdAt: string;
+}
+
+export function useNotifications() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['portal', 'notifications'],
+    queryFn: () =>
+      portalApi
+        .getNotifications({ limit: 15 })
+        .then(r => ((r.data ?? r) as { data?: ApiNotification[] }).data ?? (r as unknown as ApiNotification[]) ?? []),
+    enabled: !!token,
+    ...opts,
+  });
+}
+
+export function useUnreadNotificationCount() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['portal', 'notifications', 'unread-count'],
+    queryFn: () =>
+      portalApi
+        .getUnreadNotificationCount()
+        .then(r => ((r.data ?? r) as { count?: number })?.count ?? 0),
+    enabled: !!token,
+    refetchInterval: 60_000,
+    ...opts,
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => portalApi.markAllNotificationsRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'notifications'] });
+    },
+  });
+}
+
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => portalApi.markNotificationRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'notifications'] });
+    },
+  });
+}
+
+export function useUpdateClientProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { clientId: string; businessName?: string; contactName?: string; phone?: string }) =>
+      portalApi.updateClient(input.clientId, {
+        ...(input.businessName !== undefined ? { businessName: input.businessName } : {}),
+        ...(input.contactName !== undefined ? { contactName: input.contactName } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'client'] });
+    },
   });
 }

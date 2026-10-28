@@ -107,6 +107,21 @@ export const portalApi = {
 
   payInvoiceCard: (invoiceId: string, data: { email?: string } = {}) =>
     api.post(`/invoices/${invoiceId}/pay/card`, data).then(r => r.data),
+
+  getNotifications: (params: { read?: boolean; page?: number; limit?: number } = {}) =>
+    api.get('/notifications', { params: { limit: 15, ...params } }).then(r => r.data),
+
+  getUnreadNotificationCount: () =>
+    api.get('/notifications/unread-count').then(r => r.data),
+
+  markNotificationRead: (id: string) =>
+    api.patch(`/notifications/${id}/read`).then(r => r.data),
+
+  markAllNotificationsRead: () =>
+    api.patch('/notifications/mark-all-read').then(r => r.data),
+
+  updateClient: (id: string, data: { businessName?: string; contactName?: string; phone?: string }) =>
+    api.patch(`/clients/${id}`, data).then(r => r.data),
 };
 
 // ─── Staff (admin/support) ───────────────────────────────────────────────────
