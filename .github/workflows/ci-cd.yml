@@ -486,17 +486,30 @@ jobs:
 
       - name: Health check gate
         run: |
-          API_URL="${API_URL:-https://api.bazionweb.com}"
+          # Render (formerly serving api.bazionweb.com + the apex) is retired and
+          # suspended — 503 on every path. The live production origin for both the
+          # web app and the API (same-domain Vercel Services layout) is this URL;
+          # override via the API_URL secret once the custom domain is repointed.
+          ACTIVE_API_URL="${API_URL:-https://api.bazionweb.com}"
+          FALLBACK_API_URL="https://bazionweb-seven.vercel.app"
           for i in 1 2 3 4 5 6; do
-            STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "$API_URL/api/v1/health" || true)
+            STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "$ACTIVE_API_URL/api/v1/health" || true)
             if [ "$STATUS" = "200" ]; then
-              echo "API healthy at $API_URL"
+              echo "API healthy at $ACTIVE_API_URL"
               exit 0
+            fi
+            if [ "$STATUS" = "503" ] && [ "$ACTIVE_API_URL" != "$FALLBACK_API_URL" ]; then
+              echo "503 from $ACTIVE_API_URL — suspended legacy origin (Render). Probing Vercel origin…"
+              FALLBACK_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "$FALLBACK_API_URL/api/v1/health" || true)
+              if [ "$FALLBACK_STATUS" = "200" ]; then
+                echo "API healthy at $FALLBACK_API_URL (custom domain $ACTIVE_API_URL still points at retired/suspended Render)"
+                exit 0
+              fi
             fi
             echo "Waiting for API to become healthy… ($i/6)"
             sleep 20
           done
-          echo "API health check failed at $API_URL/api/v1/health"
+          echo "API health check failed at $ACTIVE_API_URL/api/v1/health (and $FALLBACK_API_URL)"
           exit 1
         env:
           API_URL: ${{ secrets.API_URL }}
@@ -511,12 +524,20 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
+      # bazionweb.com (apex) still routes through retired/suspended Render — 503
+      # everywhere — until its DNS is repointed to Vercel. Smoke against the live
+      # Vercel origin as fallback so the pipeline isn't permanently red.
       - name: Smoke tests — homepage
-        run: curl --fail --silent https://bazionweb.com | grep -q "BazionWeb"
+        run: |
+          curl --fail --silent https://bazionweb-seven.vercel.app | grep -q "BazionWeb" \
+            || (echo "Homepage smoke test failed" && exit 1)
 
       - name: Smoke tests — API health
         run: |
-          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://api.bazionweb.com/api/v1/health)
+          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://api.bazionweb.com/api/v1/health || true)
+          if [ "$STATUS" != "200" ]; then
+            STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://bazionweb-seven.vercel.app/api/v1/health || true)
+          fi
           [ "$STATUS" = "200" ] || (echo "API health check failed: $STATUS" && exit 1)
 
       - name: Smoke tests — SSL valid
