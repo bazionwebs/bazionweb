@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
+import NavbarCartLink from '@/components/layout/NavbarCartLink';
 
 const serviceItems = [
   { name: 'Websites', href: '/services#websites', icon: Globe, desc: 'Starter, Business & Corporate' },
@@ -232,6 +233,8 @@ export default function Navbar() {
           >
             Client Portal
           </Link>
+
+          <NavbarCartLink />
 
           <Link
             href="/quote"
