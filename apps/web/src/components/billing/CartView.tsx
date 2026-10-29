@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Wrench, Server, Puzzle, Info, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Wrench, Server, Puzzle, Info } from 'lucide-react';
 import { useCartStore, cartTotal, type CartItem } from '@/lib/cart';
 import { usePlans } from '@/lib/plans';
 
