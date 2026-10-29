@@ -63,7 +63,7 @@ export default function AdminSettingsPage() {
   const INTERNAL_API_KEY = 'bz_live_sk_••••••••••••••••••••••••a9f3';
 
   // ── Webhooks state
-  const [webhookUrl, setWebhookUrl] = useState('https://api.bazionweb.com/webhooks/paystack');
+  const [webhookUrl, setWebhookUrl] = useState('https://www.bazionwebs.com/api/v1/webhooks/paystack');
   const [webhookSaved, setWebhookSaved] = useState(false);
 
   const handleInvite = (e: React.FormEvent) => {

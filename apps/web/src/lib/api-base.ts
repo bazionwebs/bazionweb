@@ -8,12 +8,13 @@
  * builds, and not visible in the browser).
  *
  * Resolution order:
- *   1. Browser: NEXT_PUBLIC_API_URL if set (dev .env.local, legacy Render
- *      deploys), else the current origin — browser requests go to /api/v1/...
+ *   1. Browser: NEXT_PUBLIC_API_URL if set (dev .env.local, legacy external
+ *      API hosts), else the current origin — browser requests go to /api/v1/...
  *      on the same domain and the top-level rewrite routes /api/(.*) to `api`.
  *   2. Server: API_INTERNAL_URL (Vercel services binding), then
  *      NEXT_PUBLIC_API_URL (legacy separate-domain deploys), then
- *      http://localhost:4000 in development / https://api.bazionweb.com.
+ *      http://localhost:4000 in development / https://www.bazionwebs.com in
+ *      production (same-origin rewrite routes /api/v1 to the api service).
  *
  * Production env drift has produced values like
  *   "NEXT_PUBLIC_API_URL = https://api.bazionweb.com/api/v1"   (name pasted in)
@@ -51,7 +52,7 @@ export function resolveApiBase(): string {
 
   return process.env.NODE_ENV === 'development'
     ? 'http://localhost:4000'
-    : 'https://api.bazionweb.com';
+    : 'https://www.bazionwebs.com';
 }
 
 /**

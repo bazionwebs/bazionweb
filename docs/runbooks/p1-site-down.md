@@ -25,7 +25,7 @@ open https://status.bazionweb.com
 ### Identify the scope
 - Is it **one site** or **all sites**?
 - Is it **DNS** (dig returns nothing), **server** (connection refused/timeout), or **application** (HTTP 5xx)?
-- Is it affecting the **API** (`https://api.bazionweb.com/api/v1/health`) or just the **web app**?
+- Is it affecting the **API** (`https://www.bazionwebs.com/api/v1/health`) or just the **web app**?
 
 ---
 

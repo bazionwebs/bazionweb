@@ -487,10 +487,11 @@ jobs:
       - name: Health check gate
         run: |
           # Render (formerly serving api.bazionweb.com + the apex) is retired and
-          # suspended — 503 on every path. The live production origin for both the
-          # web app and the API (same-domain Vercel Services layout) is this URL;
-          # override via the API_URL secret once the custom domain is repointed.
-          ACTIVE_API_URL="${API_URL:-https://api.bazionweb.com}"
+          # suspended. The live production origin for both the web app and the API
+          # (same-domain Vercel Services layout) is the custom domain; override via
+          # the API_URL secret. The bare Vercel origin is probed as a fallback
+          # while the custom domain's DNS propagates.
+          ACTIVE_API_URL="${API_URL:-https://www.bazionwebs.com}"
           FALLBACK_API_URL="https://bazionweb-seven.vercel.app"
           for i in 1 2 3 4 5 6; do
             STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "$ACTIVE_API_URL/api/v1/health" || true)
@@ -534,7 +535,7 @@ jobs:
 
       - name: Smoke tests — API health
         run: |
-          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://api.bazionweb.com/api/v1/health || true)
+          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://www.bazionwebs.com/api/v1/health || true)
           if [ "$STATUS" != "200" ]; then
             STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://bazionweb-seven.vercel.app/api/v1/health || true)
           fi

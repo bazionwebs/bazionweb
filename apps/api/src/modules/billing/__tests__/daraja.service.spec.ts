@@ -17,7 +17,7 @@ describe('DarajaService (Safaricom M-Pesa STK Push)', () => {
     DARAJA_CONSUMER_SECRET: 'test_consumer_secret',
     DARAJA_BUSINESS_SHORTCODE: '174379',
     DARAJA_PASSKEY: 'bfb279f9aa9bdbaca158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
-    DARAJA_CALLBACK_URL: 'https://api.bazionweb.com/api/v1/webhooks/daraja',
+    DARAJA_CALLBACK_URL: 'https://www.bazionwebs.com/api/v1/webhooks/daraja',
   };
 
   const createService = async (configOverrides: Record<string, any> = {}) => {
