@@ -333,7 +333,7 @@ export const CARE_PLANS: CarePlan[] = [
       '1 hour allocated for content edits or support',
       'Monthly digital health summary report',
     ],
-    ctaHref: '/checkout?plan=care-essential',
+    ctaHref: '/store?add=care-essential#plans',
   },
   {
     id: 'care-business',
@@ -355,7 +355,7 @@ export const CARE_PLANS: CarePlan[] = [
       'Up to 2 support hours for content & enhancements',
       'Same-day priority support response',
     ],
-    ctaHref: '/checkout?plan=care-business',
+    ctaHref: '/store?add=care-business#plans',
   },
   {
     id: 'care-professional',
@@ -376,7 +376,7 @@ export const CARE_PLANS: CarePlan[] = [
       'Quarterly digital strategy & performance call',
       'Priority emergency response channel (WhatsApp & phone)',
     ],
-    ctaHref: '/checkout?plan=care-professional',
+    ctaHref: '/store?add=care-professional#plans',
   },
   {
     id: 'care-enterprise',
@@ -418,7 +418,7 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
       'Standard technical support',
     ],
     ctaText: 'Choose Host Essential',
-    ctaHref: '/quote?package=host-essential',
+    ctaHref: '/store?add=host-essential#hosting',
   },
   {
     id: 'host-business',
@@ -442,7 +442,7 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
       'Priority ticket support response',
     ],
     ctaText: 'Choose Host Business',
-    ctaHref: '/quote?package=host-business',
+    ctaHref: '/store?add=host-business#hosting',
   },
   {
     id: 'host-professional',
@@ -464,7 +464,7 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
       'Priority phone & direct ticket support',
     ],
     ctaText: 'Choose Host Professional',
-    ctaHref: '/quote?package=host-professional',
+    ctaHref: '/store?add=host-professional#hosting',
   },
   {
     id: 'host-cloud',

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   ShoppingCart,
@@ -97,6 +98,49 @@ export default function StoreView() {
     setAddedKey(key);
     setTimeout(() => setAddedKey(null), 1500);
   };
+
+  // Deep-link support: /store?add=<plan-slug|productId> drops the item straight
+  // into the cart and scrolls to its section, so pricing-page CTAs land mid-flow.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const addParam = searchParams.get('add');
+  useEffect(() => {
+    if (!addParam || plansLoading || catalog.isLoading) return;
+    const plan = (plans ?? []).find((p) => p.slug === addParam);
+    if (plan && PLAN_MARKETING[plan.slug]) {
+      add({
+        kind: 'PLAN',
+        id: plan.slug,
+        name: plan.name,
+        cycle: 'MONTHLY',
+        qty: 1,
+        unitPrice: plan.priceMonthlyKes,
+        currency: 'KES',
+      });
+      setAddedKey(`PLAN:${plan.slug}:MONTHLY`);
+      document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      const price = (catalog.data?.prices ?? []).find((p) => p.productId === addParam);
+      if (price) {
+        const marketing = PRODUCT_MARKETING[price.productId] ?? fallbackMarketing(price.productId);
+        add({
+          kind: 'CATALOG',
+          id: price.productId,
+          name: marketing.name,
+          cycle: price.billingPeriod ?? 'one-time',
+          qty: 1,
+          unitPrice: price.amount,
+          currency: catalog.data?.market.currencyCode ?? 'KES',
+        });
+        setAddedKey(`CATALOG:${price.productId}:${price.billingPeriod ?? 'one-time'}`);
+        document
+          .getElementById(price.productId.startsWith('host-') ? 'hosting' : 'addons')
+          ?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+    // Clean the param so a refresh doesn't re-trigger the add.
+    router.replace('/store', { scroll: false });
+  }, [addParam, plans, plansLoading, catalog.data, catalog.isLoading, add, router]);
 
   const hostingItems = useMemo(
     () => (catalog.data?.prices ?? []).filter((p) => p.productId.startsWith('host-')),

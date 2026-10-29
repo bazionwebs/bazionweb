@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import StoreView from '@/components/store/StoreView';
 import QueryProvider from '@/components/providers/QueryProvider';
 
@@ -11,7 +12,9 @@ export const metadata: Metadata = {
 export default function StorePage() {
   return (
     <QueryProvider>
-      <StoreView />
+      <Suspense fallback={null}>
+        <StoreView />
+      </Suspense>
     </QueryProvider>
   );
 }

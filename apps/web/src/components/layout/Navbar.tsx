@@ -18,6 +18,7 @@ import {
   HeartHandshake,
   Rocket,
   Briefcase,
+  Store as StoreIcon,
   ArrowUpRight,
   Sparkles,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ const serviceItems = [
   { name: 'Custom Systems', href: '/services#custom-systems', icon: Cpu, desc: 'Portals, CRMs & Web Apps' },
   { name: 'Managed Technology', href: '/services#care', icon: Server, desc: 'Cloud Hosting & Proactive Care' },
   { name: 'Specialized Services', href: '/services#specialized', icon: Shield, desc: 'Security, Audits & Speed' },
+  { name: 'Add-ons Store', href: '/store', icon: StoreIcon, desc: 'Care plans, hosting & extras in one cart' },
 ];
 
 const solutionItems = [
@@ -280,6 +282,9 @@ export default function Navbar() {
             </div>
             <Link href="/pricing" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
               Pricing Book
+            </Link>
+            <Link href="/store" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+              Add-ons Store
             </Link>
             <Link href="/process" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
               6-Stage Process

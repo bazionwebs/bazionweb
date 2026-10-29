@@ -106,6 +106,13 @@ export default function HomepagePricingPreview() {
         </Link>
         <span className="hidden sm:inline text-slate-300">·</span>
         <Link
+          href="/store"
+          className="text-sm font-semibold text-slate-600 hover:text-[#0F172A] inline-flex items-center gap-1"
+        >
+          Browse the Store <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+        <span className="hidden sm:inline text-slate-300">·</span>
+        <Link
           href="/quote"
           className="text-sm font-semibold text-slate-600 hover:text-[#0F172A] inline-flex items-center gap-1"
         >
