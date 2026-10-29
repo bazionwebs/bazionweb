@@ -325,7 +325,7 @@ async function main() {
   // ─── Prices (Authoritative Database SSOT) ──────────────────────────────────
   const priceCatalog = [
     // Kenya prices (KES)
-    { priceBookId: 'KE-2026-v1', productId: 'website-launch', amount: 45000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'website-launch', amount: 25000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'website-business', amount: 90000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'ecommerce-starter', amount: 160000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'website-enterprise', amount: 350000, billingPeriod: 'one-time' },
