@@ -1,6 +1,23 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, IsArray, ArrayMaxSize, ValidateNested, IsInt, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BillingCycle } from '@prisma/client';
+import { Type } from 'class-transformer';
+
+/** One catalog add-on line in a cart checkout. Prices are ALWAYS resolved
+ *  server-side from the active price book — the client only sends identity. */
+export class CartExtraDto {
+  @ApiProperty({ description: 'Price-book product ID, e.g. hosting-starter or addon-seo' })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[\w-]{2,64}$/, { message: 'Invalid product ID' })
+  productId: string;
+
+  @ApiProperty({ description: 'Quantity (1-10)' })
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  qty: number;
+}
 
 export class MpesaSubscriptionDto {
   @ApiProperty({ description: 'Plan ID to subscribe to' })
@@ -18,6 +35,14 @@ export class MpesaSubscriptionDto {
   @IsNotEmpty()
   @Matches(/^(\+?254|0)?[17]\d{8}$/, { message: 'Valid Safaricom phone number required' })
   mpesaPhoneNumber: string;
+  @ApiPropertyOptional({ type: [CartExtraDto], description: 'Catalog add-ons to bill with the first invoice (server-priced)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => CartExtraDto)
+  extras?: CartExtraDto[];
+
 }
 
 export class PaystackSubscriptionDto {
@@ -40,6 +65,14 @@ export class PaystackSubscriptionDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+  @ApiPropertyOptional({ type: [CartExtraDto], description: 'Catalog add-ons to bill with the first invoice (server-priced)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => CartExtraDto)
+  extras?: CartExtraDto[];
+
 }
 
 /** Pay an existing (PENDING/OVERDUE) invoice with an M-Pesa STK Push. */
@@ -133,6 +166,14 @@ export class GuestMpesaSubscriptionDto {
   @IsString()
   @Matches(/^.{1,120}$/, { message: 'Business name must be 1-120 characters' })
   businessName?: string;
+  @ApiPropertyOptional({ type: [CartExtraDto], description: 'Catalog add-ons to bill with the first invoice (server-priced)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => CartExtraDto)
+  extras?: CartExtraDto[];
+
 }
 
 /**
@@ -240,6 +281,14 @@ export class GuestSubscriptionDto {
   @IsString()
   @Matches(/^(\+?\d{7,15})$/, { message: 'Valid phone number required' })
   phone?: string;
+  @ApiPropertyOptional({ type: [CartExtraDto], description: 'Catalog add-ons to bill with the first invoice (server-priced)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => CartExtraDto)
+  extras?: CartExtraDto[];
+
 }
 
 // ─── Proposal → deposit checkout (quote-to-close) ────────────────────────────

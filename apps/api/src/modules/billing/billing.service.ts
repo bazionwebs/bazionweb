@@ -31,7 +31,8 @@ import {
   PayInvoiceCardDto,
   AcceptProposalDto,
   ProposalDepositCardDto,
-  ProposalDepositMpesaDto
+  ProposalDepositMpesaDto,
+  CartExtraDto
 } from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -203,6 +204,7 @@ export class BillingService {
       phone: dto.mpesaPhoneNumber,
       plan,
       billingCycle: dto.billingCycle,
+      extras: dto.extras,
     });
   }
 
@@ -315,6 +317,7 @@ export class BillingService {
     phone: string;
     plan: { id: string; name: string };
     billingCycle: BillingCycle;
+    extras?: CartExtraDto[];
   }) {
     const { client, userId, phone, plan, billingCycle } = args;
 
@@ -322,6 +325,9 @@ export class BillingService {
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException('Plan price is not configured for KES');
     }
+
+    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras('KES', args.extras);
+    const total = Math.round((amount + extrasTotal) * 100) / 100;
 
     const invoiceNumber = this.newInvoiceNumber('INV-KE');
     const dueDate = new Date();
@@ -331,7 +337,7 @@ export class BillingService {
       data: {
         clientId: client.id,
         invoiceNumber,
-        amount,
+        amount: total,
         currency: 'KES',
         status: InvoiceStatus.SENT,
         dueDate,
@@ -344,6 +350,7 @@ export class BillingService {
             billingCycle,
             purpose: 'subscription',
           }),
+          ...extraItems,
         ],
       },
     });
@@ -511,6 +518,9 @@ export class BillingService {
       throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
     }
 
+    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras(dto.currency, dto.extras);
+    const total = Math.round((amount + extrasTotal) * 100) / 100;
+
     const invoiceNumber = this.newInvoiceNumber(dto.currency === 'KES' ? 'INV-KE' : 'INV-USD');
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
@@ -520,7 +530,7 @@ export class BillingService {
       data: {
         clientId: client.id,
         invoiceNumber,
-        amount,
+        amount: total,
         currency: dto.currency,
         status: InvoiceStatus.SENT,
         dueDate,
@@ -533,13 +543,14 @@ export class BillingService {
             billingCycle: dto.billingCycle,
             purpose: 'subscription',
           }),
+          ...extraItems,
         ],
       },
     });
 
     const init = await this.paystackService.initializeTransaction({
       email: dto.email || client.email,
-      amount,
+      amount: total,
       currency: dto.currency,
       invoiceNumber: invoice.invoiceNumber,
       callbackUrl: `${frontendUrl}/checkout/verify`,
@@ -662,6 +673,7 @@ export class BillingService {
       phone: dto.mpesaPhoneNumber,
       plan,
       billingCycle: dto.billingCycle,
+      extras: dto.extras,
     });
 
     return { ...result, guest: true, email };
@@ -693,6 +705,9 @@ export class BillingService {
       throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
     }
 
+    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras(dto.currency, dto.extras);
+    const total = Math.round((amount + extrasTotal) * 100) / 100;
+
     const invoiceNumber = this.newInvoiceNumber(dto.currency === 'KES' ? 'INV-KE' : 'INV-USD');
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
@@ -702,7 +717,7 @@ export class BillingService {
       data: {
         clientId: guest.id,
         invoiceNumber,
-        amount,
+        amount: total,
         currency: dto.currency,
         status: InvoiceStatus.SENT,
         dueDate,
@@ -715,13 +730,14 @@ export class BillingService {
             billingCycle: dto.billingCycle,
             purpose: 'subscription',
           }),
+          ...extraItems,
         ],
       },
     });
 
     const init = await this.paystackService.initializeTransaction({
       email,
-      amount,
+      amount: total,
       currency: dto.currency,
       invoiceNumber: invoice.invoiceNumber,
       callbackUrl: `${frontendUrl}/checkout/verify`,
@@ -899,6 +915,55 @@ export class BillingService {
         referenceNote: bankDetails.referenceNote,
       },
     };
+  }
+
+  // ─── Cart extras (server-priced catalog add-ons) ───────────────────────────
+
+  /**
+   * Price cart add-ons from the active price book for the charge currency.
+   * The client only sends product IDs and quantities — amounts, descriptions,
+   * and validity always come from the server so totals cannot be tampered with.
+   */
+  private async priceCartExtras(currency: 'KES' | 'USD', extras?: CartExtraDto[]) {
+    if (!extras?.length) return { lineItems: [] as ReturnType<typeof checkoutLineItem>[], total: 0 };
+
+    const market = await this.prisma.market.findFirst({
+      where: { currencyCode: currency, active: true },
+      include: { priceBooks: { where: { status: 'active' }, orderBy: { effectiveFrom: 'desc' }, take: 1 } },
+    });
+    const priceBook = market?.priceBooks?.[0];
+    if (!market || !priceBook) {
+      throw new ServiceUnavailableException(`No active price book for ${currency} — remove add-ons or contact support.`);
+    }
+
+    const prices = await this.prisma.price.findMany({
+      where: { priceBookId: priceBook.id, productId: { in: extras.map(e => e.productId) } },
+    });
+    const priceMap = new Map(prices.map(p => [p.productId, p]));
+
+    const lineItems: ReturnType<typeof checkoutLineItem>[] = [];
+    let total = 0;
+    for (const extra of extras) {
+      const price = priceMap.get(extra.productId);
+      if (!price) {
+        throw new BadRequestException(`Add-on "${extra.productId}" is not available in the ${currency} price book.`);
+      }
+      const amount = Number(price.amount) * extra.qty;
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new BadRequestException(`Add-on "${extra.productId}" has an invalid price.`);
+      }
+      const period = price.billingPeriod ? ` (${price.billingPeriod})` : '';
+      lineItems.push(checkoutLineItem({
+        description: `Add-on — ${extra.productId.replace(/^[\w-]+-/, '')} x${extra.qty}${period}`,
+        amount,
+        currency,
+        productId: extra.productId,
+        qty: extra.qty,
+        purpose: 'subscription',
+      }));
+      total += amount;
+    }
+    return { lineItems, total: Math.round(total * 100) / 100 };
   }
 
   // ─── Proposal → deposit checkout (quote-to-close) ──────────────────────────
@@ -1280,7 +1345,8 @@ export class BillingService {
           unresolved++;
         }
       } catch (err) {
-        this.logger.warn(`Reconciliation failed for payment ${log.id} (${log.provider}): ${err?.message ?? err}`);
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Reconciliation failed for payment ${log.id} (${log.provider}): ${message}`);
         unresolved++;
       }
     }

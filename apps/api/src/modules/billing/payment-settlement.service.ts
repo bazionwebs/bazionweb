@@ -24,6 +24,8 @@ export function checkoutLineItem(args: {
   currency?: string;
   quantity?: number;
   planId?: string;
+  productId?: string;
+  qty?: number;
   billingCycle?: string;
   purpose?: CheckoutPurpose;
 }) {
@@ -31,8 +33,9 @@ export function checkoutLineItem(args: {
     description: args.description,
     amount: args.amount,
     currency: args.currency,
-    quantity: args.quantity ?? 1,
+    quantity: args.quantity ?? args.qty ?? 1,
     planId: args.planId,
+    productId: args.productId,
     billingCycle: args.billingCycle,
     purpose: args.purpose ?? 'subscription',
   };

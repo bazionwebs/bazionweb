@@ -24,11 +24,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://vercel.live",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https:",
-              "connect-src 'self' https://api.bazionweb.com",
+              "connect-src 'self' https://api.bazionweb.com https://vercel.live wss://vercel.live",
             ].join('; '),
           },
         ],
@@ -38,6 +38,18 @@ const nextConfig = {
   async redirects() {
     return [
       { source: '/www', destination: '/', permanent: true },
+    ];
+  },
+  async rewrites() {
+    // Production routes /api/v1 to the api service via vercel.json; mirror
+    // that same-origin behaviour in local dev so the browser talks to
+    // localhost:3000 and Next proxies to the NestJS dev server on :4000.
+    if (process.env.NODE_ENV !== 'development') return [];
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: `${process.env.API_DEV_URL || 'http://localhost:4000'}/api/v1/:path*`,
+      },
     ];
   },
   webpack(config) {

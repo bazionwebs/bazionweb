@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import type { Metadata } from 'next';
 import SubscriptionCheckout from '@/components/billing/SubscriptionCheckout';
+import QueryProvider from '@/components/providers/QueryProvider';
 import { ShieldCheck, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -10,22 +11,27 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-function CheckoutContent({ searchParams }: { searchParams: { plan?: string; cycle?: string } }) {
-  const plan = searchParams.plan || 'growth';
-  const cycle = searchParams.cycle === 'annual' ? 'ANNUAL' : 'MONTHLY';
+type CheckoutSearchParams = { plan?: string; cycle?: string; cart?: string };
+
+async function CheckoutContent({ searchParams }: { searchParams: Promise<CheckoutSearchParams> }) {
+  const params = await searchParams;
+  const plan = params.plan || 'growth';
+  const cycle = params.cycle === 'annual' ? 'ANNUAL' : 'MONTHLY';
+  const cartMode = params.cart === '1';
 
   return (
-    <SubscriptionCheckout 
+    <SubscriptionCheckout
       initialPlanSlug={plan}
       initialCycle={cycle}
+      cartMode={cartMode}
     />
   );
 }
 
-export default function CheckoutPage({
+export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: { plan?: string; cycle?: string };
+  searchParams: Promise<CheckoutSearchParams>;
 }) {
   return (
     <div className="min-h-screen bg-[#0A0F1D] pt-32 pb-24 text-slate-100">
@@ -61,7 +67,9 @@ export default function CheckoutPage({
             <span className="text-xs">Initializing secure checkout session...</span>
           </div>
         }>
-          <CheckoutContent searchParams={searchParams} />
+          <QueryProvider>
+            <CheckoutContent searchParams={searchParams} />
+          </QueryProvider>
         </Suspense>
       </div>
     </div>

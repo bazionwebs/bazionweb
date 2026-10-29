@@ -18,11 +18,14 @@ import {
 import { resolveApiV1Base } from '@/lib/api-base';
 import { useAuthStore } from '@/store/auth.store';
 import { DEFAULT_PLAN_SLUG, planMarketing, usePlans } from '@/lib/plans';
+import { useCartStore, cartTotal } from '@/lib/cart';
 
 interface CheckoutProps {
   initialPlanSlug?: string;
   initialCycle?: 'MONTHLY' | 'ANNUAL';
   token?: string;
+  /** When arriving from /cart, show the full cart and bill its add-ons with the invoice. */
+  cartMode?: boolean;
 }
 
 type PaymentTab = 'MPESA' | 'CARD' | 'WISE';
@@ -49,6 +52,7 @@ export default function SubscriptionCheckout({
   initialPlanSlug = 'growth',
   initialCycle = 'MONTHLY',
   token: tokenProp = '',
+  cartMode = false,
 }: CheckoutProps) {
   // Session-aware checkout: the public /checkout page doesn't pass a token prop,
   // but a signed-in visitor still carries one in the auth store. Pick it up so
@@ -73,6 +77,18 @@ export default function SubscriptionCheckout({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [paymentAttempt, setPaymentAttempt] = useState<{ trackingId: string; invoiceNumber: string } | null>(null);
   const apiBase = resolveApiV1Base();
+
+  // Cart mode: the plan drives the subscription; catalog extras (hosting,
+  // add-ons) are sent as identity-only lines and priced server-side.
+  const cartItems = useCartStore((s) => s.items);
+  const clearCart = useCartStore((s) => s.clear);
+  const cartExtras = cartMode
+    ? cartItems
+        .filter((i) => i.kind === 'CATALOG')
+        .map((i) => ({ productId: i.id, qty: i.qty }))
+    : [];
+  const cartExtrasTotal = cartMode ? cartTotal(cartItems.filter((i) => i.kind === 'CATALOG')) : 0;
+
   const paymentStatus = useQuery({
     queryKey: ['checkout-payment-status', paymentAttempt?.trackingId],
     enabled: Boolean(paymentAttempt?.trackingId),
@@ -92,6 +108,13 @@ export default function SubscriptionCheckout({
     refetchIntervalInBackground: false,
     retry: 1,
   });
+
+  // Empty the cart once the payment is confirmed — the order now lives as an invoice.
+  useEffect(() => {
+    if (cartMode && paymentAttempt && paymentStatus.data?.status === 'SUCCESS') {
+      clearCart();
+    }
+  }, [cartMode, paymentAttempt, paymentStatus.data?.status, clearCart]);
 
   // Prefill the billing email from the session (once) — users jumping here from
   // the portal shouldn't retype it.
@@ -187,6 +210,7 @@ export default function SubscriptionCheckout({
             billingCycle,
             email: cleanEmail,
             mpesaPhoneNumber: cleanPhone,
+            ...(cartExtras.length ? { extras: cartExtras } : {}),
           }),
         });
         const envelope = await res.json();
@@ -217,6 +241,7 @@ export default function SubscriptionCheckout({
           planId: currentPlan.id,
           billingCycle,
           mpesaPhoneNumber: cleanPhone,
+          ...(cartExtras.length ? { extras: cartExtras } : {}),
         }),
       });
 
@@ -254,6 +279,7 @@ export default function SubscriptionCheckout({
             billingCycle,
             currency: 'KES',
             ...(email ? { email } : {}),
+            ...(cartExtras.length ? { extras: cartExtras } : {}),
           }),
         });
         const data = await res.json();
@@ -284,6 +310,7 @@ export default function SubscriptionCheckout({
           email: cleanEmail,
           firstName: firstName.trim(),
           lastName: lastName.trim(),
+          ...(cartExtras.length ? { extras: cartExtras } : {}),
         }),
       });
       const data = await res.json();
@@ -406,6 +433,40 @@ export default function SubscriptionCheckout({
               ))}
             </div>
           </div>
+
+          {/* Cart lines from /store — extras are priced server-side on the invoice */}
+          {cartMode && cartItems.some((i) => i.kind === 'CATALOG') && (
+            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cart add-ons</span>
+                <Link href="/cart" className="text-[11px] font-semibold text-[#14B8A6] hover:text-teal-300">
+                  Edit cart
+                </Link>
+              </div>
+              <ul className="space-y-1.5">
+                {cartItems
+                  .filter((i) => i.kind === 'CATALOG')
+                  .map((i) => (
+                    <li key={i.key} className="flex items-center justify-between text-xs">
+                      <span className="text-slate-300">
+                        {i.name}
+                        {i.qty > 1 ? ` x${i.qty}` : ''}
+                      </span>
+                      <span className="font-semibold text-white">
+                        KES {(i.unitPrice * i.qty).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+              <div className="mt-3 flex items-center justify-between border-t border-slate-800 pt-2 text-xs">
+                <span className="font-semibold text-slate-300">Add-ons subtotal</span>
+                <span className="font-bold text-white">KES {cartExtrasTotal.toLocaleString()}</span>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Added to your first invoice — final totals confirmed server-side.
+              </p>
+            </div>
+          )}
 
           {/* Billing Cycle Switcher */}
           <div className="mt-5 pt-4 border-t border-slate-800">
