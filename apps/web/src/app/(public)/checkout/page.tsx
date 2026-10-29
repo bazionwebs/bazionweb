@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import type { Metadata } from 'next';
 import SubscriptionCheckout from '@/components/billing/SubscriptionCheckout';
+import QueryProvider from '@/components/providers/QueryProvider';
 import { ShieldCheck, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -66,7 +67,9 @@ export default async function CheckoutPage({
             <span className="text-xs">Initializing secure checkout session...</span>
           </div>
         }>
-          <CheckoutContent searchParams={searchParams} />
+          <QueryProvider>
+            <CheckoutContent searchParams={searchParams} />
+          </QueryProvider>
         </Suspense>
       </div>
     </div>

@@ -1345,7 +1345,8 @@ export class BillingService {
           unresolved++;
         }
       } catch (err) {
-        this.logger.warn(`Reconciliation failed for payment ${log.id} (${log.provider}): ${err?.message ?? err}`);
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Reconciliation failed for payment ${log.id} (${log.provider}): ${message}`);
         unresolved++;
       }
     }
