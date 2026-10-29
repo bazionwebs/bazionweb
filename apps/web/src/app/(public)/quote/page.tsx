@@ -52,6 +52,22 @@ const PACKAGE_DEFAULTS = {
   custom: { name: 'Custom Project Build', basePages: 5, kenyaCost: 320000, intlCost: 3600 },
 };
 
+// The API's global TransformInterceptor wraps every success as { data: ... }.
+// Unwrap the envelope once so callers can read the payload directly.
+function unwrapApiPayload<T>(payload: unknown): T {
+  const node = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  return (node.data && typeof node.data === 'object' ? node.data : node) as T;
+}
+
+// NestJS error `message` may be a string or a validation array — normalize it.
+function apiErrorMessage(payload: unknown, fallback: string): string {
+  const node = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  const message = node.message;
+  if (typeof message === 'string' && message.trim()) return message;
+  if (Array.isArray(message) && message.length) return message.join('. ');
+  return fallback;
+}
+
 function QuoteCalculatorContent() {
   const searchParams = useSearchParams();
 
@@ -231,15 +247,19 @@ function QuoteCalculatorContent() {
           businessName: gCompany.trim() || undefined,
         }),
       });
-      const data = await response.json().catch(() => ({}));
+      const envelope = await response.json().catch(() => ({}));
+      const data = unwrapApiPayload(envelope) as {
+        invoice?: { invoiceNumber: string; amount: number; currency: string };
+        depositPercent?: number;
+      };
       if (!response.ok || !data.invoice) {
-        throw new Error(data.message || 'We could not accept the proposal. Please try again.');
+        throw new Error(apiErrorMessage(envelope, 'We could not accept the proposal. Please try again.'));
       }
       setDeposit({
         invoiceNumber: data.invoice.invoiceNumber,
         amount: data.invoice.amount,
         currency: data.invoice.currency,
-        depositPercent: data.depositPercent,
+        depositPercent: data.depositPercent ?? 50,
       });
       setAcceptStage('accepted');
     } catch (error) {
@@ -258,9 +278,10 @@ function QuoteCalculatorContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: gEmail.trim().toLowerCase() }),
       });
-      const data = await response.json().catch(() => ({}));
+      const envelope = await response.json().catch(() => ({}));
+      const data = unwrapApiPayload(envelope) as { checkoutUrl?: string };
       if (!response.ok || !data.checkoutUrl) {
-        throw new Error(data.message || 'Card checkout could not start. Please try again.');
+        throw new Error(apiErrorMessage(envelope, 'Card checkout could not start. Please try again.'));
       }
       // Paystack hosted checkout; the return URL (/checkout/verify) confirms settlement.
       window.location.href = data.checkoutUrl;
@@ -284,9 +305,10 @@ function QuoteCalculatorContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mpesaPhoneNumber: phone }),
       });
-      const data = await response.json().catch(() => ({}));
+      const envelope = await response.json().catch(() => ({}));
+      const data = unwrapApiPayload(envelope) as { trackingId?: string; message?: string };
       if (!response.ok || !data.trackingId) {
-        throw new Error(data.message || 'M-Pesa prompt could not be sent. Please try again.');
+        throw new Error(apiErrorMessage(envelope, 'M-Pesa prompt could not be sent. Please try again.'));
       }
       setStk({ trackingId: String(data.trackingId), message: String(data.message || 'M-Pesa prompt sent. Check your handset and enter your PIN.') });
     } catch (error) {
@@ -305,12 +327,13 @@ function QuoteCalculatorContent() {
       tries += 1;
       try {
         const response = await fetch(`${resolveApiV1Base()}/invoices/payments/${encodeURIComponent(stk.trackingId)}/status`);
-        const data = await response.json().catch(() => ({}));
-        if (data.resultDesc === 'SUCCESS') {
+        const envelope = await response.json().catch(() => ({}));
+        const data = unwrapApiPayload(envelope) as { status?: string };
+        if (data.status === 'SUCCESS') {
           setPayState('paid');
           return;
         }
-        if (data.resultDesc === 'FAILED') {
+        if (data.status === 'FAILED') {
           setPayState('failed');
           return;
         }
