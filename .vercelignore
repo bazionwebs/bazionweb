@@ -1,0 +1,28 @@
+# Large binaries and archives
+*.exe
+*.zip
+*.tar.gz
+*.docx
+*.pdf
+GitHub-Copilot-windows-x64-setup.exe
+
+# Cache and build outputs
+node_modules
+.next
+dist
+build
+coverage
+
+# Git and OS
+.git
+.github
+.vscode
+.idea
+.DS_Store
+
+# Infrastructure, scripts and docs
+infrastructure
+scripts
+docs
+e2e
+
