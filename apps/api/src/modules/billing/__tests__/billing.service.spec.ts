@@ -42,7 +42,15 @@ const mockPrisma = {
 
 import { PaystackService } from '../paystack.service';
 import { DarajaService } from '../daraja.service';
+import { PaymentSettlementService } from '../payment-settlement.service';
 import { ConfigService } from '@nestjs/config';
+
+const mockPaymentSettlementService = {
+  confirmPaystackReference: jest.fn(),
+  settlePaystackCharge: jest.fn(),
+  settleDarajaSuccess: jest.fn(),
+  paymentStatus: jest.fn(),
+};
 
 const mockPaystackService = {
   initializeTransaction: jest.fn(),
@@ -81,6 +89,7 @@ describe('BillingService', () => {
         { provide: EventEmitter2, useValue: mockEvents },
         { provide: PaystackService, useValue: mockPaystackService },
         { provide: DarajaService, useValue: mockDarajaService },
+        { provide: PaymentSettlementService, useValue: mockPaymentSettlementService },
         { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
