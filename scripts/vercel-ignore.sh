@@ -21,3 +21,4 @@ fi
 
 echo "✅ Relevant changes detected in apps/web. Proceeding with Vercel build."
 exit 1
+
