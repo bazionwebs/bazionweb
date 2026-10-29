@@ -28,7 +28,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https:",
-              "connect-src 'self' https://api.bazionweb.com https://vercel.live wss://vercel.live",
+              "connect-src 'self' https://vercel.live wss://vercel.live",
             ].join('; '),
           },
         ],

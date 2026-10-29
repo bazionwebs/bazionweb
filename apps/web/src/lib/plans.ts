@@ -75,6 +75,33 @@ export const PLAN_MARKETING: Record<string, PlanMarketing> = {
 
 export const DEFAULT_PLAN_SLUG = 'growth';
 
+const PLAN_CACHE_TTL_MS = 10 * 60 * 1000;
+let planCache: { plans: ApiPlan[]; expiresAt: number } | null = null;
+let planRequest: Promise<ApiPlan[]> | null = null;
+
+async function fetchPlans(): Promise<ApiPlan[]> {
+  if (planCache && planCache.expiresAt > Date.now()) return planCache.plans;
+  if (planRequest) return planRequest;
+
+  planRequest = fetch(`${resolveApiV1Base()}/plans`, {
+    headers: { Accept: 'application/json' },
+    cache: 'force-cache',
+  })
+    .then(async (res) => {
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || 'Could not load plans');
+      const list: ApiPlan[] = Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : [];
+      if (!list.length) throw new Error('No active plans are configured');
+      planCache = { plans: list, expiresAt: Date.now() + PLAN_CACHE_TTL_MS };
+      return list;
+    })
+    .finally(() => {
+      planRequest = null;
+    });
+
+  return planRequest;
+}
+
 export function planMarketing(slug: string): PlanMarketing {
   return PLAN_MARKETING[slug] ?? PLAN_MARKETING[DEFAULT_PLAN_SLUG];
 }
@@ -86,20 +113,11 @@ export function usePlans() {
 
   useEffect(() => {
     let cancelled = false;
-    const controller = new AbortController();
-
     (async () => {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch(`${resolveApiV1Base()}/plans`, {
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.message || 'Could not load plans');
-        const list: ApiPlan[] = Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : [];
-        if (!list.length) throw new Error('No active plans are configured');
+        const list = await fetchPlans();
         if (!cancelled) setPlans(list);
       } catch (err: unknown) {
         if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) return;
@@ -111,7 +129,6 @@ export function usePlans() {
 
     return () => {
       cancelled = true;
-      controller.abort();
     };
   }, []);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -88,6 +88,7 @@ function QuoteCalculatorContent() {
   const [gName, setGName] = useState('');
   const [gEmail, setGEmail] = useState('');
   const [gCompany, setGCompany] = useState('');
+  const quoteSubmissionRef = useRef(false);
   const [gCountry, setGCountry] = useState(marketCode === 'KE' ? 'KE' : 'US');
   const [gLoading, setGLoading] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
@@ -192,8 +193,9 @@ function QuoteCalculatorContent() {
 
   async function handleGetStarted(e: React.FormEvent) {
     e.preventDefault();
-    if (!gName.trim() || !gEmail.trim()) return;
+    if (!gName.trim() || !gEmail.trim() || quoteSubmissionRef.current) return;
 
+    quoteSubmissionRef.current = true;
     setGLoading(true);
     setSubmissionError('');
 
@@ -224,6 +226,7 @@ function QuoteCalculatorContent() {
     } catch (error) {
       setSubmissionError(error instanceof Error ? error.message : 'We could not save your proposal. Please retry.');
     } finally {
+      quoteSubmissionRef.current = false;
       setGLoading(false);
     }
   }
