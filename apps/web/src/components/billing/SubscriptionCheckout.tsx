@@ -102,8 +102,8 @@ export default function SubscriptionCheckout({
     },
     refetchInterval: (query) => {
       const status = String(query.state.data?.status || '').toUpperCase();
-      if (status === 'SUCCESS' || status === 'FAILED' || query.state.dataUpdateCount >= 40 || query.state.fetchFailureCount >= 4) return false;
-      return 3000;
+      if (status === 'SUCCESS' || status === 'FAILED' || query.state.dataUpdateCount >= 18 || query.state.fetchFailureCount >= 3) return false;
+      return 5000;
     },
     refetchIntervalInBackground: false,
     retry: 1,
