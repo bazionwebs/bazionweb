@@ -299,7 +299,7 @@ All tables: UUID primary keys · `created_at/updated_at` timestamps · soft dele
 | Client Portal | https://bazionweb.com/portal |
 | Checkout | https://bazionweb.com/checkout |
 | Admin | https://bazionweb.com/admin |
-| API | https://www.bazionwebs.com/api/v1 (same-origin service) |
+| API | https://bazionweb.com/api/v1 (same-origin service) |
 | CMS (Strapi) | https://cms.bazionweb.com |
 | Auth (Keycloak) | https://auth.bazionweb.com |
 | Status | https://status.bazionweb.com |

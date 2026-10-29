@@ -62,7 +62,7 @@ export class DarajaService {
     }
     const callbackUrl = this.config.get<string>(
       'DARAJA_CALLBACK_URL',
-      'https://www.bazionwebs.com/api/v1/webhooks/daraja',
+      'https://bazionweb.com/api/v1/webhooks/daraja',
     );
 
     if (!consumerKey || !consumerSecret) {

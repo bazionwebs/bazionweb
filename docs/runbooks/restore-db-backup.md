@@ -84,7 +84,7 @@ docker compose -f infrastructure/docker/docker-compose.yml exec db psql -U bazio
 docker compose -f infrastructure/docker/docker-compose.yml start api
 
 # Verify API health
-curl -f https://www.bazionwebs.com/api/v1/health
+curl -f https://bazionweb.com/api/v1/health
 
 # Clean up
 rm -f /tmp/restore.sql.gz.enc /tmp/restore.sql.gz /tmp/restore.sql

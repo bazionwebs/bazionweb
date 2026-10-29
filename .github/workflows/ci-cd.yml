@@ -491,7 +491,7 @@ jobs:
           # (same-domain Vercel Services layout) is the custom domain; override via
           # the API_URL secret. The bare Vercel origin is probed as a fallback
           # while the custom domain's DNS propagates.
-          ACTIVE_API_URL="${API_URL:-https://www.bazionwebs.com}"
+          ACTIVE_API_URL="${API_URL:-https://bazionweb.com}"
           FALLBACK_API_URL="https://bazionweb-seven.vercel.app"
           for i in 1 2 3 4 5 6; do
             STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "$ACTIVE_API_URL/api/v1/health" || true)
@@ -535,7 +535,7 @@ jobs:
 
       - name: Smoke tests — API health
         run: |
-          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://www.bazionwebs.com/api/v1/health || true)
+          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://bazionweb.com/api/v1/health || true)
           if [ "$STATUS" != "200" ]; then
             STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://bazionweb-seven.vercel.app/api/v1/health || true)
           fi
