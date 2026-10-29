@@ -3,8 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Wrench, Server, Puzzle, Info } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Wrench, Server, Puzzle, Info, CheckCircle2 } from 'lucide-react';
 import { useCartStore, cartTotal, type CartItem } from '@/lib/cart';
+import { usePlans } from '@/lib/plans';
 
 const kindIcon = (item: CartItem) =>
   item.kind === 'PLAN' ? Wrench : item.cycle === 'one-time' ? Puzzle : Server;
@@ -15,13 +16,32 @@ const cycleLabel = (cycle: string) =>
 export default function CartView() {
   const router = useRouter();
   const items = useCartStore((s) => s.items);
+  const add = useCartStore((s) => s.add);
   const setQty = useCartStore((s) => s.setQty);
   const remove = useCartStore((s) => s.remove);
   const clear = useCartStore((s) => s.clear);
 
+  const { plans } = usePlans();
+
   const plan = items.find((i) => i.kind === 'PLAN');
   const extras = items.filter((i) => i.kind !== 'PLAN');
   const total = cartTotal(items);
+
+  const isKes = (extras[0]?.currency ?? 'KES') === 'KES';
+
+  const handleAddEssentialPlan = () => {
+    const target = plans.find((p) => p.slug === 'care-essential' || p.slug === 'starter');
+    const price = target ? (isKes ? target.priceMonthlyKes : target.priceMonthly) : (isKes ? 5000 : 75);
+    add({
+      kind: 'PLAN',
+      id: target?.slug ?? 'care-essential',
+      name: target?.name ?? 'Care Essential',
+      cycle: 'MONTHLY',
+      qty: 1,
+      unitPrice: price,
+      currency: isKes ? 'KES' : 'USD',
+    });
+  };
 
   if (items.length === 0) {
     return (
@@ -140,6 +160,31 @@ export default function CartView() {
                 Clear cart
               </button>
             </div>
+
+            {!plan && (
+              <div className="mt-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/70 to-indigo-50/40 p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-[#2563EB]">
+                      <Wrench className="h-3.5 w-3.5" /> Care Plan Required
+                    </span>
+                    <h3 className="mt-2 text-base font-bold text-slate-950">
+                      Pair your hosting with managed care
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-600 max-w-xl">
+                      BazionWeb provides managed infrastructure backed by routine security updates, daily backups, and technical support.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddEssentialPlan}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 transition-colors whitespace-nowrap shadow-sm"
+                  >
+                    <Plus className="h-4 w-4" /> Add Care Essential ({isKes ? 'KES 5,000' : '$75'}/mo)
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Summary */}
@@ -178,11 +223,34 @@ export default function CartView() {
               </dl>
 
               {!plan && (
-                <div className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3">
-                  <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                  <p className="text-xs text-amber-800">
-                    Add a care plan to check out — hosting and add-ons are billed together with it.
-                  </p>
+                <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3.5 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-900">
+                        Care plan required for checkout
+                      </p>
+                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                        Hosting & add-ons are managed alongside an active website care plan.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddEssentialPlan}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-white border border-amber-300 px-3 py-2 text-xs font-bold text-amber-900 shadow-sm hover:bg-amber-100/70 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-amber-700" />
+                    Add Care Essential ({isKes ? 'KES 5,000' : '$75'}/mo)
+                  </button>
+                  <div className="text-center">
+                    <Link
+                      href="/store#plans"
+                      className="text-[11px] font-semibold text-[#2563EB] hover:underline"
+                    >
+                      Compare all care plans &rarr;
+                    </Link>
+                  </div>
                 </div>
               )}
 
