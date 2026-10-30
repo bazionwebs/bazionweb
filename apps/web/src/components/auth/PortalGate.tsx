@@ -13,6 +13,7 @@ import PortalShell from '@/components/portal/PortalShell';
  * no session exists yet). Register is a server redirect to /checkout.
  */
 const PUBLIC_PORTAL_PATHS = ['/portal/login', '/portal/claim', '/portal/register'];
+const PORTAL_ROLES = ['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'SUPPORT'];
 
 export default function PortalGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -29,14 +30,14 @@ export default function PortalGate({ children }: { children: React.ReactNode }) 
   const isOnboarding = pathname === '/portal/onboarding' || pathname.startsWith('/portal/onboarding/');
   if (isOnboarding) {
     return (
-      <AuthGuard key="onboarding-guard" requiredRoles={['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'SUPPORT']} redirectTo="/portal/login">
+      <AuthGuard key="onboarding-guard" requiredRoles={PORTAL_ROLES} redirectTo="/portal/login">
         {children}
       </AuthGuard>
     );
   }
 
   return (
-    <AuthGuard key="portal-shell-guard" requiredRoles={['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'SUPPORT']} redirectTo="/portal/login">
+    <AuthGuard key="portal-shell-guard" requiredRoles={PORTAL_ROLES} redirectTo="/portal/login">
       <PortalShell>{children}</PortalShell>
     </AuthGuard>
   );

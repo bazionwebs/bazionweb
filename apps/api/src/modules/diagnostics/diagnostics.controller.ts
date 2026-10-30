@@ -57,3 +57,4 @@ export class AdminDiagnosticsController {
     return this.svc.impersonateClient(dto.clientId, req.user);
   }
 }
+

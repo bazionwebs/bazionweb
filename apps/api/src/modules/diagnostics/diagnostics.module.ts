@@ -11,3 +11,4 @@ import { AdminDiagnosticsService } from './diagnostics.service';
   exports: [AdminDiagnosticsService],
 })
 export class DiagnosticsModule {}
+

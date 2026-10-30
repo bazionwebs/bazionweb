@@ -15,3 +15,4 @@ export class ImpersonateClientDto {
   @IsNotEmpty()
   clientId: string;
 }
+

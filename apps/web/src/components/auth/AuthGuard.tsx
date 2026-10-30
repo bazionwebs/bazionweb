@@ -60,8 +60,8 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       };
 
       if (!isAuthenticated()) {
-        if (redirectUnlessHere(redirectTo)) return;
         if (active) setStatus('unauthorized');
+        redirectUnlessHere(redirectTo);
         return;
       }
 
@@ -69,8 +69,8 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       if (requiredRoles.length > 0) {
         const permitted = requiredRoles.some(r => hasRole(r));
         if (!permitted) {
-          if (redirectUnlessHere('/portal')) return;
           if (active) setStatus('unauthorized');
+          redirectUnlessHere('/portal');
           return;
         }
       }

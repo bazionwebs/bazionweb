@@ -49,20 +49,25 @@ export interface AdminSla {
   avgResolutionMinutes: number;
 }
 
+const EMPTY_ROLES: readonly string[] = [];
+
 function useToken() {
   return useAuthStore(s => s.accessToken);
 }
 
-function useRoles() {
-  return useAuthStore(s => s.user?.roles ?? []);
+export function useRoles(): readonly string[] {
+  return useAuthStore(s => s.user?.roles) ?? EMPTY_ROLES;
 }
 
 const opts = { staleTime: 30_000, retry: 1 as const, refetchOnWindowFocus: false };
 
 /** MRR + SLA endpoints are ADMIN/SUPER_ADMIN-only; uptime allows SUPPORT. */
-export function useCanSeeBilling() {
-  const roles = useRoles();
-  return roles.includes('ADMIN') || roles.includes('SUPER_ADMIN');
+export function useCanSeeBilling(): boolean {
+  return useAuthStore(s => {
+    const roles = s.user?.roles;
+    if (!roles) return false;
+    return roles.includes('ADMIN') || roles.includes('SUPER_ADMIN');
+  });
 }
 
 // ─── Queries ────────────────────────────────────────────────────────────────

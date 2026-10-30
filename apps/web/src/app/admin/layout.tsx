@@ -8,11 +8,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'];
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <QueryProvider>
       <AuthGuard
-        requiredRoles={['ADMIN', 'SUPER_ADMIN', 'SUPPORT']}
+        requiredRoles={ADMIN_ROLES}
         redirectTo="/portal/login"
       >
         <AdminShell>{children}</AdminShell>
