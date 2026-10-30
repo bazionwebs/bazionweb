@@ -17,12 +17,10 @@ import {
   ArrowLeft,
   MessageSquare,
   ShieldCheck,
-  UserPlus,
   X,
   Loader2,
   Mail,
   User,
-  Sparkles,
   Globe,
   Lock,
   CreditCard,
@@ -30,6 +28,8 @@ import {
   CalendarDays,
   Rocket,
   FolderKanban,
+  FileText,
+  AlertCircle,
 } from 'lucide-react';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { buildWhatsAppLink, trackWhatsAppOpen } from '@/lib/contact';
@@ -908,21 +908,21 @@ Please confirm availability and discuss next steps.`;
                 </div>
 
                 <div className="space-y-3 pt-6 border-t border-slate-200">
-                  {/* Primary CTA: Get Started — always available, triggers modal */}
+                  {/* Primary CTA: Get Started */}
                   <button
                     type="button"
                     onClick={() => setShowModal(true)}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 active:scale-[0.98] text-white text-sm font-extrabold transition-all shadow-lg shadow-blue-900/30"
+                    className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl bg-[#0F172A] hover:bg-slate-800 active:scale-[0.98] text-white text-sm font-black transition-all shadow-xl shadow-slate-900/10 group"
                   >
-                    <UserPlus className="w-4 h-4" />
-                    Request a project proposal
-                    <ArrowRight className="w-4 h-4" />
+                    <FileText className="w-4 h-4 text-teal-400 group-hover:scale-110 transition-transform" />
+                    <span>Request Official Project Proposal</span>
+                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
                   </button>
-                  <div className="flex justify-between gap-3">
+                  <div className="flex justify-between items-center gap-3">
                     <button
                       type="button"
                       onClick={() => setStep(2)}
-                      className="btn-secondary text-xs px-5 py-2.5 flex items-center gap-2"
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center gap-1.5 transition-colors"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" /> Back
                     </button>
@@ -931,9 +931,9 @@ Please confirm availability and discuss next steps.`;
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => trackWhatsAppOpen('quote')}
-                      className="btn-primary text-xs px-6 py-3 flex items-center gap-2 bg-[#22C55E] hover:bg-[#16A34A]"
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-slate-700 hover:text-emerald-700 text-xs font-semibold flex items-center gap-1.5 transition-all"
                     >
-                      <MessageSquare className="w-4 h-4" /> Send to WhatsApp
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Quote
                     </a>
                   </div>
                 </div>
@@ -941,112 +941,155 @@ Please confirm availability and discuss next steps.`;
             )}
           </div>
 
-          {/* Right: Live Quotation Summary */}
+          {/* Right: Authoritative Proposal & Scope Summary */}
           <div className="lg:sticky lg:top-24 space-y-4">
-            <div className="card p-6 bg-white border border-slate-200 shadow-md rounded-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Itemized Estimate
-                </span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-[#2563EB]">
-                  {config.market === 'kenya' ? 'KES' : 'USD'}
-                </span>
+            <div className="bg-white border border-slate-200/90 shadow-xl shadow-slate-900/5 rounded-3xl p-6 relative overflow-hidden ring-1 ring-slate-900/5">
+              {/* Subtle top accent bar */}
+              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#2563EB] via-indigo-600 to-teal-500" />
+
+              {/* Card Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[11px] font-bold tracking-wider uppercase text-slate-500">
+                    Proposal Summary
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
+                  <Globe className="w-3 h-3 text-[#2563EB]" />
+                  <span>{config.market === 'kenya' ? 'Kenya · KES' : 'Global · USD'}</span>
+                </div>
               </div>
 
-              {/* Build Breakdown */}
-              <div className="space-y-2 pb-4 border-b border-slate-100 text-xs">
-                <div className="flex justify-between font-semibold text-[#0F172A]">
-                  <span>{pkgInfo.name}</span>
-                  <span>{currencySymbol} {baseCost.toLocaleString()}</span>
+              {/* Scope Breakdown */}
+              <div className="space-y-3 py-2 text-xs">
+                <div className="flex justify-between items-start gap-2">
+                  <div>
+                    <span className="font-bold text-slate-900 text-sm block">{pkgInfo.name}</span>
+                    <span className="text-[11px] text-slate-400">
+                      Baseline build ({pkgInfo.basePages} pages included)
+                    </span>
+                  </div>
+                  <span className="font-bold text-slate-900 text-sm shrink-0">
+                    {currencySymbol} {baseCost.toLocaleString()}
+                  </span>
                 </div>
+
                 {config.extraPages > 0 && (
-                  <div className="flex justify-between text-slate-500">
-                    <span>{config.extraPages}× Extra Pages</span>
-                    <span>+{currencySymbol} {extraPagesCost.toLocaleString()}</span>
+                  <div className="flex justify-between items-center text-slate-600 py-1 border-t border-dashed border-slate-100">
+                    <span>+{config.extraPages} Additional Custom Pages</span>
+                    <span className="font-semibold text-slate-900">
+                      +{currencySymbol} {extraPagesCost.toLocaleString()}
+                    </span>
                   </div>
                 )}
+
                 {config.selectedAddOns.map(id => {
                   const item = ADD_ON_RATE_CARD.find(a => a.id === id);
                   if (!item) return null;
                   const itemPrice = config.market === 'kenya' ? item.rawKes : item.rawUsd;
                   return (
-                    <div key={id} className="flex justify-between text-slate-500">
-                      <span>{item.name}</span>
-                      <span>+{currencySymbol} {itemPrice.toLocaleString()}</span>
+                    <div key={id} className="flex justify-between items-center text-slate-600 py-1 border-t border-dashed border-slate-100">
+                      <span className="truncate pr-2">• {item.name}</span>
+                      <span className="font-semibold text-slate-900 shrink-0">
+                        +{currencySymbol} {itemPrice.toLocaleString()}
+                      </span>
                     </div>
                   );
                 })}
+
                 {config.rushDelivery && (
-                  <div className="flex justify-between text-amber-700 font-semibold">
-                    <span>Rush Production (+35%)</span>
+                  <div className="flex justify-between items-center text-amber-700 py-1 border-t border-dashed border-slate-100 font-semibold">
+                    <span>Priority Rush Delivery (+35%)</span>
                     <span>+{currencySymbol} {rushCost.toLocaleString()}</span>
                   </div>
                 )}
-
-                <div className="flex justify-between font-extrabold text-[#0F172A] text-sm pt-2 border-t border-slate-100">
-                  <span>One-Time Build Total</span>
-                  <span className="text-[#2563EB]">{currencySymbol} {totalBuild.toLocaleString()}</span>
-                </div>
               </div>
 
-              {/* Ongoing Recurring Services */}
-              <div className="py-3 border-b border-slate-100 space-y-1.5 text-xs">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Recurring Services:
-                </div>
+              {/* Recurring & Maintenance */}
+              <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-2 text-xs">
                 <div className="flex justify-between text-slate-600">
-                  <span>Care Maintenance</span>
-                  <span className="font-semibold text-[#0F172A]">
-                    {monthlyCare > 0 ? `${currencySymbol} ${monthlyCare.toLocaleString()}/mo` : 'Warranty only'}
+                  <span className="text-[11px] font-medium text-slate-500">Website Care &amp; Support:</span>
+                  <span className="font-bold text-slate-900">
+                    {monthlyCare > 0 ? `${currencySymbol} ${monthlyCare.toLocaleString()}/mo` : 'Included Defect Warranty'}
+                  </span>
+                </div>
+                {config.hosting !== 'none' && (
+                  <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-200/60">
+                    <span className="text-[11px] font-medium text-slate-500">Managed Annual Hosting:</span>
+                    <span className="font-bold text-slate-900">
+                      +{currencySymbol} {annualHosting.toLocaleString()}/yr
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Total Investment Block */}
+              <div className="pt-2">
+                <div className="flex items-baseline justify-between mb-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Total Estimated Build
+                  </span>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-slate-900 tracking-tight">
+                      {currencySymbol} {totalBuild.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 mt-0.5">
+                  <span>50% Kickoff Deposit on approval:</span>
+                  <span className="font-bold text-emerald-600">
+                    {currencySymbol} {Math.round(totalBuild * 0.5).toLocaleString()}
                   </span>
                 </div>
               </div>
 
-              {/* Year 1 Total */}
-              <div className="pt-3">
-                <div className="flex justify-between items-end mb-1">
-                  <span className="text-xs font-bold text-slate-500 uppercase">Year 1 Total</span>
-                  <span className="text-2xl font-black text-[#0F172A]">
-                    {currencySymbol} {totalYearOne.toLocaleString()}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  {monthlyCare > 0 ? 'Includes one-time build + 12 months ongoing care' : 'Includes one-time build + included defect warranty'}
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-2.5 mt-6">
-                {/* PRIMARY: Get Started — always visible, opens modal */}
+              {/* Action Buttons: HERO PROPOSAL BUTTON is prominent, others do NOT shout */}
+              <div className="space-y-2.5 pt-2">
+                {/* 1. HERO PROPOSAL CTA */}
                 <button
                   type="button"
                   onClick={() => setShowModal(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 active:scale-[0.98] text-white text-sm font-extrabold transition-all shadow-lg shadow-blue-900/30"
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 px-5 rounded-2xl bg-[#0F172A] hover:bg-slate-800 active:scale-[0.99] text-white text-sm font-black transition-all shadow-xl shadow-slate-900/20 group"
                 >
-                  <UserPlus className="w-4 h-4" />
-                  Request a project proposal
-                  <ArrowRight className="w-4 h-4" />
+                  <FileText className="w-4 h-4 text-teal-400 group-hover:scale-110 transition-transform" />
+                  <span>Request Official Project Proposal</span>
+                  <ArrowRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
                 </button>
-                <a
-                  href={whatsappHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => trackWhatsAppOpen('quote')}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-bold transition-colors"
-                >
-                  <MessageSquare className="w-4 h-4" /> Send Quote to WhatsApp
-                </a>
-                <Link
-                  href={`/contact?source=quote-calculator&package=${config.packageType}`}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-colors"
-                >
-                  Book Free Consultation <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
+
+                {/* 2. SUBTLE, DE-ESCALATED SECONDARY OPTIONS */}
+                <div className="grid grid-cols-2 gap-2 pt-0.5">
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => trackWhatsAppOpen('quote')}
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-slate-600 hover:text-emerald-700 text-xs font-semibold transition-all text-center"
+                    title="Share this estimate via WhatsApp"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>WhatsApp Quote</span>
+                  </a>
+
+                  <Link
+                    href={`/contact?source=quote-calculator&package=${config.packageType}`}
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-semibold transition-all text-center"
+                  >
+                    <span>Free Consultation</span>
+                  </Link>
+                </div>
               </div>
 
-              <div className="flex items-start gap-2 mt-4 p-3 bg-blue-50/70 rounded-xl text-[11px] text-[#2563EB] leading-tight">
-                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>100% Client Ownership guaranteed. Zero vendor lock-in.</span>
+              {/* Trust Indicators */}
+              <div className="pt-3 border-t border-slate-100 flex flex-col gap-1.5 text-[11px] text-slate-500">
+                <div className="flex items-center gap-1.5 text-slate-600">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>100% IP &amp; Code Ownership. Zero Vendor Lock-in.</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>Price locked for 30 days upon proposal generation.</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1056,101 +1099,115 @@ Please confirm availability and discuss next steps.`;
       {/* ── Get Started Modal Overlay ─────────────────────────────── */}
       {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md"
           role="dialog"
           aria-modal="true"
           aria-labelledby="proposal-modal-title"
           onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
         >
-          <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain bg-white rounded-3xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-            {/* Modal header */}
-            <div className="bg-gradient-to-br from-[#2563EB] to-indigo-700 px-6 py-6 relative">
+          <div className="w-full max-w-lg max-h-[92dvh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 custom-scrollbar">
+            {/* Modal header - Clean, Executive Obsidian */}
+            <div className="bg-[#0F172A] px-7 py-6 text-white relative">
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
                 aria-label="Close proposal form"
-                className="absolute right-4 top-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
+                className="absolute right-5 top-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Project request</p>
-                    <h2 id="proposal-modal-title" className="text-lg font-extrabold text-white">Request your proposal</h2>
-                </div>
+              
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[11px] font-bold tracking-widest uppercase text-teal-400">
+                  Instant Project Proposal
+                </span>
               </div>
-                  <p className="text-blue-200 text-xs leading-relaxed">
-                We&apos;ll save a server-priced proposal and your contact details. There&apos;s no payment or account creation at this step.
+              <h2 id="proposal-modal-title" className="text-xl font-black text-white tracking-tight">
+                Request Your Formal Proposal
+              </h2>
+              <p className="text-slate-300 text-xs mt-1 leading-relaxed">
+                We&apos;ll generate an official itemized proposal, milestone delivery schedule, and 30-day fixed price lock.
               </p>
             </div>
 
-            {/* Modal form */}
-            <form onSubmit={handleGetStarted} className="px-6 py-6 space-y-4">
-              <div>
-                <label htmlFor="gs-name" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    id="gs-name"
-                    type="text"
-                    required
-                    autoFocus
-                    autoComplete="name"
-                    maxLength={100}
-                    value={gName}
-                    onChange={e => setGName(e.target.value)}
-                    placeholder="Jane Wanjiku"
-                    className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
+            {/* Configured Package Summary Chip inside modal */}
+            <div className="px-7 pt-5 pb-1">
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Target Build</span>
+                  <span className="font-extrabold text-slate-900 text-sm">{pkgInfo.name}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Estimated Scope</span>
+                  <span className="font-black text-[#2563EB] text-sm">{currencySymbol} {totalBuild.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal form - Clean, Straightforward, No Stuffy Overcrowding */}
+            <form onSubmit={handleGetStarted} className="px-7 py-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label htmlFor="gs-name" className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Your Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      id="gs-name"
+                      type="text"
+                      required
+                      autoFocus
+                      autoComplete="name"
+                      maxLength={100}
+                      value={gName}
+                      onChange={e => setGName(e.target.value)}
+                      placeholder="Jane Wanjiku"
+                      className="w-full border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="gs-email" className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Work Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      id="gs-email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      maxLength={254}
+                      value={gEmail}
+                      onChange={e => setGEmail(e.target.value)}
+                      placeholder="jane@yourcompany.com"
+                      className="w-full border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium"
+                    />
+                  </div>
                 </div>
               </div>
 
               <div>
-                <label htmlFor="gs-email" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Work Email
+                <label htmlFor="gs-company" className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Company or Organization <span className="text-slate-400 font-normal">(Optional)</span>
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    id="gs-email"
-                    type="email"
-                    required
-                    autoComplete="email"
-                    maxLength={254}
-                    value={gEmail}
-                    onChange={e => setGEmail(e.target.value)}
-                    placeholder="jane@yourcompany.com"
-                    className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
-                </div>
+                <input
+                  id="gs-company"
+                  type="text"
+                  maxLength={100}
+                  value={gCompany}
+                  onChange={e => setGCompany(e.target.value)}
+                  placeholder="e.g. Acacia Healthcare Ltd"
+                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium"
+                />
               </div>
 
               <div>
-                <label htmlFor="gs-company" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Company <span className="text-slate-400 font-normal normal-case">(optional)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    id="gs-company"
-                    type="text"
-                    maxLength={100}
-                    value={gCompany}
-                    onChange={e => setGCompany(e.target.value)}
-                    placeholder="Acacia Healthcare Ltd"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="gs-country" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>Billing Country &amp; Contracting Entity</span>
-                  <span className="text-[10px] font-bold text-[#2563EB]">Authoritative Market</span>
+                <label htmlFor="gs-country" className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Contracting Region &amp; Currency
                 </label>
                 <div className="relative">
                   <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -1165,51 +1222,58 @@ Please confirm availability and discuss next steps.`;
                         market: mapCountryToMarket(countryCode) === 'KE' ? 'kenya' : 'international',
                       }));
                     }}
-                    className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 bg-white focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium"
+                    className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 bg-white focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium cursor-pointer"
                   >
-                    <optgroup label="East Africa (Kenya Price Book & Terms)">
-                      <option value="KE">🇰🇪 Kenya (KES · M-Pesa &amp; Paystack)</option>
-                      <option value="UG">🇺🇬 Uganda (East Africa Region)</option>
-                      <option value="TZ">🇹🇿 Tanzania (East Africa Region)</option>
-                      <option value="RW">🇷🇼 Rwanda (East Africa Region)</option>
-                    </optgroup>
-                    <optgroup label="International (Global Price Book & Master SLA)">
-                      <option value="US">🇺🇸 United States (USD · Stripe &amp; Wire)</option>
-                      <option value="GB">🇬🇧 United Kingdom (USD · International Rails)</option>
-                      <option value="CA">🇨🇦 Canada (USD · Global Rails)</option>
-                      <option value="AU">🇦🇺 Australia (USD · Global Rails)</option>
-                      <option value="DE">🇩🇪 Germany / Europe (USD · International)</option>
-                      <option value="OTHER">🌍 Other International (USD · Global Master SLA)</option>
-                    </optgroup>
+                    <option value="KE">🇰🇪 Kenya (KES · M-Pesa &amp; Paystack)</option>
+                    <option value="UG">🇺🇬 Uganda (East Africa Region · KES/USD)</option>
+                    <option value="TZ">🇹🇿 Tanzania (East Africa Region · KES/USD)</option>
+                    <option value="RW">🇷🇼 Rwanda (East Africa Region · KES/USD)</option>
+                    <option value="US">🇺🇸 United States &amp; Global (USD · Card &amp; Wire)</option>
+                    <option value="GB">🇬🇧 United Kingdom (USD · International)</option>
+                    <option value="CA">🇨🇦 Canada (USD · Global Rails)</option>
+                    <option value="AU">🇦🇺 Australia (USD · Global Rails)</option>
+                    <option value="DE">🇩🇪 Germany / Europe (USD · International)</option>
+                    <option value="OTHER">🌍 Other International (USD · Global SLA)</option>
                   </select>
                 </div>
-                <div className="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Authoritative Price Book: <strong className="text-slate-700">{mapCountryToMarket(gCountry) === 'KE' ? 'KE-2026-v1 (KES)' : 'GLOBAL-2026-v1 (USD)'}</strong></span>
-                  <span className="text-emerald-600 font-semibold flex items-center gap-1"><Lock className="w-3 h-3" /> Price Guaranteed 30 Days</span>
+
+                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                  <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+                    <Lock className="w-3 h-3 text-emerald-600" /> Fixed Price Locked for 30 Days
+                  </span>
+                  <span className="text-slate-400">Zero Obligation</span>
                 </div>
               </div>
 
               <button
                 type="submit"
                 disabled={gLoading || !gName.trim() || !gEmail.trim()}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-sm transition-all shadow-lg shadow-blue-900/30 mt-2"
+                className="w-full flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-[#0F172A] hover:bg-slate-800 disabled:opacity-50 text-white font-black text-xs transition-all shadow-xl shadow-slate-900/10 mt-3 group"
               >
                 {gLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Saving proposal…</>
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-teal-400" />
+                    <span>Preparing Official Proposal…</span>
+                  </>
                 ) : (
-                  <><UserPlus className="w-4 h-4" /> Submit project request <ArrowRight className="w-4 h-4" /></>
+                  <>
+                    <FileText className="w-4 h-4 text-teal-400 group-hover:scale-110 transition-transform" />
+                    <span>Generate Official Project Proposal</span>
+                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
+                  </>
                 )}
               </button>
 
               {submissionError && (
-                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs leading-relaxed text-red-700">
-                  {submissionError}
-                </p>
+                <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-relaxed text-rose-800 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>{submissionError}</span>
+                </div>
               )}
 
               <p className="text-center text-[11px] text-slate-400 leading-relaxed pt-1">
-                No account or payment is needed to request a proposal. By continuing you agree to our{' '}
-                <a href="/legal/terms" className="text-[#2563EB] hover:underline">Terms</a>.
+                No credit card or upfront payment needed. By proceeding, you agree to our{' '}
+                <Link href="/legal/terms" className="text-slate-600 hover:text-slate-900 underline font-medium">Terms of Service</Link>.
               </p>
             </form>
           </div>
