@@ -16,7 +16,8 @@
     "db:down": "docker compose -f infrastructure/docker/docker-compose.dev.yml down",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:push": "prisma db push --schema=prisma/schema.prisma",
-    "prisma:seed": "npm --workspace=@bazionweb/api run prisma:seed"
+    "prisma:seed": "npm --workspace=@bazionweb/api run prisma:seed",
+    "admin:create": "node scripts/create-superadmin.js"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",
