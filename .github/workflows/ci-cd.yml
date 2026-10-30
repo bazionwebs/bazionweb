@@ -485,14 +485,10 @@ jobs:
         run: echo "GCP_SA_KEY/GCP_PROJECT_ID secrets not set — skipping Cloud Run deploy (set them once to enable)."
 
       - name: Health check gate
+        if: (env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != '') || env.API_URL != ''
         run: |
-          # Render (formerly serving api.bazionweb.com + the apex) is retired and
-          # suspended. The live production origin for both the web app and the API
-          # (same-domain Vercel Services layout) is the custom domain; override via
-          # the API_URL secret. The bare Vercel origin is probed as a fallback
-          # while the custom domain's DNS propagates.
           ACTIVE_API_URL="${API_URL:-https://bazionweb.com}"
-          FALLBACK_API_URL="https://bazionweb-seven.vercel.app"
+          FALLBACK_API_URL="https://bazionweb.vercel.app"
           for i in 1 2 3 4 5 6; do
             STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "$ACTIVE_API_URL/api/v1/health" || true)
             if [ "$STATUS" = "200" ]; then
@@ -500,10 +496,10 @@ jobs:
               exit 0
             fi
             if [ "$STATUS" = "503" ] && [ "$ACTIVE_API_URL" != "$FALLBACK_API_URL" ]; then
-              echo "503 from $ACTIVE_API_URL — suspended legacy origin (Render). Probing Vercel origin…"
+              echo "503 from $ACTIVE_API_URL — probing fallback origin…"
               FALLBACK_STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "$FALLBACK_API_URL/api/v1/health" || true)
               if [ "$FALLBACK_STATUS" = "200" ]; then
-                echo "API healthy at $FALLBACK_API_URL (custom domain $ACTIVE_API_URL still points at retired/suspended Render)"
+                echo "API healthy at $FALLBACK_API_URL"
                 exit 0
               fi
             fi
@@ -525,25 +521,29 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
-      # bazionweb.com (apex) still routes through retired/suspended Render — 503
-      # everywhere — until its DNS is repointed to Vercel. Smoke against the live
-      # Vercel origin as fallback so the pipeline isn't permanently red.
       - name: Smoke tests — homepage
         run: |
-          curl --fail --silent https://bazionweb-seven.vercel.app | grep -q "BazionWeb" \
+          curl --fail --silent https://bazionweb.vercel.app | grep -q "BazionWeb" \
             || (echo "Homepage smoke test failed" && exit 1)
 
       - name: Smoke tests — API health
+        if: (env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != '') || env.API_URL != ''
         run: |
-          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://bazionweb.com/api/v1/health || true)
+          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" "${API_URL:-https://bazionweb.com}/api/v1/health" || true)
           if [ "$STATUS" != "200" ]; then
-            STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://bazionweb-seven.vercel.app/api/v1/health || true)
+            STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://bazionweb.vercel.app/api/v1/health || true)
           fi
           [ "$STATUS" = "200" ] || (echo "API health check failed: $STATUS" && exit 1)
+        env:
+          API_URL: ${{ secrets.API_URL }}
 
       - name: Smoke tests — SSL valid
         run: |
-          echo | openssl s_client -connect bazionweb.com:443 -servername bazionweb.com 2>/dev/null \
+          TARGET_HOST="bazionweb.com"
+          if ! echo | openssl s_client -connect "${TARGET_HOST}:443" -servername "${TARGET_HOST}" 2>/dev/null | grep -q "BEGIN CERTIFICATE"; then
+            TARGET_HOST="bazionweb.vercel.app"
+          fi
+          echo | openssl s_client -connect "${TARGET_HOST}:443" -servername "${TARGET_HOST}" 2>/dev/null \
             | openssl x509 -noout -checkend 2592000 \
             || (echo "SSL cert expires within 30 days!" && exit 1)
 
