@@ -95,8 +95,8 @@ export default function ProcessPage() {
       </section>
 
       {/* Sticky phase nav */}
-      <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100">
-        <div className="container-default flex gap-1 overflow-x-auto py-3 scrollbar-hide">
+      <div className="sticky top-20 md:top-24 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100">
+        <div className="container-default flex gap-1 overflow-x-auto py-3 no-scrollbar">
           {phases.map((p, i) => (
             <a
               key={p.id}

@@ -17,7 +17,7 @@ import { useClientProjects, useSignOffProjectTask } from '@/hooks/usePortalData'
 import type { ApiProject, ApiProjectTask } from '@/hooks/usePortalData';
 import { EmptyState, QueryError, SectionLoading } from '@/components/ui/QueryState';
 import { formatDate } from '@/lib/format';
-import { cn } from '@/lib/utils';
+import { cn, toSafeExternalUrl } from '@/lib/utils';
 
 const PROJECT_STATUS: Record<string, { label: string; className: string }> = {
   PLANNING: { label: 'Planning', className: 'bg-slate-100 text-slate-700 border border-slate-200' },
@@ -185,9 +185,9 @@ function ProjectCard({ project }: { project: ApiProject }) {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2.5">
-          {project.stagingUrl && (
+          {toSafeExternalUrl(project.stagingUrl) && (
             <a
-              href={project.stagingUrl}
+              href={toSafeExternalUrl(project.stagingUrl) ?? undefined}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-blue-200 bg-blue-50 text-xs font-bold text-blue-800 hover:bg-blue-100 transition-colors"
@@ -195,9 +195,9 @@ function ProjectCard({ project }: { project: ApiProject }) {
               Open Staging Preview <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}
-          {project.productionUrl && (
+          {toSafeExternalUrl(project.productionUrl) && (
             <a
-              href={project.productionUrl}
+              href={toSafeExternalUrl(project.productionUrl) ?? undefined}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition-colors"

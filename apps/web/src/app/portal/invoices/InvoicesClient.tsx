@@ -29,7 +29,7 @@ import {
 } from '@/hooks/usePortalData';
 import { TableSkeletonRows, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatMoney, formatDate, titleCase, providerLabel } from '@/lib/format';
-import { cn } from '@/lib/utils';
+import { cn, isTrustedCheckoutUrl, toSafeExternalUrl } from '@/lib/utils';
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   PAID: {
@@ -191,11 +191,15 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
 </body>
 </html>`;
 
-  const w = window.open('', '_blank', 'noopener,noreferrer');
-  if (w) {
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+  try {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, '_blank');
+    if (w) {
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    }
+  } catch {
+    // If popups or blobs fail, do nothing destructive
   }
 }
 
@@ -344,10 +348,10 @@ export default function InvoicesClient() {
         email: liveClient?.email,
       })) as { data?: { checkoutUrl?: string }; checkoutUrl?: string };
       const payload = res?.data ?? res;
-      if (payload?.checkoutUrl) {
+      if (payload?.checkoutUrl && isTrustedCheckoutUrl(payload.checkoutUrl)) {
         window.location.href = payload.checkoutUrl;
       } else {
-        setPayError('Card checkout could not be initialized. Please try again.');
+        setPayError('Card checkout could not be initialized or untrusted URL returned. Please try again.');
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -813,9 +817,9 @@ export default function InvoicesClient() {
                             </button>
                           )}
 
-                          {inv.pdfUrl ? (
+                          {inv.pdfUrl && toSafeExternalUrl(inv.pdfUrl) ? (
                             <a
-                              href={inv.pdfUrl}
+                              href={toSafeExternalUrl(inv.pdfUrl) ?? '#'}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
@@ -846,11 +850,16 @@ export default function InvoicesClient() {
 
       {/* Interactive Pay Now Modal */}
       {selectedInvoiceForPay && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200">
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settle-statement-title"
+        >
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div>
-                <h3 className="text-xl font-black text-[#0F172A]">Settle Statement</h3>
+                <h3 id="settle-statement-title" className="text-xl font-black text-[#0F172A]">Settle Statement</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Invoice{' '}
                   <span className="font-mono font-bold text-slate-700">

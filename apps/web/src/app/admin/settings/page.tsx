@@ -60,7 +60,7 @@ export default function AdminSettingsPage() {
   // ── Security state
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [copiedApiKey, setCopiedApiKey] = useState(false);
-  const INTERNAL_API_KEY = 'bz_live_sk_••••••••••••••••••••••••a9f3';
+  const INTERNAL_API_KEY = 'Configured via server environment (INTERNAL_ADMIN_KEY)';
 
   // ── Webhooks state
   const [webhookUrl, setWebhookUrl] = useState('https://bazionweb.com/api/v1/webhooks/paystack');
@@ -89,7 +89,7 @@ export default function AdminSettingsPage() {
   };
 
   const copyApiKey = () => {
-    navigator.clipboard.writeText('bz_live_sk_a9f3_internal_only');
+    navigator.clipboard.writeText('Manage admin keys securely via your server environment variables.');
     setCopiedApiKey(true);
     setTimeout(() => setCopiedApiKey(false), 2000);
   };

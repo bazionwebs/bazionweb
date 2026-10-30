@@ -6,12 +6,17 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  Optional,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PaymentStatus } from '@prisma/client';
+import * as crypto from 'crypto';
 import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
+import { DarajaService } from './daraja.service';
 import { PaymentSettlementService } from './payment-settlement.service';
 
 @ApiTags('webhooks')
@@ -23,7 +28,30 @@ export class WebhooksController {
     private readonly prisma: PrismaService,
     private readonly paystack: PaystackService,
     private readonly settlement: PaymentSettlementService,
+    @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly daraja?: DarajaService,
   ) {}
+
+  private verifyDarajaToken(req: Request): boolean {
+    const secret = (this.config?.get<string>('DARAJA_WEBHOOK_SECRET', '') || '').trim();
+    if (!secret || secret.includes('CHANGE_ME')) {
+      return false;
+    }
+    const supplied = String(
+      (req.query as Record<string, unknown> | undefined)?.token ||
+      req.headers?.['x-daraja-webhook-secret'] ||
+      '',
+    ).trim();
+    if (!supplied) {
+      throw new UnauthorizedException('Missing Daraja callback verification token');
+    }
+    const a = Buffer.from(supplied, 'utf8');
+    const b = Buffer.from(secret, 'utf8');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      throw new UnauthorizedException('Invalid Daraja callback verification token');
+    }
+    return true;
+  }
 
   // Exact bytes for HMAC — requires NestFactory rawBody:true (see main.ts).
   private rawBody(req: Request): Buffer | string {
@@ -62,6 +90,12 @@ export class WebhooksController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Safaricom Daraja Lipa Na M-Pesa STK Callback' })
   async handleDarajaWebhook(@Req() req: Request) {
+    const tokenVerified = this.verifyDarajaToken(req);
+    const darajaActive = Boolean(this.daraja?.isConfigured?.());
+    if (!tokenVerified && !darajaActive) {
+      throw new UnauthorizedException('Daraja callback verification is not configured');
+    }
+
     const payload = req.body ?? {};
     const stkCallback = payload?.Body?.stkCallback;
 
@@ -103,10 +137,24 @@ export class WebhooksController {
       return { ResultCode: 0, ResultDesc: 'Accepted' };
     }
 
+    // Safaricom Daraja STK callbacks carry no asymmetric signature: verify
+    // payment finality directly against Safaricom's STK Query API whenever
+    // Daraja credentials are active before settling any invoice.
+    if (darajaActive && this.daraja) {
+      const upstream = await this.daraja.queryStkStatus(CheckoutRequestID);
+      if (String(upstream.resultCode) !== '0') {
+        this.logger.warn(
+          `Daraja callback rejected by upstream STK query for ${CheckoutRequestID}: resultCode=${upstream.resultCode}`,
+        );
+        return { ResultCode: 0, ResultDesc: 'Accepted' };
+      }
+    }
+
     const metadataItems: Array<{ Name: string; Value: any }> = CallbackMetadata?.Item || [];
     const getMetaValue = (name: string) => metadataItems.find((i) => i.Name === name)?.Value;
     const receiptNumber = String(getMetaValue('MpesaReceiptNumber') || CheckoutRequestID);
-    const paidAmount = Number(getMetaValue('Amount'));
+    const rawAmount = getMetaValue('Amount');
+    const paidAmount = rawAmount === undefined || rawAmount === null || rawAmount === '' ? NaN : Number(rawAmount);
 
     return this.settlement.settleDarajaSuccess({
       checkoutRequestId: CheckoutRequestID,

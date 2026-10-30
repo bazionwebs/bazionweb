@@ -15,8 +15,8 @@ import {
   LayoutList,
   ArrowRight,
   Loader2,
-  MessageCircle,
 } from 'lucide-react';
+import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { usePlans, PLAN_MARKETING } from '@/lib/plans';
 import { useCartStore } from '@/lib/cart';
@@ -284,14 +284,14 @@ export default function StoreView() {
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-semibold text-emerald-900 mb-1">Not sure what you need?</p>
                 <p className="text-xs text-emerald-700 mb-3">Talk to us and we&apos;ll scope it for you.</p>
-                <a
-                  href="https://wa.me/254733338989"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 hover:text-emerald-900"
+                <WhatsAppLink
+                  source="store"
+                  message="Hello BazionWeb, I'm browsing your add-ons store and need help choosing the right package."
+                  className="text-sm font-semibold text-emerald-800 hover:text-emerald-900"
+                  iconClassName="h-4 w-4"
                 >
-                  <MessageCircle className="h-4 w-4" /> WhatsApp support
-                </a>
+                  WhatsApp support
+                </WhatsAppLink>
               </div>
             </div>
           </aside>

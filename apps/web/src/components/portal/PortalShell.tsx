@@ -30,6 +30,7 @@ import {
   useClientInvoices,
 } from '@/hooks/usePortalData';
 import NotificationBell from './NotificationBell';
+import WhatsAppFloatingChat from '@/components/ui/WhatsAppChat';
 
 export interface PortalNavItem {
   id: string;
@@ -93,6 +94,9 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const activeSub = liveClient?.subscriptions?.[0];
   const activeProject = projects[0];
 
+  const whatsappMessage =
+    "Hello BazionWeb Support, I'm a client and need help with my workspace. I'm contacting you from the client portal.";
+
   const slaBadgeLabel = (() => {
     const p1 = activeSub?.plan?.p1ResponseMinutes;
     if (typeof p1 === 'number' && p1 > 0) {
@@ -154,14 +158,14 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       {/* ── Sidebar ────────────────────────────────────────────────────────── */}
       <aside
         className={cn(
-          'fixed lg:sticky top-0 inset-y-0 left-0 z-40 w-72 bg-[#0F172A] flex flex-col transition-transform duration-300 h-screen border-r border-white/5',
+          'fixed lg:sticky top-0 inset-y-0 left-0 z-40 w-72 bg-[#0F172A] flex flex-col transition-transform duration-300 h-[100dvh] border-r border-white/5',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
         {/* Brand Header */}
         <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between shrink-0">
           <Link href="/portal" className="flex items-center gap-2.5">
-            <Logo variant="dark" markClassName="h-10 w-auto" />
+            <Logo variant="dark" markClassName="h-10 w-auto" href={null} wordmark={false} />
             <div>
               <div className="font-black text-white text-sm tracking-tight">BazionWeb</div>
               <div className="text-[11px] text-slate-400 font-medium">Client Portal</div>
@@ -388,6 +392,8 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         {/* Page Content */}
         <main className="flex-1 p-6 overflow-y-auto custom-scrollbar">{children}</main>
       </div>
+
+      <WhatsAppFloatingChat source="portal_widget" message={whatsappMessage} label="WhatsApp Support" />
     </div>
   );
 }

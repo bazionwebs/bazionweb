@@ -11,14 +11,21 @@ const PROJECT_INCLUDE = {
 @Injectable()
 export class ProjectsService {
   private readonly logger = new Logger(ProjectsService.name);
+  private readonly provisionedCooldown = new Map<string, number>();
 
   constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Ensures any settled proposal kickoff deposit invoices for this client have
    * their corresponding Project + Milestone roadmap provisioned (idempotent).
+   * Throttled per client (60s TTL) so repeated dashboard reads stay single-query fast.
    */
   private async ensurePaidProposalProjectsProvisioned(clientId: string) {
+    const now = Date.now();
+    const lastChecked = this.provisionedCooldown.get(clientId) ?? 0;
+    if (now - lastChecked < 60_000) return;
+    this.provisionedCooldown.set(clientId, now);
+
     const paidDeposits = await this.prisma.invoice.findMany({
       where: {
         clientId,
@@ -41,19 +48,21 @@ export class ProjectsService {
   }
 
   async findAll(user: any, filters: { page: number; limit: number }) {
+    const page = Math.max(1, Math.floor(Number(filters.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(filters.limit) || 20)));
     const isStaff = ['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].some(r => user.roles?.includes(r));
     const where: any = { deletedAt: null };
     if (!isStaff) {
       const client = await this.prisma.client.findFirst({ where: { userId: user.id } });
-      if (!client) return { data: [], meta: { total: 0 } };
+      if (!client) return { data: [], meta: { page, limit, total: 0, totalPages: 0 } };
       await this.ensurePaidProposalProjectsProvisioned(client.id);
       where.clientId = client.id;
     }
     const [total, items] = await Promise.all([
       this.prisma.project.count({ where }),
-      this.prisma.project.findMany({ where, include: PROJECT_INCLUDE, orderBy: { updatedAt: 'desc' }, skip: (filters.page - 1) * filters.limit, take: filters.limit }),
+      this.prisma.project.findMany({ where, include: PROJECT_INCLUDE, orderBy: { updatedAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
     ]);
-    return { data: items, meta: { page: filters.page, limit: filters.limit, total, totalPages: Math.ceil(total / filters.limit) } };
+    return { data: items, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
   async findMe(userId: string) {

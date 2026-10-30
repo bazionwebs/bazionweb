@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag, Lock, LayoutDashboard } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
-import QueryProvider from '@/components/providers/QueryProvider';
 import { useAuthStore } from '@/store/auth.store';
 
 function VerifyPaymentContent() {
@@ -257,18 +256,16 @@ export default function CheckoutVerifyPage() {
           <Logo variant="dark" markClassName="h-16 w-auto" />
         </div>
 
-        <QueryProvider>
-          <Suspense
-            fallback={
-              <div className="p-12 text-center text-slate-400">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#2563EB] mb-2" />
-                <span className="text-xs">Loading verification status…</span>
-              </div>
-            }
-          >
-            <VerifyPaymentContent />
-          </Suspense>
-        </QueryProvider>
+        <Suspense
+          fallback={
+            <div className="p-12 text-center text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#2563EB] mb-2" />
+              <span className="text-xs">Loading verification status…</span>
+            </div>
+          }
+        >
+          <VerifyPaymentContent />
+        </Suspense>
       </div>
     </div>
   );

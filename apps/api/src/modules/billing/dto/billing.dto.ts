@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, IsArray, ArrayMaxSize, ValidateNested, IsInt, Min, Max } from 'class-validator';
+import { IsEmail, IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, IsArray, ArrayMaxSize, ValidateNested, IsInt, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BillingCycle } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -345,4 +345,34 @@ export class ProposalDepositMpesaDto {
   @IsNotEmpty()
   @Matches(/^(\+?254|0)?[17]\d{8}$/, { message: 'Valid Safaricom phone number required' })
   mpesaPhoneNumber: string;
+}
+
+/** Manually generate an invoice (admin). */
+export class GenerateInvoiceDto {
+  @ApiProperty({ description: 'Target client UUID' })
+  @IsUUID()
+  @IsNotEmpty()
+  clientId: string;
+
+  @ApiPropertyOptional({ description: 'Optional linked subscription UUID' })
+  @IsOptional()
+  @IsUUID()
+  subscriptionId?: string;
+
+  @ApiProperty({ description: 'Invoice total amount (> 0)' })
+  @IsNumber()
+  @Min(0.01)
+  @Max(5_000_000)
+  amount: number;
+
+  @ApiPropertyOptional({ enum: ['USD', 'KES', 'EUR', 'GBP'] })
+  @IsOptional()
+  @IsIn(['USD', 'KES', 'EUR', 'GBP'])
+  currency?: 'USD' | 'KES' | 'EUR' | 'GBP';
+
+  @ApiPropertyOptional({ description: 'Invoice notes' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
 }

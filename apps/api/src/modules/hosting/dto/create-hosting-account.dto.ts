@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsIn, MaxLength, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsIn, IsEnum, IsFQDN, IsIP, IsInt, Min, MaxLength, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { HostingStatus } from '@prisma/client';
 
 export class CreateHostingAccountDto {
   @ApiProperty()
@@ -7,7 +8,10 @@ export class CreateHostingAccountDto {
   clientId: string;
 
   @ApiProperty({ example: 'acaciahealthcare.com' })
-  @IsString() @IsNotEmpty() @MaxLength(253)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(253)
+  @IsFQDN({ require_tld: true }, { message: 'domain must be a valid public fully-qualified domain name' })
   domain: string;
 
   @ApiProperty({ example: 'Oracle Cloud (Frankfurt)' })
@@ -19,10 +23,52 @@ export class CreateHostingAccountDto {
   plan: string;
 
   @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(45)
+  @IsOptional() @IsIP() @MaxLength(45)
   ipAddress?: string;
 
   @ApiPropertyOptional()
-  @IsOptional() @IsString()
+  @IsOptional() @IsString() @MaxLength(100)
   serverOs?: string;
+}
+
+export class UpdateHostingAccountDto {
+  @ApiPropertyOptional({ example: 'Oracle Cloud (Frankfurt)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  server?: string;
+
+  @ApiPropertyOptional({ enum: ['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'] })
+  @IsOptional()
+  @IsIn(['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'])
+  plan?: string;
+
+  @ApiPropertyOptional({ enum: HostingStatus })
+  @IsOptional()
+  @IsEnum(HostingStatus)
+  status?: HostingStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsIP()
+  @MaxLength(45)
+  ipAddress?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  serverOs?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phpVersion?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  diskUsageMb?: number;
 }

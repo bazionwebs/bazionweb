@@ -127,16 +127,24 @@ export class BillingService {
   }
 
   async findAll(user: any, filters: { scope?: string; status?: string; page: number; limit: number }) {
+    const page = Math.max(1, Math.floor(Number(filters.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(filters.limit) || 20)));
     const isStaff = ['ADMIN', 'SUPER_ADMIN'].some(r => user.roles?.includes(r));
     const where: any = {};
 
     if (!isStaff || filters.scope === 'mine') {
       const client = await this.prisma.client.findFirst({ where: { userId: user.id } });
-      if (!client) return { data: [], meta: { page: 1, limit: filters.limit, total: 0, totalPages: 0 } };
+      if (!client) return { data: [], meta: { page, limit, total: 0, totalPages: 0 } };
       where.clientId = client.id;
     }
 
-    if (filters.status) where.status = filters.status.toUpperCase();
+    if (filters.status) {
+      const normalizedStatus = filters.status.toUpperCase();
+      if (!Object.values(InvoiceStatus).includes(normalizedStatus as InvoiceStatus)) {
+        throw new BadRequestException(`Invalid invoice status filter: ${filters.status}`);
+      }
+      where.status = normalizedStatus;
+    }
 
     const [total, items] = await Promise.all([
       this.prisma.invoice.count({ where }),
@@ -158,14 +166,14 @@ export class BillingService {
           },
         },
         orderBy: { createdAt: 'desc' },
-        skip: (filters.page - 1) * filters.limit,
-        take: filters.limit,
+        skip: (page - 1) * limit,
+        take: limit,
       }),
     ]);
 
     return {
       data: items,
-      meta: { page: filters.page, limit: filters.limit, total, totalPages: Math.ceil(total / filters.limit) },
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
@@ -173,10 +181,31 @@ export class BillingService {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
       include: { 
-        client: { include: { plan: true, user: true } }, 
+        client: {
+          include: {
+            plan: true,
+            user: {
+              select: { id: true, email: true, firstName: true, lastName: true, role: true },
+            },
+          },
+        }, 
         subscription: true,
         wiseReceivingAccount: true,
-        paymentLogs: { orderBy: { createdAt: 'desc' }, take: 5 },
+        paymentLogs: {
+          select: {
+            id: true,
+            provider: true,
+            providerRef: true,
+            method: true,
+            amount: true,
+            currency: true,
+            status: true,
+            errorMessage: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -370,7 +399,7 @@ export class BillingService {
       client,
       userId,
       phone,
-      invoice: { id: invoice.id, invoiceNumber: invoice.invoiceNumber, amount, currency: invoice.currency },
+      invoice: { id: invoice.id, invoiceNumber: invoice.invoiceNumber, amount: total, currency: invoice.currency },
       description: `BazionWeb ${plan.name}`,
       metadata: { planId: plan.id, billingCycle },
     });
@@ -574,7 +603,7 @@ export class BillingService {
         provider: PaymentProvider.PAYSTACK,
         providerRef: init.reference,
         method: PaymentMethodType.CARD,
-        amount,
+        amount: total,
         currency: dto.currency,
         status: PaymentStatus.PENDING,
         clientId: client.id,
@@ -761,7 +790,7 @@ export class BillingService {
         provider: PaymentProvider.PAYSTACK,
         providerRef: init.reference,
         method: PaymentMethodType.CARD,
-        amount,
+        amount: total,
         currency: dto.currency,
         status: PaymentStatus.PENDING,
         clientId: guest.id,
@@ -1036,7 +1065,15 @@ export class BillingService {
       }
     }
 
-    const email = (dto.email || proposal.clientEmail).trim().toLowerCase();
+    const proposalEmail = (proposal.clientEmail || '').trim().toLowerCase();
+    const suppliedEmail = (dto.email || '').trim().toLowerCase();
+    if (proposalEmail && suppliedEmail && suppliedEmail !== proposalEmail) {
+      throw new ForbiddenException('Email does not match the recipient of this proposal.');
+    }
+    const email = proposalEmail || suppliedEmail;
+    if (!email) {
+      throw new BadRequestException('A valid billing email is required to accept this proposal.');
+    }
     const nameParts = (dto.firstName ? `${dto.firstName} ${dto.lastName ?? ''}` : proposal.clientName || 'Valued Client').trim().split(/\s+/);
     const firstName = nameParts[0] || 'Valued';
     const lastName = nameParts.slice(1).join(' ') || 'Client';
@@ -1137,8 +1174,13 @@ export class BillingService {
 
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
     const amount = Number(invoice.amount);
+    const proposalEmail = (proposal.clientEmail || '').trim().toLowerCase();
+    const suppliedEmail = (dto.email || '').trim().toLowerCase();
+    if (proposalEmail && suppliedEmail && suppliedEmail !== proposalEmail) {
+      throw new ForbiddenException('Email does not match the recipient of this proposal.');
+    }
     const init = await this.paystackService.initializeTransaction({
-      email: dto.email?.trim().toLowerCase() || proposal.clientEmail,
+      email: proposalEmail || suppliedEmail,
       amount,
       currency: invoice.currency as 'KES' | 'USD',
       invoiceNumber: invoice.invoiceNumber,
@@ -1188,9 +1230,9 @@ export class BillingService {
     });
   }
 
-  async generate(dto: { clientId: string; subscriptionId?: string; amount: number; notes?: string }) {
-    const count = await this.prisma.invoice.count();
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
+  async generate(dto: { clientId: string; subscriptionId?: string; amount: number; currency?: 'USD' | 'KES' | 'EUR' | 'GBP'; notes?: string }) {
+    const currency = dto.currency || 'USD';
+    const invoiceNumber = this.newInvoiceNumber('INV-MAN');
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -1198,7 +1240,7 @@ export class BillingService {
         subscriptionId: dto.subscriptionId,
         invoiceNumber,
         amount: dto.amount,
-        currency: 'USD',
+        currency,
         status: InvoiceStatus.SENT,
         dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         notes: dto.notes,

@@ -22,14 +22,15 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
   const hasHydrated = storeHydrated || (typeof window !== 'undefined' && !!useAuthStore.persist?.hasHydrated?.());
   const router = useRouter();
   const pathname = usePathname();
-  const [checking, setChecking] = useState(true);
+  const [status, setStatus] = useState<'verifying' | 'authorized' | 'unauthorized' | 'timeout'>('verifying');
   const isRedirectingRef = useRef(false);
 
-  // Safety valve: prevent any infinite deadlock while allowing API cold-start headroom
+  // Safety valve: if authentication verification takes > 10 seconds, do NOT fail open;
+  // transition to timeout state so protected children are never leaked to unauthenticated users.
   useEffect(() => {
     const safetyTimer = setTimeout(() => {
-      setChecking(false);
-    }, 7000);
+      setStatus(current => (current === 'verifying' ? 'timeout' : current));
+    }, 10000);
 
     return () => clearTimeout(safetyTimer);
   }, [pathname]);
@@ -55,16 +56,12 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
         if (normTarget === normalizedPath) return false;
         isRedirectingRef.current = true;
         router.replace(target);
-        // Release checking after transition delay so we never deadlock
-        setTimeout(() => {
-          if (active) setChecking(false);
-        }, 500);
         return true;
       };
 
       if (!isAuthenticated()) {
         if (redirectUnlessHere(redirectTo)) return;
-        if (active) setChecking(false);
+        if (active) setStatus('unauthorized');
         return;
       }
 
@@ -73,20 +70,12 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
         const permitted = requiredRoles.some(r => hasRole(r));
         if (!permitted) {
           if (redirectUnlessHere('/portal')) return;
-          if (active) setChecking(false);
+          if (active) setStatus('unauthorized');
           return;
         }
       }
 
       // ── Subscription gate ───────────────────────────────────────────────────
-      // The Zustand session is client-editable, so it is only a cache. Confirm
-      // entitlement against the API before trusting it. Non-admin clients with
-      // PENDING/NONE must complete onboarding (payment) before using the
-      // dashboard. Never redirect when already on /portal/onboarding.
-      //
-      // Read the session via getState() — the render-closure `user` can be
-      // stale (null) when persist hydration completes between render and
-      // effect, which wrongly bounced active clients to onboarding.
       const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some(r => hasRole(r));
       const onOnboarding = normalizedPath === '/portal/onboarding' || normalizedPath.startsWith('/portal/onboarding/');
       const sessionUser = useAuthStore.getState().user;
@@ -103,7 +92,7 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
 
             if (res.status === 401) {
               await logout();
-              if (active) setChecking(false);
+              if (active) setStatus('unauthorized');
               return;
             }
 
@@ -128,7 +117,7 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       }
       // ────────────────────────────────────────────────────────────────────────
 
-      if (active) setChecking(false);
+      if (active) setStatus('authorized');
     }
 
     check();
@@ -138,8 +127,9 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
     };
   }, [pathname, hasHydrated, refreshToken, user?.subscriptionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (checking) {
-    const isOnboarding = pathname === '/portal/onboarding' || pathname.startsWith('/portal/onboarding/');
+  const isOnboarding = pathname === '/portal/onboarding' || pathname.startsWith('/portal/onboarding/');
+
+  if (status === 'verifying') {
     return (
       <div className={`min-h-screen ${isOnboarding ? 'bg-[#0A0F1D]' : 'bg-[#F8FAFC]'} flex items-center justify-center`}>
         <div className="flex flex-col items-center gap-3">
@@ -148,6 +138,30 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
         </div>
       </div>
     );
+  }
+
+  if (status === 'timeout') {
+    return (
+      <div className={`min-h-screen ${isOnboarding ? 'bg-[#0A0F1D]' : 'bg-[#F8FAFC]'} flex items-center justify-center p-4`}>
+        <div className="max-w-md w-full bg-white rounded-2xl p-6 text-center shadow-xl border border-slate-200">
+          <h3 className="text-base font-bold text-slate-900 mb-2">Connection Timeout</h3>
+          <p className="text-sm text-slate-500 mb-5">
+            Unable to verify session in time. Please check your network connection and retry.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="w-full py-2.5 px-4 bg-[#2563EB] text-white rounded-xl font-medium text-sm hover:bg-blue-700 transition-colors"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (status !== 'authorized') {
+    return null;
   }
 
   return <>{children}</>;

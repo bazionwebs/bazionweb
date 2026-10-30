@@ -30,6 +30,7 @@ import {
   useTicketComments,
 } from '@/hooks/usePortalData';
 import { TableSkeletonRows, QueryError, EmptyState } from '@/components/ui/QueryState';
+import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
 import { formatDate, titleCase, shortId, timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -410,6 +411,14 @@ export default function SupportClient() {
               <Plus className="w-4 h-4" />
               New Engineering Request
             </button>
+            <WhatsAppLink
+              source="portal_support"
+              message="Hello BazionWeb Support, I need urgent help with my project. I'm contacting you from the client portal."
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-xs font-bold transition-colors"
+              iconClassName="h-4 w-4"
+            >
+              WhatsApp Escalation
+            </WhatsAppLink>
           </div>
         </div>
 

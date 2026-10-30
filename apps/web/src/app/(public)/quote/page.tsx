@@ -32,6 +32,7 @@ import {
   FolderKanban,
 } from 'lucide-react';
 import { resolveApiV1Base } from '@/lib/api-base';
+import { buildWhatsAppLink, trackWhatsAppOpen } from '@/lib/contact';
 
 interface QuoteConfig {
   market: Market;
@@ -604,7 +605,7 @@ ${config.rushDelivery ? '* Priority Rush Delivery: YES (+35%)\n' : ''}* Estimate
 
 Please confirm availability and discuss next steps.`;
 
-  const whatsappHref = `https://wa.me/254721287053?text=${encodeURIComponent(breakdownMessage)}`;
+  const whatsappHref = buildWhatsAppLink(breakdownMessage);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
@@ -929,6 +930,7 @@ Please confirm availability and discuss next steps.`;
                       href={whatsappHref}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() => trackWhatsAppOpen('quote')}
                       className="btn-primary text-xs px-6 py-3 flex items-center gap-2 bg-[#22C55E] hover:bg-[#16A34A]"
                     >
                       <MessageSquare className="w-4 h-4" /> Send to WhatsApp
@@ -1029,6 +1031,7 @@ Please confirm availability and discuss next steps.`;
                   href={whatsappHref}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => trackWhatsAppOpen('quote')}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-bold transition-colors"
                 >
                   <MessageSquare className="w-4 h-4" /> Send Quote to WhatsApp
@@ -1054,9 +1057,12 @@ Please confirm availability and discuss next steps.`;
       {showModal && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="proposal-modal-title"
           onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
         >
-          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+          <div className="w-full max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain bg-white rounded-3xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
             {/* Modal header */}
             <div className="bg-gradient-to-br from-[#2563EB] to-indigo-700 px-6 py-6 relative">
               <button
@@ -1073,7 +1079,7 @@ Please confirm availability and discuss next steps.`;
                 </div>
                 <div>
                     <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Project request</p>
-                    <h2 className="text-lg font-extrabold text-white">Request your proposal</h2>
+                    <h2 id="proposal-modal-title" className="text-lg font-extrabold text-white">Request your proposal</h2>
                 </div>
               </div>
                   <p className="text-blue-200 text-xs leading-relaxed">

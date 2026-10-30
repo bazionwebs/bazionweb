@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { escapeHtml } from '@/lib/utils';
 
 interface SendMagicLinkOptions {
   to: string;
@@ -132,15 +133,15 @@ export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail:
     </div>
     <h2>Sign in to your client hub</h2>
     <p>
-      We received a request to sign in to BazionWeb for <strong>${recipientEmail}</strong>.
+      We received a request to sign in to BazionWeb for <strong>${escapeHtml(recipientEmail)}</strong>.
       Click the secure button below to authenticate instantly.
     </p>
     <div class="btn-container">
-      <a href="${magicLinkUrl}" class="btn" target="_blank">Sign In to Client Hub &rarr;</a>
+      <a href="${escapeHtml(magicLinkUrl)}" class="btn" target="_blank">Sign In to Client Hub &rarr;</a>
     </div>
     <div class="subtext">
       This link is valid for <strong>15 minutes</strong> and can only be used once. If you did not request this login link, you can safely ignore this email.
-      <span class="url-fallback">${magicLinkUrl}</span>
+      <span class="url-fallback">${escapeHtml(magicLinkUrl)}</span>
     </div>
   </div>
   <div class="footer">
@@ -167,14 +168,14 @@ export function generateClaimLinkEmailHtml(claimLinkUrl: string, recipientEmail:
     </div>
     <h2 style="font-size:20px;font-weight:700;color:#FFFFFF;margin:0 0 12px;text-align:center;">Claim your client hub</h2>
     <p style="font-size:14px;color:#94A3B8;line-height:1.6;margin:0 0 24px;text-align:center;">
-      Your payment is confirmed for <strong>${recipientEmail}</strong>. Open the secure link below to set your password and activate the workspace.
+      Your payment is confirmed for <strong>${escapeHtml(recipientEmail)}</strong>. Open the secure link below to set your password and activate the workspace.
     </p>
     <div style="text-align:center;margin:32px 0;">
-      <a href="${claimLinkUrl}" style="display:inline-block;background:linear-gradient(135deg,#2563EB 0%,#1D4ED8 100%);color:#FFFFFF;font-weight:700;font-size:14px;padding:14px 32px;border-radius:12px;text-decoration:none;box-shadow:0 4px 14px rgba(37,99,235,0.4);" target="_blank">Claim My Account &rarr;</a>
+      <a href="${escapeHtml(claimLinkUrl)}" style="display:inline-block;background:linear-gradient(135deg,#2563EB 0%,#1D4ED8 100%);color:#FFFFFF;font-weight:700;font-size:14px;padding:14px 32px;border-radius:12px;text-decoration:none;box-shadow:0 4px 14px rgba(37,99,235,0.4);" target="_blank">Claim My Account &rarr;</a>
     </div>
     <div style="font-size:12px;color:#64748B;text-align:center;line-height:1.5;border-top:1px solid #334155;padding-top:24px;margin-top:24px;">
       This link is valid for <strong>15 minutes</strong> and can only be used once. We will never ask for your password by email. If you did not make this payment, you can ignore this message or contact billing@bazionweb.com.
-      <span style="word-break:break-all;color:#38BDF8;font-size:11px;margin-top:8px;display:block;">${claimLinkUrl}</span>
+      <span style="word-break:break-all;color:#38BDF8;font-size:11px;margin-top:8px;display:block;">${escapeHtml(claimLinkUrl)}</span>
     </div>
   </div>
 </body>
@@ -259,8 +260,10 @@ async function sendEmail(to: string, subject: string, html: string, fallbackUrl:
   }
 
   // 3. Fallback when SMTP is not yet configured on this environment
-  console.log(`[Email] ⚠️ No live SMTP or Resend credentials detected. ${subject} for ${to}:`);
-  console.log(`[Email] 🔗 ${fallbackUrl}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Email] ⚠️ No live SMTP or Resend credentials detected. ${subject} for ${to}:`);
+    console.log(`[Email] 🔗 ${fallbackUrl}`);
+  }
 
   return {
     success: true,

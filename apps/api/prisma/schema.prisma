@@ -178,7 +178,7 @@ enum VaultCategory {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @db.Uuid
   email       String   @unique
   role        UserRole @default(CLIENT)
   keycloakId  String?  @unique @map("keycloak_id")
@@ -205,6 +205,7 @@ model User {
   @@index([email])
   @@index([keycloakId])
   @@index([deletedAt])
+  @@index([role, deletedAt])
   @@map("users")
 }
 
@@ -214,7 +215,7 @@ model User {
 model RefreshToken {
   id        String    @id @default(uuid())
   tokenHash String    @unique @map("token_hash")
-  userId    String    @map("user_id")
+  userId    String    @map("user_id") @db.Uuid
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   createdAt DateTime  @default(now()) @map("created_at")
@@ -259,7 +260,7 @@ model Plan {
 
 model Client {
   id                   String       @id @default(uuid())
-  userId               String       @unique @map("user_id")
+  userId               String       @unique @map("user_id") @db.Uuid
   businessName         String       @map("business_name")
   contactName          String       @map("contact_name")
   email                String       @unique
@@ -364,6 +365,7 @@ model HostingAccount {
   @@index([clientId])
   @@index([sslExpiry])
   @@index([deletedAt])
+  @@index([status, deletedAt])
   @@map("hosting_accounts")
 }
 
@@ -399,6 +401,7 @@ model Subscription {
   @@index([planId])
   @@index([renewalDate])
   @@index([status])
+  @@index([clientId, status, currentPeriodEnd])
   @@map("subscriptions")
 }
 
@@ -451,6 +454,8 @@ model Invoice {
   @@index([subscriptionId])
   @@index([status])
   @@index([dueDate])
+  @@index([createdAt])
+  @@index([clientId, createdAt])
   @@map("invoices")
 }
 
@@ -469,7 +474,7 @@ model PaymentLog {
   clientId       String?           @map("client_id")
   subscriptionId String?           @map("subscription_id")
   invoiceId      String?           @map("invoice_id")
-  userId         String?           @map("user_id")
+  userId         String?           @map("user_id") @db.Uuid
   
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
@@ -483,7 +488,10 @@ model PaymentLog {
   @@index([status])
   @@index([clientId])
   @@index([subscriptionId])
+  @@index([invoiceId])
+  @@index([userId])
   @@index([createdAt])
+  @@index([status, createdAt])
   @@map("payment_logs")
 }
 
@@ -494,7 +502,7 @@ model Ticket {
   priority   TicketPriority @default(P3)
   status     TicketStatus   @default(OPEN)
   category   TicketCategory @default(OTHER)
-  assignedTo String?        @map("assigned_to")
+  assignedTo String?        @map("assigned_to") @db.Uuid
   resolvedAt DateTime?      @map("resolved_at")
   closedAt   DateTime?      @map("closed_at")
   slaBreached Boolean       @default(false) @map("sla_breached")
@@ -509,13 +517,15 @@ model Ticket {
   @@index([assignedTo])
   @@index([status])
   @@index([priority])
+  @@index([createdAt])
+  @@index([clientId, createdAt])
   @@map("tickets")
 }
 
 model TicketComment {
   id         String   @id @default(uuid())
   ticketId   String   @map("ticket_id")
-  authorId   String   @map("author_id")
+  authorId   String   @map("author_id") @db.Uuid
   body       String
   isInternal Boolean  @default(false) @map("is_internal")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -526,6 +536,7 @@ model TicketComment {
 
   @@index([ticketId])
   @@index([authorId])
+  @@index([ticketId, isInternal, createdAt])
   @@map("ticket_comments")
 }
 
@@ -554,7 +565,7 @@ model Backup {
 
 model AuditLog {
   id           String   @id @default(uuid())
-  userId       String?  @map("user_id")
+  userId       String?  @map("user_id") @db.Uuid
   action       String                    // e.g. "client.create", "ticket.resolve"
   resourceType String   @map("resource_type")
   resourceId   String?  @map("resource_id")
@@ -575,7 +586,7 @@ model AuditLog {
 
 model Notification {
   id        String           @id @default(uuid())
-  userId    String           @map("user_id")
+  userId    String           @map("user_id") @db.Uuid
   type      NotificationType
   title     String
   message   String
@@ -587,7 +598,8 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
-  @@index([read])
+  @@index([userId, read])
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
@@ -613,6 +625,7 @@ model VaultSecret {
 
   @@index([clientId])
   @@index([deletedAt])
+  @@index([clientId, deletedAt])
   @@map("vault_secrets")
 }
 

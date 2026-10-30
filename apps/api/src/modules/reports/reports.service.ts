@@ -178,8 +178,10 @@ export class ReportsService {
     const tiersArray = Object.values(byTier) as { count: number; mrr: number; clients: string[] }[];
     let totalMrr = 0;
     for (const t of tiersArray) {
+      t.mrr = Math.round(t.mrr * 100) / 100;
       totalMrr += t.mrr;
     }
+    totalMrr = Math.round(totalMrr * 100) / 100;
     const totalClients = subscriptions.length;
 
     return {
@@ -187,7 +189,7 @@ export class ReportsService {
         period:      month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
         totalMrr,
         totalClients,
-        arr:         totalMrr * 12,
+        arr:         Math.round(totalMrr * 12 * 100) / 100,
         byTier,
         generatedAt: new Date().toISOString(),
       },
@@ -261,7 +263,7 @@ export class ReportsService {
       }
     }
 
-    const avgResolutionMs = total > 0 ? Math.round(totalMs / total / 60_000) : 0;
+    const avgResolutionMs = resolved > 0 ? Math.round(totalMs / resolved / 60_000) : 0;
 
     return {
       data: {

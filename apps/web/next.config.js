@@ -4,6 +4,7 @@ const path = require('path');
 const isDev = process.env.NODE_ENV !== 'production';
 
 function buildContentSecurityPolicy() {
+  const isDev = process.env.NODE_ENV !== 'production';
   const connectSrc = [
     "'self'",
     'https://api.bazionweb.com',
@@ -46,18 +47,29 @@ function buildContentSecurityPolicy() {
 
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://vercel.live",
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://vercel.live https://js.paystack.co`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: https:",
-    `connect-src ${connectSrc.join(' ')}`,
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: https: blob:",
+    `connect-src ${connectSrc.join(' ')} https://api.paystack.co`,
+    "frame-src https://js.paystack.co https://checkout.paystack.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
   ].join('; ');
 }
 
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  poweredByHeader: false,
+  compress: true,
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts', 'date-fns'],
+  },
   images: {
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       { protocol: 'https', hostname: 'cms.bazionweb.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },

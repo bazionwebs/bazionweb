@@ -461,9 +461,9 @@ export class PaymentSettlementService {
     }
 
     const expected = Number(invoice.amount);
-    if (Number.isFinite(args.paidAmount) && args.paidAmount < expected - 0.01) {
+    if (!Number.isFinite(args.paidAmount) || args.paidAmount < expected - 0.01) {
       this.logger.warn(
-        `Daraja amount mismatch ${args.checkoutRequestId}: ${args.paidAmount} < ${expected}`,
+        `Daraja amount invalid/mismatch ${args.checkoutRequestId}: ${args.paidAmount} vs expected ${expected}`,
       );
       await this.prisma.paymentLog.update({
         where: { idempotencyKey },

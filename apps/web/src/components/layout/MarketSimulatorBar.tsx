@@ -5,54 +5,43 @@ import Link from 'next/link';
 import { Globe, ChevronDown, ChevronUp, RefreshCw, SlidersHorizontal, ExternalLink, X } from 'lucide-react';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { BAZION_MARKET_COOKIE, LEGACY_MARKET_COOKIE } from '@/lib/marketEngine';
+import { useAuthStore } from '@/store/auth.store';
+
+const PREVIEW_ROLES = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'];
 
 export default function MarketSimulatorBar() {
   const { marketCode, marketDef, setMarket } = useMarketPreference();
-  const [mounted, setMounted] = useState(false);
-  const [isAdminOrDev, setIsAdminOrDev] = useState(false);
+  const roles = useAuthStore(s => s.user?.roles);
+  const hasHydrated = useAuthStore(s => s._hasHydrated);
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isVisible, setIsVisible] = useState(true);
   const [source, setSource] = useState<'cookie' | 'auto'>('auto');
 
+  // Staff preview tool: only authenticated staff, or developers running the
+  // app locally. It is mounted exclusively inside the public layout, so it can
+  // never leak into the client portal or staff admin workspace.
+  const isDev = process.env.NODE_ENV === 'development';
+  const isStaff = roles?.some(role => PREVIEW_ROLES.includes(role)) ?? false;
+  const canUseSimulator = isDev || isStaff;
+
   useEffect(() => {
-    setMounted(true);
+    if (!canUseSimulator) return;
 
-    // Strict security & client-protection check:
-    // Only mount for developers in local dev or authenticated admins/staff.
-    const isDev = process.env.NODE_ENV === 'development';
-    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const hasPreviewParam = params ? (params.has('preview_market') || params.has('dev_preview') || params.get('admin') === '1') : false;
-    const hasAdminSession = typeof window !== 'undefined' ? (
-      document.cookie.includes('bw_access_token') ||
-      window.localStorage.getItem('bw_admin_preview') === 'true' ||
-      window.localStorage.getItem('bw_auth_token') !== null
-    ) : false;
-
-    if (hasPreviewParam && typeof window !== 'undefined') {
-      window.localStorage.setItem('bw_admin_preview', 'true');
-    }
-
-    const authorized = isDev || hasPreviewParam || hasAdminSession;
-    setIsAdminOrDev(authorized);
-
-    if (!authorized) return;
-
-    // Check if user previously closed or collapsed it
     const storedState = window.localStorage.getItem('bw_simulator_collapsed');
     if (storedState !== null) {
       setIsCollapsed(storedState === 'true');
     }
-    const hiddenState = window.sessionStorage.getItem('bw_simulator_hidden');
-    if (hiddenState === 'true') {
+    if (window.sessionStorage.getItem('bw_simulator_hidden') === 'true') {
       setIsVisible(false);
     }
+  }, [canUseSimulator]);
 
-    // Determine if cookie is actively overriding
-    const hasCookie = document.cookie.includes(BAZION_MARKET_COOKIE);
-    setSource(hasCookie ? 'cookie' : 'auto');
-  }, [marketCode]);
+  useEffect(() => {
+    if (!canUseSimulator) return;
+    setSource(document.cookie.includes(BAZION_MARKET_COOKIE) ? 'cookie' : 'auto');
+  }, [marketCode, canUseSimulator]);
 
-  if (!mounted || !isAdminOrDev || !isVisible) return null;
+  if (!hasHydrated || !canUseSimulator || !isVisible) return null;
 
   const toggleCollapse = () => {
     const next = !isCollapsed;
@@ -75,7 +64,7 @@ export default function MarketSimulatorBar() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 print:hidden font-sans">
+    <div className="fixed bottom-4 left-4 z-40 print:hidden font-sans">
       {isCollapsed ? (
         // ─── Collapsed Pill ───
         <button

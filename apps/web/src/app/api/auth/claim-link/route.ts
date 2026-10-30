@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sendClaimLinkEmail } from '@/lib/email';
 import { resolveApiBase } from '@/lib/api-base';
+import { getTrustedSiteOrigin } from '@/lib/site-origin';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,20 +11,16 @@ const GENERIC_RESPONSE = {
   message: 'If a paid, unclaimed account exists for this email, a secure link will be sent. Check your inbox and spam folder, or contact support if it does not arrive.',
 };
 
-function getTrustedSiteOrigin() {
-  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://bazionweb.com';
-  try {
-    const url = new URL(configured);
-    if (url.protocol === 'https:' || (process.env.NODE_ENV === 'development' && url.hostname === 'localhost')) {
-      return url.origin;
-    }
-  } catch {
-    // Fall back to the canonical production origin rather than trusting request headers.
-  }
-  return 'https://bazionweb.com';
-}
-
 export async function POST(req: Request) {
+  const clientIp = getClientIp(req);
+  const rl = checkRateLimit(`auth:claim-link:${clientIp}`, 5, 15 * 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many account claim requests. Please try again in a few minutes.' },
+      { status: 429 },
+    );
+  }
+
   let cleanEmail = '';
 
   try {

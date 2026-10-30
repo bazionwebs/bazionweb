@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
 import NavbarCartLink from '@/components/layout/NavbarCartLink';
+import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
 
 const serviceItems = [
   { name: 'Websites', href: '/services#websites', icon: Globe, desc: 'Starter, Business & Corporate' },
@@ -47,7 +48,7 @@ const solutionItems = [
 const companyItems = [
   { name: 'About BazionWeb', href: '/about', desc: 'Our mission, team & engineering culture' },
   { name: '6-Stage Process', href: '/process', desc: 'Transparent delivery from kickoff to launch' },
-  { name: 'Security & Compliance', href: '/security', desc: 'Enterprise data safety & OWASP standards' },
+  { name: 'Security & Compliance', href: '/services/security', desc: 'Enterprise data safety & OWASP standards' },
   { name: 'Frequently Asked Questions', href: '/faq', desc: 'Clear answers on contracts and ownership' },
   { name: 'Contact Engineering', href: '/contact', desc: 'Direct inquiry & project consultations' },
 ];
@@ -198,7 +199,7 @@ export default function Navbar() {
               className={cn(
                 'flex items-center gap-1.5',
                 linkBase,
-                pathname === '/about' || pathname === '/security' || pathname === '/faq' ? linkActive : linkIdle,
+                pathname === '/about' || pathname === '/services/security' || pathname === '/faq' ? linkActive : linkIdle,
               )}
               aria-expanded={activeDropdown === 'company'}
             >
@@ -236,6 +237,13 @@ export default function Navbar() {
             Client Portal
           </Link>
 
+          <WhatsAppLink
+            source="navbar"
+            ariaLabel="Chat with BazionWeb on WhatsApp"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+            iconClassName="h-4 w-4"
+          />
+
           <NavbarCartLink />
 
           <Link
@@ -248,7 +256,8 @@ export default function Navbar() {
         </div>
 
         {/* ─── Mobile Hamburger ─── */}
-        <div className="lg:hidden flex items-center">
+        <div className="lg:hidden flex items-center gap-2">
+          <NavbarCartLink />
           <button
             onClick={() => setMenuOpen(v => !v)}
             className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors"
@@ -270,6 +279,7 @@ export default function Navbar() {
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={() => setMenuOpen(false)}
                 className="px-3 py-2 rounded-xl text-slate-700 hover:bg-teal-50 hover:text-[#0D9488] flex items-center justify-between"
               >
                 <span className="font-semibold">{item.name}</span>
@@ -280,30 +290,37 @@ export default function Navbar() {
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-3 pb-1 border-t border-slate-100">
               Navigation
             </div>
-            <Link href="/pricing" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/pricing" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
               Pricing Book
             </Link>
-            <Link href="/store" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/store" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
               Add-ons Store
             </Link>
-            <Link href="/process" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/process" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
               6-Stage Process
             </Link>
-            <Link href="/case-studies" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/case-studies" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
               Work &amp; Case Studies
             </Link>
-            <Link href="/about" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/about" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
               About BazionWeb
             </Link>
-            <Link href="/contact" className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/contact" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
               Contact &amp; Inquiry
             </Link>
+            <WhatsAppLink
+              source="navbar"
+              onClick={() => setMenuOpen(false)}
+              className="px-3 py-2 rounded-xl font-medium text-emerald-700 hover:bg-emerald-50"
+            >
+              Chat on WhatsApp
+            </WhatsAppLink>
 
             <div className="pt-4 mt-2 border-t border-slate-100 flex flex-col gap-2.5">
-              <Link href="/portal" className="text-center py-2 text-xs font-semibold text-slate-600 hover:text-[#0D9488]">
+              <Link href="/portal" onClick={() => setMenuOpen(false)} className="text-center py-2 text-xs font-semibold text-slate-600 hover:text-[#0D9488]">
                 Existing Client Portal Login →
               </Link>
-              <Link href="/quote" className="btn-primary w-full justify-center text-sm py-3 font-bold">
+              <Link href="/quote" onClick={() => setMenuOpen(false)} className="btn-primary w-full justify-center text-sm py-3 font-bold">
                 Get a Free Assessment
               </Link>
             </div>

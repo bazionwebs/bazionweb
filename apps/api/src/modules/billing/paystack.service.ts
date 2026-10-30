@@ -143,7 +143,7 @@ export class PaystackService {
           email: params.email,
           amount: amountInSubunits,
           currency: 'KES',
-          reference: `MPESA_${params.invoiceNumber}`.replace(/[^A-Za-z0-9_=.,-]/g, '-'),
+          reference: `MPESA_${params.invoiceNumber}_${crypto.randomBytes(3).toString('hex')}`.replace(/[^A-Za-z0-9_=.,-]/g, '-'),
           mobile_money: { phone, provider: 'mpesa' },
           metadata: {
             invoiceNumber: params.invoiceNumber,

@@ -2,9 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { resolveMarket } from '@/lib/marketEngine';
 import { resolveApiV1Base } from '@/lib/api-base';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = getClientIp(request);
+    const rl = checkRateLimit(`leads:${clientIp}`, 10, 10 * 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many submissions. Please try again shortly.' },
+        { status: 429 },
+      );
+    }
+
     const body = await request.json();
     const {
       name,

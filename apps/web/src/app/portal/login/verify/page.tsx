@@ -38,6 +38,11 @@ function MagicVerifyContent() {
       return;
     }
 
+    // Clean token from browser history and URL bar to prevent Referer / shoulder-surfing leakage
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     let cancelled = false;
 
     (async () => {

@@ -1,8 +1,8 @@
-'use client';
-
 import Link from 'next/link';
 import { Globe, Shield, Wrench, Server, Zap, LifeBuoy, Twitter, Linkedin, Github, Mail, Phone, MapPin } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
+import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
+import { SITE_CONTACT } from '@/lib/contact';
 
 const services = [
   { name: 'Website Development', href: '/services/development', icon: Globe },
@@ -46,17 +46,25 @@ export default function Footer() {
               One provider, one invoice — development, custom systems, security, and ongoing support.
             </p>
             <div className="flex flex-col gap-2 mb-8">
-              <a href="mailto:hello@bazionweb.com" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
+              <a href={`mailto:${SITE_CONTACT.email}`} className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
                 <Mail className="w-4 h-4 shrink-0 text-[#14B8A6]" />
-                hello@bazionweb.com
+                {SITE_CONTACT.email}
               </a>
-              <a href="tel:+254721287053" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
+              <a href={SITE_CONTACT.phoneHref} className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
                 <Phone className="w-4 h-4 shrink-0 text-[#14B8A6]" />
-                +254 721 287 053
+                {SITE_CONTACT.phoneDisplay}
               </a>
+              <WhatsAppLink
+                source="footer"
+                message="Hello BazionWeb, I'd like to discuss a project."
+                className="text-slate-300 hover:text-white transition-colors text-sm"
+                iconClassName="h-4 w-4 shrink-0 text-[#25D366]"
+              >
+                WhatsApp · {SITE_CONTACT.whatsappDisplay}
+              </WhatsAppLink>
               <span className="flex items-center gap-2 text-slate-300 text-sm">
                 <MapPin className="w-4 h-4 shrink-0 text-[#14B8A6]" />
-                Remote-first · Worldwide
+                {SITE_CONTACT.location}
               </span>
             </div>
             <div className="flex items-center gap-3">

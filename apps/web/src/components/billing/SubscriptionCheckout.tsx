@@ -166,8 +166,13 @@ export default function SubscriptionCheckout({
     );
   }
 
-  const currentPriceKes = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualKes : currentPlan.priceMonthlyKes;
-  const currentPriceUsd = billingCycle === 'ANNUAL' ? currentPlan.priceAnnual : currentPlan.priceMonthly;
+  const planPriceKes = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualKes : currentPlan.priceMonthlyKes;
+  const planPriceUsd = billingCycle === 'ANNUAL' ? currentPlan.priceAnnual : currentPlan.priceMonthly;
+  const derivedRate = currentPlan.priceMonthly > 0 ? currentPlan.priceMonthlyKes / currentPlan.priceMonthly : 130;
+  const totalDueKes = planPriceKes + (cartMode ? cartExtrasTotal : 0);
+  const totalDueUsd = planPriceUsd + (cartMode && derivedRate > 0 ? Math.round(cartExtrasTotal / derivedRate) : 0);
+  const currentPriceKes = totalDueKes;
+  const currentPriceUsd = totalDueUsd;
 
   const copyToClipboard = (text: string, fieldName: string) => {
     if (typeof navigator !== 'undefined') {
@@ -811,7 +816,7 @@ export default function SubscriptionCheckout({
 
                   <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
                     <span className="text-slate-400 text-xs font-medium">B2B Net Invoice Total</span>
-                    <span className="text-xl font-bold text-purple-300 font-mono">{currency} ${currentPriceUsd.toLocaleString()}</span>
+                    <span className="text-xl font-bold text-purple-300 font-mono">${currentPriceUsd.toLocaleString()} USD</span>
                   </div>
 
                   <button

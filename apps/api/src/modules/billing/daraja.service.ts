@@ -47,6 +47,13 @@ export class DarajaService {
     });
   }
 
+  isConfigured(): boolean {
+    return Boolean(
+      this.config.get<string>('DARAJA_CONSUMER_KEY') &&
+      this.config.get<string>('DARAJA_CONSUMER_SECRET'),
+    );
+  }
+
   private getCredentials() {
     const consumerKey = this.config.get<string>('DARAJA_CONSUMER_KEY', '');
     const consumerSecret = this.config.get<string>('DARAJA_CONSUMER_SECRET', '');
@@ -60,10 +67,15 @@ export class DarajaService {
     if (!passkey) {
       throw new ServiceUnavailableException('Daraja passkey is not configured');
     }
-    const callbackUrl = this.config.get<string>(
+    let callbackUrl = this.config.get<string>(
       'DARAJA_CALLBACK_URL',
       'https://bazionweb.com/api/v1/webhooks/daraja',
     );
+    const webhookSecret = this.config.get<string>('DARAJA_WEBHOOK_SECRET', '').trim();
+    if (webhookSecret && !webhookSecret.includes('CHANGE_ME') && !callbackUrl.includes('token=')) {
+      const sep = callbackUrl.includes('?') ? '&' : '?';
+      callbackUrl = `${callbackUrl}${sep}token=${encodeURIComponent(webhookSecret)}`;
+    }
 
     if (!consumerKey || !consumerSecret) {
       throw new ServiceUnavailableException('Daraja API credentials are not configured');

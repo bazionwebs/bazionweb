@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sendMagicLinkEmail } from '@/lib/email';
 import { resolveApiBase } from '@/lib/api-base';
+import { getTrustedSiteOrigin } from '@/lib/site-origin';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +17,15 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: Request) {
   try {
+    const clientIp = getClientIp(req);
+    const rl = checkRateLimit(`auth:magic-link:${clientIp}`, 5, 15 * 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many sign-in link requests. Please try again in a few minutes.' },
+        { status: 429 },
+      );
+    }
+
     const { email } = await req.json();
 
     if (!email || !email.includes('@')) {
@@ -64,10 +75,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const host = req.headers.get('host') || 'localhost:3000';
-    const proto = req.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
-    const origin = req.headers.get('origin') || `${proto}://${host}`;
-
+    const origin = getTrustedSiteOrigin();
     const magicLinkUrl = `${origin}/portal/login/verify?token=${encodeURIComponent(magicToken)}`;
 
     const sendResult = await sendMagicLinkEmail({

@@ -39,7 +39,11 @@ export class PricingController {
    * Public: Retrieve full pricing catalog for a specific market directly from DB.
    */
   @Get('catalog')
-  async getCatalog(@Query('market') market: string) {
+  async getCatalog(@Query('market') market: string, @Req() req?: any) {
+    const res = req?.res;
+    if (res && typeof res.setHeader === 'function') {
+      res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=300, stale-while-revalidate=600');
+    }
     return this.pricingService.getCatalog(market || 'KE');
   }
 

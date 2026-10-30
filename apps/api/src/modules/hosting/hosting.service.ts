@@ -1,8 +1,37 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { HostingStatus } from '@prisma/client';
+import * as dns from 'dns';
+import * as net from 'net';
 import * as tls from 'tls';
 import { PrismaService } from '../../prisma/prisma.service';
+
+export function isPrivateOrReservedIp(ip: string): boolean {
+  const normalized = ip.toLowerCase().trim();
+  if (normalized.startsWith('::ffff:')) {
+    return isPrivateOrReservedIp(normalized.slice(7));
+  }
+  const family = net.isIP(normalized);
+  if (family === 4) {
+    const parts = normalized.split('.').map(Number);
+    const [a, b] = parts;
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a >= 224) return true;
+    return false;
+  }
+  if (family === 6) {
+    if (normalized === '::' || normalized === '::1') return true;
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+    if (/^fe[89ab]/.test(normalized)) return true;
+    return false;
+  }
+  return true;
+}
 
 @Injectable()
 export class HostingService {
@@ -14,16 +43,24 @@ export class HostingService {
   ) {}
 
   async findAll(user: any, filters: { status?: string; page: number; limit: number }) {
+    const page = Math.max(1, Math.floor(Number(filters.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(filters.limit) || 25)));
     const isStaff = ['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].some(r => user.roles?.includes(r));
     const where: any = { deletedAt: null };
 
     if (!isStaff) {
       const client = await this.prisma.client.findFirst({ where: { userId: user.id } });
-      if (!client) return { data: [] };
+      if (!client) return { data: [], meta: { page, limit, total: 0, totalPages: 0 } };
       where.clientId = client.id;
     }
 
-    if (filters.status) where.status = filters.status.toUpperCase();
+    if (filters.status) {
+      const normalizedStatus = filters.status.toUpperCase();
+      if (!Object.values(HostingStatus).includes(normalizedStatus as HostingStatus)) {
+        throw new BadRequestException(`Invalid hosting status filter: ${filters.status}`);
+      }
+      where.status = normalizedStatus;
+    }
 
     const [total, items] = await Promise.all([
       this.prisma.hostingAccount.count({ where }),
@@ -34,14 +71,14 @@ export class HostingService {
           _count: { select: { backups: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip: (filters.page - 1) * filters.limit,
-        take: filters.limit,
+        skip: (page - 1) * limit,
+        take: limit,
       }),
     ]);
 
     return {
       data: items,
-      meta: { page: filters.page, limit: filters.limit, total, totalPages: Math.ceil(total / filters.limit) },
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
@@ -125,24 +162,38 @@ export class HostingService {
     const accounts = await this.prisma.hostingAccount.findMany({
       where: { status: 'ACTIVE', deletedAt: null },
     });
+    if (accounts.length === 0) return;
 
-    for (const acct of accounts) {
-      await this.prisma.backup.create({
-        data: {
-          hostingAccountId: acct.id,
-          type: 'DAILY_INCREMENTAL',
-          status: 'PENDING',
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        },
-      });
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const rows = accounts.map((acct) => ({
+      hostingAccountId: acct.id,
+      type: 'DAILY_INCREMENTAL' as const,
+      status: 'PENDING' as const,
+      expiresAt,
+    }));
+
+    if (typeof (this.prisma.backup as any).createMany === 'function') {
+      await this.prisma.backup.createMany({ data: rows });
+    } else {
+      await Promise.all(rows.map((data) => this.prisma.backup.create({ data })));
     }
     this.logger.log(`Backup records created for ${accounts.length} accounts`);
   }
 
-  private getSSLExpiry(domain: string): Promise<Date> {
+  private async getSSLExpiry(domain: string): Promise<Date> {
+    const cleanHost = domain.trim().toLowerCase();
+    if (!cleanHost || net.isIP(cleanHost) !== 0) {
+      throw new Error('SSL check requires a public domain hostname');
+    }
+    const records = await dns.promises.lookup(cleanHost, { all: true });
+    if (!records.length || records.some((r) => isPrivateOrReservedIp(r.address))) {
+      throw new Error(`Refusing TLS connection to private or reserved address for ${cleanHost}`);
+    }
+    const targetIp = records[0].address;
+
     return new Promise((resolve, reject) => {
       const socket = tls.connect(
-        { host: domain, port: 443, servername: domain, timeout: 10_000 },
+        { host: targetIp, port: 443, servername: cleanHost, timeout: 10_000 },
         () => {
           const cert = socket.getPeerCertificate();
           socket.destroy();
@@ -153,8 +204,14 @@ export class HostingService {
           }
         },
       );
-      socket.on('error', reject);
-      socket.on('timeout', () => reject(new Error('Connection timed out')));
+      socket.on('error', (err) => {
+        socket.destroy();
+        reject(err);
+      });
+      socket.on('timeout', () => {
+        socket.destroy();
+        reject(new Error('Connection timed out'));
+      });
     });
   }
 

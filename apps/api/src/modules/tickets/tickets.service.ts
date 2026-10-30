@@ -1,12 +1,12 @@
 import {
-  Injectable, NotFoundException, ForbiddenException, Logger,
+  Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { AddCommentDto } from './dto/add-comment.dto';
-import { TicketPriority } from '@prisma/client';
+import { TicketPriority, TicketStatus } from '@prisma/client';
 
 // P1–P4 response windows in minutes, matching plan SLAs (MPD Section 5.2)
 export const SLA_MINUTES: Record<string, Record<TicketPriority, number>> = {
@@ -59,7 +59,7 @@ export class TicketsService {
         where: { id: created.id },
         include: {
           client: { include: { plan: true } },
-          assignee: true,
+          assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
           comments: {
             where: { isInternal: false },
             include: { author: { select: { firstName: true, lastName: true, role: true } } },
@@ -79,17 +79,31 @@ export class TicketsService {
   async findAll(user: any, filters: {
     scope?: string; status?: string; priority?: string; page: number; limit: number;
   }) {
+    const page = Math.max(1, Math.floor(Number(filters.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(filters.limit) || 20)));
     const isStaff = ['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].some(r => user.roles?.includes(r));
     const where: any = { deletedAt: undefined };
 
     if (!isStaff || filters.scope === 'mine') {
       const client = await this.prisma.client.findFirst({ where: { userId: user.id } });
-      if (!client) return { data: [], meta: { page: 1, limit: filters.limit, total: 0, totalPages: 0 } };
+      if (!client) return { data: [], meta: { page, limit, total: 0, totalPages: 0 } };
       where.clientId = client.id;
     }
 
-    if (filters.status) where.status = filters.status.toUpperCase();
-    if (filters.priority) where.priority = filters.priority.toUpperCase();
+    if (filters.status) {
+      const normalizedStatus = filters.status.toUpperCase();
+      if (!Object.values(TicketStatus).includes(normalizedStatus as TicketStatus)) {
+        throw new BadRequestException(`Invalid ticket status filter: ${filters.status}`);
+      }
+      where.status = normalizedStatus;
+    }
+    if (filters.priority) {
+      const normalizedPriority = filters.priority.toUpperCase();
+      if (!Object.values(TicketPriority).includes(normalizedPriority as TicketPriority)) {
+        throw new BadRequestException(`Invalid ticket priority filter: ${filters.priority}`);
+      }
+      where.priority = normalizedPriority;
+    }
 
     const [total, items] = await Promise.all([
       this.prisma.ticket.count({ where }),
@@ -107,18 +121,18 @@ export class TicketsService {
           _count: { select: { comments: true } },
         },
         orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
-        skip: (filters.page - 1) * filters.limit,
-        take: filters.limit,
+        skip: (page - 1) * limit,
+        take: limit,
       }),
     ]);
 
     return {
       data: items,
       meta: {
-        page: filters.page,
-        limit: filters.limit,
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / filters.limit),
+        totalPages: Math.ceil(total / limit),
       },
     };
   }
@@ -155,7 +169,10 @@ export class TicketsService {
     const updated = await this.prisma.ticket.update({
       where: { id },
       data,
-      include: { client: { select: { businessName: true } }, assignee: true },
+      include: {
+        client: { select: { businessName: true } },
+        assignee: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+      },
     });
 
     this.events.emit('ticket.updated', { ticket: updated, updatedBy: user, changes: dto });

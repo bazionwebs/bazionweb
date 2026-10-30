@@ -10,10 +10,37 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 const AUDITABLE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
-// Paths that don't require audit logs
-const AUDIT_EXEMPT_PATHS = ['/api/v1/health', '/api/v1/auth/refresh', '/api/v1/auth/login'];
+// Paths that don't require generic response-body audit logs (either high-frequency/auth or write dedicated metadata-only audit records)
+const AUDIT_EXEMPT_PATHS = [
+  '/api/v1/health',
+  '/api/v1/auth/refresh',
+  '/api/v1/auth/login',
+  '/api/v1/auth/logout',
+  '/api/v1/auth/claim-link',
+  '/api/v1/auth/claim-account',
+  '/api/v1/auth/magic-link',
+  '/api/v1/vault',
+  '/api/v1/webhooks',
+];
 
-const SENSITIVE_KEYS = new Set(['password', 'accessToken', 'refreshToken', 'cardToken', 'secret']);
+const SENSITIVE_KEYS = new Set([
+  'password',
+  'passwordHash',
+  'newPassword',
+  'currentPassword',
+  'accessToken',
+  'refreshToken',
+  'claimToken',
+  'magicToken',
+  'token',
+  'cardToken',
+  'secret',
+  'value',
+  'encryptedValue',
+  'authTag',
+  'iv',
+  'rawPayload',
+]);
 
 function redact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redact);

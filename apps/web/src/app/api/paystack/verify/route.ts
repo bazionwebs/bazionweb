@@ -1,10 +1,20 @@
 import { NextResponse } from 'next/server';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { generateErrorReceiptHtml, generateReceiptHtml } from './receipt-template';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  const clientIp = getClientIp(req);
+  const rl = checkRateLimit(`paystack:verify:${clientIp}`, 30, 5 * 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many verification attempts. Please wait a moment.' },
+      { status: 429 },
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const reference = searchParams.get('reference')?.trim() || '';
   const wantReceipt = searchParams.get('format') === 'receipt';

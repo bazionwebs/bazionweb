@@ -108,7 +108,7 @@ describe('BillingService', () => {
       await service.generate({ clientId: 'client-uuid-1', amount: 199 });
 
       const createCall = mockPrisma.invoice.create.mock.calls[0][0];
-      expect(createCall.data.invoiceNumber).toMatch(/^INV-\d{4}-\d{4}$/);
+      expect(createCall.data.invoiceNumber).toMatch(/^INV-MAN-\d{8}-[A-F0-9]{6}$/);
       expect(createCall.data.amount).toBe(199);
       expect(createCall.data.currency).toBe('USD');
       expect(createCall.data.status).toBe('SENT');

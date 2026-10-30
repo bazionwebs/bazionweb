@@ -193,18 +193,18 @@ export class PricingService {
     const market = await this.resolveMarket(undefined, marketCode);
     const priceBook = await this.getActivePriceBook(market.id);
 
-    const prices = await this.prisma.price.findMany({
-      where: { priceBookId: priceBook.id },
-      orderBy: { productId: 'asc' },
-    });
-
-    const taxRules = await this.prisma.taxRule.findMany({
-      where: { marketId: market.id, active: true },
-    });
-
-    const adjustments = await this.prisma.marketAdjustment.findMany({
-      where: { marketId: market.id, active: true },
-    });
+    const [prices, taxRules, adjustments] = await Promise.all([
+      this.prisma.price.findMany({
+        where: { priceBookId: priceBook.id },
+        orderBy: { productId: 'asc' },
+      }),
+      this.prisma.taxRule.findMany({
+        where: { marketId: market.id, active: true },
+      }),
+      this.prisma.marketAdjustment.findMany({
+        where: { marketId: market.id, active: true, couponCode: null },
+      }),
+    ]);
 
     return {
       market: {
@@ -245,7 +245,6 @@ export class PricingService {
         adjustmentType: a.adjustmentType,
         value: Number(a.value),
         minSpend: a.minSpend ? Number(a.minSpend) : null,
-        couponCode: a.couponCode,
       })),
     };
   }

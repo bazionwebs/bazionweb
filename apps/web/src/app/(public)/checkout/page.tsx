@@ -1,7 +1,6 @@
 import React, { Suspense } from 'react';
 import type { Metadata } from 'next';
 import SubscriptionCheckout from '@/components/billing/SubscriptionCheckout';
-import QueryProvider from '@/components/providers/QueryProvider';
 import { ShieldCheck, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -16,7 +15,7 @@ type CheckoutSearchParams = { plan?: string; cycle?: string; cart?: string };
 async function CheckoutContent({ searchParams }: { searchParams: Promise<CheckoutSearchParams> }) {
   const params = await searchParams;
   const plan = params.plan || 'growth';
-  const cycle = params.cycle === 'annual' ? 'ANNUAL' : 'MONTHLY';
+  const cycle = params.cycle?.toUpperCase() === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY';
   const cartMode = params.cart === '1';
 
   return (
@@ -67,9 +66,7 @@ export default async function CheckoutPage({
             <span className="text-xs">Initializing secure checkout session...</span>
           </div>
         }>
-          <QueryProvider>
-            <CheckoutContent searchParams={searchParams} />
-          </QueryProvider>
+          <CheckoutContent searchParams={searchParams} />
         </Suspense>
       </div>
     </div>

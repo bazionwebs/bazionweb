@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
+import { authApi } from '@/lib/api';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { planMarketing, usePlans } from '@/lib/plans';
@@ -202,7 +203,8 @@ export default function OnboardingPage() {
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    await authApi.logout().catch(() => undefined);
     clearSession();
     router.push('/portal/login');
   }

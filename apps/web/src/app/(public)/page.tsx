@@ -2,6 +2,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import JsonLd from '@/components/seo/JsonLd';
 import HomepagePricingPreview from '@/components/pricing/HomepagePricingPreview';
+import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
+import { SITE_CONTACT } from '@/lib/contact';
 import {
   Globe,
   ShoppingCart,
@@ -236,7 +238,7 @@ export default function HomePage() {
           url: 'https://bazionweb.com/',
           description:
             'Digital engineering platform: websites, e-commerce, custom software, and managed care plans engineered for businesses and institutions in Kenya and worldwide.',
-          telephone: '+254721287053',
+          telephone: SITE_CONTACT.phoneE164,
           address: {
             '@type': 'PostalAddress',
             addressLocality: 'Nairobi',
@@ -695,14 +697,14 @@ export default function HomePage() {
             >
               Start Free Assessment (2 Mins)
             </Link>
-            <a
-              href="https://wa.me/254721287053?text=Hello%20BazionWeb%2C%20I%20would%20like%20to%20discuss%20a%20digital%20platform%20project."
-              target="_blank"
-              rel="noopener noreferrer"
+            <WhatsAppLink
+              source="homepage"
+              message="Hello BazionWeb, I would like to discuss a digital platform project."
               className="w-full sm:w-auto px-7 py-4 rounded-xl border border-slate-700 hover:border-slate-500 text-white text-sm font-semibold transition-colors"
+              iconClassName="h-4 w-4 text-[#25D366]"
             >
-              Direct WhatsApp Desk (+254 721 287 053)
-            </a>
+              Direct WhatsApp Desk ({SITE_CONTACT.whatsappDisplay})
+            </WhatsAppLink>
           </div>
 
           <div className="text-xs text-slate-400">

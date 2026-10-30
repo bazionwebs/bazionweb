@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -28,6 +28,16 @@ function ClaimContent() {
   const [devNotice, setDevNotice] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (claimToken && typeof window !== 'undefined') {
+      window.history.replaceState(
+        {},
+        '',
+        window.location.pathname + (email ? `?email=${encodeURIComponent(email)}` : '')
+      );
+    }
+  }, [claimToken, email]);
 
   async function handleRequestLink(e: React.FormEvent) {
     e.preventDefault();

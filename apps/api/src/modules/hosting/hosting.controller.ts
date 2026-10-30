@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { HostingService } from './hosting.service';
-import { CreateHostingAccountDto } from './dto/create-hosting-account.dto';
+import { CreateHostingAccountDto, UpdateHostingAccountDto } from './dto/create-hosting-account.dto';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
 import { SubscriptionGuard } from '../../common/guards/subscription.guard';
 
@@ -49,9 +49,9 @@ export class HostingController {
   @ApiOperation({ summary: 'Update hosting account (admin)' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: Partial<CreateHostingAccountDto & { status: string }>,
+    @Body() dto: UpdateHostingAccountDto,
   ) {
-    return this.svc.updateAccount(id, dto);
+    return this.svc.updateAccount(id, dto as Record<string, unknown>);
   }
 
   /** Any authenticated user: get specific hosting account (scope-checked) */

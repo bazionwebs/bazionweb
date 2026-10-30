@@ -7,7 +7,13 @@ import api from '@/lib/api';
 
 function parseJwt(token: string) {
   try {
-    return JSON.parse(atob(token.split('.')[1]));
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    return JSON.parse(atob(base64));
   } catch {
     return null;
   }

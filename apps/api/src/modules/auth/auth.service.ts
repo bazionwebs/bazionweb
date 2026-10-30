@@ -35,6 +35,9 @@ const KEY_LEN = 64;
 const MAGIC_TOKEN_PREFIX = 'magic_';
 const CLAIM_TOKEN_PREFIX = 'claim_';
 
+// Constant-cost dummy scrypt hash to prevent timing-based email enumeration on login.
+const DUMMY_PASSWORD_HASH = `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${'00'.repeat(16)}$${'00'.repeat(KEY_LEN)}`;
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const key = (await scryptAsync(password, salt, KEY_LEN, {
@@ -119,10 +122,11 @@ export class AuthService {
    * dispatch secret (INTERNAL_DISPATCH_SECRET, else PAYSTACK_SECRET_KEY).
    */
   canDispatchTokens(header?: string): boolean {
-    const expected =
-      this.config.get<string>('INTERNAL_DISPATCH_SECRET', '') ||
-      this.config.get<string>('PAYSTACK_SECRET_KEY', '');
-    if (!expected || !header) return false;
+    const isProd = this.config.get<string>('NODE_ENV') === 'production';
+    const dedicated = (this.config.get<string>('INTERNAL_DISPATCH_SECRET', '') || '').trim();
+    const fallback = isProd ? '' : (this.config.get<string>('PAYSTACK_SECRET_KEY', '') || '').trim();
+    const expected = dedicated || fallback;
+    if (!expected || expected.includes('CHANGE_ME') || !header) return false;
     const a = Buffer.from(header, 'utf8');
     const b = Buffer.from(expected, 'utf8');
     if (a.length !== b.length) return false;
@@ -150,6 +154,7 @@ export class AuthService {
   private async localLogin(email: string, password: string): Promise<TokenPair> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || user.deletedAt || !user.passwordHash) {
+      await verifyPassword(password, DUMMY_PASSWORD_HASH);
       throw new UnauthorizedException('Invalid email or password');
     }
     if (!(await verifyPassword(password, user.passwordHash))) {
@@ -168,6 +173,14 @@ export class AuthService {
   async refresh(refreshToken: string): Promise<TokenPair> {
     if (!this.isLocalProvider()) return this.keycloakRefresh(refreshToken);
 
+    if (
+      !refreshToken ||
+      refreshToken.startsWith(MAGIC_TOKEN_PREFIX) ||
+      refreshToken.startsWith(CLAIM_TOKEN_PREFIX)
+    ) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
     const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
@@ -184,11 +197,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    // Rotate: revoke the presented token, issue a fresh pair
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
+    // Rotate atomically: only the first concurrent caller consumes the refresh token.
+    const consumed = await this.prisma.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null, expiresAt: { gt: new Date() } },
       data: { revokedAt: new Date() },
     });
+    if (consumed.count === 0) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
 
     return this.issueTokenPair(stored.user);
   }
@@ -200,7 +216,10 @@ export class AuthService {
     // Local logout = revoke all refresh tokens for the token owner.
     // Never throws — logout should succeed even if revocation fails.
     try {
-      const decoded = jwt.verify(accessToken, this.jwtSecret()) as { sub?: string };
+      const decoded = jwt.verify(accessToken, this.jwtSecret(), {
+        algorithms: ['HS256'],
+        issuer: 'bazionweb',
+      }) as { sub?: string };
       if (decoded?.sub) {
         await this.prisma.refreshToken.updateMany({
           where: { userId: decoded.sub, revokedAt: null },
@@ -250,9 +269,20 @@ export class AuthService {
    * Staff provisioning: set (or rotate) a user's local password.
    * Returns null when the user does not exist or is soft-deleted.
    */
-  async setUserPassword(userId: string, newPassword: string): Promise<{ id: string } | null> {
+  async setUserPassword(
+    userId: string,
+    newPassword: string,
+    actorRoles?: string[],
+  ): Promise<{ id: string } | null> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.deletedAt) return null;
+    if (
+      actorRoles &&
+      ['SUPER_ADMIN', 'ADMIN'].includes(String(user.role)) &&
+      !actorRoles.includes('SUPER_ADMIN')
+    ) {
+      throw new ForbiddenException('Only a SUPER_ADMIN may reset an administrator password.');
+    }
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash: await hashPassword(newPassword) },
@@ -552,13 +582,22 @@ export class AuthService {
 
     // Defense in depth: revoke and reject tokens belonging to unclaimed guests.
     if (!this.canUseMagicLink(stored.user)) {
-      await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+      await this.prisma.refreshToken.updateMany({
+        where: { id: stored.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
       throw new ForbiddenException(
         'This sign-in link is only available after your account is claimed. Use the claim link from your payment confirmation.',
       );
     }
 
-    await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+    const consumed = await this.prisma.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null, expiresAt: { gt: new Date() } },
+      data: { revokedAt: new Date() },
+    });
+    if (consumed.count === 0) {
+      throw new UnauthorizedException('This sign-in link has already been used or expired.');
+    }
 
     const user = stored.user;
     const subStatus = await this.resolveSubscriptionStatus(user.id);

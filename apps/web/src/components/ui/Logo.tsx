@@ -35,10 +35,10 @@ export default function Logo({
       <Image
         src={logoSrc}
         alt="BazionWeb – Build, Host n Grow"
-        width={1080}
-        height={1080}
+        width={320}
+        height={320}
         priority={priority}
-        unoptimized
+        sizes="(max-width: 640px) 120px, 240px"
         className={cn('h-14 w-auto shrink-0 object-contain', markClassName)}
       />
       {wordmark && (

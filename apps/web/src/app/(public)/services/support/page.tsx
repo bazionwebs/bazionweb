@@ -3,6 +3,8 @@ import { LifeBuoy, ArrowRight, Clock, Users, FileText, AlertTriangle, CheckCircl
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
+import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
+import { SITE_CONTACT } from '@/lib/contact';
 
 export const metadata: Metadata = {
   title: 'Technical Support & Incident Escalation Services',
@@ -56,9 +58,19 @@ export default function SupportPage() {
           <p className="text-lg text-slate-400 mb-8 max-w-2xl">
             Real engineers. SLA-backed response times. No bots, no runarounds, no &ldquo;have you tried turning it off and on again.&rdquo; When something breaks, we own it.
           </p>
-          <Link href="/contact" className="btn-primary px-7 py-3">
-            Talk to a human <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link href="/contact" className="btn-primary px-7 py-3">
+              Talk to a human <ArrowRight className="w-4 h-4" />
+            </Link>
+            <WhatsAppLink
+              source="support_page"
+              message="Hello BazionWeb Support, I need help with a technical support matter."
+              className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl border border-white/15 text-white text-sm font-semibold hover:bg-white/5 transition-all"
+              iconClassName="h-4 w-4 text-[#25D366]"
+            >
+              WhatsApp Desk ({SITE_CONTACT.whatsappDisplay})
+            </WhatsAppLink>
+          </div>
         </div>
       </section>
 
@@ -121,9 +133,17 @@ export default function SupportPage() {
         <div className="container-default text-center max-w-xl mx-auto">
           <h2 className="text-2xl font-bold text-white mb-3">Support is included in every plan</h2>
           <p className="text-slate-400 mb-6 text-sm">Included in Care Essential (KSh 5,000 / $75/mo) and above, or on-demand at KSh 3,500/hr ($50/hr).</p>
-          <div className="flex gap-3 justify-center">
+          <div className="flex flex-wrap gap-3 justify-center">
             <Link href="/pricing" className="btn-primary px-7">View SLA by plan <ArrowRight className="w-4 h-4" /></Link>
             <Link href="/contact" className="inline-flex items-center gap-2 px-7 py-3 rounded-xl border border-white/15 text-white font-semibold hover:bg-white/5 transition-all">Submit a ticket</Link>
+            <WhatsAppLink
+              source="support_page"
+              message="Hello BazionWeb Support, I need help with a technical support matter."
+              className="inline-flex items-center gap-2 px-7 py-3 rounded-xl bg-[#25D366] hover:bg-[#1EBE5A] text-white font-semibold transition-all"
+              iconClassName="h-4 w-4"
+            >
+              Chat on WhatsApp
+            </WhatsAppLink>
           </div>
         </div>
       </section>

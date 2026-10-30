@@ -29,6 +29,7 @@ import {
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
+import { authApi } from '@/lib/api';
 import { useAdminClients, useAdminTickets, useUptime } from '@/hooks/useAdminData';
 
 export interface AdminNavItem {
@@ -88,7 +89,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     return defaultColor ?? 'bg-slate-700';
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await authApi.logout().catch(() => undefined);
     clearSession();
     router.replace('/portal/login');
   };
@@ -110,14 +112,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
       <aside
         className={cn(
-          'fixed lg:sticky top-0 inset-y-0 left-0 z-40 w-64 bg-[#0F172A] border-r border-slate-800 flex flex-col transition-transform duration-300 h-screen',
+          'fixed lg:sticky top-0 inset-y-0 left-0 z-40 w-64 bg-[#0F172A] border-r border-slate-800 flex flex-col transition-transform duration-300 h-[100dvh]',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
         {/* Brand Header */}
         <div className="px-5 py-4 border-b border-slate-800/80 flex items-center justify-between shrink-0">
           <Link href="/admin" className="flex items-center gap-2.5 group">
-            <Logo variant="dark" markClassName="h-10 w-auto" />
+            <Logo variant="dark" markClassName="h-10 w-auto" href={null} wordmark={false} />
             <div>
               <div className="font-black text-white text-sm tracking-tight flex items-center gap-1.5">
                 BazionWeb
@@ -279,7 +281,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
               {/* Notification Popover */}
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2">
                   <div className="px-4 pb-2 border-b border-slate-100 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900">System Alerts</span>
                     <button

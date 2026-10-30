@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Send, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error';
@@ -28,9 +29,22 @@ const initialData: FormData = {
 };
 
 export default function ContactForm() {
+  const searchParams = useSearchParams();
   const [form, setForm] = useState<FormData>(initialData);
   const [state, setState] = useState<FormState>('idle');
   const [errors, setErrors] = useState<Partial<FormData>>({});
+
+  useEffect(() => {
+    const serviceParam = searchParams.get('service');
+    const planParam = searchParams.get('plan') || searchParams.get('package');
+    if (serviceParam || planParam) {
+      setForm(prev => ({
+        ...prev,
+        service: serviceParam ? serviceParam : prev.service,
+        plan: planParam ? planParam : prev.plan,
+      }));
+    }
+  }, [searchParams]);
 
   function validate(): boolean {
     const e: Partial<FormData> = {};
@@ -48,9 +62,24 @@ export default function ContactForm() {
 
     setState('submitting');
     try {
-      // POST to API when backend is live
-      // await axios.post('/api/v1/quotes/submit', form);
-      await new Promise(r => setTimeout(r, 1200)); // simulate
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          company: form.company.trim(),
+          phone: form.phone.trim(),
+          serviceInterest: form.service || form.plan || 'General Inquiry',
+          notes: `${form.urgent ? '[URGENT] ' : ''}${form.message}${form.plan ? ` (Plan: ${form.plan})` : ''}`,
+          source: 'contact_page_form',
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to submit message');
+      }
+
       setState('success');
     } catch {
       setState('error');

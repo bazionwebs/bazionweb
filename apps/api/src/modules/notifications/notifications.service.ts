@@ -65,22 +65,25 @@ export class NotificationsService {
   }
 
   async findAll(userId: string, filters: { read?: boolean; page: number; limit: number }) {
+    const page = Math.max(1, Math.floor(Number(filters.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(filters.limit) || 20)));
     const where: any = { userId };
     if (filters.read !== undefined) where.read = filters.read;
 
-    const [total, items] = await Promise.all([
+    const [total, items, unread] = await Promise.all([
       this.prisma.notification.count({ where }),
       this.prisma.notification.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        skip: (filters.page - 1) * filters.limit,
-        take:  filters.limit,
+        skip: (page - 1) * limit,
+        take:  limit,
       }),
+      this.getUnreadCount(userId),
     ]);
 
     return {
       data: items,
-      meta: { page: filters.page, limit: filters.limit, total, unread: await this.getUnreadCount(userId) },
+      meta: { page, limit, total, unread },
     };
   }
 

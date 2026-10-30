@@ -1,8 +1,11 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import ContactForm from '@/components/sections/ContactForm';
 import { Mail, Phone, MapPin, Clock, Calendar } from 'lucide-react';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
+import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
+import { buildWhatsAppLink, SITE_CONTACT } from '@/lib/contact';
 
 export const metadata: Metadata = {
   title: 'Contact Our Engineering & Sales Team | BazionWeb',
@@ -12,17 +15,27 @@ export const metadata: Metadata = {
 
 const contactMethods = [
   {
+    icon: WhatsAppIcon,
+    iconClass: 'text-[#25D366]',
+    label: 'Chat on WhatsApp',
+    value: SITE_CONTACT.whatsappDisplay,
+    href: buildWhatsAppLink("Hello BazionWeb, I'd like to ask about a project."),
+    sub: 'Fastest response · Mon–Sat',
+  },
+  {
     icon: Mail,
+    iconClass: 'text-[#2563EB]',
     label: 'Email us',
-    value: 'hello@bazionweb.com',
-    href: 'mailto:hello@bazionweb.com',
+    value: SITE_CONTACT.email,
+    href: `mailto:${SITE_CONTACT.email}`,
     sub: 'We reply within 24 hours',
   },
   {
     icon: Phone,
+    iconClass: 'text-[#2563EB]',
     label: 'Call us',
-    value: '+254 721 287 053',
-    href: 'tel:+254721287053',
+    value: SITE_CONTACT.phoneDisplay,
+    href: SITE_CONTACT.phoneHref,
     sub: 'Mon–Fri, 8am–6pm (UTC+3)',
   },
   // TODO: restore the support-ticket card (value: 'support.bazionweb.com',
@@ -43,12 +56,12 @@ export default function ContactPage() {
           mainEntity: {
             '@type': 'Organization',
             name: 'BazionWeb',
-            email: 'hello@bazionweb.com',
-            telephone: '+254721287053',
+            email: SITE_CONTACT.email,
+            telephone: SITE_CONTACT.phoneE164,
             contactPoint: {
               '@type': 'ContactPoint',
-              email: 'hello@bazionweb.com',
-              telephone: '+254721287053',
+              email: SITE_CONTACT.email,
+              telephone: SITE_CONTACT.phoneE164,
               contactType: 'customer support and sales',
               availableLanguage: ['English', 'Swahili'],
             },
@@ -91,7 +104,7 @@ export default function ContactPage() {
                       className="flex items-start gap-3 group"
                     >
                       <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
-                        <m.icon className="w-4 h-4 text-[#2563EB]" />
+                        <m.icon className={`w-4 h-4 ${m.iconClass ?? 'text-[#2563EB]'}`} />
                       </div>
                       <div>
                         <div className="text-xs text-slate-400 mb-0.5">{m.label}</div>
@@ -149,7 +162,13 @@ export default function ContactPage() {
 
             {/* Form */}
             <div className="lg:col-span-2">
-              <ContactForm />
+              <Suspense
+                fallback={
+                  <div className="card p-6 text-sm text-slate-400">Loading contact form…</div>
+                }
+              >
+                <ContactForm />
+              </Suspense>
             </div>
           </div>
         </div>

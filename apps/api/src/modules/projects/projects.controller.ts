@@ -2,6 +2,7 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Request, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
+import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
 import { SubscriptionGuard } from '../../common/guards/subscription.guard';
 
@@ -43,14 +44,14 @@ export class ProjectsController {
   @Post()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create project (admin)' })
-  create(@Body() dto: any) {
+  create(@Body() dto: CreateProjectDto) {
     return this.svc.create(dto);
   }
 
   @Patch(':id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Update project status/progress (admin)' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: any) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProjectDto) {
     return this.svc.update(id, dto);
   }
 }

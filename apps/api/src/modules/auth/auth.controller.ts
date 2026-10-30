@@ -54,11 +54,13 @@ class ClaimAccountDto {
   password: string;
 
   @ApiProperty({ required: false, example: 'Jane' })
+  @IsOptional()
   @IsString()
   @MaxLength(64)
   firstName?: string;
 
   @ApiProperty({ required: false, example: 'Wanjiku' })
+  @IsOptional()
   @IsString()
   @MaxLength(64)
   lastName?: string;
@@ -232,8 +234,8 @@ export class AuthController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Admin — set a user local password' })
-  async setPassword(@Body() dto: SetPasswordDto) {
-    const user = await this.authService.setUserPassword(dto.userId, dto.newPassword);
+  async setPassword(@Request() req: any, @Body() dto: SetPasswordDto) {
+    const user = await this.authService.setUserPassword(dto.userId, dto.newPassword, req.user?.roles ?? []);
     if (!user) throw new NotFoundException('User not found');
     return { data: { userId: user.id } };
   }

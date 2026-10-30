@@ -1,4 +1,4 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
@@ -131,8 +131,10 @@ describe('AuthService (local provider)', () => {
       const result = await service.refresh('a'.repeat(96));
 
       expect(result.data.accessToken).toBeTruthy();
-      expect(prisma.refreshToken.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'rt-old' } }),
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'rt-old', revokedAt: null }),
+        }),
       );
       expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
     });
@@ -499,8 +501,11 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     const result = await service.verifyMagicLink('magic_single-use-token');
 
     expect(result.data.accessToken).toBeTruthy();
-    expect(prisma.refreshToken.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'rt-1' }, data: expect.objectContaining({ revokedAt: expect.any(Date) }) }),
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'rt-1', revokedAt: null }),
+        data: expect.objectContaining({ revokedAt: expect.any(Date) }),
+      }),
     );
     const decoded = jwt.verify(result.data.accessToken, JWT_SECRET) as any;
     expect(decoded.sub).toBe('user-guest-1');
@@ -511,8 +516,8 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     await expect(service.verifyMagicLink('magic_unclaimed-token')).rejects.toThrow(
       /only available after your account is claimed/,
     );
-    expect(prisma.refreshToken.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'rt-1' } }),
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'rt-1', revokedAt: null } }),
     );
   });
 

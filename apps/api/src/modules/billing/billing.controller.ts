@@ -15,7 +15,7 @@ import { BillingService } from './billing.service';
 import { PaymentSettlementService } from './payment-settlement.service';
 import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto, ConfirmPaystackDto, AcceptProposalDto, ProposalDepositCardDto, ProposalDepositMpesaDto } from './dto/billing.dto';
+import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto, ConfirmPaystackDto, AcceptProposalDto, ProposalDepositCardDto, ProposalDepositMpesaDto, GenerateInvoiceDto } from './dto/billing.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
@@ -197,7 +197,7 @@ export class BillingController {
   @Post('generate')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Manually generate invoice (admin)' })
-  generate(@Body() body: { clientId: string; subscriptionId?: string; amount: number; notes?: string }) {
+  generate(@Body() body: GenerateInvoiceDto) {
     return this.svc.generate(body);
   }
 

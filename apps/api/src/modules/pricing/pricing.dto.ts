@@ -147,6 +147,7 @@ export class UpsertTaxRuleDto {
 
   @IsNumber()
   @Min(0)
+  @Max(1)
   rate: number;
 
   @IsBoolean()
@@ -173,14 +174,17 @@ export class UpsertAdjustmentDto {
   adjustmentType: 'PERCENTAGE_DISCOUNT' | 'FIXED_DISCOUNT' | 'SURCHARGE';
 
   @IsNumber()
+  @Min(0)
   value: number;
 
   @IsOptional()
   @IsNumber()
+  @Min(0)
   minSpend?: number;
 
   @IsOptional()
   @IsNumber()
+  @Min(0)
   maxDiscount?: number;
 
   @IsOptional()

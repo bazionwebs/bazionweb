@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Public } from '../../common/guards/jwt-auth.guard';
@@ -46,7 +46,11 @@ export class PlansController {
   @Get()
   @Public()
   @ApiOperation({ summary: 'List active subscription plans with server prices' })
-  async findAll() {
+  async findAll(@Req() req?: any) {
+    const res = req?.res;
+    if (res && typeof res.setHeader === 'function') {
+      res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=300, stale-while-revalidate=600');
+    }
     const plans = await this.prisma.plan.findMany({
       where: { isActive: true },
       orderBy: { priceMonthly: 'asc' },
