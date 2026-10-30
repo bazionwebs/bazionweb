@@ -126,10 +126,10 @@ export default function ContactForm() {
             <label htmlFor="plan" className="label">Plan interest</label>
             <select id="plan" {...field('plan')}>
               <option value="">Select a plan…</option>
-              <option value="starter">Starter — $29/mo</option>
-              <option value="growth">Growth — $59/mo</option>
-              <option value="business">Business — $119/mo</option>
-              <option value="enterprise">Enterprise — Custom</option>
+              <option value="care-essential">Care Essential — KSh 5,000 / $75/mo</option>
+              <option value="care-business">Care Business — KSh 10,000 / $150/mo</option>
+              <option value="care-professional">Care Professional — KSh 20,000 / $300/mo</option>
+              <option value="care-enterprise">Care Enterprise — Custom SLA</option>
               <option value="unsure">Not sure yet</option>
             </select>
           </div>

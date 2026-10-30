@@ -25,11 +25,11 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
   const [checking, setChecking] = useState(true);
   const isRedirectingRef = useRef(false);
 
-  // Safety valve: prevent any infinite deadlock
+  // Safety valve: prevent any infinite deadlock while allowing API cold-start headroom
   useEffect(() => {
     const safetyTimer = setTimeout(() => {
       setChecking(false);
-    }, 2500);
+    }, 7000);
 
     return () => clearTimeout(safetyTimer);
   }, [pathname]);

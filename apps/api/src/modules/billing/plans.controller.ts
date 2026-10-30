@@ -4,13 +4,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Public } from '../../common/guards/jwt-auth.guard';
 
 const PLAN_ORDER = [
+  'Care Essential',
+  'Care Business',
+  'Care Professional',
+  'Care Enterprise',
   'Starter',
   'Growth',
   'Business',
   'Enterprise',
-  'Care Essential',
-  'Care Business',
-  'Care Professional',
 ];
 
 function toNumber(value: unknown): number {
@@ -63,14 +64,23 @@ export class PlansController {
           tier: plan.tier,
           priceMonthly,
           priceAnnual,
-          priceMonthlyKes: toNumber(plan.priceMonthlyKes),
-          priceAnnualKes: toNumber(plan.priceAnnualKes),
+          priceMonthlyKes:
+            plan.priceMonthlyKes != null
+              ? toNumber(plan.priceMonthlyKes)
+              : Math.round(priceMonthly * 130),
+          priceAnnualKes:
+            plan.priceAnnualKes != null
+              ? toNumber(plan.priceAnnualKes)
+              : Math.round(priceAnnual * 130),
           currency: 'USD',
           annualDiscountPct:
             monthlyYearly > 0 && priceAnnual > 0
               ? Math.round((1 - priceAnnual / monthlyYearly) * 100)
               : 0,
           uptimeSla: plan.uptimeSla,
+          p1ResponseMinutes: plan.p1ResponseMinutes,
+          p2ResponseMinutes: plan.p2ResponseMinutes,
+          p3ResponseMinutes: plan.p3ResponseMinutes,
         };
       })
       .sort((a, b) => {

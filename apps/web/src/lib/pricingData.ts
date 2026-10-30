@@ -282,7 +282,7 @@ export const CUSTOM_SYSTEM_TIERS: CustomSystemTier[] = [
   {
     category: 'Discovery & Specification Phase',
     kenyaStarting: 'KSh 25,000 – 75,000',
-    intlStarting: '$450',
+    intlStarting: '$500 – $1,500',
     description: 'Before writing code, we document your exact system architecture, workflows, database schema, and milestones. (Fee credited toward development if project proceeds).',
     examples: ['Requirements Document', 'Wireframes & UI Prototypes', 'Database Entity Models', 'API Roadmap & Cost Estimate'],
   },
@@ -382,7 +382,7 @@ export const CARE_PLANS: CarePlan[] = [
     id: 'care-enterprise',
     name: 'Care Enterprise',
     kenyaPrice: 'From KSh 40,000/month',
-    intlPrice: 'From $390+/month',
+    intlPrice: 'From $400/month',
     hours: 'Custom SLA allocation',
     description: 'Dedicated support agreements for high-revenue e-commerce, SaaS, institutions, and portals.',
     features: [
@@ -394,7 +394,7 @@ export const CARE_PLANS: CarePlan[] = [
       'Quarterly executive reviews',
       'Direct developer escalation hotline',
     ],
-    ctaHref: '/contact?service=care-enterprise',
+    ctaHref: '/store?add=care-enterprise#plans',
   },
 ];
 
@@ -464,7 +464,7 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
       'Priority phone & direct ticket support',
     ],
     ctaText: 'Choose Host Professional',
-    ctaHref: '/store?add=host-professional#hosting',
+    ctaHref: '/store?add=host-pro#hosting',
   },
   {
     id: 'host-cloud',
@@ -546,10 +546,10 @@ export const ADD_ON_RATE_CARD: AddOnItem[] = [
     name: 'M-Pesa STK Push Integration',
     category: 'integration',
     kenyaPrice: 'From KSh 10,000',
-    intlPrice: 'Available on request',
+    intlPrice: 'From $150',
     description: 'Direct Safaricom Daraja STK Push prompt for instant Kenya mobile checkout.',
     rawKes: 10000,
-    rawUsd: 80,
+    rawUsd: 150,
   },
   {
     id: 'newsletter',

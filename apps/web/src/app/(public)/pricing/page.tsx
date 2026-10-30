@@ -42,7 +42,7 @@ const pricingSchema = {
     {
       '@type': 'Offer',
       name: 'Launch Website Package (International)',
-      price: '495', priceCurrency: 'USD',
+      price: '450', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',
@@ -50,7 +50,7 @@ const pricingSchema = {
     {
       '@type': 'Offer',
       name: 'Business Website Package (International)',
-      price: '1500', priceCurrency: 'USD',
+      price: '950', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',
@@ -67,7 +67,7 @@ const pricingSchema = {
     {
       '@type': 'Offer',
       name: 'E-Commerce Store (International)',
-      price: '1500', priceCurrency: 'USD',
+      price: '890', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',
@@ -75,7 +75,7 @@ const pricingSchema = {
     // ── Website Care & Maintenance ────────────────────────────────────────────
     {
       '@type': 'Offer',
-      name: 'Starter Care Plan (Kenya) — Monthly',
+      name: 'Care Essential Plan (Kenya) — Monthly',
       price: '5000', priceCurrency: 'KES',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
@@ -83,8 +83,8 @@ const pricingSchema = {
     },
     {
       '@type': 'Offer',
-      name: 'Starter Care Plan (International) — Monthly',
-      price: '75', priceCurrency: 'USD',  // ← corrected: was $49, canonical is $75
+      name: 'Care Essential Plan (International) — Monthly',
+      price: '75', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',
@@ -93,7 +93,7 @@ const pricingSchema = {
     {
       '@type': 'Offer',
       name: 'Custom Digital System (Kenya) — From',
-      price: '150000', priceCurrency: 'KES',
+      price: '180000', priceCurrency: 'KES',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',
@@ -101,7 +101,7 @@ const pricingSchema = {
     {
       '@type': 'Offer',
       name: 'Custom Digital System (International) — From',
-      price: '2500', priceCurrency: 'USD',
+      price: '2200', priceCurrency: 'USD',
       priceValidUntil: '2026-12-31',
       availability: 'https://schema.org/InStock',
       url: 'https://bazionweb.com/pricing',

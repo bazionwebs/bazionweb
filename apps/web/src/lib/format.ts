@@ -56,6 +56,9 @@ export function shortId(id: string | null | undefined, len = 8): string {
 
 const PROVIDER_LABELS: Record<string, string> = {
   PAYSTACK: 'Paystack (Card / M-Pesa)',
+  DARAJA: 'M-Pesa Direct (Daraja)',
+  INTASEND: 'IntaSend',
+  WISE: 'Corporate Wire (Wise)',
   MANUAL_BANK_TRANSFER: 'Manual Bank Transfer',
   MANUAL: 'Manual',
 };

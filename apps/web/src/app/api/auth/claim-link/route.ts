@@ -40,9 +40,17 @@ export async function POST(req: Request) {
     const apiBaseUrl = resolveApiBase();
     if (!apiBaseUrl) return NextResponse.json(GENERIC_RESPONSE);
 
+    const dispatchSecret =
+      process.env.INTERNAL_DISPATCH_SECRET ||
+      process.env.PAYSTACK_SECRET_KEY ||
+      '';
+
     const upstream = await fetch(`${apiBaseUrl}/api/v1/auth/claim-link`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(dispatchSecret ? { 'x-internal-dispatch': dispatchSecret } : {}),
+      },
       body: JSON.stringify({ email: cleanEmail }),
       cache: 'no-store',
       signal: AbortSignal.timeout(10000),
@@ -50,10 +58,24 @@ export async function POST(req: Request) {
 
     if (!upstream.ok) return NextResponse.json(GENERIC_RESPONSE);
 
-    const { claimToken } = (await upstream.json()) as { claimToken?: string };
+    const envelope = await upstream.json().catch(() => ({}));
+    const payload = envelope?.data ?? envelope;
+    const claimToken = typeof payload?.claimToken === 'string' ? payload.claimToken : '';
+
     if (claimToken) {
       const claimLinkUrl = `${getTrustedSiteOrigin()}/portal/claim?token=${encodeURIComponent(claimToken)}&email=${encodeURIComponent(cleanEmail)}`;
-      await sendClaimLinkEmail({ to: cleanEmail, claimLinkUrl });
+      const sendResult = await sendClaimLinkEmail({ to: cleanEmail, claimLinkUrl });
+
+      if (process.env.NODE_ENV === 'development' && !sendResult.delivered) {
+        return NextResponse.json(
+          {
+            ...GENERIC_RESPONSE,
+            devPreviewUrl: claimLinkUrl,
+            devNotice: sendResult.message,
+          },
+          { headers: { 'Cache-Control': 'no-store' } },
+        );
+      }
     }
   } catch {
     console.error('Claim link dispatch failed.');

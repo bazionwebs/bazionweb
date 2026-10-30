@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
+import { provisionProjectFromProposalInvoice } from '../projects/project-provisioning.util';
 
 export type CheckoutPurpose = 'subscription' | 'invoice_payment';
 
@@ -77,6 +78,11 @@ export class PaymentSettlementService {
       id: string;
       clientId: string;
       subscriptionId: string | null;
+      invoiceNumber?: string;
+      amount?: unknown;
+      currency?: string;
+      paidAt?: Date | null;
+      notes?: string | null;
       lineItems?: unknown;
       client: { planId: string } | null;
     },
@@ -93,11 +99,25 @@ export class PaymentSettlementService {
     if (purpose === 'invoice_payment' && !invoice.subscriptionId) {
       // One-time payment (e.g. a project kickoff deposit): there is no
       // subscription to activate, but a paying client is an active client —
-      // flip status so the portal guard unlocks after account claim.
+      // flip status so the portal guard unlocks after account claim, and
+      // provision the scoped Delivery Roadmap if this is a proposal deposit.
       await tx.client.update({
         where: { id: invoice.clientId },
         data: { status: 'ACTIVE' },
       }).catch((err: Error) => this.logger.warn(`Client status update failed: ${err.message}`));
+
+      await provisionProjectFromProposalInvoice(tx, {
+        id: invoice.id,
+        clientId: invoice.clientId,
+        invoiceNumber: invoice.invoiceNumber,
+        amount: invoice.amount ?? 0,
+        currency: invoice.currency ?? 'KES',
+        paidAt: invoice.paidAt ?? new Date(),
+        notes: invoice.notes,
+        lineItems: invoice.lineItems,
+      }).catch((err: Error) =>
+        this.logger.warn(`Proposal project provisioning failed for invoice ${invoice.id}: ${err.message}`),
+      );
       return;
     }
 

@@ -115,8 +115,8 @@ export default function WebDevPage() {
           <div className="card p-8 flex flex-col md:flex-row gap-6 items-start">
             <div className="flex-1">
               <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Starting from</div>
-              <div className="text-4xl font-black text-[#0F172A] mb-1">$800</div>
-              <div className="text-slate-500 text-sm">One-time project fee · Exact price quoted after scoping call</div>
+              <div className="text-4xl font-black text-[#0F172A] mb-1">KSh 25,000 <span className="text-lg font-semibold text-slate-400">/ $450</span></div>
+              <div className="text-slate-500 text-sm">Launch Website package · Custom & Business builds quoted transparently</div>
               <ul className="mt-4 space-y-1.5">
                 {['Fixed-price contract', 'Staging deploy for review', 'Full source code ownership', '30-day post-launch support'].map(f => (
                   <li key={f} className="flex items-center gap-2 text-sm text-slate-600">

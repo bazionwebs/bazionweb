@@ -11,8 +11,20 @@ export class UpdateClientDto {
   contactName?: string;
 
   @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(20)
+  @IsOptional() @IsString() @MaxLength(32)
   phone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(255)
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(80)
+  country?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(40)
+  taxPin?: string;
 
   @ApiPropertyOptional({ enum: ['ACTIVE', 'SUSPENDED', 'CANCELLED', 'TRIAL'] })
   @IsOptional()

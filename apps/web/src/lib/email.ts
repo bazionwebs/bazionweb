@@ -186,8 +186,9 @@ async function sendEmail(to: string, subject: string, html: string, fallbackUrl:
 
   // 1. Check for Resend API Key
   const resendApiKey = process.env.RESEND_API_KEY;
+  let resendFallbackReason = '';
   if (resendApiKey) {
-    try {
+    const sendViaResend = async (sender: string) => {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -195,17 +196,31 @@ async function sendEmail(to: string, subject: string, html: string, fallbackUrl:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: fromEmail,
+          from: sender,
           to: [to],
           subject,
           html,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      return { res, data };
+    };
+
+    try {
+      let { res, data } = await sendViaResend(fromEmail);
+
+      // If custom domain (e.g. bazionweb.com) is not verified in Resend yet,
+      // automatically retry with Resend's default onboarding sender.
+      if (!res.ok && res.status === 403 && !fromEmail.includes('onboarding@resend.dev')) {
+        console.warn(`[Email] Custom sender (${fromEmail}) not verified in Resend yet; retrying via onboarding@resend.dev`);
+        ({ res, data } = await sendViaResend('BazionWeb <onboarding@resend.dev>'));
+      }
+
       if (res.ok) {
         console.log(`[Email] ✅ Delivered via Resend to ${to} (id: ${data.id})`);
         return { success: true, delivered: true, provider: 'resend' };
       }
+      resendFallbackReason = typeof data?.message === 'string' ? data.message : '';
       console.warn(`[Email] Resend API error:`, data);
     } catch (err) {
       console.error(`[Email] Resend dispatch error:`, err);
@@ -252,7 +267,9 @@ async function sendEmail(to: string, subject: string, html: string, fallbackUrl:
     delivered: false,
     provider: 'local-development',
     previewUrl: fallbackUrl,
-    message: 'Live SMTP/Resend credentials not yet added to .env.local. Link generated for development.',
+    message: resendFallbackReason
+      ? `Resend rejected live delivery (${resendFallbackReason}). Verify bazionweb.com in Resend Domains to send to any address.`
+      : 'Live SMTP/Resend credentials not yet added to .env.local. Link generated for development.',
   };
 }
 

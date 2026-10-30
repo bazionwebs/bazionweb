@@ -24,12 +24,16 @@ function ClaimContent() {
   const [requesting, setRequesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [devPreviewUrl, setDevPreviewUrl] = useState('');
+  const [devNotice, setDevNotice] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
   async function handleRequestLink(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setDevPreviewUrl('');
+    setDevNotice('');
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('Enter the billing email you used during payment.');
@@ -49,6 +53,13 @@ function ClaimContent() {
         if (res.status === 429) setError('Too many attempts. Wait a minute and try again.');
         else setError(data.error || 'Could not send the claim link. Please try again shortly.');
         return;
+      }
+
+      if (typeof data.devPreviewUrl === 'string' && data.devPreviewUrl) {
+        setDevPreviewUrl(data.devPreviewUrl);
+      }
+      if (typeof data.devNotice === 'string' && data.devNotice) {
+        setDevNotice(data.devNotice);
       }
 
       // Generic response by design: never reveal whether the email is known,
@@ -164,6 +175,20 @@ function ClaimContent() {
               unclaimed account, a secure claim link is on its way. It expires in 15 minutes.
             </p>
           </div>
+          {devPreviewUrl && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-left space-y-2.5">
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                <strong>Local Dev Fallback:</strong> {devNotice || 'Live email delivery was skipped in local development.'}
+              </p>
+              <a
+                href={devPreviewUrl}
+                className="btn-primary w-full py-2.5 justify-center text-xs font-bold inline-flex items-center gap-1.5"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Open Claim Link Directly (Dev)
+              </a>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <button
               type="button"

@@ -118,12 +118,21 @@ export async function POST(request: NextRequest) {
     const priceBook = getPriceBookForMarket(marketCode);
     const currency = priceBook.currency;
 
-    const packageKey = `website-${packageType}`;
+    const packageMap: Record<string, string> = {
+      launch: 'website-launch',
+      business: 'website-business',
+      professional: 'website-professional',
+      'ecom-starter': 'ecommerce-starter',
+      'ecom-business': 'ecommerce-business',
+      custom: 'website-enterprise',
+      corporate: 'website-enterprise',
+    };
+    const packageKey = packageMap[packageType] || `website-${packageType}`;
     const packageItem = priceBook.items[packageKey] || priceBook.items['website-business'];
-    const baseCost = packageItem ? packageItem.amount : (marketCode === 'KE' ? 90000 : 1500);
+    const baseCost = packageItem ? packageItem.amount : (marketCode === 'KE' ? 90000 : 950);
 
     const extraPageItem = priceBook.items['rate-extra-page'];
-    const pageRate = extraPageItem ? extraPageItem.amount : (marketCode === 'KE' ? 2000 : 50);
+    const pageRate = extraPageItem ? extraPageItem.amount : (marketCode === 'KE' ? 2000 : 40);
     const extraPagesCount = Math.max(0, Number(extraPages) || 0);
     const extraPagesCost = extraPagesCount * pageRate;
 
@@ -169,9 +178,9 @@ export async function POST(request: NextRequest) {
       if (hostItem) {
         annualHosting = hostItem.amount;
       } else {
-        if (hosting === 'host-essential') annualHosting = marketCode === 'KE' ? 4500 : 60;
-        if (hosting === 'host-business') annualHosting = marketCode === 'KE' ? 8500 : 120;
-        if (hosting === 'host-pro') annualHosting = marketCode === 'KE' ? 15000 : 240;
+        if (hosting === 'host-essential') annualHosting = marketCode === 'KE' ? 4500 : 49;
+        if (hosting === 'host-business') annualHosting = marketCode === 'KE' ? 8500 : 99;
+        if (hosting === 'host-pro' || hosting === 'host-professional') annualHosting = marketCode === 'KE' ? 15000 : 189;
       }
     }
 

@@ -15,6 +15,9 @@ export interface ApiPlan {
   currency: string;
   annualDiscountPct: number;
   uptimeSla?: string | null;
+  p1ResponseMinutes?: number | null;
+  p2ResponseMinutes?: number | null;
+  p3ResponseMinutes?: number | null;
 }
 
 interface PlanMarketing {
@@ -54,26 +57,32 @@ export const PLAN_MARKETING: Record<string, PlanMarketing> = {
     accent: 'text-amber-400 border-amber-500/40 bg-amber-500/10',
   },
   'care-essential': {
-    description: 'Ongoing care for your live site: updates, fixes, backups and monitoring.',
-    features: ['Monthly Backend & Security Updates', 'Daily Automated Backups', 'Uptime Monitoring', 'Content Change Requests', '2 Business-Hour Support'],
+    description: 'Peace-of-mind maintenance: monthly CMS updates, verified offsite backups, uptime monitoring, and 1 hour developer support.',
+    features: ['Monthly CMS & Security Patch Updates', 'Verified Offsite Backups & Restore Drills', '24/7 Uptime & SSL Monitoring', '1 Hour Developer Support / Month', 'Monthly Digital Health Summary'],
     color: 'from-teal-600 to-emerald-600',
     accent: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
   },
   'care-business': {
-    description: 'Priority care with security management and performance tuning.',
-    features: ['Everything in Care Essential', 'Weekly Performance Reports', 'WAF & Malware Management', '4 Change Requests / Month', '4 Business-Hour Support'],
+    description: 'Proactive management with weekly update cycles, daily backups, WAF defense, SEO health audits, and 2 priority hours.',
+    features: ['Everything in Care Essential', 'Weekly Updates & Compatibility Testing', 'Daily Automated Encrypted Backups', 'WAF Security & Core Web Vitals Tuning', 'Up to 2 Priority Engineering Hours / Month'],
     color: 'from-blue-600 to-indigo-600',
     accent: 'text-blue-400 border-blue-500/40 bg-blue-500/10',
   },
   'care-professional': {
-    description: 'Dedicated priority care for business-critical platforms.',
-    features: ['Everything in Care Business', 'Dedicated Account Manager', 'Quarterly Strategy Reviews', 'Unlimited Minor Updates', '1 Business-Hour Critical Support'],
+    description: 'Full digital engineering partnership with active code support, staging rollbacks, penetration monitoring, and 5 engineering hours.',
+    features: ['Everything in Care Business', 'Proactive Security & Penetration Monitoring', 'On-Demand Staging Backups & Rollbacks', 'Up to 5 Dedicated Engineering Hours / Month', 'Priority Emergency Response (15-min P1 SLA)'],
     color: 'from-violet-600 to-purple-600',
     accent: 'text-violet-400 border-violet-500/40 bg-violet-500/10',
   },
+  'care-enterprise': {
+    description: 'Dedicated SLA coverage for high-traffic e-commerce, SaaS, institutions, and portals with named account engineering.',
+    features: ['Guaranteed 15-Minute P1 Incident Response', 'Dedicated Named Technical Account Manager', 'Disaster Recovery & Database Failover Drills', 'Dedicated Monthly Engineering Sprint Allocation', 'Quarterly Executive Architecture Reviews'],
+    color: 'from-amber-600 to-orange-700',
+    accent: 'text-amber-400 border-amber-500/40 bg-amber-500/10',
+  },
 };
 
-export const DEFAULT_PLAN_SLUG = 'growth';
+export const DEFAULT_PLAN_SLUG = 'care-business';
 
 const PLAN_CACHE_TTL_MS = 10 * 60 * 1000;
 let planCache: { plans: ApiPlan[]; expiresAt: number } | null = null;

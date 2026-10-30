@@ -36,19 +36,84 @@ interface CatalogResponse {
 /** Presentation-only copy per price-book product ID (prices always come from the API). */
 const PRODUCT_MARKETING: Record<string, { name: string; description: string; features: string[] }> = {
   'host-essential': {
-    name: 'Essential Hosting',
-    description: 'Fast, reliable shared hosting for a single live site.',
-    features: ['10 GB SSD Storage', 'Free SSL Certificate', 'Daily Backups', '99.9% Uptime', 'Email Support'],
+    name: 'Host Essential',
+    description: 'Managed NVMe web hosting with SSL, Cloudflare Edge DNS, and automated weekly backups.',
+    features: ['High-Speed SSD NVMe Storage', 'Free Automated SSL Certificate', 'Cloudflare Edge DNS & CDN', '99.9% Uptime Monitoring', 'Standard Technical Support'],
   },
   'host-business': {
-    name: 'Business Hosting',
-    description: 'Room to grow with more resources and priority support.',
-    features: ['30 GB SSD Storage', 'Free SSL Certificate', 'Daily Backups', 'Staging Environment', 'Priority Support'],
+    name: 'Host Business',
+    description: 'Enhanced hosting with 5 corporate email inboxes, daily backups, and staging testing.',
+    features: ['3x CPU & Memory Allocation', 'Up to 5 Business Email Inboxes', 'Automated Daily Backups (14-Day)', 'Staging Environment Slot', 'Free Zero-Downtime Migration'],
   },
   'host-pro': {
-    name: 'Pro Hosting',
-    description: 'High-traffic hosting with dedicated resources and advanced tooling.',
-    features: ['80 GB SSD Storage', 'Free SSL Certificate', 'Hourly Backups', 'Dedicated Resources', '24/7 Priority Support'],
+    name: 'Host Professional',
+    description: 'High-resource managed cloud hosting with Redis object caching and 30-day snapshots.',
+    features: ['Dedicated Compute & Redis Cache', '30-Day Snapshot Retention', 'Continuous Malware & WAF Defense', 'Automated Staging & Git Hooks', 'Priority Phone & Ticket Support'],
+  },
+  'addon-blog-news': {
+    name: 'Blog / News Engine',
+    description: 'Full article CMS, categories, author bios, social sharing, and instant search.',
+    features: [],
+  },
+  'addon-advanced-form': {
+    name: 'Advanced Form / Survey',
+    description: 'Multi-step conditional logic, secure file uploads, and email/CRM webhook dispatch.',
+    features: [],
+  },
+  'addon-booking': {
+    name: 'Online Booking System',
+    description: 'Calendar appointment scheduling, automated client reminders, and calendar sync.',
+    features: [],
+  },
+  'addon-payment-gateway': {
+    name: 'Card Payment Gateway',
+    description: 'Paystack, Stripe, or PesaPal 3D-Secure Visa/Mastercard checkout integration.',
+    features: [],
+  },
+  'addon-mpesa': {
+    name: 'M-Pesa STK Push Integration',
+    description: 'Direct Safaricom Daraja STK Push prompt with instant webhook reconciliation.',
+    features: [],
+  },
+  'addon-newsletter': {
+    name: 'Newsletter Integration',
+    description: 'Mailchimp or Brevo opt-in forms, footer capture, and automated welcome emails.',
+    features: [],
+  },
+  'addon-seo-advanced': {
+    name: 'Advanced SEO Foundation',
+    description: 'Structured Schema.org markup, keyword research, meta tuning, and canonical audit.',
+    features: [],
+  },
+  'addon-copywriting': {
+    name: 'Professional Copywriting',
+    description: 'Conversion-engineered commercial copy for core landing pages and service decks.',
+    features: [],
+  },
+  'addon-migration': {
+    name: 'Website Migration',
+    description: 'Zero-downtime transfer of files, database, SSL, and DNS from your previous host.',
+    features: [],
+  },
+  'addon-extra-revision': {
+    name: 'Additional Revision Round',
+    description: 'One structured design & content revision round beyond the package allocation.',
+    features: [],
+  },
+  'addon-custom-api': {
+    name: 'Custom API Integration',
+    description: 'Connect third-party ERP, CRM, accounting, or external REST/webhook pipelines.',
+    features: [],
+  },
+  'addon-multilingual': {
+    name: 'Multilingual Support (i18n)',
+    description: 'Locale routing (/en, /sw, /fr) with language switcher and localized SEO tags.',
+    features: [],
+  },
+  'addon-document-hub': {
+    name: 'Document Download Hub',
+    description: 'Filterable PDF library for policies, tenders, reports, and corporate brochures.',
+    features: [],
   },
 };
 

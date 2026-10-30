@@ -27,10 +27,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Auth backend not configured' }, { status: 503 });
     }
 
+    const dispatchSecret =
+      process.env.INTERNAL_DISPATCH_SECRET ||
+      process.env.PAYSTACK_SECRET_KEY ||
+      '';
+
     const upstream = await fetch(`${apiBaseUrl}/api/v1/auth/magic-link`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(dispatchSecret ? { 'x-internal-dispatch': dispatchSecret } : {}),
+      },
       body: JSON.stringify({ email: cleanEmail }),
+      cache: 'no-store',
       signal: AbortSignal.timeout(10000),
     });
 
@@ -42,7 +51,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const { magicToken } = (await upstream.json()) as { magicToken: string };
+    const envelope = await upstream.json().catch(() => ({}));
+    const payload = envelope?.data ?? envelope;
+    const magicToken = typeof payload?.magicToken === 'string' ? payload.magicToken : '';
 
     // Unknown emails return an empty token — reply identically (no enumeration).
     if (!magicToken) {

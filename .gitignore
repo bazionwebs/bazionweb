@@ -47,6 +47,7 @@ Desktop.ini
 *.swo
 *.tmp
 *.bak
+.~lock.*
 
 # Binary installers and archives
 *.exe

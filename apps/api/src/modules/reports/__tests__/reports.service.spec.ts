@@ -21,7 +21,7 @@ describe('ReportsService', () => {
       },
       hostingAccount: {
         findFirst: jest.fn(),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       backup: {
         count: jest.fn(),

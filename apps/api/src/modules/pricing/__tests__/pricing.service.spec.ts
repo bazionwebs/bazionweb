@@ -198,7 +198,7 @@ describe('PricingService', () => {
         data: expect.objectContaining({ clientEmail: 'amina@example.com', status: 'LOCKED', totalAmount: 90000 }),
       }));
       expect(mockPrisma.lead.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ email: 'amina@example.com', serviceInterest: 'Website Business' }),
+        data: expect.objectContaining({ email: 'amina@example.com', serviceInterest: 'Business Website' }),
       }));
     });
 

@@ -1,9 +1,9 @@
 import {
-  Controller, Post, Body, Headers, HttpCode, UseGuards,
+  Controller, Post, Body, Headers, HttpCode, UseGuards, Request,
   HttpStatus, UnauthorizedException, Logger, NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { IsEmail, IsString, IsUUID, MinLength, MaxLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsUUID, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -74,6 +74,19 @@ class MagicLinkVerifyDto {
   @ApiProperty({ description: 'Single-use magic token from the emailed link' })
   @IsString()
   token: string;
+}
+
+class ChangePasswordDto {
+  @ApiProperty({ required: false, description: 'Current password (required if a password is already set)' })
+  @IsOptional()
+  @IsString()
+  currentPassword?: string;
+
+  @ApiProperty({ minLength: 8, maxLength: 128 })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  newPassword: string;
 }
 
 @ApiTags('auth')
@@ -173,8 +186,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Request a one-time sign-in link token' })
-  async requestMagicLink(@Body() dto: MagicLinkRequestDto) {
-    return this.authService.requestMagicLink(dto.email);
+  async requestMagicLink(
+    @Body() dto: MagicLinkRequestDto,
+    @Headers('x-internal-dispatch') dispatchSecret?: string,
+  ) {
+    return this.authService.requestMagicLink(
+      dto.email,
+      this.authService.canDispatchTokens(dispatchSecret),
+    );
   }
 
   /**
@@ -188,6 +207,19 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify a sign-in link token (single use)' })
   async verifyMagicLink(@Body() dto: MagicLinkVerifyDto) {
     return this.authService.verifyMagicLink(dto.token);
+  }
+
+  /**
+   * Self-service password rotation for authenticated users.
+   * POST /api/v1/auth/change-password
+   */
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Change own password and rotate session tokens' })
+  async changePassword(@Request() req: any, @Body() dto: ChangePasswordDto) {
+    return this.authService.changeOwnPassword(req.user.id, dto.currentPassword, dto.newPassword);
   }
 
   /**

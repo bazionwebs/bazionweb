@@ -146,9 +146,9 @@ function QuoteCalculatorContent() {
   const currencySymbol = config.market === 'kenya' ? 'KSh' : '$';
   const pkgInfo = PACKAGE_DEFAULTS[config.packageType] || PACKAGE_DEFAULTS.business;
 
-  // Calculation Logic
+  // Calculation Logic — matches canonical priceBooks.ts (KE-2026-v1 & GLOBAL-2026-v1)
   const baseCost = config.market === 'kenya' ? pkgInfo.kenyaCost : pkgInfo.intlCost;
-  const extraPageRate = config.market === 'kenya' ? 2000 : 50;
+  const extraPageRate = config.market === 'kenya' ? 2000 : 40;
   const extraPagesCost = config.extraPages * extraPageRate;
 
   // Add-ons cost

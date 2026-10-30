@@ -41,7 +41,7 @@ const serviceFamilies = [
     href: '/services#websites',
     icon: Globe,
     accent: 'bg-blue-50 text-blue-600 border-blue-200/60',
-    tags: ['Launch (KSh 25k)', 'Business (KSh 50k)', 'Pro (KSh 85k)', 'Corporate'],
+    tags: ['Launch (KSh 25k)', 'Business (KSh 90k)', 'Pro (KSh 160k)', 'Corporate'],
   },
   {
     num: '02',
@@ -681,7 +681,7 @@ export default function HomePage() {
           <span className="text-xs font-bold uppercase tracking-widest text-[#14B8A6] mb-3 block">
             Ready to Upgrade Your Digital Operations?
           </span>
-          <h2 className="text-3xl sm:text-5xl font-black mb-6 tracking-tight">
+          <h2 className="text-3xl sm:text-5xl font-black mb-6 tracking-tight text-white">
             Let&apos;s Build Your Digital Platform
           </h2>
           <p className="text-slate-300 text-sm sm:text-base mb-10 max-w-xl mx-auto leading-relaxed">

@@ -36,10 +36,11 @@ const otherUser  = { id: 'other-uuid', roles: ['CLIENT'] };
 
 // ── Mock PrismaService ────────────────────────────────────────────────────────
 
-const mockPrisma = {
+const mockPrisma: any = {
   client:        { findFirst: jest.fn(), findUnique: jest.fn() },
-  ticket:        { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn(), update: jest.fn() },
+  ticket:        { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), findUniqueOrThrow: jest.fn(), count: jest.fn(), update: jest.fn() },
   ticketComment: { create: jest.fn(), findMany: jest.fn() },
+  $transaction:  jest.fn((cb: any) => (typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb))),
 };
 
 const mockEvents = { emit: jest.fn() };
@@ -65,13 +66,19 @@ describe('TicketsService', () => {
     const dto = { subject: 'Site is down', priority: 'P1' as const, category: 'HOSTING' as const, body: 'Error 503 on all pages' };
 
     it('creates ticket and emits event', async () => {
+      const createdTicket = { ...mockTicket, priority: 'P1', subject: dto.subject };
       mockPrisma.client.findFirst.mockResolvedValue(mockClient);
-      mockPrisma.ticket.create.mockResolvedValue({ ...mockTicket, priority: 'P1', subject: dto.subject });
+      mockPrisma.ticket.create.mockResolvedValue(createdTicket);
+      mockPrisma.ticketComment.create.mockResolvedValue({ id: 'comment-opening', body: dto.body });
+      mockPrisma.ticket.findUniqueOrThrow.mockResolvedValue(createdTicket);
 
       const result = await service.create(dto, clientUser);
 
       expect(mockPrisma.ticket.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ priority: 'P1', subject: dto.subject }) }),
+      );
+      expect(mockPrisma.ticketComment.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ body: dto.body, isInternal: false }) }),
       );
       expect(mockEvents.emit).toHaveBeenCalledWith('ticket.created', expect.any(Object));
       expect(result.data.subject).toBe(dto.subject);

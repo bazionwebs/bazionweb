@@ -52,7 +52,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Startups & Sole Practitioners',
         profile: 'Launching a brand-new digital footprint',
-        fit: 'Launch Package (Up to 5 pages, 5–10 days turnaround, KSh 25,000 / $495).',
+        fit: 'Launch Package (Up to 5 pages, 5–10 days turnaround, KSh 25,000 / $450).',
       },
       {
         title: 'Growing SMEs & Organizations',
@@ -181,19 +181,19 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         name: 'Dynamic Blog / News Engine',
         priceKenya: 'KSh 7,500',
-        priceIntl: '$150',
+        priceIntl: '$120',
         description: 'Full article collection with categories, author bios, and search.',
       },
       {
         name: 'Advanced Multi-Step Form',
         priceKenya: 'KSh 5,000',
-        priceIntl: '$100',
+        priceIntl: '$80',
         description: 'Conditional logic, file attachments, and email dispatch.',
       },
       {
         name: 'Multilingual Support (i18n)',
         priceKenya: 'KSh 15,000',
-        priceIntl: '$350',
+        priceIntl: '$240',
         description: 'Locale routing (/en, /sw, /fr) with language selector.',
       },
       {
@@ -239,12 +239,12 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Boutiques & Specialty Retailers',
         profile: 'Selling up to 30 curated products online',
-        fit: 'E-Commerce Starter (M-Pesa STK, Card checkout, KSh 90,000 / $1,500).',
+        fit: 'E-Commerce Starter (M-Pesa STK, Card checkout, KSh 90,000 / $890).',
       },
       {
         title: 'Established Multi-Product Stores',
         profile: 'Brands requiring inventory management and discount coupons',
-        fit: 'E-Commerce Business (100+ products, stock alerts, KSh 175,000 / $2,950).',
+        fit: 'E-Commerce Business (100+ products, stock alerts, KSh 175,000 / $1,650).',
       },
       {
         title: 'High-Volume & Wholesale Retailers',
@@ -393,17 +393,17 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Service & Professional Firms',
         profile: 'Requiring customer accounts and document exchange',
-        fit: 'Client & Partner Portals (From KSh 150,000 / $3,000).',
+        fit: 'Client & Partner Portals (From KSh 180,000 / $2,200).',
       },
       {
         title: 'Churches & Ministry Networks',
         profile: 'Automating tithe tracking, member registries and SMS broadcasts',
-        fit: 'Church Management Systems (ChMS) (From KSh 200,000 / $5,000).',
+        fit: 'Church Management Systems (ChMS) (From KSh 200,000 / $3,900).',
       },
       {
         title: 'Schools & Educational Academies',
         profile: 'Managing student admissions, fee ledgers, and grading',
-        fit: 'School Information Systems (SIS/UMS) (From KSh 250,000 / $7,500).',
+        fit: 'School Information Systems (SIS/UMS) (From KSh 250,000 / $4,900).',
       },
     ],
     packages: [
@@ -430,8 +430,8 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         id: 'portals',
         name: 'Client & Partner Portals',
-        priceKenya: 'From KSh 150,000',
-        priceIntl: 'From $3,000',
+        priceKenya: 'From KSh 180,000',
+        priceIntl: 'From $2,200',
         badge: 'Client Zone',
         pagesOrScale: 'Authenticated App',
         timeline: '4–6 weeks',
@@ -451,7 +451,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'chms-crm',
         name: 'CRMs & Institutional Management',
         priceKenya: 'From KSh 200,000',
-        priceIntl: 'From $5,000',
+        priceIntl: 'From $3,900',
         badge: 'Operations',
         pagesOrScale: 'Operational Engine',
         timeline: '6–8 weeks',
@@ -471,7 +471,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'school-lms',
         name: 'School Systems & LMS',
         priceKenya: 'From KSh 250,000',
-        priceIntl: 'From $7,500',
+        priceIntl: 'From $4,900',
         badge: 'Education',
         pagesOrScale: 'Institutional Platform',
         timeline: '8–12 weeks',
@@ -574,7 +574,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'host-essential',
         name: 'Host Essential',
         priceKenya: 'KSh 4,500/year',
-        priceIntl: '$60/year',
+        priceIntl: '$49/year',
         pagesOrScale: 'Fast SSD NVMe',
         timeline: 'Annual billing',
         warranty: '99.9% Uptime',
@@ -588,13 +588,13 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
           'Basic malware scanning & firewall',
           'Standard technical support',
         ],
-        ctaHref: '/quote?package=host-essential',
+        ctaHref: '/store?add=host-essential#hosting',
       },
       {
         id: 'host-business',
         name: 'Host Business',
         priceKenya: 'KSh 8,500/year',
-        priceIntl: '$120/year',
+        priceIntl: '$99/year',
         badge: 'Recommended',
         popular: true,
         pagesOrScale: '3x CPU/RAM + 5 Emails',
@@ -611,7 +611,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
           'Seamless free migration from your old host',
           'Priority ticket support response',
         ],
-        ctaHref: '/quote?package=host-business',
+        ctaHref: '/store?add=host-business#hosting',
       },
       {
         id: 'care-business',
@@ -727,7 +727,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Organizations Stuck on Bad Hosting',
         profile: 'Suffering from constant downtime and slow cPanel servers',
-        fit: 'Zero-Downtime Website Migration (From KSh 5,000 / $100).',
+        fit: 'Zero-Downtime Website Migration (From KSh 5,000 / $80).',
       },
       {
         title: 'Companies with Security Concerns',
@@ -745,7 +745,7 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         id: 'migration',
         name: 'Website & Database Migration',
         priceKenya: 'From KSh 5,000',
-        priceIntl: 'From $100',
+        priceIntl: 'From $80',
         pagesOrScale: 'Full Site & DB',
         timeline: '24–48 hours',
         warranty: 'Zero Downtime',

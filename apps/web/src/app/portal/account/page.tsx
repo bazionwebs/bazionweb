@@ -1,28 +1,74 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Building2, CheckCircle2, Loader2, AlertCircle, Save, ShieldCheck, Mail, Phone, User } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  Building2,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  Save,
+  ShieldCheck,
+  Mail,
+  Phone,
+  User,
+  MapPin,
+  Globe2,
+  FileBadge,
+  Lock,
+  LogOut,
+  Eye,
+  EyeOff,
+  ArrowUpRight,
+} from 'lucide-react';
 import {
   useClientProfile,
+  useClientProjects,
   useUpdateClientProfile,
 } from '@/hooks/usePortalData';
-import { formatDate } from '@/lib/format';
+import { authApi } from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
+import { formatDate, titleCase } from '@/lib/format';
 
 export default function PortalAccountPage() {
+  const router = useRouter();
   const { data: client, isLoading, isError, isFetching, refetch } = useClientProfile();
+  const { data: projects = [] } = useClientProjects();
   const updateProfile = useUpdateClientProfile();
 
+  const sessionUser = useAuthStore(s => s.user);
+  const setSession = useAuthStore(s => s.setSession);
+  const clearSession = useAuthStore(s => s.clearSession);
+
+  // Organization form state
   const [businessName, setBusinessName] = useState('');
   const [contactName, setContactName] = useState('');
   const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [country, setCountry] = useState('');
+  const [taxPin, setTaxPin] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  // Password form state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdFeedback, setPwdFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (client && !loaded) {
       setBusinessName(client.businessName ?? '');
       setContactName(client.contactName ?? '');
       setPhone(client.phone ?? '');
+      setAddress(client.address ?? '');
+      setCountry(client.country ?? '');
+      setTaxPin(client.taxPin ?? '');
       setLoaded(true);
     }
   }, [client, loaded]);
@@ -31,7 +77,10 @@ export default function PortalAccountPage() {
     client != null &&
     (businessName !== (client.businessName ?? '') ||
       contactName !== (client.contactName ?? '') ||
-      phone !== (client.phone ?? ''));
+      phone !== (client.phone ?? '') ||
+      address !== (client.address ?? '') ||
+      country !== (client.country ?? '') ||
+      taxPin !== (client.taxPin ?? ''));
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,14 +91,98 @@ export default function PortalAccountPage() {
         clientId: client.id,
         businessName: businessName.trim() || undefined,
         contactName: contactName.trim() || undefined,
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
+        address: address.trim(),
+        country: country.trim(),
+        taxPin: taxPin.trim(),
       },
       {
-        onSuccess: () => setFeedback({ type: 'success', msg: 'Profile updated successfully.' }),
-        onError: (err: Error) =>
-          setFeedback({ type: 'error', msg: err.message || 'Could not save your changes. Try again shortly.' }),
+        onSuccess: () => {
+          setFeedback({ type: 'success', msg: 'Organization & billing details updated.' });
+          // Keep Zustand header user name in sync
+          if (sessionUser && contactName.trim()) {
+            const parts = contactName.trim().split(/\s+/);
+            const state = useAuthStore.getState();
+            if (state.accessToken && state.refreshToken) {
+              setSession(
+                {
+                  ...sessionUser,
+                  firstName: parts[0] || sessionUser.firstName,
+                  lastName: parts.slice(1).join(' ') || sessionUser.lastName,
+                },
+                state.accessToken,
+                state.refreshToken,
+                900,
+              );
+            }
+          }
+        },
+        onError: (err: unknown) => {
+          const serverMsg = (err as { response?: { data?: { message?: string | string[] } } })
+            ?.response?.data?.message;
+          setFeedback({
+            type: 'error',
+            msg: Array.isArray(serverMsg)
+              ? serverMsg[0]
+              : serverMsg || 'Could not save your changes. Try again shortly.',
+          });
+        },
       },
     );
+  }
+
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault();
+    setPwdFeedback(null);
+    if (newPassword.length < 8) {
+      setPwdFeedback({ type: 'error', msg: 'New password must be at least 8 characters.' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwdFeedback({ type: 'error', msg: 'New password and confirmation do not match.' });
+      return;
+    }
+
+    setPwdLoading(true);
+    try {
+      const res = await authApi.changePassword({
+        currentPassword: currentPassword || undefined,
+        newPassword,
+      });
+      const tokens = res?.data ?? res;
+      if (sessionUser && tokens?.accessToken && tokens?.refreshToken) {
+        setSession(
+          sessionUser,
+          tokens.accessToken,
+          tokens.refreshToken,
+          tokens.expiresIn ?? 900,
+        );
+      }
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPwdFeedback({
+        type: 'success',
+        msg: 'Password updated and all other active sessions have been signed out.',
+      });
+    } catch (err: unknown) {
+      const serverMsg = (err as { response?: { data?: { message?: string | string[] } } })
+        ?.response?.data?.message;
+      setPwdFeedback({
+        type: 'error',
+        msg: Array.isArray(serverMsg)
+          ? serverMsg[0]
+          : serverMsg || 'Could not update password. Verify your current password.',
+      });
+    } finally {
+      setPwdLoading(false);
+    }
+  }
+
+  async function handleSignOutEverywhere() {
+    await authApi.logout().catch(() => undefined);
+    clearSession();
+    router.replace('/portal/login');
   }
 
   if (isError && !client) {
@@ -82,60 +215,100 @@ export default function PortalAccountPage() {
   }
 
   const subscription = client.subscriptions?.[0];
+  const hasProject = projects.length > 0;
 
   return (
-    <div className="space-y-8 max-w-3xl mx-auto">
+    <div className="space-y-8 max-w-3xl mx-auto pb-12">
       <div>
-        <h2 className="text-xl font-extrabold text-[#0F172A]">Account &amp; Profile</h2>
+        <h2 className="text-xl font-extrabold text-[#0F172A]">Account, Billing &amp; Security</h2>
         <p className="text-xs text-slate-400 mt-1">
-          Manage your organization details and review your subscription standing.
+          Manage your organization details, tax invoice identity, and workspace security credentials.
         </p>
       </div>
 
       {/* Subscription standing */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-        <h3 className="font-bold text-[#0F172A] text-sm mb-4 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
-          Subscription Standing
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h3 className="font-bold text-[#0F172A] text-sm flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
+            Workspace &amp; Service Standing
+          </h3>
+          <Link
+            href="/portal/packages?tab=care"
+            className="text-xs font-bold text-[#2563EB] hover:underline inline-flex items-center gap-1"
+          >
+            {subscription ? 'Manage / Upgrade Plan' : 'Add Managed Cloud Care'}{' '}
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Plan</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              Active Engagement
+            </div>
             <div className="font-bold text-[#0F172A]">
-              {subscription?.plan?.name ?? client.plan?.name ?? 'Not linked'}
+              {subscription?.plan?.name ??
+                (hasProject ? 'Custom Build Contract' : client.plan?.name ?? 'Workspace')}
             </div>
           </div>
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</div>
-            <div className="font-bold text-emerald-700">{subscription?.status ?? client.status}</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              Status
+            </div>
+            <div className="font-bold text-emerald-700">
+              {titleCase(subscription?.status ?? client.status)}
+            </div>
           </div>
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Next Renewal</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              {subscription ? 'Next Care Renewal' : 'Client Since'}
+            </div>
             <div className="font-bold text-[#0F172A]">
-              {subscription?.renewalDate ? formatDate(subscription.renewalDate) : '—'}
+              {subscription?.renewalDate
+                ? formatDate(subscription.renewalDate)
+                : client.createdAt
+                  ? formatDate(client.createdAt)
+                  : '—'}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Profile form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
-        <h3 className="font-bold text-[#0F172A] text-sm">Organization Details</h3>
+      {/* Organization & Tax Profile form */}
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5"
+      >
+        <div>
+          <h3 className="font-bold text-[#0F172A] text-sm">Organization &amp; Invoice Details</h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Appears on your commercial invoices and official payment receipts.
+          </p>
+        </div>
 
         {feedback && (
-          <div className={`p-3 rounded-xl flex items-center gap-2 text-xs border ${
-            feedback.type === 'error'
-              ? 'bg-red-50 border-red-100 text-red-600'
-              : 'bg-emerald-50 border-emerald-100 text-emerald-700'
-          }`}>
-            {feedback.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+          <div
+            className={`p-3 rounded-xl flex items-center gap-2 text-xs border ${
+              feedback.type === 'error'
+                ? 'bg-red-50 border-red-100 text-red-600'
+                : 'bg-emerald-50 border-emerald-100 text-emerald-700'
+            }`}
+          >
+            {feedback.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            )}
             {feedback.msg}
           </div>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="acc-business" className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label
+              htmlFor="acc-business"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
               <Building2 className="w-3.5 h-3.5" /> Business Name
             </label>
             <input
@@ -148,7 +321,10 @@ export default function PortalAccountPage() {
             />
           </div>
           <div>
-            <label htmlFor="acc-contact" className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label
+              htmlFor="acc-contact"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
               <User className="w-3.5 h-3.5" /> Primary Contact
             </label>
             <input
@@ -164,7 +340,10 @@ export default function PortalAccountPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="acc-email" className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label
+              htmlFor="acc-email"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
               <Mail className="w-3.5 h-3.5" /> Billing Email
             </label>
             <input
@@ -174,11 +353,16 @@ export default function PortalAccountPage() {
               disabled
               className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-400 bg-slate-50 cursor-not-allowed"
             />
-            <p className="text-[10px] text-slate-400 mt-1">Contact support to change your billing email.</p>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Open a support ticket to transfer billing ownership.
+            </p>
           </div>
           <div>
-            <label htmlFor="acc-phone" className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-              <Phone className="w-3.5 h-3.5" /> Phone
+            <label
+              htmlFor="acc-phone"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
+              <Phone className="w-3.5 h-3.5" /> Phone / M-Pesa Default
             </label>
             <input
               id="acc-phone"
@@ -191,17 +375,177 @@ export default function PortalAccountPage() {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="sm:col-span-2">
+            <label
+              htmlFor="acc-address"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
+              <MapPin className="w-3.5 h-3.5" /> Billing Address
+            </label>
+            <input
+              id="acc-address"
+              type="text"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0F172A] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
+              placeholder="Westlands Commercial Center, Nairobi"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="acc-country"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+            >
+              <Globe2 className="w-3.5 h-3.5" /> Country
+            </label>
+            <input
+              id="acc-country"
+              type="text"
+              value={country}
+              onChange={e => setCountry(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0F172A] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
+              placeholder="Kenya"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="acc-taxpin"
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5"
+          >
+            <FileBadge className="w-3.5 h-3.5" /> KRA PIN / Corporate Tax ID (optional)
+          </label>
+          <input
+            id="acc-taxpin"
+            type="text"
+            value={taxPin}
+            onChange={e => setTaxPin(e.target.value)}
+            className="w-full sm:w-1/2 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-mono text-[#0F172A] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all"
+            placeholder="P051234567X"
+          />
+        </div>
+
         <div className="pt-2 flex items-center justify-between">
           <span className="text-[11px] text-slate-400">
-            Client since {client.createdAt ? formatDate(client.createdAt) : '—'}
+            Workspace ID: <span className="font-mono">{client.id.slice(0, 8).toUpperCase()}</span>
           </span>
           <button
             type="submit"
             disabled={!dirty || updateProfile.isPending}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#2563EB] hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-colors"
           >
-            {updateProfile.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            {updateProfile.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Save className="w-3.5 h-3.5" />
+            )}
             Save Changes
+          </button>
+        </div>
+      </form>
+
+      {/* Password & Session Security */}
+      <form
+        onSubmit={handlePasswordChange}
+        className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-bold text-[#0F172A] text-sm flex items-center gap-2">
+              <Lock className="w-4 h-4 text-[#2563EB]" />
+              Password &amp; Session Security
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Rotate your portal password or revoke active login tokens across other browsers.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSignOutEverywhere}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Sign Out All Devices
+          </button>
+        </div>
+
+        {pwdFeedback && (
+          <div
+            className={`p-3 rounded-xl flex items-center gap-2 text-xs border ${
+              pwdFeedback.type === 'error'
+                ? 'bg-red-50 border-red-100 text-red-600'
+                : 'bg-emerald-50 border-emerald-100 text-emerald-700'
+            }`}
+          >
+            {pwdFeedback.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            )}
+            {pwdFeedback.msg}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Current Password
+            </label>
+            <input
+              type={showPwd ? 'text' : 'password'}
+              value={currentPassword}
+              onChange={e => setCurrentPassword(e.target.value)}
+              placeholder="Current password"
+              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0F172A] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              New Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPwd ? 'text' : 'password'}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                minLength={8}
+                placeholder="Min 8 characters"
+                className="w-full border border-slate-200 rounded-xl pl-3.5 pr-9 py-2.5 text-sm text-[#0F172A] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+              >
+                {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Confirm New Password
+            </label>
+            <input
+              type={showPwd ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              minLength={8}
+              placeholder="Repeat new password"
+              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-[#0F172A] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={pwdLoading || !newPassword || !confirmPassword}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0F172A] hover:bg-slate-800 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-colors"
+          >
+            {pwdLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+            Update Password
           </button>
         </div>
       </form>

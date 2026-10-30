@@ -241,7 +241,7 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     recommendedBundle: {
       packageName: 'School Management System & Portal',
       packagePriceKenya: 'Starting from KSh 250,000',
-      packagePriceIntl: 'Starting from $7,500',
+      packagePriceIntl: 'Starting from $4,900',
       carePlan: 'Care Professional',
       carePriceKenya: 'KSh 20,000/mo',
       carePriceIntl: '$300/mo',
@@ -317,7 +317,7 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     recommendedBundle: {
       packageName: 'Professional NGO Platform',
       packagePriceKenya: 'KSh 160,000 – KSh 320,000', // ← canonical range: priceBooks.ts
-      packagePriceIntl: '$2,850 – $5,500',             // ← canonical range: priceBooks.ts
+      packagePriceIntl: '$1,750 – $3,600',             // ← canonical range: priceBooks.ts
       carePlan: 'Care Business',
       carePriceKenya: 'KSh 10,000/mo',
       carePriceIntl: '$150/mo',
@@ -325,8 +325,8 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     },
     recommendedAddons: [
       'Downloadable Document Hub (KSh 6,000 / $120)',
-      'Multilingual i18n Architecture (KSh 15,000 / $350)',
-      'International Card Donation Rails (KSh 10,000 / $200)',
+      'Multilingual i18n Architecture (KSh 15,000 / $240)',
+      'International Card Donation Rails (KSh 10,000 / $150)',
     ],
     proofMetric: {
       stat: '100%',
@@ -392,8 +392,8 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
     ],
     recommendedBundle: {
       packageName: 'SaaS MVP Engineering Sprint',
-      packagePriceKenya: 'Starting from KSh 500,000',
-      packagePriceIntl: 'Starting from $10,000 – $15,000',
+      packagePriceKenya: 'Starting from KSh 350,000 – 750,000',
+      packagePriceIntl: 'Starting from $3,900 – $8,500',
       carePlan: 'Care Professional / Managed Cloud',
       carePriceKenya: 'From KSh 20,000/mo',
       carePriceIntl: 'From $300/mo',

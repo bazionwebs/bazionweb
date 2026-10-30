@@ -11,6 +11,11 @@ export interface ApiPlan {
   name: string;
   tier: string;
   priceMonthly: string | number;
+  priceYearly?: string | number | null;
+  uptimeSla?: string | number | null;
+  p1ResponseMinutes?: number | null;
+  p2ResponseMinutes?: number | null;
+  p3ResponseMinutes?: number | null;
 }
 
 export interface ApiSubscription {
@@ -28,10 +33,27 @@ export interface ApiClient {
   contactName: string;
   email: string;
   phone: string | null;
+  address?: string | null;
+  country?: string | null;
+  taxPin?: string | null;
   status: string;
   createdAt?: string;
   plan?: ApiPlan | null;
   subscriptions?: ApiSubscription[];
+}
+
+export interface ApiTicketComment {
+  id: string;
+  ticketId: string;
+  authorId: string;
+  body: string;
+  isInternal?: boolean;
+  createdAt: string;
+  author?: {
+    firstName: string | null;
+    lastName: string | null;
+    role: string;
+  } | null;
 }
 
 export interface ApiTicket {
@@ -42,10 +64,33 @@ export interface ApiTicket {
   status: string;
   category: string;
   createdAt: string;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
   slaBreached?: boolean;
   client?: { businessName: string } | null;
   assignee?: { firstName: string | null; lastName: string | null } | null;
+  comments?: Array<{
+    id: string;
+    body: string;
+    createdAt: string;
+    author?: { firstName: string | null; lastName: string | null; role: string } | null;
+  }>;
   _count?: { comments: number };
+}
+
+export interface ApiInvoiceLineItem {
+  description?: string;
+  label?: string;
+  quantity?: number;
+  unitPrice?: number;
+  amount?: number;
+  total?: number;
+}
+
+export interface ApiPaymentLogSummary {
+  provider: string;
+  providerRef: string;
+  createdAt: string;
 }
 
 export interface ApiInvoice {
@@ -56,12 +101,17 @@ export interface ApiInvoice {
   status: string;
   notes: string | null;
   pdfUrl: string | null;
+  lineItems?: ApiInvoiceLineItem[] | Record<string, unknown> | null;
+  paymentLogs?: ApiPaymentLogSummary[];
   createdAt: string;
   dueDate: string;
+  paidAt?: string | null;
 }
 
 export interface ApiHostingBackup {
+  id?: string;
   status: string;
+  sizeMb?: number | null;
   createdAt: string;
 }
 
@@ -93,6 +143,10 @@ export interface ApiHostingAccount {
   clientId: string;
   domain: string;
   server: string;
+  serverOs?: string | null;
+  ipAddress?: string | null;
+  diskUsageMb?: number | null;
+  sslIssuer?: string | null;
   plan: string;
   status: string;
   sslExpiry: string | null;
@@ -114,6 +168,35 @@ export interface ApiMonthlyReport {
   lighthouseScore: number;
   avgLoadTimeMs: number;
   generatedAt: string;
+}
+
+export interface ApiVaultSecret {
+  id: string;
+  clientId?: string;
+  label: string;
+  category:
+    | 'DOMAIN_REGISTRAR'
+    | 'HOSTING_SSH'
+    | 'API_KEY'
+    | 'PAYMENT_GATEWAY'
+    | 'DATABASE'
+    | 'CMS_ADMIN'
+    | 'OTHER'
+    | string;
+  username: string | null;
+  serviceUrl: string | null;
+  maskedHint: string;
+  notes: string | null;
+  lastRevealedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiVaultRevealResult {
+  id: string;
+  label: string;
+  value: string;
+  revealedAt: string;
 }
 
 function useToken() {
@@ -149,6 +232,17 @@ export function useClientProjects() {
   });
 }
 
+export function useSignOffProjectTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { projectId: string; taskId: string }) =>
+      portalApi.signOffProjectTask(input.projectId, input.taskId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'projects'] });
+    },
+  });
+}
+
 export function useClientHosting() {
   const token = useToken();
   return useQuery({
@@ -169,6 +263,17 @@ export function useClientTickets() {
   });
 }
 
+export function useTicketComments(ticketId: string | null) {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['portal', 'tickets', ticketId, 'comments'],
+    queryFn: () =>
+      portalApi.getTicketComments(ticketId!).then(r => ((r.data ?? r) as ApiTicketComment[]) ?? []),
+    enabled: !!token && !!ticketId,
+    ...opts,
+  });
+}
+
 export function useCreateTicket() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -181,9 +286,62 @@ export function useCreateTicket() {
 }
 
 export function useAddTicketComment() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { ticketId: string; body: string }) =>
       portalApi.addTicketComment(input.ticketId, input.body),
+    onSuccess: (_res, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'tickets', variables.ticketId, 'comments'] });
+      queryClient.invalidateQueries({ queryKey: ['portal', 'tickets'] });
+    },
+  });
+}
+
+export function useVaultSecrets() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['portal', 'vault'],
+    queryFn: () => portalApi.listVaultSecrets().then(r => ((r.data ?? r) as ApiVaultSecret[]) ?? []),
+    enabled: !!token,
+    ...opts,
+  });
+}
+
+export function useCreateVaultSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      label: string;
+      category?: string;
+      username?: string;
+      serviceUrl?: string;
+      value: string;
+      notes?: string;
+    }) => portalApi.createVaultSecret(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'vault'] });
+    },
+  });
+}
+
+export function useRevealVaultSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (secretId: string) =>
+      portalApi.revealVaultSecret(secretId).then(r => (r.data ?? r) as ApiVaultRevealResult),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'vault'] });
+    },
+  });
+}
+
+export function useDeleteVaultSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (secretId: string) => portalApi.deleteVaultSecret(secretId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'vault'] });
+    },
   });
 }
 
@@ -291,11 +449,22 @@ export function useMarkNotificationRead() {
 export function useUpdateClientProfile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { clientId: string; businessName?: string; contactName?: string; phone?: string }) =>
+    mutationFn: (input: {
+      clientId: string;
+      businessName?: string;
+      contactName?: string;
+      phone?: string;
+      address?: string;
+      country?: string;
+      taxPin?: string;
+    }) =>
       portalApi.updateClient(input.clientId, {
         ...(input.businessName !== undefined ? { businessName: input.businessName } : {}),
         ...(input.contactName !== undefined ? { contactName: input.contactName } : {}),
         ...(input.phone !== undefined ? { phone: input.phone } : {}),
+        ...(input.address !== undefined ? { address: input.address } : {}),
+        ...(input.country !== undefined ? { country: input.country } : {}),
+        ...(input.taxPin !== undefined ? { taxPin: input.taxPin } : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['portal', 'client'] });

@@ -49,6 +49,7 @@ const mockPaymentSettlementService = {
   confirmPaystackReference: jest.fn(),
   settlePaystackCharge: jest.fn(),
   settleDarajaSuccess: jest.fn(),
+  activatePaidSubscription: jest.fn(),
   paymentStatus: jest.fn(),
 };
 

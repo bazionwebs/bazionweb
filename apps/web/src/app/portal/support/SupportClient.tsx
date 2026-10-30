@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Clock,
@@ -20,14 +20,17 @@ import {
   MessageSquare,
   Activity,
   Headphones,
+  Loader2,
 } from 'lucide-react';
 import {
   useClientTickets,
+  useClientProfile,
   useCreateTicket,
   useAddTicketComment,
+  useTicketComments,
 } from '@/hooks/usePortalData';
 import { TableSkeletonRows, QueryError, EmptyState } from '@/components/ui/QueryState';
-import { formatDate, titleCase, shortId } from '@/lib/format';
+import { formatDate, titleCase, shortId, timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const PRIORITY_MAP: Record<string, string> = {
@@ -47,57 +50,55 @@ const TICKET_CATEGORIES = [
   'OTHER',
 ];
 
-const SLA_TARGETS: Record<string, { label: string; hours: number; desc: string }> = {
-  P1: { label: '4 hours', hours: 4, desc: 'Production Outage / Emergency' },
-  P2: { label: '8 hours', hours: 8, desc: 'Major Feature Malfunction' },
-  P3: { label: '24 hours', hours: 24, desc: 'Standard Technical Request' },
-  P4: { label: '72 hours', hours: 72, desc: 'Cosmetic / Minor Enhancement' },
-};
-
 const QUICK_TEMPLATES = [
   {
-    title: '502 Bad Gateway / Server Downtime',
+    title: 'Production Outage / 502 Error',
     category: 'HOSTING',
     priority: 'Critical',
-    subject: 'Emergency: Site returning 502 Bad Gateway error',
-    body: 'The live website is currently unresponsive or returning 502 Bad Gateway errors for visitors. Please inspect Cloudflare origin servers and reverse proxy immediately.',
+    subject: 'Emergency: Production domain unresponsive or returning 5xx error',
+    body: 'Our live application is currently unreachable or returning server errors for visitors. Please inspect edge routing, origin health, and upstream services immediately.',
   },
   {
-    title: 'M-Pesa STK Push Callback Timeout',
+    title: 'Payment Webhook / Checkout Check',
     category: 'BILLING',
     priority: 'Urgent',
-    subject: 'M-Pesa Daraja STK Push transactions not confirming',
-    body: 'Patients are completing payment on their handsets, but the appointment booking screen continues to spin without receiving the Daraja instant confirmation callback.',
+    subject: 'Verify M-Pesa / Card payment settlement callback',
+    body: 'A customer completed payment via M-Pesa / Card, and we need confirmation of the webhook settlement status and invoice reconciliation.',
   },
   {
-    title: 'Doctor Directory & Bio Updates',
+    title: 'Feature / Copy / Page Update',
     category: 'DEVELOPMENT',
     priority: 'Normal',
-    subject: 'Update specialist doctor schedules and contact bios',
-    body: 'Please update the clinic hours and doctor biographies for our new pediatric consultant starting next Monday.',
+    subject: 'Sprint update: Revise landing copy and add new section',
+    body: 'Please update our main service section with refreshed copy and imagery, and deploy a preview link for review before publishing to production.',
   },
   {
-    title: 'SSL Certificate / DNS Check',
+    title: 'Domain DNS / SSL Cutover',
     category: 'SECURITY',
     priority: 'Urgent',
-    subject: 'Check SSL certificate renewal and DNS delegation status',
-    body: 'Please verify that our SSL certificates are actively renewed across all subdomains and that Cloudflare Edge proxy headers remain valid.',
+    subject: 'Coordinate DNS record update and TLS certificate check',
+    body: 'We have uploaded our registrar credentials into the Encrypted Vault. Please verify DNS records and ensure automated TLS 1.3 renewal is active.',
   },
 ];
 
-function calculateSlaCountdown(createdAt: string, priority: string, isResolved: boolean) {
+function formatWindowMinutes(mins: number): string {
+  if (mins < 60) return `${mins} mins`;
+  const hrs = Math.round((mins / 60) * 10) / 10;
+  return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+}
+
+function calculateSlaCountdown(createdAt: string, targetMinutes: number, isResolved: boolean) {
   if (isResolved) {
     return { label: 'Met On-Time', color: 'emerald', percent: 100, breached: false };
   }
-  const targetHours = SLA_TARGETS[priority]?.hours ?? 24;
   const createdTime = new Date(createdAt).getTime();
   if (Number.isNaN(createdTime)) {
-    return { label: `${targetHours}h SLA`, color: 'slate', percent: 100, breached: false };
+    return { label: formatWindowMinutes(targetMinutes), color: 'slate', percent: 100, breached: false };
   }
-  const deadline = createdTime + targetHours * 3600 * 1000;
+  const totalWindowMs = targetMinutes * 60 * 1000;
+  const deadline = createdTime + totalWindowMs;
   const now = Date.now();
   const diffMs = deadline - now;
-  const totalWindowMs = targetHours * 3600 * 1000;
   const elapsedMs = Math.max(0, now - createdTime);
   const percentElapsed = Math.min(100, Math.round((elapsedMs / totalWindowMs) * 100));
 
@@ -111,7 +112,8 @@ function calculateSlaCountdown(createdAt: string, priority: string, isResolved: 
   const minsRemaining = Math.floor(diffMs / 60000);
   const hoursRemaining = Math.floor(minsRemaining / 60);
   const minsRemainder = minsRemaining % 60;
-  const label = hoursRemaining > 0 ? `${hoursRemaining}h ${minsRemainder}m left` : `${minsRemaining}m left`;
+  const label =
+    hoursRemaining > 0 ? `${hoursRemaining}h ${minsRemainder}m left` : `${minsRemaining}m left`;
   const color = percentElapsed > 85 ? 'rose' : percentElapsed > 60 ? 'amber' : 'emerald';
 
   return { label, color, percent: percentElapsed, breached: false };
@@ -127,8 +129,128 @@ const priorityBadge = (p: string) => {
 const statusBadge = (s: string) => {
   if (s === 'RESOLVED' || s === 'CLOSED') return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
   if (s === 'IN_PROGRESS') return 'bg-blue-100 text-blue-800 border border-blue-200';
+  if (s === 'PENDING_CLIENT') return 'bg-purple-100 text-purple-800 border border-purple-200';
   return 'bg-amber-100 text-amber-800 border border-amber-200';
 };
+
+function TicketConversationThread({ ticketId }: { ticketId: string }) {
+  const { data: comments = [], isLoading, isError } = useTicketComments(ticketId);
+  const addTicketComment = useAddTicketComment();
+  const [replyText, setReplyText] = useState('');
+  const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim() || addTicketComment.isPending) return;
+    setFeedback(null);
+    try {
+      await addTicketComment.mutateAsync({ ticketId, body: replyText.trim() });
+      setReplyText('');
+      setFeedback({ type: 'ok', text: 'Message posted to engineering thread.' });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch {
+      setFeedback({ type: 'err', text: 'Could not send message. Please try again.' });
+    }
+  };
+
+  return (
+    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="text-xs font-bold text-[#0F172A] flex items-center gap-1.5">
+          <MessageSquare className="w-3.5 h-3.5 text-[#2563EB]" />
+          Engineering Conversation Thread ({comments.length})
+        </div>
+        <span className="text-[11px] text-slate-400">Direct client ↔ engineer log</span>
+      </div>
+
+      {isLoading ? (
+        <div className="py-6 flex items-center justify-center gap-2 text-xs text-slate-400">
+          <Loader2 className="w-4 h-4 animate-spin text-[#2563EB]" />
+          <span>Loading conversation…</span>
+        </div>
+      ) : isError ? (
+        <div className="text-xs text-rose-600 py-3">Could not load ticket messages.</div>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-slate-400 italic py-2">
+          No messages recorded yet. Add details or logs below for your assigned engineer.
+        </p>
+      ) : (
+        <div className="space-y-3 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+          {comments.map((c, idx) => {
+            const role = c.author?.role ?? 'CLIENT';
+            const isStaff = ['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].includes(role);
+            const authorName = c.author?.firstName
+              ? `${c.author.firstName} ${c.author.lastName ?? ''}`.trim()
+              : isStaff
+                ? 'Systems Engineer'
+                : 'You';
+
+            return (
+              <div
+                key={c.id}
+                className={cn(
+                  'p-3.5 rounded-2xl border text-xs',
+                  isStaff
+                    ? 'bg-blue-50/50 border-blue-200/70 ml-0 mr-4'
+                    : 'bg-slate-50 border-slate-200/80 ml-4 mr-0',
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-[#0F172A]">{authorName}</span>
+                    <span
+                      className={cn(
+                        'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase',
+                        isStaff ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700',
+                      )}
+                    >
+                      {isStaff ? 'BazionWeb Engineer' : idx === 0 ? 'Initial Brief' : 'Client'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">{timeAgo(c.createdAt)}</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed whitespace-pre-line">{c.body}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <form onSubmit={handleSend} className="pt-2 flex gap-2">
+        <input
+          type="text"
+          value={replyText}
+          onChange={e => setReplyText(e.target.value)}
+          placeholder="Reply or attach reproduction details for your engineer…"
+          className="flex-1 px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={addTicketComment.isPending || !replyText.trim()}
+          className="px-4 py-2.5 bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 shrink-0"
+        >
+          {addTicketComment.isPending ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Send className="w-3.5 h-3.5" />
+          )}
+          Send Reply
+        </button>
+      </form>
+
+      {feedback && (
+        <div
+          className={cn(
+            'p-2.5 rounded-xl text-xs font-medium',
+            feedback.type === 'ok' ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800',
+          )}
+        >
+          {feedback.text}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SupportClient() {
   const {
@@ -137,35 +259,69 @@ export default function SupportClient() {
     isError,
     refetch,
   } = useClientTickets();
+  const { data: liveClient } = useClientProfile();
   const createTicket = useCreateTicket();
-  const addTicketComment = useAddTicketComment();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedPriority, setSelectedPriority] = useState<string>('ALL');
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
 
-  // Quick reply simulated state for expanded ticket
-  const [quickReplyText, setQuickReplyText] = useState('');
-  const [replyFeedback, setReplyFeedback] = useState<string | null>(null);
-
   // New ticket modal states
   const [showModal, setShowModal] = useState(false);
   const [subject, setSubject] = useState('');
   const [priority, setPriority] = useState('Normal');
-  const [category, setCategory] = useState('HOSTING');
+  const [category, setCategory] = useState('DEVELOPMENT');
   const [body, setBody] = useState('');
   const [ticketError, setTicketError] = useState<string | null>(null);
   const [ticketSuccess, setTicketSuccess] = useState(false);
 
+  // Deep-link support (?ticket=<uuid> or ?category=DEVELOPMENT)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ticketParam = params.get('ticket');
+    const catParam = params.get('category')?.toUpperCase();
+    if (ticketParam) {
+      setExpandedTicketId(ticketParam);
+    }
+    if (catParam && TICKET_CATEGORIES.includes(catParam)) {
+      setCategory(catParam);
+      setShowModal(true);
+    }
+  }, []);
+
+  const activePlan = liveClient?.subscriptions?.[0]?.plan ?? liveClient?.plan;
+  const slaTargets = useMemo(() => {
+    const p1 = activePlan?.p1ResponseMinutes ?? 240;
+    const p2 = activePlan?.p2ResponseMinutes ?? 480;
+    const p3 = activePlan?.p3ResponseMinutes ?? 1440;
+    const p4 = 4320;
+    return {
+      P1: { label: formatWindowMinutes(p1), minutes: p1, desc: 'Production Outage / Emergency' },
+      P2: { label: formatWindowMinutes(p2), minutes: p2, desc: 'Major Feature Malfunction' },
+      P3: { label: formatWindowMinutes(p3), minutes: p3, desc: 'Standard Technical Request' },
+      P4: { label: formatWindowMinutes(p4), minutes: p4, desc: 'Minor Enhancement / Copy' },
+    } as Record<string, { label: string; minutes: number; desc: string }>;
+  }, [activePlan]);
+
   const openTickets = useMemo(
-    () => liveTickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS'),
-    [liveTickets]
+    () =>
+      liveTickets.filter(
+        t => t.status === 'OPEN' || t.status === 'IN_PROGRESS' || t.status === 'PENDING_CLIENT',
+      ),
+    [liveTickets],
   );
   const resolvedTickets = useMemo(
     () => liveTickets.filter(t => t.status === 'RESOLVED' || t.status === 'CLOSED'),
-    [liveTickets]
+    [liveTickets],
   );
+
+  const slaCompliancePct = useMemo(() => {
+    if (liveTickets.length === 0) return '100%';
+    const breached = liveTickets.filter(t => t.slaBreached).length;
+    return `${Math.round(((liveTickets.length - breached) / liveTickets.length) * 100)}%`;
+  }, [liveTickets]);
 
   const filteredOpenTickets = useMemo(() => {
     return openTickets.filter(t => {
@@ -173,13 +329,14 @@ export default function SupportClient() {
         !searchQuery.trim() ||
         t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.id.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchCategory = selectedCategory === 'ALL' || t.category.toUpperCase() === selectedCategory;
+      const matchCategory =
+        selectedCategory === 'ALL' || t.category.toUpperCase() === selectedCategory;
       const matchPriority = selectedPriority === 'ALL' || t.priority === selectedPriority;
       return matchSearch && matchCategory && matchPriority;
     });
   }, [openTickets, searchQuery, selectedCategory, selectedPriority]);
 
-  const applyTemplate = (tmpl: typeof QUICK_TEMPLATES[0]) => {
+  const applyTemplate = (tmpl: (typeof QUICK_TEMPLATES)[0]) => {
     setSubject(tmpl.subject);
     setCategory(tmpl.category);
     setPriority(tmpl.priority);
@@ -198,31 +355,27 @@ export default function SupportClient() {
         body: body.trim(),
       },
       {
-        onSuccess: () => {
+        onSuccess: res => {
+          const createdId = (res?.data ?? res)?.id;
           setSubject('');
           setBody('');
           setPriority('Normal');
-          setCategory('HOSTING');
+          setCategory('DEVELOPMENT');
           setShowModal(false);
+          if (createdId) setExpandedTicketId(createdId);
           setTicketSuccess(true);
           setTimeout(() => setTicketSuccess(false), 6000);
         },
-        onError: () => setTicketError('Could not submit your request. Please try again or check connection.'),
-      }
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+          setTicketError(
+            Array.isArray(msg)
+              ? msg[0]
+              : msg || 'Could not submit your request. Please check your connection and try again.',
+          );
+        },
+      },
     );
-  };
-
-  const handleSendQuickReply = async (ticketId: string) => {
-    if (!quickReplyText.trim() || addTicketComment.isPending) return;
-    try {
-      await addTicketComment.mutateAsync({ ticketId, body: quickReplyText.trim() });
-      setQuickReplyText('');
-      setReplyFeedback(`Your note for request #${shortId(ticketId, 6)} was posted to the ticket thread.`);
-      setTimeout(() => setReplyFeedback(null), 5000);
-    } catch {
-      setReplyFeedback('Could not post your note. Please try again.');
-      setTimeout(() => setReplyFeedback(null), 5000);
-    }
   };
 
   return (
@@ -236,19 +389,22 @@ export default function SupportClient() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-400/20 text-blue-400 text-xs font-semibold mb-3">
               <Headphones className="w-3.5 h-3.5 text-blue-400" />
-              <span>Direct Engineering Desk • 24/7 SLA Monitored</span>
+              <span>Direct Engineering Desk • No Tier-1 Chatbots</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Technical Support & Sprint Triage
+              Technical Support &amp; Sprint Triage
             </h1>
             <p className="text-sm text-slate-300 mt-2 leading-relaxed">
-              Submit sprint change requests or report technical incidents with transparent SLA response countdowns. Directly routed to lead systems engineers without tier-1 queues.
+              Submit sprint change requests or report technical incidents with live SLA countdowns and persistent engineering conversation threads.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => setShowModal(true)}
+              onClick={() => {
+                setTicketError(null);
+                setShowModal(true);
+              }}
               className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-2xl shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <Plus className="w-4 h-4" />
@@ -257,52 +413,58 @@ export default function SupportClient() {
           </div>
         </div>
 
-        {/* Live SLA Metric Strip */}
+        {/* Live Telemetry Strip */}
         <div className="mt-8 pt-6 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-semibold text-slate-300 uppercase">Active Requests</span>
+              <span className="text-[11px] font-semibold text-slate-300 uppercase">Open Requests</span>
               <Activity className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-xl font-black text-white">{openTickets.length}</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Under live investigation</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Active in triage queue</div>
           </div>
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-semibold text-slate-300 uppercase">Avg Response Time</span>
+              <span className="text-[11px] font-semibold text-slate-300 uppercase">P1 Emergency Window</span>
               <Zap className="w-4 h-4 text-emerald-400" />
             </div>
-            <div className="text-xl font-black text-emerald-400">&lt; 38 mins</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Beat contractual SLA</div>
+            <div className="text-xl font-black text-emerald-400">{slaTargets.P1.label}</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">
+              {liveClient?.subscriptions?.[0] ? `${activePlan?.name} SLA target` : 'Standard response target'}
+            </div>
           </div>
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-semibold text-slate-300 uppercase">SLA Resolution Rate</span>
+              <span className="text-[11px] font-semibold text-slate-300 uppercase">SLA Compliance</span>
               <CheckCircle2 className="w-4 h-4 text-blue-400" />
             </div>
-            <div className="text-xl font-black text-white">100%</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">All tickets closed on-time</div>
+            <div className="text-xl font-black text-white">{slaCompliancePct}</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">
+              {resolvedTickets.length} resolved on record
+            </div>
           </div>
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-semibold text-slate-300 uppercase">On-Call Lead</span>
+              <span className="text-[11px] font-semibold text-slate-300 uppercase">Routing Queue</span>
               <User className="w-4 h-4 text-teal-400" />
             </div>
-            <div className="text-sm font-bold text-white truncate">David K.</div>
-            <div className="text-[10px] text-teal-300 mt-0.5">Senior Systems Architect</div>
+            <div className="text-sm font-bold text-white truncate">Systems Architecture</div>
+            <div className="text-[10px] text-teal-300 mt-0.5">Direct Senior Engineering</div>
           </div>
         </div>
       </div>
 
       {/* Ticket Success Toast Banner */}
       {ticketSuccess && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center justify-between shadow-xs animate-fade-in">
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>Engineering request created successfully. Assigned to on-call engineer under the contractual SLA.</span>
+            <span>
+              Engineering request opened and initial brief saved to your thread. Expand the ticket below to follow updates.
+            </span>
           </div>
           <button onClick={() => setTicketSuccess(false)} className="text-emerald-700 hover:text-emerald-900">
             <X className="w-4 h-4" />
@@ -315,14 +477,17 @@ export default function SupportClient() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-extrabold text-[#0F172A] flex items-center gap-2">
             <Clock className="w-4 h-4 text-[#2563EB]" />
-            Contractual SLA Response Targets
+            Response Targets by Severity
           </h2>
-          <span className="text-xs text-slate-400">Guaranteed maximum first response window</span>
+          <span className="text-xs text-slate-400">Maximum first-response window</span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {Object.entries(SLA_TARGETS).map(([p, info]) => (
-            <div key={p} className="p-3.5 rounded-2xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between">
+          {Object.entries(slaTargets).map(([p, info]) => (
+            <div
+              key={p}
+              className="p-3.5 rounded-2xl border border-slate-200/80 bg-slate-50/50 flex flex-col justify-between"
+            >
               <div className="flex items-center justify-between mb-2">
                 <span className={cn('px-2 py-0.5 rounded text-[10px] font-bold', priorityBadge(p))}>
                   {p}
@@ -337,7 +502,6 @@ export default function SupportClient() {
 
       {/* Active Requests Table Container */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-        {/* Table Controls (Search & Filter Pills) */}
         <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h3 className="font-extrabold text-[#0F172A] text-base flex items-center gap-2">
@@ -345,12 +509,11 @@ export default function SupportClient() {
               Active Engineering Requests ({filteredOpenTickets.length})
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Click any request to expand engineer triage status, diagnostic logs, and activity notes.
+              Click any row to view the full description, engineer replies, and post follow-up notes.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Search Input */}
             <div className="relative min-w-[220px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -362,7 +525,6 @@ export default function SupportClient() {
               />
             </div>
 
-            {/* Category Filter */}
             <select
               value={selectedCategory}
               onChange={e => setSelectedCategory(e.target.value)}
@@ -370,11 +532,12 @@ export default function SupportClient() {
             >
               <option value="ALL">All Categories</option>
               {TICKET_CATEGORIES.map(c => (
-                <option key={c} value={c}>{titleCase(c)}</option>
+                <option key={c} value={c}>
+                  {titleCase(c)}
+                </option>
               ))}
             </select>
 
-            {/* Priority Filter */}
             <select
               value={selectedPriority}
               onChange={e => setSelectedPriority(e.target.value)}
@@ -389,17 +552,16 @@ export default function SupportClient() {
           </div>
         </div>
 
-        {/* Requests Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100 text-xs">
             <thead className="bg-slate-50/80 text-[11px] font-bold uppercase text-slate-500 text-left">
               <tr>
                 <th className="py-3 px-4 w-28">Request ID</th>
-                <th className="py-3 px-4">Subject & Description</th>
+                <th className="py-3 px-4">Subject &amp; Preview</th>
                 <th className="py-3 px-4 w-24">Priority</th>
-                <th className="py-3 px-4 w-28">Status</th>
+                <th className="py-3 px-4 w-36">Status</th>
                 <th className="py-3 px-4 w-32">Category</th>
-                <th className="py-3 px-4 w-40">SLA Countdown</th>
+                <th className="py-3 px-4 w-40">SLA Window</th>
                 <th className="py-3 px-4 w-28">Submitted</th>
                 <th className="py-3 px-4 w-12 text-center"></th>
               </tr>
@@ -410,7 +572,10 @@ export default function SupportClient() {
               ) : isError ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8">
-                    <QueryError message="Could not load engineering tickets. Please refresh." onRetry={() => refetch()} />
+                    <QueryError
+                      message="Could not load engineering tickets. Please refresh."
+                      onRetry={() => refetch()}
+                    />
                   </td>
                 </tr>
               ) : filteredOpenTickets.length === 0 ? (
@@ -418,16 +583,22 @@ export default function SupportClient() {
                   <td colSpan={8} className="px-4 py-12">
                     <EmptyState
                       title={searchQuery ? 'No matching tickets' : 'Zero Active Incidents'}
-                      hint={searchQuery ? 'Try broadening your search term or filters.' : 'All systems are operating normally. Submit a request above if you need changes.'}
+                      hint={
+                        searchQuery
+                          ? 'Try broadening your search term or filters.'
+                          : 'No open requests in your queue. Click "New Engineering Request" above whenever you need support or sprint changes.'
+                      }
                     />
                   </td>
                 </tr>
               ) : (
                 filteredOpenTickets.map(t => {
                   const isExpanded = expandedTicketId === t.id;
-                  const countdown = calculateSlaCountdown(t.createdAt, t.priority, false);
+                  const targetMins = slaTargets[t.priority]?.minutes ?? 1440;
+                  const countdown = calculateSlaCountdown(t.createdAt, targetMins, false);
                   const isCritical = t.priority === 'P1';
                   const isUrgent = t.priority === 'P2';
+                  const openingBody = t.comments?.[0]?.body;
 
                   return (
                     <React.Fragment key={t.id}>
@@ -438,9 +609,9 @@ export default function SupportClient() {
                           isCritical
                             ? 'border-l-4 border-l-rose-500 bg-rose-50/20 hover:bg-rose-50/40'
                             : isUrgent
-                            ? 'border-l-4 border-l-amber-500 bg-amber-50/20 hover:bg-amber-50/40'
-                            : 'border-l-4 border-l-blue-400 hover:bg-slate-50/80',
-                          isExpanded && 'bg-blue-50/30'
+                              ? 'border-l-4 border-l-amber-500 bg-amber-50/20 hover:bg-amber-50/40'
+                              : 'border-l-4 border-l-blue-400 hover:bg-slate-50/80',
+                          isExpanded && 'bg-blue-50/30',
                         )}
                       >
                         <td className="py-3.5 px-4 font-mono font-bold text-slate-500">
@@ -449,13 +620,17 @@ export default function SupportClient() {
 
                         <td className="py-3.5 px-4 font-medium text-[#0F172A] max-w-sm">
                           <div className="font-bold flex items-center gap-1.5">
-                            {t.subject}
+                            <span className="truncate">{t.subject}</span>
                             {countdown.breached && (
-                              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block" />
+                              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block shrink-0" />
                             )}
                           </div>
                           <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                            Assigned to {t.assignee?.firstName ? `${t.assignee.firstName} ${t.assignee.lastName ?? ''}` : 'Lead Systems Architect'}
+                            {openingBody
+                              ? openingBody
+                              : t.assignee?.firstName
+                                ? `Assigned to ${t.assignee.firstName} ${t.assignee.lastName ?? ''}`
+                                : 'Routed to Systems Engineering'}
                           </div>
                         </td>
 
@@ -467,7 +642,7 @@ export default function SupportClient() {
 
                         <td className="py-3.5 px-4">
                           <span className={cn('px-2 py-0.5 rounded text-[10px] font-bold', statusBadge(t.status))}>
-                            {titleCase(t.status)}
+                            {t.status === 'PENDING_CLIENT' ? 'Awaiting Your Reply' : titleCase(t.status)}
                           </span>
                         </td>
 
@@ -484,18 +659,26 @@ export default function SupportClient() {
                                   {countdown.label}
                                 </span>
                               ) : (
-                                <span className={cn(countdown.color === 'emerald' ? 'text-emerald-700' : 'text-amber-700', 'flex items-center gap-1')}>
+                                <span
+                                  className={cn(
+                                    countdown.color === 'emerald' ? 'text-emerald-700' : 'text-amber-700',
+                                    'flex items-center gap-1',
+                                  )}
+                                >
                                   <Clock className="w-3 h-3" />
                                   {countdown.label}
                                 </span>
                               )}
                             </div>
-                            {/* SLA elapsed progress bar */}
                             <div className="w-28 h-1 rounded-full bg-slate-200 overflow-hidden">
                               <div
                                 className={cn(
                                   'h-full rounded-full transition-all',
-                                  countdown.breached ? 'bg-rose-500' : countdown.color === 'amber' ? 'bg-amber-500' : 'bg-emerald-500'
+                                  countdown.breached
+                                    ? 'bg-rose-500'
+                                    : countdown.color === 'amber'
+                                      ? 'bg-amber-500'
+                                      : 'bg-emerald-500',
                                 )}
                                 style={{ width: `${countdown.percent}%` }}
                               />
@@ -516,53 +699,34 @@ export default function SupportClient() {
                         </td>
                       </tr>
 
-                      {/* Expanded Ticket Accordion Detail */}
                       {isExpanded && (
                         <tr className="bg-slate-50/70 border-b border-slate-200">
                           <td colSpan={8} className="p-6">
-                            <div className="max-w-4xl space-y-5">
-                              {/* Ticket Full Subject & Description */}
-                              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
-                                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-xs font-bold text-slate-400">#{shortId(t.id, 8)}</span>
-                                    <span className="text-xs font-bold text-[#0F172A]">{t.subject}</span>
-                                  </div>
-                                  <div className="text-xs text-slate-400">
-                                    Contract SLA Window: <strong>{SLA_TARGETS[t.priority]?.label ?? '24 hours'}</strong>
-                                  </div>
-                                </div>
-
-                                {t.description ? (
-                                  <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
-                                    {t.description}
-                                  </p>
-                                ) : (
-                                  <p className="text-xs text-slate-400 italic">
-                                    No additional details were provided in the request.
-                                  </p>
-                                )}
-                              </div>
-
-                              {/* Engineer Triage & Activity Trail */}
+                            <div className="max-w-4xl space-y-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
                                   <div className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
                                     <User className="w-3.5 h-3.5 text-blue-600" />
-                                    Assigned Systems Engineer
+                                    Assigned Engineer
                                   </div>
                                   <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">
-                                      {t.assignee?.firstName ? t.assignee.firstName[0] : <User className="w-4 h-4 text-slate-400" />}
+                                      {t.assignee?.firstName ? (
+                                        t.assignee.firstName[0]
+                                      ) : (
+                                        <User className="w-4 h-4 text-blue-600" />
+                                      )}
                                     </div>
                                     <div>
                                       <div className="text-xs font-bold text-[#0F172A]">
                                         {t.assignee?.firstName
                                           ? `${t.assignee.firstName} ${t.assignee.lastName ?? ''}`
-                                          : 'Awaiting triage'}
+                                          : 'Systems Engineering Queue'}
                                       </div>
                                       <div className="text-[11px] text-slate-400">
-                                        {t.assignee ? 'Assigned Systems Engineer' : 'An engineer will pick this up within the SLA window'}
+                                        {t.assignee
+                                          ? 'Assigned Lead Engineer'
+                                          : `Target first response within ${slaTargets[t.priority]?.label ?? '24 hours'}`}
                                       </div>
                                     </div>
                                   </div>
@@ -571,49 +735,23 @@ export default function SupportClient() {
                                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
                                   <div className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
                                     <ShieldAlert className="w-3.5 h-3.5 text-emerald-600" />
-                                    Request Status
+                                    Triage Metadata
                                   </div>
                                   <div className="text-xs text-slate-600 space-y-1">
-                                    <div>• Triage status: <strong className="font-semibold">{titleCase(t.status)}</strong></div>
-                                    <div>• Response window: <strong className="font-semibold">{SLA_TARGETS[t.priority]?.label ?? '24 hours'}</strong></div>
-                                    <div>• Messages on record: <strong className="font-semibold">{t._count?.comments ?? 0}</strong></div>
+                                    <div>
+                                      • Reference: <strong className="font-mono">#{shortId(t.id, 8)}</strong>
+                                    </div>
+                                    <div>
+                                      • Status: <strong>{titleCase(t.status)}</strong>
+                                    </div>
+                                    <div>
+                                      • SLA Window: <strong>{slaTargets[t.priority]?.label ?? '24 hours'}</strong>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Quick Reply Box */}
-                              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                                    <MessageSquare className="w-3.5 h-3.5 text-[#2563EB]" />
-                                    Add Follow-Up Note / Reply to Engineering
-                                  </div>
-                                  <span className="text-[11px] text-slate-400">Posts directly to the shared ticket thread</span>
-                                </div>
-
-                                <div className="flex gap-2">
-                                  <input
-                                    type="text"
-                                    value={quickReplyText}
-                                    onChange={e => setQuickReplyText(e.target.value)}
-                                    placeholder="Type note or supplementary details for the lead engineer…"
-                                    className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
-                                  />
-                                  <button
-                                    onClick={() => handleSendQuickReply(t.id)}
-                                    className="px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 shrink-0"
-                                  >
-                                    <Send className="w-3.5 h-3.5" />
-                                    Send Note
-                                  </button>
-                                </div>
-
-                                {replyFeedback && (
-                                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-medium">
-                                    {replyFeedback}
-                                  </div>
-                                )}
-                              </div>
+                              <TicketConversationThread ticketId={t.id} />
                             </div>
                           </td>
                         </tr>
@@ -635,7 +773,7 @@ export default function SupportClient() {
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               Resolved Incident History ({resolvedTickets.length})
             </h3>
-            <span className="text-xs text-slate-400">Archived compliance records</span>
+            <span className="text-xs text-slate-400">Click any row to review archive thread</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -647,34 +785,61 @@ export default function SupportClient() {
                   <th className="py-3 px-4">Priority</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">SLA Compliance</th>
-                  <th className="py-3 px-4">Closed Date</th>
+                  <th className="py-3 px-4">SLA Standing</th>
+                  <th className="py-3 px-4">Resolved Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {resolvedTickets.slice(0, 8).map(t => (
-                  <tr key={t.id} className="hover:bg-slate-50/50 opacity-80">
-                    <td className="py-2.5 px-4 font-mono text-xs font-semibold text-slate-400">#{shortId(t.id, 6)}</td>
-                    <td className="py-2.5 px-4 font-medium text-slate-700 max-w-xs truncate">{t.subject}</td>
-                    <td className="py-2.5 px-4">
-                      <span className={cn('px-2 py-0.5 rounded text-[10px] font-bold', priorityBadge(t.priority))}>
-                        {t.priority}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                        {titleCase(t.status)}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-500">{titleCase(t.category)}</td>
-                    <td className="py-2.5 px-4">
-                      <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Met On-Time
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-400">{formatDate(t.createdAt)}</td>
-                  </tr>
-                ))}
+                {resolvedTickets.slice(0, 10).map(t => {
+                  const isExpanded = expandedTicketId === t.id;
+                  return (
+                    <React.Fragment key={t.id}>
+                      <tr
+                        onClick={() => setExpandedTicketId(isExpanded ? null : t.id)}
+                        className="hover:bg-slate-50/70 cursor-pointer"
+                      >
+                        <td className="py-2.5 px-4 font-mono text-xs font-semibold text-slate-400">
+                          #{shortId(t.id, 6)}
+                        </td>
+                        <td className="py-2.5 px-4 font-medium text-slate-700 max-w-xs truncate">
+                          {t.subject}
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <span className={cn('px-2 py-0.5 rounded text-[10px] font-bold', priorityBadge(t.priority))}>
+                            {t.priority}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            {titleCase(t.status)}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-500">{titleCase(t.category)}</td>
+                        <td className="py-2.5 px-4">
+                          {t.slaBreached ? (
+                            <span className="text-amber-700 font-bold text-[11px] flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5" /> Extended Window
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5" /> Met On-Time
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-400">
+                          {formatDate(t.resolvedAt || t.closedAt || t.createdAt)}
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-slate-50/60">
+                          <td colSpan={7} className="p-5">
+                            <TicketConversationThread ticketId={t.id} />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -684,24 +849,32 @@ export default function SupportClient() {
       {/* New Engineering Request Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl border border-slate-200 animate-scale-in max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div>
                 <h3 className="text-xl font-black text-[#0F172A]">Submit Engineering Request</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Contractually routed directly to senior cloud & full-stack engineers.
+                  Routed directly to senior cloud &amp; full-stack engineers.
                 </p>
               </div>
-              <button onClick={() => setShowModal(false)} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors">
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Quick Template Chips */}
+            {ticketError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800">
+                {ticketError}
+              </div>
+            )}
+
             <div className="mb-5">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-[#2563EB]" />
-                One-Click Request Templates
+                Quick Request Templates
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {QUICK_TEMPLATES.map(tmpl => (
@@ -712,7 +885,9 @@ export default function SupportClient() {
                     className="text-left p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50/50 hover:border-blue-200 text-xs transition-colors"
                   >
                     <div className="font-bold text-[#0F172A] truncate">{tmpl.title}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{tmpl.priority} • {tmpl.category}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">
+                      {tmpl.priority} • {tmpl.category}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -726,9 +901,10 @@ export default function SupportClient() {
                 <input
                   type="text"
                   required
+                  minLength={5}
                   value={subject}
                   onChange={e => setSubject(e.target.value)}
-                  placeholder="e.g. Optimize doctor appointment checkout flow"
+                  placeholder="e.g. Add testimonials section to homepage"
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
                 />
               </div>
@@ -741,10 +917,10 @@ export default function SupportClient() {
                     onChange={e => setPriority(e.target.value)}
                     className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none font-semibold text-slate-700"
                   >
-                    <option value="Normal">Normal (P3 • 24hr SLA)</option>
-                    <option value="Urgent">Urgent (P2 • 8hr SLA)</option>
-                    <option value="Critical">Critical (P1 • 4hr SLA)</option>
-                    <option value="Low">Low (P4 • 72hr SLA)</option>
+                    <option value="Normal">Normal (P3 • {slaTargets.P3.label})</option>
+                    <option value="Urgent">Urgent (P2 • {slaTargets.P2.label})</option>
+                    <option value="Critical">Critical (P1 • {slaTargets.P1.label})</option>
+                    <option value="Low">Low (P4 • {slaTargets.P4.label})</option>
                   </select>
                 </div>
 
@@ -756,36 +932,44 @@ export default function SupportClient() {
                     className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none font-semibold text-slate-700"
                   >
                     {TICKET_CATEGORIES.map(c => (
-                      <option key={c} value={c}>{titleCase(c)}</option>
+                      <option key={c} value={c}>
+                        {titleCase(c)}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Priority SLA Warning Reminder */}
-              <div className={cn(
-                'p-3 rounded-xl border text-xs flex items-center gap-2',
-                priority === 'Critical'
-                  ? 'bg-rose-50 border-rose-200 text-rose-800 font-medium'
-                  : priority === 'Urgent'
-                  ? 'bg-amber-50 border-amber-200 text-amber-800'
-                  : 'bg-blue-50 border-blue-200 text-blue-800'
-              )}>
+              <div
+                className={cn(
+                  'p-3 rounded-xl border text-xs flex items-center gap-2',
+                  priority === 'Critical'
+                    ? 'bg-rose-50 border-rose-200 text-rose-800 font-medium'
+                    : priority === 'Urgent'
+                      ? 'bg-amber-50 border-amber-200 text-amber-800'
+                      : 'bg-blue-50 border-blue-200 text-blue-800',
+                )}
+              >
                 <Clock className="w-4 h-4 shrink-0" />
                 <span>
                   {priority === 'Critical'
-                    ? 'P1 Critical will immediately page our 24/7 on-call infrastructure lead with guaranteed 4-hour SLA.'
+                    ? `P1 Critical pages our on-call infrastructure lead (${slaTargets.P1.label} target).`
                     : priority === 'Urgent'
-                    ? 'P2 Urgent tickets are prioritized in the active sprint queue with guaranteed 8-hour turnaround.'
-                    : 'P3 Normal tickets are reviewed and dispatched within 24 hours under your standard care plan.'}
+                      ? `P2 Urgent tickets are prioritized in the active queue (${slaTargets.P2.label} target).`
+                      : `P3 Normal requests are triaged within ${slaTargets.P3.label}.`}
                 </span>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold text-slate-700">Detailed Description</label>
-                  <span className={cn('text-[11px]', body.length < 20 ? 'text-rose-500 font-semibold' : 'text-slate-400')}>
-                    {body.length} / 20 min characters
+                  <span
+                    className={cn(
+                      'text-[11px]',
+                      body.trim().length < 20 ? 'text-rose-500 font-semibold' : 'text-slate-400',
+                    )}
+                  >
+                    {body.trim().length} / 20 min characters
                   </span>
                 </div>
                 <textarea
@@ -793,31 +977,30 @@ export default function SupportClient() {
                   rows={4}
                   value={body}
                   onChange={e => setBody(e.target.value)}
-                  placeholder="Provide precise details, steps to reproduce, or exact copy modifications required…"
+                  placeholder="Provide clear context, URLs, reproduction steps, or exact content changes required…"
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none resize-none"
                 />
               </div>
 
-              {ticketError && (
-                <p className="text-xs font-semibold text-rose-600 p-2.5 rounded-xl bg-rose-50 border border-rose-200">
-                  {ticketError}
-                </p>
-              )}
-
-              <div className="flex items-center gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={createTicket.isPending || body.length < 20}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all disabled:opacity-50"
-                >
-                  {createTicket.isPending ? 'Routing to Engineers…' : 'Submit Engineering Request'}
-                </button>
+              <div className="pt-2 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createTicket.isPending || !subject.trim() || body.trim().length < 20}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition-colors"
+                >
+                  {createTicket.isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  Submit Request
                 </button>
               </div>
             </form>

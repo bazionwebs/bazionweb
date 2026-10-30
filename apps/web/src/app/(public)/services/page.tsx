@@ -30,7 +30,7 @@ const productFamilies = [
     name: 'Website Design & Development',
     tagline: 'Custom-built. Launch-ready. Engineered for conversion.',
     desc: 'We design and engineer responsive, high-performance websites on modern Next.js. Fast-loading, CMS-integrated, and built to convert visitors into loyal clients.',
-    startingPrice: 'From KSh 25,000 (Kenya) · From $495 (Intl)',
+    startingPrice: 'From KSh 25,000 (Kenya) · From $450 (Intl)',
     deliverables: [
       'Mobile-first responsive UX/UI architecture',
       'Full CMS content management (self-manage text & images)',
@@ -50,7 +50,7 @@ const productFamilies = [
     name: 'E-Commerce Solutions',
     tagline: 'High-converting online stores with local & global payment rails.',
     desc: 'From boutique retail shops to high-volume multi-category catalogues. Seamless M-Pesa STK Push prompts, credit card gateways, stock tracking, and automated customer notifications.',
-    startingPrice: 'From KSh 90,000 (Kenya) · From $1,500 (Intl)',
+    startingPrice: 'From KSh 90,000 (Kenya) · From $890 (Intl)',
     deliverables: [
       'Product catalogues with multi-attribute variants',
       'Direct M-Pesa Daraja STK Push mobile checkout',
@@ -70,7 +70,7 @@ const productFamilies = [
     name: 'Custom Digital Systems & Portals',
     tagline: 'Tailored software engineered around your specific operational workflows.',
     desc: 'Stop forcing your business into rigid off-the-shelf subscriptions. We build bespoke client portals, booking engines, LMS educational platforms, and CRMs starting with a formal discovery phase.',
-    startingPrice: 'Discovery from KSh 25,000 · Systems from KSh 150,000 / $3,000',
+    startingPrice: 'Discovery from KSh 25,000 · Systems from KSh 180,000 / $2,200',
     deliverables: [
       'Formal technical specification & database architecture',
       'Role-based access control (Admins, Staff, Clients, Students)',

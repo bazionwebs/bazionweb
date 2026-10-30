@@ -282,8 +282,9 @@ export default function SubscriptionCheckout({
             ...(cartExtras.length ? { extras: cartExtras } : {}),
           }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Card gateway initialization failed');
+        const body = await res.json().catch(() => ({}));
+        const data = body?.data ?? body;
+        if (!res.ok) throw new Error(data.message || body.message || 'Card gateway initialization failed');
         if (data.checkoutUrl) {
           window.location.href = data.checkoutUrl;
           return;
@@ -313,8 +314,9 @@ export default function SubscriptionCheckout({
           ...(cartExtras.length ? { extras: cartExtras } : {}),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Card gateway initialization failed');
+      const body = await res.json().catch(() => ({}));
+      const data = body?.data ?? body;
+      if (!res.ok) throw new Error(data.message || body.message || 'Card gateway initialization failed');
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
         return;
@@ -352,8 +354,9 @@ export default function SubscriptionCheckout({
             purchaseOrderNumber: poNumber || undefined,
           }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Invoice generation failed');
+        const body = await res.json().catch(() => ({}));
+        const data = body?.data ?? body;
+        if (!res.ok) throw new Error(data.message || body.message || 'Invoice generation failed');
         setWiseAccount(data);
         setFeedback({
           type: 'success',
@@ -385,8 +388,9 @@ export default function SubscriptionCheckout({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Invoice generation failed');
+      const body = await res.json().catch(() => ({}));
+      const data = body?.data ?? body;
+      if (!res.ok) throw new Error(data.message || body.message || 'Invoice generation failed');
 
       setWiseAccount(data);
       setFeedback({

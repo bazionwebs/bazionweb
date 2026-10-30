@@ -33,15 +33,41 @@ export class TicketsService {
     });
     if (!client) throw new ForbiddenException('No active client account found');
 
-    const ticket = await this.prisma.ticket.create({
-      data: {
-        clientId: client.id,
-        subject: dto.subject,
-        priority: dto.priority,
-        category: dto.category,
-        status: 'OPEN',
-      },
-      include: { client: { include: { plan: true } }, assignee: true },
+    const ticket = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.ticket.create({
+        data: {
+          clientId: client.id,
+          subject: dto.subject.trim(),
+          priority: dto.priority,
+          category: dto.category,
+          status: 'OPEN',
+        },
+      });
+
+      if (dto.body?.trim()) {
+        await tx.ticketComment.create({
+          data: {
+            ticketId: created.id,
+            authorId: user.id,
+            body: dto.body.trim(),
+            isInternal: false,
+          },
+        });
+      }
+
+      return tx.ticket.findUniqueOrThrow({
+        where: { id: created.id },
+        include: {
+          client: { include: { plan: true } },
+          assignee: true,
+          comments: {
+            where: { isInternal: false },
+            include: { author: { select: { firstName: true, lastName: true, role: true } } },
+            orderBy: { createdAt: 'asc' },
+          },
+          _count: { select: { comments: true } },
+        },
+      });
     });
 
     this.events.emit('ticket.created', { ticket, client });
@@ -72,6 +98,12 @@ export class TicketsService {
         include: {
           client: { select: { businessName: true } },
           assignee: { select: { firstName: true, lastName: true } },
+          comments: {
+            where: { isInternal: false },
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: { id: true, body: true, createdAt: true },
+          },
           _count: { select: { comments: true } },
         },
         orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
@@ -151,19 +183,31 @@ export class TicketsService {
       include: { author: { select: { firstName: true, lastName: true, role: true } } },
     });
 
-    // Auto-update status to IN_PROGRESS when staff first replies
+    // Auto-update status when staff first replies or when client answers PENDING_CLIENT
     if (isStaff && ticket.status === 'OPEN') {
+      await this.prisma.ticket.update({
+        where: { id },
+        data: { status: 'IN_PROGRESS' },
+      });
+    } else if (!isStaff && ticket.status === 'PENDING_CLIENT') {
       await this.prisma.ticket.update({
         where: { id },
         data: { status: 'IN_PROGRESS' },
       });
     }
 
+    if (isStaff && !comment.isInternal) {
+      this.events.emit('ticket.commented', { ticket, comment });
+    }
+
     return { data: comment };
   }
 
   async getComments(id: string, user: any) {
-    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id },
+      include: { client: true },
+    });
     if (!ticket) throw new NotFoundException('Ticket not found');
     this.assertAccessible(ticket, user);
 

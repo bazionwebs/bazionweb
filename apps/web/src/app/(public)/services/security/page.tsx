@@ -99,8 +99,8 @@ export default function SecurityPage() {
 
       <section className="section-sm bg-[#F8FAFC]">
         <div className="container-default text-center max-w-xl mx-auto">
-          <h2 className="text-2xl font-bold text-[#0F172A] mb-3">Security management from $59/mo</h2>
-          <p className="text-slate-500 mb-6 text-sm">Included in Growth+ plans. Or available as a standalone security audit add-on from $99.</p>
+          <h2 className="text-2xl font-bold text-[#0F172A] mb-3">Security management from KSh 5,000/mo ($75/mo)</h2>
+          <p className="text-slate-500 mb-6 text-sm">Included in all Cloud Care plans. Standalone OWASP security audit & hardening from KSh 15,000 ($300).</p>
           <div className="flex gap-3 justify-center">
             <Link href="/pricing" className="btn-primary px-7">See plans <ArrowRight className="w-4 h-4" /></Link>
             <Link href="/contact?service=security" className="btn-secondary px-7">Book audit</Link>

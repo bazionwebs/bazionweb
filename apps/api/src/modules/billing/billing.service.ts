@@ -145,6 +145,17 @@ export class BillingService {
         include: { 
           client: { select: { businessName: true, email: true } },
           wiseReceivingAccount: true,
+          paymentLogs: {
+            where: { status: PaymentStatus.SUCCESS },
+            select: {
+              providerRef: true,
+              provider: true,
+              method: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (filters.page - 1) * filters.limit,
@@ -895,7 +906,7 @@ export class BillingService {
       return { invoice, wiseAccount };
     });
 
-    this.events.emit('invoice.created', { invoiceNumber, clientId: client.id, amount });
+    this.events.emit('invoice.created', { invoice: result.invoice });
 
     return {
       status: 'INVOICE_GENERATED',
@@ -1199,12 +1210,32 @@ export class BillingService {
   }
 
   async markPaid(id: string) {
-    const invoice = await this.prisma.invoice.findUnique({ where: { id } });
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id },
+      include: { client: { select: { planId: true } } },
+    });
     if (!invoice) throw new NotFoundException('Invoice not found');
 
-    const updated = await this.prisma.invoice.update({
-      where: { id },
-      data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+    const paidAt = invoice.paidAt ?? new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const inv = await tx.invoice.update({
+        where: { id },
+        data: { status: InvoiceStatus.PAID, paidAt },
+      });
+
+      await this.settlement.activatePaidSubscription(
+        tx,
+        {
+          ...invoice,
+          paidAt,
+        },
+        {
+          provider: PaymentProvider.MANUAL_BANK_TRANSFER,
+          providerRef: invoice.invoiceNumber,
+        },
+      );
+
+      return inv;
     });
 
     this.events.emit('invoice.paid', { invoice: updated });

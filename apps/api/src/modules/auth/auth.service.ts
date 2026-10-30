@@ -213,6 +213,40 @@ export class AuthService {
   }
 
   /**
+   * Self-service password rotation for the signed-in user.
+   * Verifies currentPassword when a local passwordHash already exists,
+   * revokes all previous refresh tokens, and issues a fresh token pair.
+   */
+  async changeOwnPassword(
+    userId: string,
+    currentPassword: string | undefined,
+    newPassword: string,
+  ): Promise<TokenPair> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.deletedAt) {
+      throw new UnauthorizedException('Account not found');
+    }
+
+    if (user.passwordHash) {
+      if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordHash))) {
+        throw new UnauthorizedException('Your current password is incorrect.');
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await hashPassword(newPassword) },
+    });
+
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    return this.issueTokenPair(user);
+  }
+
+  /**
    * Staff provisioning: set (or rotate) a user's local password.
    * Returns null when the user does not exist or is soft-deleted.
    */

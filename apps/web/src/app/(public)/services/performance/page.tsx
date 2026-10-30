@@ -103,8 +103,8 @@ export default function PerformancePage() {
 
       <section className="section-sm bg-[#0F172A]">
         <div className="container-default text-center max-w-xl mx-auto">
-          <h2 className="text-2xl font-bold text-white mb-3">Performance optimization from $199/mo</h2>
-          <p className="text-slate-400 mb-6 text-sm">Included in Business+ plans. Standalone audit available from $120.</p>
+          <h2 className="text-2xl font-bold text-white mb-3">Performance optimization from KSh 10,000/mo ($150/mo)</h2>
+          <p className="text-slate-400 mb-6 text-sm">Included in Care Business & Professional plans. Standalone Core Web Vitals speed pass from KSh 15,000 ($300).</p>
           <div className="flex gap-3 justify-center">
             <Link href="/pricing" className="btn-primary px-7">See plans <ArrowRight className="w-4 h-4" /></Link>
             <Link href="/contact?service=performance" className="inline-flex items-center gap-2 px-7 py-3 rounded-xl border border-white/15 text-white font-semibold hover:bg-white/5 transition-all">Book audit</Link>

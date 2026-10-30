@@ -136,7 +136,7 @@ export default function SolutionsPage() {
       {/* ─── Bottom CTA ─── */}
       <section className="bg-gradient-to-br from-[#0F172A] to-slate-900 py-16 text-white text-center">
         <div className="container-default max-w-3xl mx-auto">
-          <h2 className="text-2xl md:text-3xl font-extrabold mb-4">
+          <h2 className="text-2xl md:text-3xl font-extrabold mb-4 text-white">
             Need a tailored solution for your organization?
           </h2>
           <p className="text-slate-300 text-sm md:text-base mb-8">

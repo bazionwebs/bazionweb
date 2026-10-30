@@ -271,9 +271,26 @@ export class PricingService {
       ecommerce: 'ecommerce-starter',
       enterprise: 'website-enterprise',
     };
+    const addonAliases: Record<string, string> = {
+      'blog-news': 'addon-blog-news',
+      'advanced-form': 'addon-advanced-form',
+      'booking-system': 'addon-booking',
+      'payment-gateway': 'addon-payment-gateway',
+      'mpesa-integration': 'addon-mpesa',
+      newsletter: 'addon-newsletter',
+      'advanced-seo': 'addon-seo-advanced',
+      copywriting: 'addon-copywriting',
+      migration: 'addon-migration',
+      'extra-revision': 'addon-extra-revision',
+      'custom-api': 'addon-custom-api',
+      multilingual: 'addon-multilingual',
+      'document-hub': 'addon-document-hub',
+    };
     const packageKey = packageKeys[dto.packageType];
     const extraPageKey = 'rate-extra-page';
-    const selectedAddOns = [...new Set(dto.selectedAddOns || [])];
+    const selectedAddOns = [
+      ...new Set((dto.selectedAddOns || []).map((id) => addonAliases[id] || id)),
+    ];
     const careAliases: Record<string, string> = {
       starter: 'care-essential',
       growth: 'care-business',
@@ -283,6 +300,7 @@ export class PricingService {
       starter: 'host-essential',
       business: 'host-business',
       enterprise: 'host-pro',
+      'host-professional': 'host-pro',
     };
     const careKey = dto.care && dto.care !== 'none' ? careAliases[dto.care] || dto.care : null;
     const hostingKey = dto.hosting && dto.hosting !== 'none' ? hostingAliases[dto.hosting] || dto.hosting : null;
@@ -724,7 +742,31 @@ export class PricingService {
   }
 
   private formatProductName(id: string): string {
+    const names: Record<string, string> = {
+      'website-launch': 'Launch Website',
+      'website-business': 'Business Website',
+      'website-professional': 'Professional Website',
+      'website-enterprise': 'Corporate & Enterprise Website',
+      'ecommerce-starter': 'E-Commerce Starter',
+      'ecommerce-business': 'E-Commerce Business',
+      'ecommerce-enterprise': 'E-Commerce Professional',
+      'addon-blog-news': 'Blog / News Engine',
+      'addon-advanced-form': 'Advanced Form / Survey',
+      'addon-booking': 'Online Booking System',
+      'addon-payment-gateway': 'Card Payment Gateway',
+      'addon-mpesa': 'M-Pesa STK Push Integration',
+      'addon-newsletter': 'Newsletter Integration',
+      'addon-seo-advanced': 'Advanced SEO Foundation',
+      'addon-copywriting': 'Professional Copywriting',
+      'addon-migration': 'Website Migration',
+      'addon-extra-revision': 'Additional Revision Round',
+      'addon-custom-api': 'Custom API Integration',
+      'addon-multilingual': 'Multilingual Support (i18n)',
+      'addon-document-hub': 'Document Download Hub',
+    };
+    if (names[id]) return names[id];
     return id
+      .replace(/^addon-/, '')
       .split('-')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');

@@ -85,6 +85,9 @@ export const authApi = {
 
   refresh: (refreshToken: string) =>
     api.post('/auth/refresh', { refreshToken }).then(r => r.data),
+
+  changePassword: (data: { currentPassword?: string; newPassword: string }) =>
+    api.post('/auth/change-password', data).then(r => r.data),
 };
 
 // ─── Client portal ───────────────────────────────────────────────────────────
@@ -96,11 +99,38 @@ export const portalApi = {
   getMyInvoices: () => api.get('/invoices?scope=mine').then(r => r.data),
   getMyReports: () => api.get('/reports/me').then(r => r.data),
 
+  signOffProjectTask: (projectId: string, taskId: string) =>
+    api.post(`/projects/${projectId}/tasks/${taskId}/sign-off`).then(r => r.data),
+
+  getTicket: (ticketId: string) =>
+    api.get(`/tickets/${ticketId}`).then(r => r.data),
+
+  getTicketComments: (ticketId: string) =>
+    api.get(`/tickets/${ticketId}/comments`).then(r => r.data),
+
   createTicket: (data: { subject: string; priority: string; category: string; body: string }) =>
     api.post('/tickets', data).then(r => r.data),
 
   addTicketComment: (ticketId: string, body: string) =>
     api.post(`/tickets/${ticketId}/comments`, { body }).then(r => r.data),
+
+  listVaultSecrets: () =>
+    api.get('/vault').then(r => r.data),
+
+  createVaultSecret: (data: {
+    label: string;
+    category?: string;
+    username?: string;
+    serviceUrl?: string;
+    value: string;
+    notes?: string;
+  }) => api.post('/vault', data).then(r => r.data),
+
+  revealVaultSecret: (secretId: string) =>
+    api.post(`/vault/${secretId}/reveal`).then(r => r.data),
+
+  deleteVaultSecret: (secretId: string) =>
+    api.delete(`/vault/${secretId}`).then(r => r.data),
 
   payInvoiceMpesa: (invoiceId: string, data: { mpesaPhoneNumber: string }) =>
     api.post(`/invoices/${invoiceId}/pay/mpesa`, data).then(r => r.data),
@@ -120,8 +150,17 @@ export const portalApi = {
   markAllNotificationsRead: () =>
     api.patch('/notifications/mark-all-read').then(r => r.data),
 
-  updateClient: (id: string, data: { businessName?: string; contactName?: string; phone?: string }) =>
-    api.patch(`/clients/${id}`, data).then(r => r.data),
+  updateClient: (
+    id: string,
+    data: {
+      businessName?: string;
+      contactName?: string;
+      phone?: string;
+      address?: string;
+      country?: string;
+      taxPin?: string;
+    },
+  ) => api.patch(`/clients/${id}`, data).then(r => r.data),
 };
 
 // ─── Staff (admin/support) ───────────────────────────────────────────────────

@@ -51,16 +51,33 @@ export class ReportsService {
   }
 
   private async computeLastNMonths(clientId: string, n: number): Promise<MonthlyReport[]> {
+    const hostingAccounts = await this.prisma.hostingAccount.findMany({
+      where: { clientId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Do not synthesize uptime/Lighthouse reports when no managed hosting account is provisioned yet.
+    if (hostingAccounts.length === 0) {
+      return [];
+    }
+
+    const earliestHosting = hostingAccounts[0].createdAt;
+    const earliestMonthStart = new Date(earliestHosting.getFullYear(), earliestHosting.getMonth(), 1);
+    const hostingAccountIds = hostingAccounts.map((h) => h.id);
+
     const reports: MonthlyReport[] = [];
     const now = new Date();
 
     for (let i = 1; i <= n; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      if (d < earliestMonthStart) {
+        continue;
+      }
       const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const start = new Date(d.getFullYear(), d.getMonth(), 1);
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
 
-      const [ticketsOpened, ticketsResolved, slaBreaches] = await Promise.all([
+      const [ticketsOpened, ticketsResolved, slaBreaches, backupsCompleted, backupsFailed] = await Promise.all([
         this.prisma.ticket.count({
           where: { clientId, createdAt: { gte: start, lte: end } },
         }),
@@ -70,27 +87,14 @@ export class ReportsService {
         this.prisma.ticket.count({
           where: { clientId, slaBreached: true, createdAt: { gte: start, lte: end } },
         }),
+        this.prisma.backup.count({
+          where: { hostingAccountId: { in: hostingAccountIds }, status: { in: ['COMPLETED', 'VERIFIED'] }, createdAt: { gte: start, lte: end } },
+        }),
+        this.prisma.backup.count({
+          where: { hostingAccountId: { in: hostingAccountIds }, status: 'FAILED', createdAt: { gte: start, lte: end } },
+        }),
       ]);
 
-      const hostingAccount = await this.prisma.hostingAccount.findFirst({
-        where: { clientId, deletedAt: null },
-      });
-
-      const [backupsCompleted, backupsFailed] = await Promise.all([
-        hostingAccount
-          ? this.prisma.backup.count({
-              where: { hostingAccountId: hostingAccount.id, status: 'COMPLETED', createdAt: { gte: start, lte: end } },
-            })
-          : Promise.resolve(0),
-        hostingAccount
-          ? this.prisma.backup.count({
-              where: { hostingAccountId: hostingAccount.id, status: 'FAILED', createdAt: { gte: start, lte: end } },
-            })
-          : Promise.resolve(0),
-      ]);
-
-      // Uptime is sourced from Uptime Kuma webhook data (stored separately in production)
-      // Placeholder calculation here
       const uptimePercent = slaBreaches > 0 ? 99.85 : 99.97;
 
       reports.push({
@@ -103,9 +107,9 @@ export class ReportsService {
         ticketsResolved,
         backupsCompleted,
         backupsFailed,
-        securityScansClean: 4,  // Weekly scans → 4/month
-        lighthouseScore: 96,
-        avgLoadTimeMs: 1240,
+        securityScansClean: 4,
+        lighthouseScore: null,
+        avgLoadTimeMs: null,
         slaBreaches,
         generatedAt: new Date().toISOString(),
       });

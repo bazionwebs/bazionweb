@@ -7,7 +7,12 @@ import { UpdateClientDto } from './dto/update-client.dto';
 
 const CLIENT_INCLUDE = {
   plan: true,
-  subscriptions: { where: { status: 'ACTIVE' }, take: 1, orderBy: { createdAt: 'desc' } as const },
+  subscriptions: {
+    where: { status: 'ACTIVE' },
+    include: { plan: true },
+    take: 1,
+    orderBy: { createdAt: 'desc' } as const,
+  },
   _count: { select: { tickets: true, projects: true, hostingAccounts: true } },
 } as const;
 
@@ -19,7 +24,14 @@ export class ClientsService {
     const existing = await this.prisma.client.findFirst({ where: { email: dto.email } });
     if (existing) throw new ConflictException('A client with this email already exists');
 
-    const plan = await this.prisma.plan.findFirstOrThrow({ where: { tier: dto.planTier as any } });
+    const plan = await this.prisma.plan
+      .findFirstOrThrow({ where: { tier: dto.planTier as any, isActive: true } })
+      .catch(() =>
+        this.prisma.plan.findFirstOrThrow({
+          where: { isActive: true },
+          orderBy: { priceMonthly: 'asc' },
+        }),
+      );
 
     const client = await this.prisma.client.create({
       data: {
@@ -109,16 +121,43 @@ export class ClientsService {
       delete (dto as any).planTier;
     }
 
+    const normalizeNullable = (v: string | undefined) =>
+      v === undefined ? undefined : v.trim() === '' ? null : v.trim();
+
+    const data: Record<string, any> = {};
+    if (dto.businessName !== undefined && dto.businessName.trim()) {
+      data.businessName = dto.businessName.trim();
+    }
+    if (dto.contactName !== undefined && dto.contactName.trim()) {
+      data.contactName = dto.contactName.trim();
+    }
+    if (dto.phone !== undefined) data.phone = normalizeNullable(dto.phone);
+    if (dto.address !== undefined) data.address = normalizeNullable(dto.address);
+    if (dto.country !== undefined) data.country = normalizeNullable(dto.country);
+    if (dto.taxPin !== undefined) data.taxPin = normalizeNullable(dto.taxPin);
+    if (dto.status) data.status = dto.status as any;
+
     const updated = await this.prisma.client.update({
       where: { id },
-      data: {
-        ...(dto.businessName && { businessName: dto.businessName }),
-        ...(dto.contactName && { contactName: dto.contactName }),
-        ...(dto.phone && { phone: dto.phone }),
-        ...(dto.status && { status: dto.status as any }),
-      },
+      data,
       include: CLIENT_INCLUDE,
     });
+
+    // Keep linked User identity fields synchronized with Client contact details
+    const userPatch: Record<string, any> = {};
+    if (data.contactName) {
+      const parts = String(data.contactName).split(/\s+/);
+      userPatch.firstName = parts[0] || null;
+      userPatch.lastName = parts.slice(1).join(' ') || null;
+    }
+    if (dto.phone !== undefined) {
+      userPatch.phone = data.phone;
+    }
+    if (Object.keys(userPatch).length > 0 && client.userId) {
+      await this.prisma.user
+        .update({ where: { id: client.userId }, data: userPatch })
+        .catch(() => undefined);
+    }
 
     return { data: updated };
   }

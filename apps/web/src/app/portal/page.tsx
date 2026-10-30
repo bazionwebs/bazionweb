@@ -19,6 +19,7 @@ import {
   KeyRound,
   UserCog,
   ArrowUpRight,
+  Loader2,
 } from 'lucide-react';
 import {
   useClientProfile,
@@ -28,28 +29,48 @@ import {
   useClientInvoices,
   useClientReports,
 } from '@/hooks/usePortalData';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatMoney, titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export default function PortalDashboardPage() {
   const { data: liveClient, isLoading: clientLoading, isError: clientError } = useClientProfile();
   const { data: liveTickets = [], isLoading: ticketsLoading, isError: ticketsError } = useClientTickets();
   const { data: hostingAccounts = [], isLoading: hostingLoading, isError: hostingError } = useClientHosting();
-  const { data: projects = [] } = useClientProjects();
+  const { data: projects = [], isLoading: projectsLoading } = useClientProjects();
   const { data: invoices = [], isLoading: invoicesLoading, isError: invoicesError } = useClientInvoices();
-  const { data: reports = [] } = useClientReports();
+  const { data: reports = [], isLoading: reportsLoading } = useClientReports();
 
   const contactName = liveClient?.contactName || liveClient?.businessName || 'there';
   const activeSubscription = liveClient?.subscriptions?.[0];
-  const planName = activeSubscription?.plan?.name ?? liveClient?.plan?.name ?? (clientLoading ? 'Loading plan…' : 'No plan linked');
-  const openTickets = liveTickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS');
-  const pendingInvoices = invoices.filter(i => i.status === 'PENDING' || i.status === 'OVERDUE');
   const activeProject = projects[0];
+  const isCustomBuildClient = !activeSubscription && Boolean(activeProject);
+
+  const planHeadline = activeSubscription?.plan?.name
+    ?? (isCustomBuildClient ? 'Custom Build' : liveClient?.plan?.name)
+    ?? (clientLoading ? 'Loading…' : 'Workspace');
+
+  const openTickets = liveTickets.filter(
+    t => t.status === 'OPEN' || t.status === 'IN_PROGRESS' || t.status === 'PENDING_CLIENT',
+  );
+  const awaitingClientReply = openTickets.filter(t => t.status === 'PENDING_CLIENT').length;
+
+  const pendingInvoices = invoices.filter(
+    i => i.status === 'SENT' || i.status === 'PENDING' || i.status === 'OVERDUE',
+  );
   const latestReport = reports[0];
   const recentTickets = liveTickets.slice(0, 3);
   const nextDueInvoice = pendingInvoices
     .slice()
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+
+  const slaWindowLabel = (() => {
+    const p1 = activeSubscription?.plan?.p1ResponseMinutes;
+    if (typeof p1 === 'number' && p1 > 0) {
+      return p1 < 60 ? `${p1}-min P1 response SLA` : `${Math.round(p1 / 60)}-hour P1 response SLA`;
+    }
+    if (activeProject) return 'Active Build Delivery Desk';
+    return 'Standard Engineering Triage';
+  })();
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -61,13 +82,13 @@ export default function PortalDashboardPage() {
               <Sparkles className="w-3.5 h-3.5" />
               {liveClient?.businessName ? `${liveClient.businessName} Workspace` : 'Client Workspace'}
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
               Welcome back, {contactName}
             </h2>
             <p className="text-slate-300 text-sm mt-1 max-w-xl leading-relaxed">
               {activeProject
-                ? `Active project "${activeProject.name}" is currently ${activeProject.completionPct ?? 0}% complete. Staging links and sprint deliverables are updated in your roadmap.`
-                : `Your ${planName} client portal is active. Track delivery progress, open support requests, manage DNS assets, and settle invoices directly from your workspace.`}
+                ? `Active project "${activeProject.name}" is currently ${activeProject.completionPct ?? 0}% complete. Review sprint milestones, share credentials via your Encrypted Vault, and track billing statements from one hub.`
+                : `Your ${planHeadline} client portal is active. Track delivery progress, open support requests, manage sovereign DNS assets, and settle invoices directly from your workspace.`}
             </p>
           </div>
 
@@ -94,72 +115,174 @@ export default function PortalDashboardPage() {
 
       {/* ── Overview Metrics ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <Link
+          href="/portal/packages?tab=care"
+          className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors block"
+        >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan Status</span>
-            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${clientError ? 'bg-slate-100 text-slate-600' : activeSubscription?.status === 'ACTIVE' || liveClient?.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-              {clientError ? 'Unavailable' : activeSubscription?.status ?? liveClient?.status ?? (clientLoading ? 'Loading…' : 'Not linked')}
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Service Standing</span>
+            <span
+              className={cn(
+                'text-[11px] font-bold px-2 py-0.5 rounded-full',
+                clientError
+                  ? 'bg-slate-100 text-slate-600'
+                  : activeSubscription?.status === 'ACTIVE' || liveClient?.status === 'ACTIVE'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-amber-50 text-amber-700',
+              )}
+            >
+              {clientError
+                ? 'Unavailable'
+                : activeSubscription?.status ?? liveClient?.status ?? (clientLoading ? 'Loading…' : 'Active')}
             </span>
           </div>
-          <div className="text-2xl font-black text-[#0F172A] tracking-tight">{planName}</div>
+          <div className="text-2xl font-black text-[#0F172A] tracking-tight truncate">{planHeadline}</div>
           <div className="text-xs text-slate-500 mt-1">
             {activeSubscription?.billingCycle
-              ? `${activeSubscription.billingCycle} Billing`
-              : clientLoading
-                ? 'Checking subscription…'
-                : activeSubscription
-                  ? 'Subscription details unavailable'
-                  : 'No active subscription found'}
+              ? `${titleCase(activeSubscription.billingCycle)} Care Retainer · Manage →`
+              : isCustomBuildClient
+                ? 'Scoped Project Delivery · Add Care →'
+                : clientLoading
+                  ? 'Checking standing…'
+                  : 'Browse Plans & Upgrades →'}
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <Link
+          href="/portal/support"
+          className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition-colors block"
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Support Requests</span>
-            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${activeSubscription ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-              {clientLoading ? 'Checking' : activeSubscription ? 'Plan-specific' : 'Not linked'}
+            <span
+              className={cn(
+                'text-[11px] font-bold px-2 py-0.5 rounded-full',
+                awaitingClientReply > 0
+                  ? 'bg-amber-50 text-amber-700'
+                  : openTickets.length > 0
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'bg-emerald-50 text-emerald-700',
+              )}
+            >
+              {ticketsLoading
+                ? 'Checking…'
+                : awaitingClientReply > 0
+                  ? 'Needs Reply'
+                  : openTickets.length > 0
+                    ? 'In Triage'
+                    : 'All Clear'}
             </span>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight">
-            {ticketsLoading ? 'Loading…' : ticketsError ? 'Unavailable' : openTickets.length > 0 ? `${openTickets.length} In Progress` : '0 Active'}
+            {ticketsLoading
+              ? 'Loading…'
+              : ticketsError
+                ? 'Unavailable'
+                : openTickets.length > 0
+                  ? `${openTickets.length} Open`
+                  : '0 Active'}
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            {ticketsLoading ? 'Loading requests…' : ticketsError ? 'Request status unavailable' : openTickets.length > 0 ? 'Engineering team triaging' : 'No open requests'}
+            {ticketsLoading
+              ? 'Loading requests…'
+              : ticketsError
+                ? 'Request status unavailable'
+                : awaitingClientReply > 0
+                  ? `${awaitingClientReply} awaiting your feedback`
+                  : openTickets.length > 0
+                    ? 'Assigned to engineering desk'
+                    : 'Zero open incidents'}
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <Link
+          href="/portal/assets"
+          className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-teal-300 transition-colors block"
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Cloud Hosting</span>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">
-              {hostingLoading ? 'Checking…' : hostingError ? 'Unavailable' : hostingAccounts[0]?.status ?? 'Not linked'}
+            <span
+              className={cn(
+                'text-[11px] font-bold px-2 py-0.5 rounded-full',
+                hostingAccounts[0]?.status === 'ACTIVE'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : hostingAccounts.length > 0
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'bg-slate-100 text-slate-600',
+              )}
+            >
+              {hostingLoading
+                ? 'Checking…'
+                : hostingError
+                  ? 'Unavailable'
+                  : hostingAccounts[0]?.status
+                    ? titleCase(hostingAccounts[0].status)
+                    : activeProject
+                      ? 'Pre-Launch'
+                      : 'Not linked'}
             </span>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight truncate">
-            {hostingAccounts[0]?.domain ?? (hostingLoading ? 'Loading hosting…' : 'No host linked')}
+            {hostingAccounts[0]?.domain ??
+              (hostingLoading ? 'Loading…' : activeProject ? 'Staging Build' : 'No host linked')}
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            {hostingLoading ? 'Checking linked services…' : hostingError ? 'Hosting status unavailable' : hostingAccounts.length > 0 ? `${hostingAccounts.length} host account(s)` : 'No hosting account on record'}
+            {hostingLoading
+              ? 'Checking linked domains…'
+              : hostingError
+                ? 'Hosting status unavailable'
+                : hostingAccounts.length > 0
+                  ? `${hostingAccounts.length} sovereign domain(s)`
+                  : activeProject
+                    ? 'Domain cutover at Milestone 5'
+                    : 'Provisioned upon site launch'}
           </div>
-        </div>
+        </Link>
 
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <Link
+          href="/portal/invoices"
+          className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs hover:border-amber-300 transition-colors block"
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Invoices</span>
-            <span className={cn(
-              'text-[11px] font-bold px-2 py-0.5 rounded-full',
-              pendingInvoices.length > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-            )}>
-              {invoicesLoading ? 'Checking…' : invoicesError ? 'Unavailable' : pendingInvoices.length > 0 ? 'Due' : invoices.length > 0 ? 'Settled' : 'No invoices'}
+            <span
+              className={cn(
+                'text-[11px] font-bold px-2 py-0.5 rounded-full',
+                pendingInvoices.length > 0
+                  ? 'bg-amber-50 text-amber-700'
+                  : 'bg-emerald-50 text-emerald-700',
+              )}
+            >
+              {invoicesLoading
+                ? 'Checking…'
+                : invoicesError
+                  ? 'Unavailable'
+                  : pendingInvoices.length > 0
+                    ? 'Action Due'
+                    : invoices.length > 0
+                      ? 'Settled'
+                      : 'No invoices'}
             </span>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight">
-            {invoicesLoading ? 'Loading…' : invoicesError ? 'Unavailable' : pendingInvoices.length > 0 ? `${pendingInvoices.length} Pending` : invoices.length > 0 ? 'Up to Date' : 'No invoices yet'}
+            {invoicesLoading
+              ? 'Loading…'
+              : invoicesError
+                ? 'Unavailable'
+                : pendingInvoices.length > 0
+                  ? `${pendingInvoices.length} Awaiting`
+                  : invoices.length > 0
+                    ? 'Up to Date'
+                    : 'No invoices yet'}
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            {invoicesLoading ? 'Checking billing history…' : invoicesError ? 'Billing history unavailable' : `${invoices.length} statement(s) on record`}
+            {invoicesLoading
+              ? 'Checking billing history…'
+              : invoicesError
+                ? 'Billing history unavailable'
+                : `${invoices.filter(i => i.status === 'PAID').length} paid · ${invoices.length} total statement(s)`}
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* ── Operations Grid ────────────────────────────────────────────────── */}
@@ -180,7 +303,12 @@ export default function PortalDashboardPage() {
             )}
           </div>
 
-          {activeProject ? (
+          {projectsLoading ? (
+            <div className="py-12 flex flex-col items-center gap-2 text-slate-400 text-xs">
+              <Loader2 className="w-6 h-6 animate-spin text-[#2563EB]" />
+              <span>Loading your delivery roadmap…</span>
+            </div>
+          ) : activeProject ? (
             <div className="space-y-4">
               <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
                 <div
@@ -191,17 +319,35 @@ export default function PortalDashboardPage() {
 
               {activeProject.tasks && activeProject.tasks.length > 0 ? (
                 <div className="space-y-2.5 pt-2">
-                  {activeProject.tasks.slice(0, 4).map(task => (
-                    <div key={task.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-xs">
-                      <div className="flex items-center gap-2.5 font-medium text-slate-700">
-                        <CheckCircle2 className={cn(
-                          'w-4 h-4 shrink-0',
-                          task.status === 'DONE' ? 'text-emerald-500' : 'text-slate-300'
-                        )} />
-                        <span>{task.title}</span>
+                  {activeProject.tasks.slice(0, 5).map(task => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between p-3 rounded-xl bg-slate-50 text-xs gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 font-medium text-slate-700 min-w-0">
+                        <CheckCircle2
+                          className={cn(
+                            'w-4 h-4 shrink-0',
+                            task.status === 'DONE'
+                              ? 'text-emerald-500'
+                              : task.status === 'IN_PROGRESS'
+                                ? 'text-blue-500'
+                                : 'text-slate-300',
+                          )}
+                        />
+                        <span className="truncate">{task.title}</span>
                       </div>
-                      <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-500 text-[10px] font-semibold">
-                        {task.status}
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 rounded-md border text-[10px] font-semibold shrink-0',
+                          task.status === 'DONE'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                            : task.status === 'IN_PROGRESS'
+                              ? 'bg-blue-50 border-blue-200 text-blue-700'
+                              : 'bg-white border-slate-200 text-slate-500',
+                        )}
+                      >
+                        {titleCase(task.status)}
                       </span>
                     </div>
                   ))}
@@ -214,7 +360,9 @@ export default function PortalDashboardPage() {
 
               <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-400">
-                  {activeProject.dueDate ? `Target Delivery: ${formatDate(activeProject.dueDate)}` : 'Continuous Delivery'}
+                  {activeProject.dueDate
+                    ? `Target Launch: ${formatDate(activeProject.dueDate)}`
+                    : 'Continuous Delivery'}
                 </span>
                 <Link
                   href="/portal/milestones"
@@ -231,13 +379,22 @@ export default function PortalDashboardPage() {
               <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
                 Project delivery roadmaps appear here once your custom build or migration sprint is scoped by our systems engineers.
               </p>
-              <Link
-                href="/portal/support"
-                className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Start a New Request
-              </Link>
+              <div className="flex flex-wrap items-center justify-center gap-2.5 mt-4">
+                <Link
+                  href="/portal/packages?tab=builds"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Browse Build Packages
+                </Link>
+                <Link
+                  href="/portal/support"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0F172A] hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Start a New Request
+                </Link>
+              </div>
             </div>
           )}
         </div>
@@ -246,38 +403,48 @@ export default function PortalDashboardPage() {
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
           <div>
             <h3 className="font-bold text-[#0F172A] text-base mb-1">Dedicated Engineering Desk</h3>
-            <p className="text-xs text-slate-400 mb-4">Direct access to BazionWeb engineering</p>
+            <p className="text-xs text-slate-400 mb-4">Direct access to BazionWeb systems engineers</p>
 
             <div className="space-y-3 mb-6">
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
                 <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">
-                  Response SLA
+                  Response Coverage
                 </div>
                 <div className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#2563EB]" />
-                  <span>{clientLoading ? 'Checking your support terms' : activeSubscription ? `${planName} response targets` : 'No support SLA linked'}</span>
+                  <span>{clientLoading ? 'Checking your terms…' : slaWindowLabel}</span>
                 </div>
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
                 <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">
-                  Support Channel
+                  Credential Handoff
                 </div>
-                <div className="text-sm font-bold text-[#0F172A]">Tickets & Engineering Thread</div>
-                <div className="text-xs text-slate-400 mt-0.5">{activeSubscription ? 'Updates are posted in your assigned support thread.' : 'Contact support to confirm the right service level.'}</div>
+                <div className="text-sm font-bold text-[#0F172A]">AES-256-GCM Vault Active</div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  Share domain registrar, Daraja, or API keys securely via your{' '}
+                  <Link href="/portal/vault" className="text-[#2563EB] font-semibold hover:underline">
+                    Encrypted Vault
+                  </Link>
+                  .
+                </div>
               </div>
 
               {openTickets.length > 0 && (
                 <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                  <div className="text-[11px] text-amber-600 font-semibold uppercase tracking-wider mb-1">Open Requests</div>
-                  <div className="text-sm font-bold text-amber-900">{openTickets.length} request(s) being triaged</div>
+                  <div className="text-[11px] text-amber-600 font-semibold uppercase tracking-wider mb-1">
+                    Open Requests
+                  </div>
+                  <div className="text-sm font-bold text-amber-900">
+                    {openTickets.length} request(s) active in support thread
+                  </div>
                 </div>
               )}
 
               {activeSubscription?.renewalDate && (
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
                   <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mb-1">
-                    Next Renewal Date
+                    Next Care Renewal
                   </div>
                   <div className="text-sm font-bold text-[#0F172A]">
                     {formatDate(activeSubscription.renewalDate)}
@@ -305,10 +472,10 @@ export default function PortalDashboardPage() {
             <div>
               <h3 className="font-bold text-[#0F172A] text-base flex items-center gap-2">
                 <Activity className="w-4 h-4 text-[#14B8A6]" />
-                Service Health & Reliability
+                Service Health &amp; Reliability
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                {latestReport ? `Managed care report — ${latestReport.period}` : 'Managed care performance metrics'}
+                {latestReport ? `Managed care report — ${latestReport.period}` : 'Managed cloud hosting & backup telemetry'}
               </p>
             </div>
             {latestReport && (
@@ -318,7 +485,12 @@ export default function PortalDashboardPage() {
             )}
           </div>
 
-          {latestReport ? (
+          {reportsLoading ? (
+            <div className="py-10 flex flex-col items-center gap-2 text-slate-400 text-xs">
+              <Loader2 className="w-5 h-5 animate-spin text-[#14B8A6]" />
+              <span>Loading telemetry…</span>
+            </div>
+          ) : latestReport ? (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
@@ -342,7 +514,9 @@ export default function PortalDashboardPage() {
                   <span className="text-slate-400">Backups completed</span>
                   <span className="font-bold text-[#0F172A]">
                     {latestReport.backupsCompleted}
-                    {latestReport.backupsFailed > 0 && <span className="text-amber-600"> · {latestReport.backupsFailed} failed</span>}
+                    {latestReport.backupsFailed > 0 && (
+                      <span className="text-amber-600"> · {latestReport.backupsFailed} failed</span>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -351,7 +525,9 @@ export default function PortalDashboardPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">Tickets resolved</span>
-                  <span className="font-bold text-[#0F172A]">{latestReport.ticketsResolved}/{latestReport.ticketsOpened}</span>
+                  <span className="font-bold text-[#0F172A]">
+                    {latestReport.ticketsResolved}/{latestReport.ticketsOpened}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">Downtime</span>
@@ -362,10 +538,13 @@ export default function PortalDashboardPage() {
           ) : (
             <div className="py-8 text-center">
               <Activity className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <div className="text-sm font-bold text-slate-700">No service report yet</div>
+              <div className="text-sm font-bold text-slate-700">
+                {activeProject ? 'Production telemetry starts at launch cutover' : 'No service report yet'}
+              </div>
               <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
-                Your first monthly managed-care report — uptime, performance scores, backups and security scans —
-                appears here after your first full billing cycle.
+                {activeProject
+                  ? 'Once your production domain goes live, automated uptime checks, S3 backup verification, and security scan reports populate here every month.'
+                  : 'Your monthly managed-care report — uptime, backups, and security scans — appears here once your production domain is linked.'}
               </p>
             </div>
           )}
@@ -375,39 +554,48 @@ export default function PortalDashboardPage() {
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-[#0F172A] text-base">Recent Requests</h3>
-            <Link href="/portal/support" className="text-xs font-bold text-[#2563EB] hover:underline inline-flex items-center gap-1">
+            <Link
+              href="/portal/support"
+              className="text-xs font-bold text-[#2563EB] hover:underline inline-flex items-center gap-1"
+            >
               All tickets <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
 
           {ticketsLoading ? (
-            <div className="flex-1 flex items-center justify-center text-xs text-slate-400 py-8">Loading requests…</div>
+            <div className="flex-1 flex items-center justify-center text-xs text-slate-400 py-8">
+              Loading requests…
+            </div>
           ) : ticketsError ? (
-            <div className="flex-1 flex items-center justify-center text-xs text-slate-400 py-8">Request history unavailable</div>
+            <div className="flex-1 flex items-center justify-center text-xs text-slate-400 py-8">
+              Request history unavailable
+            </div>
           ) : recentTickets.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
               <Ticket className="w-9 h-9 text-slate-200 mx-auto mb-2" />
               <p className="text-xs font-semibold text-slate-500">No support requests yet</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Your engineering thread starts here.</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Your direct engineering thread starts here.</p>
             </div>
           ) : (
             <div className="space-y-2.5 flex-1">
               {recentTickets.map(t => (
                 <Link
                   key={t.id}
-                  href="/portal/support"
+                  href={`/portal/support?ticket=${t.id}`}
                   className="block p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-100 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-[#0F172A] truncate">{t.subject}</span>
-                    <span className={cn(
-                      'text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wide',
-                      t.status === 'RESOLVED' || t.status === 'CLOSED'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : t.status === 'IN_PROGRESS'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-amber-100 text-amber-700',
-                    )}>
+                    <span
+                      className={cn(
+                        'text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase tracking-wide',
+                        t.status === 'RESOLVED' || t.status === 'CLOSED'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : t.status === 'IN_PROGRESS'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-amber-100 text-amber-700',
+                      )}
+                    >
                       {t.status.replace('_', ' ')}
                     </span>
                   </div>
@@ -418,7 +606,9 @@ export default function PortalDashboardPage() {
                     {typeof t._count?.comments === 'number' && t._count.comments > 0 && (
                       <>
                         <span>·</span>
-                        <span>{t._count.comments} reply{t._count.comments === 1 ? '' : 'ies'}</span>
+                        <span>
+                          {t._count.comments} message{t._count.comments === 1 ? '' : 's'}
+                        </span>
                       </>
                     )}
                   </div>
@@ -428,11 +618,13 @@ export default function PortalDashboardPage() {
           )}
 
           {nextDueInvoice && (
-            <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between">
-              <div>
-                <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Next payment due</div>
-                <div className="text-xs font-bold text-amber-900 mt-0.5">
-                  {nextDueInvoice.currency} {Number(nextDueInvoice.amount).toLocaleString()} · {formatDate(nextDueInvoice.dueDate)}
+            <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
+                  Statement Awaiting Settlement
+                </div>
+                <div className="text-xs font-bold text-amber-900 mt-0.5 truncate">
+                  {formatMoney(nextDueInvoice.amount, nextDueInvoice.currency)} · Due {formatDate(nextDueInvoice.dueDate)}
                 </div>
               </div>
               <Link
@@ -447,9 +639,10 @@ export default function PortalDashboardPage() {
       </div>
 
       {/* ── Quick Links ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {[
           { href: '/portal/milestones', label: 'Delivery Roadmap', icon: Layers, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { href: '/portal/packages', label: 'Packages & Care', icon: Sparkles, color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { href: '/portal/support', label: 'Support & Tickets', icon: Ticket, color: 'text-amber-600', bg: 'bg-amber-50' },
           { href: '/portal/assets', label: 'DNS & Assets', icon: Globe, color: 'text-teal-600', bg: 'bg-teal-50' },
           { href: '/portal/invoices', label: 'Billing & Invoices', icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -464,7 +657,9 @@ export default function PortalDashboardPage() {
             <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', item.bg)}>
               <item.icon className={cn('w-4 h-4', item.color)} />
             </div>
-            <span className="text-xs font-semibold text-slate-700 group-hover:text-[#2563EB] transition-colors">{item.label}</span>
+            <span className="text-xs font-semibold text-slate-700 group-hover:text-[#2563EB] transition-colors">
+              {item.label}
+            </span>
           </Link>
         ))}
       </div>

@@ -13,21 +13,85 @@ import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const TYPE_STYLES: Record<string, { dot: string; label: string }> = {
+  TICKET_UPDATE: { dot: 'bg-blue-500', label: 'Support' },
   TICKET_CREATED: { dot: 'bg-blue-500', label: 'Support' },
   TICKET_UPDATED: { dot: 'bg-blue-500', label: 'Support' },
   TICKET_RESOLVED: { dot: 'bg-emerald-500', label: 'Support' },
+  INVOICE_DUE: { dot: 'bg-amber-500', label: 'Billing' },
   INVOICE_ISSUED: { dot: 'bg-amber-500', label: 'Billing' },
   INVOICE_PAID: { dot: 'bg-emerald-500', label: 'Billing' },
   PAYMENT_RECEIVED: { dot: 'bg-emerald-500', label: 'Billing' },
   PAYMENT_FAILED: { dot: 'bg-rose-500', label: 'Billing' },
+  RENEWAL_REMINDER: { dot: 'bg-amber-500', label: 'Plan' },
   SUBSCRIPTION_ACTIVATED: { dot: 'bg-emerald-500', label: 'Plan' },
   SUBSCRIPTION_RENEWED: { dot: 'bg-emerald-500', label: 'Plan' },
   SUBSCRIPTION_CANCELLED: { dot: 'bg-rose-500', label: 'Plan' },
+  SSL_EXPIRY: { dot: 'bg-amber-500', label: 'DNS & SSL' },
+  BACKUP_FAILURE: { dot: 'bg-rose-500', label: 'Hosting' },
+  DOWNTIME_ALERT: { dot: 'bg-rose-500', label: 'Uptime' },
   PROJECT_MILESTONE: { dot: 'bg-teal-500', label: 'Delivery' },
   DEPLOYMENT: { dot: 'bg-teal-500', label: 'Delivery' },
   SECURITY_ALERT: { dot: 'bg-rose-500', label: 'Security' },
   SYSTEM: { dot: 'bg-slate-400', label: 'System' },
 };
+
+/**
+ * Ensures every notification action link stays inside the authenticated
+ * `/portal` workspace rather than bouncing logged-in clients out to public
+ * marketing/store pages or legacy `/dashboard` paths.
+ */
+function resolveInPortalUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '/portal';
+
+  let pathname = trimmed;
+  let search = '';
+  try {
+    const parsed = new URL(trimmed, 'http://portal.local');
+    if (/^https?:\/\//i.test(trimmed) && !/localhost|bazionweb/i.test(parsed.hostname)) {
+      return trimmed;
+    }
+    pathname = parsed.pathname;
+    search = parsed.search;
+  } catch {
+    pathname = trimmed;
+  }
+
+  if (pathname.startsWith('/portal')) {
+    return `${pathname}${search}`;
+  }
+
+  if (
+    pathname.startsWith('/pricing') ||
+    pathname.startsWith('/store') ||
+    pathname.startsWith('/quote') ||
+    pathname.startsWith('/checkout') ||
+    pathname.startsWith('/services')
+  ) {
+    if (pathname.includes('hosting') || search.includes('host')) return '/portal/packages?tab=hosting';
+    if (pathname.includes('quote') || search.includes('package=')) return '/portal/packages?tab=builds';
+    return '/portal/packages?tab=care';
+  }
+
+  if (pathname.startsWith('/dashboard/tickets')) {
+    const ticketMatch = pathname.match(/^\/dashboard\/tickets\/([^/]+)/);
+    return ticketMatch ? `/portal/support?ticket=${encodeURIComponent(ticketMatch[1])}` : '/portal/support';
+  }
+  if (pathname.startsWith('/dashboard/invoices') || pathname.startsWith('/billing')) {
+    return '/portal/invoices';
+  }
+  if (pathname.startsWith('/dashboard/hosting')) {
+    return '/portal/assets';
+  }
+  if (pathname.startsWith('/dashboard/projects')) {
+    return '/portal/milestones';
+  }
+  if (pathname.startsWith('/contact')) {
+    return '/portal/support';
+  }
+
+  return '/portal';
+}
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -128,7 +192,7 @@ export default function NotificationBell() {
                 return n.actionUrl ? (
                   <Link
                     key={n.id}
-                    href={n.actionUrl}
+                    href={resolveInPortalUrl(n.actionUrl)}
                     onClick={() => {
                       if (!n.read) markRead.mutate(n.id);
                       setOpen(false);

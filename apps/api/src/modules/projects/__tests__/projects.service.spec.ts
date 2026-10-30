@@ -19,6 +19,14 @@ describe('ProjectsService', () => {
       client: {
         findFirst: jest.fn(),
       },
+      invoice: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      projectTask: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+      $transaction: jest.fn((cb: any) => (typeof cb === 'function' ? cb(prisma) : Promise.all(cb))),
     };
 
     const module: TestingModule = await Test.createTestingModule({

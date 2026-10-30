@@ -147,25 +147,42 @@ export class NotificationsService {
       type:      'TICKET_UPDATE',
       title:     `Ticket updated — ${ticket.priority}`,
       message:   `${ticket.subject}: status changed to ${ticket.status?.replace('_', ' ')}`,
-      actionUrl: `/portal?tab=tickets`,
+      actionUrl: `/portal/support?ticket=${ticket.id}`,
       metadata:  { ticketId: ticket.id },
+    });
+  }
+
+  @OnEvent('ticket.commented')
+  async onTicketCommented({ ticket, comment }: { ticket: any; comment: any }) {
+    if (!ticket?.client?.userId) return;
+    await this.create({
+      userId:    ticket.client.userId,
+      type:      'TICKET_UPDATE',
+      title:     `Engineering reply on ${ticket.subject}`,
+      message:   String(comment?.body ?? '').slice(0, 140),
+      actionUrl: `/portal/support?ticket=${ticket.id}`,
+      metadata:  { ticketId: ticket.id, commentId: comment?.id },
     });
   }
 
   @OnEvent('invoice.created')
   async onInvoiceCreated({ invoice }: { invoice: any }) {
+    if (!invoice?.clientId) return;
     const client = await this.prisma.client.findUnique({
       where: { id: invoice.clientId },
       select: { userId: true },
     });
     if (!client) return;
 
+    const currency = invoice.currency || 'USD';
+    const formattedAmt = `${currency} ${Number(invoice.amount || 0).toLocaleString()}`;
+
     await this.create({
       userId:    client.userId,
       type:      'INVOICE_DUE',
-      title:     `New invoice — $${invoice.amount}`,
+      title:     `New invoice — ${formattedAmt}`,
       message:   `Invoice ${invoice.invoiceNumber} is due on ${new Date(invoice.dueDate).toLocaleDateString()}`,
-      actionUrl: '/portal?tab=invoices',
+      actionUrl: '/portal/invoices',
       metadata:  { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber },
     });
   }
@@ -200,7 +217,7 @@ export class NotificationsService {
       type:      'SSL_EXPIRY',
       title:     `SSL expiring in ${daysLeft} days`,
       message:   `The SSL certificate for ${domain} expires in ${daysLeft} days. We will renew it automatically.`,
-      actionUrl: '/portal?tab=hosting',
+      actionUrl: '/portal/assets',
       metadata:  { domain, daysLeft },
     });
   }

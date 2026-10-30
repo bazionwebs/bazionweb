@@ -30,6 +30,16 @@ export class ProjectsController {
     return this.svc.findOne(id, req.user);
   }
 
+  @Post(':id/tasks/:taskId/sign-off')
+  @ApiOperation({ summary: 'Sign off a milestone task in client review' })
+  signOffMilestone(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Request() req: any,
+  ) {
+    return this.svc.signOffMilestone(id, taskId, req.user);
+  }
+
   @Post()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create project (admin)' })

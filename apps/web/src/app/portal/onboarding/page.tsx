@@ -17,8 +17,8 @@ import {
   ChevronRight,
   Star,
   RefreshCw,
+  Building2,
 } from 'lucide-react';
-import Link from 'next/link';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
@@ -35,6 +35,7 @@ export default function OnboardingPage() {
   const queryClient = useQueryClient();
   const user = useAuthStore(s => s.user);
   const pendingPlan = useAuthStore(s => s.pendingPlan);
+  const setPendingPlan = useAuthStore(s => s.setPendingPlan);
   const clearSession = useAuthStore(s => s.clearSession);
   const setSubscriptionStatus = useAuthStore(s => s.setSubscriptionStatus);
   const storeHydrated = useAuthStore(s => s._hasHydrated);
@@ -60,6 +61,9 @@ export default function OnboardingPage() {
 
   const [tab, setTab] = useState<PayTab>('MPESA');
   const [cycle, setCycle] = useState<Cycle>('MONTHLY');
+  const [showPlanPicker, setShowPlanPicker] = useState(false);
+  const [poNumber, setPoNumber] = useState('');
+  const [wireResult, setWireResult] = useState<{ invoiceNumber: string; amount: number; currency: string } | null>(null);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
@@ -140,10 +144,12 @@ export default function OnboardingPage() {
           planId: plan.id,
           billingCycle: cycle,
           currency: isKenya ? 'KES' : 'USD',
+          ...(email.trim() ? { email: email.trim() } : {}),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Card gateway error');
+      const body = await res.json().catch(() => ({}));
+      const data = body?.data ?? body;
+      if (!res.ok) throw new Error(data.message || body.message || 'Card gateway error');
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
         return;
@@ -151,6 +157,47 @@ export default function OnboardingPage() {
       throw new Error('Payment gateway did not return a checkout URL');
     } catch (err: unknown) {
       setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Card gateway error' });
+      setLoading(false);
+    }
+  }
+
+  async function handleWireInvoice(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setFeedback(null);
+    if (!plan || !accessToken) {
+      setFeedback({ type: 'error', msg: 'Session or plan unavailable — please reload.' });
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${apiBase}/invoices/corporate-invoice/bank-transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          planId: plan.id,
+          billingCycle: cycle,
+          currency: isKenya ? 'KES' : 'USD',
+          ...(poNumber.trim() ? { purchaseOrderNumber: poNumber.trim() } : {}),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      const data = body?.data ?? body;
+      if (!res.ok) throw new Error(data.message || body.message || 'Could not generate corporate invoice');
+      const inv = data.invoice ?? data;
+      setWireResult({
+        invoiceNumber: String(inv.invoiceNumber || data.invoiceNumber || 'Invoice'),
+        amount: Number(inv.amount || data.amount || displayAmount),
+        currency: String(inv.currency || displayCurrency),
+      });
+      queryClient.invalidateQueries({ queryKey: ['portal', 'invoices'] });
+      setFeedback({
+        type: 'success',
+        msg: 'Official B2B bank-transfer invoice generated. Settle via EFT/RTGS using the reference below to unlock your workspace.',
+      });
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', msg: err instanceof Error ? err.message : 'Could not generate invoice' });
+    } finally {
       setLoading(false);
     }
   }
@@ -376,14 +423,63 @@ export default function OnboardingPage() {
               </div>
             </div>
 
-            {/* Change plan link */}
+            {/* Inline Plan Switcher (stays inside onboarding — never bounces to public /pricing) */}
             <button
-              onClick={() => router.push('/pricing')}
-              className="w-full text-xs text-slate-400 hover:text-[#14B8A6] transition-colors flex items-center justify-center gap-1.5 py-2"
+              type="button"
+              onClick={() => setShowPlanPicker(v => !v)}
+              className="w-full text-xs text-slate-300 hover:text-[#14B8A6] transition-colors flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-800 bg-slate-900/50"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
-              Compare all plans and change selection
+              <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showPlanPicker ? 'rotate-90' : ''}`} />
+              {showPlanPicker ? 'Hide plan comparison' : 'Compare all plans & switch selection'}
             </button>
+
+            {showPlanPicker && (
+              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 space-y-2">
+                {plans.map(candidate => {
+                  const selected = candidate.id === plan.id;
+                  const amt =
+                    cycle === 'ANNUAL'
+                      ? isKenya
+                        ? candidate.priceAnnualKes
+                        : candidate.priceAnnual
+                      : isKenya
+                        ? candidate.priceMonthlyKes
+                        : candidate.priceMonthly;
+                  return (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      onClick={() => {
+                        setPendingPlan(candidate.slug);
+                        setWireResult(null);
+                        setFeedback(null);
+                        setShowPlanPicker(false);
+                      }}
+                      className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between gap-2 ${
+                        selected
+                          ? 'border-[#2563EB] bg-[#2563EB]/15 text-white'
+                          : 'border-slate-800 hover:border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold truncate">{candidate.name}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {candidate.uptimeSla ? `${candidate.uptimeSla}% SLA` : candidate.tier}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-extrabold text-white">
+                          {displayCurrency} {amt.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          /{cycle === 'ANNUAL' ? 'yr' : 'mo'}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Security note */}
             <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3 flex items-center gap-2.5 text-xs text-slate-500">
@@ -408,15 +504,17 @@ export default function OnboardingPage() {
               </div>
 
               {/* Payment method tabs */}
-              <div className={`grid ${isKenya ? 'grid-cols-2' : 'grid-cols-1'} gap-0 border-b border-slate-800`}>
+              <div className={`grid ${isKenya ? 'grid-cols-3' : 'grid-cols-2'} gap-0 border-b border-slate-800`}>
                 {(
                   isKenya
                     ? [
                         { id: 'MPESA', label: 'M-Pesa', sub: 'Instant STK Push', Icon: Smartphone },
                         { id: 'CARD', label: 'Local Card', sub: 'Visa / Mastercard', Icon: CreditCard },
+                        { id: 'WIRE', label: 'B2B Invoice', sub: 'EFT / RTGS Wire', Icon: Building2 },
                       ]
                     : [
                         { id: 'CARD', label: 'International Card', sub: 'Paystack / Cards', Icon: CreditCard },
+                        { id: 'WIRE', label: 'B2B Invoice', sub: 'Bank Wire / PO', Icon: Building2 },
                       ]
                 ).map(({ id, label, sub, Icon }) => (
                   <button
@@ -578,7 +676,53 @@ export default function OnboardingPage() {
                   </div>
                 )}
 
+                {/* B2B Corporate Invoice Tab */}
+                {tab === 'WIRE' && (
+                  <form onSubmit={handleWireInvoice} className="space-y-4">
+                    <div className="bg-teal-500/10 border border-teal-500/20 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-teal-300">Corporate Bank Wire / Proforma Invoice</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Official tax invoice for EFT, RTGS, or international SWIFT wire</p>
+                      </div>
+                      <span className="text-lg font-black text-teal-300 font-mono">{displayCurrency} {displayAmount.toLocaleString()}</span>
+                    </div>
 
+                    <div>
+                      <label htmlFor="wire-po" className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Purchase Order Number <span className="text-slate-600 font-normal normal-case">(Optional)</span>
+                      </label>
+                      <input
+                        id="wire-po"
+                        type="text"
+                        value={poNumber}
+                        onChange={e => setPoNumber(e.target.value)}
+                        placeholder="e.g. PO-2026-042"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-teal-500 transition-colors"
+                      />
+                    </div>
+
+                    {wireResult && (
+                      <div className="p-4 rounded-xl bg-slate-900 border border-slate-700 text-xs space-y-1.5 text-slate-300">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Generated Invoice:</span>
+                          <span className="font-mono font-bold text-white">{wireResult.invoiceNumber}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Amount Due:</span>
+                          <span className="font-bold text-emerald-400">{wireResult.currency} {wireResult.amount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold py-3.5 rounded-xl transition-all text-sm"
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Building2 className="w-4 h-4" /> Generate Official B2B Invoice <ArrowRight className="w-4 h-4" /></>}
+                    </button>
+                  </form>
+                )}
 
                 {/* Trust row */}
                 <div className="mt-6 pt-5 border-t border-slate-800 flex flex-wrap items-center gap-4 text-xs text-slate-500">
@@ -594,10 +738,14 @@ export default function OnboardingPage() {
               <Lock className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
               <span>
                 Your dashboard unlocks immediately after payment is confirmed.{' '}
-                Need to pay by invoice?{' '}
-                <Link href="/contact" className="text-[#14B8A6] hover:underline font-semibold">
-                  Contact our team →
-                </Link>
+                Need to pay by corporate wire?{' '}
+                <button
+                  type="button"
+                  onClick={() => setTab('WIRE')}
+                  className="text-[#14B8A6] hover:underline font-semibold"
+                >
+                  Generate a B2B invoice above →
+                </button>
               </span>
             </div>
           </div>
