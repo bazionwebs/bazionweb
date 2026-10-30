@@ -47,11 +47,11 @@ function buildContentSecurityPolicy() {
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://vercel.live https://js.paystack.co`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://vercel.live https://va.vercel-scripts.com https://js.paystack.co`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: https: blob:",
-    `connect-src ${connectSrc.join(' ')} https://api.paystack.co`,
+    `connect-src ${connectSrc.join(' ')} https://vitals.vercel-insights.com https://api.paystack.co`,
     "frame-src https://js.paystack.co https://checkout.paystack.com",
     "object-src 'none'",
     "base-uri 'self'",
