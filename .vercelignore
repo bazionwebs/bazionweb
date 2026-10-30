@@ -20,9 +20,8 @@ coverage
 .idea
 .DS_Store
 
-# Infrastructure, scripts and docs
+# Infrastructure and docs
 infrastructure
-scripts
 docs
 e2e
 
