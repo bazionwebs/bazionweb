@@ -21,6 +21,17 @@ import { resolveApiV1Base } from '@/lib/api-base';
 import { usePlans, PLAN_MARKETING } from '@/lib/plans';
 import { useCartStore } from '@/lib/cart';
 
+const PLAN_HEADER_STYLES: Record<string, string> = {
+  starter: 'bg-slate-800 text-white',
+  growth: 'bg-blue-600 text-white',
+  business: 'bg-indigo-700 text-white',
+  enterprise: 'bg-amber-700 text-white',
+  'care-essential': 'bg-teal-700 text-white',
+  'care-business': 'bg-blue-700 text-white',
+  'care-professional': 'bg-purple-700 text-white',
+  'care-enterprise': 'bg-amber-700 text-white',
+};
+
 interface CatalogPrice {
   id: string;
   productId: string;
@@ -313,6 +324,8 @@ export default function StoreView() {
                   {(plans ?? []).filter((p) => PLAN_MARKETING[p.slug]).map((plan) => {
                     const marketing = PLAN_MARKETING[plan.slug];
                     const key = `PLAN:${plan.slug}:MONTHLY`;
+                    const headerStyle = PLAN_HEADER_STYLES[plan.slug] ?? 'bg-slate-800 text-white';
+                    const displayName = plan.name || plan.slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                     return (
                       <article
                         key={plan.id}
@@ -320,8 +333,13 @@ export default function StoreView() {
                           plan.tier === 'RECOMMENDED' ? 'border-[#2563EB] ring-1 ring-[#2563EB]/30' : 'border-slate-200'
                         }`}
                       >
-                        <div className={`bg-gradient-to-r ${marketing.color} px-5 py-4`}>
-                          <h3 className="text-white font-bold text-lg">{plan.name}</h3>
+                        <div className={`px-5 py-4 flex items-center justify-between ${headerStyle}`}>
+                          <h3 className="text-white font-extrabold text-lg tracking-tight">{displayName}</h3>
+                          {plan.tier === 'RECOMMENDED' || plan.slug === 'growth' || plan.slug === 'care-business' ? (
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/20 text-white">
+                              Popular
+                            </span>
+                          ) : null}
                         </div>
                         <div className="p-5 flex flex-col flex-1">
                           <p className="text-xs text-slate-500 mb-4">{marketing.description}</p>
