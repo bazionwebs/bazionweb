@@ -4,6 +4,22 @@
  *   node scripts/create-superadmin.js <email> <password> [firstName] [lastName]
  */
 
+const path = require('path');
+const fs = require('fs');
+
+// Auto-load environment variables from apps/api/.env or root .env/.env.local
+const envCandidates = [
+  path.resolve(__dirname, '../apps/api/.env'),
+  path.resolve(__dirname, '../.env.local'),
+  path.resolve(__dirname, '../.env'),
+];
+
+for (const envPath of envCandidates) {
+  if (fs.existsSync(envPath)) {
+    require('dotenv').config({ path: envPath });
+  }
+}
+
 const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
 
