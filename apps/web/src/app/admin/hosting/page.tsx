@@ -24,7 +24,7 @@ export default function AdminHostingPage() {
   const [clientId, setClientId] = useState('');
   const [domain, setDomain] = useState('');
   const [serverIp, setServerIp] = useState('167.172.54.218');
-  const [plan, setPlan] = useState('Business Cloud Managed');
+  const [plan, setPlan] = useState('BUSINESS');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -331,9 +331,10 @@ export default function AdminHostingPage() {
                   onChange={e => setPlan(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
                 >
-                  <option value="Starter Cloud Container">Starter Cloud Container</option>
-                  <option value="Business Cloud Managed">Business Cloud Managed</option>
-                  <option value="Enterprise High-Availability">Enterprise High-Availability</option>
+                  <option value="STARTER">Starter Tier</option>
+                  <option value="GROWTH">Growth Tier</option>
+                  <option value="BUSINESS">Business Tier</option>
+                  <option value="ENTERPRISE">Enterprise Tier</option>
                 </select>
               </div>
 

@@ -20,6 +20,7 @@ import { MfaGuard } from './common/guards/mfa.guard';
 import { envValidationSchema } from './config/env.validation';
 import { PricingModule } from './modules/pricing/pricing.module';
 import { VaultModule } from './modules/vault/vault.module';
+import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { VaultModule } from './modules/vault/vault.module';
     NotificationsModule,
     PricingModule,
     VaultModule,
+    DiagnosticsModule,
   ],
   providers: [AuditInterceptor, MfaGuard, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -15,11 +15,15 @@ export class CreateHostingAccountDto {
   domain: string;
 
   @ApiProperty({ example: 'Oracle Cloud (Frankfurt)' })
-  @IsString() @IsNotEmpty() @MaxLength(100)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
   server: string;
 
-  @ApiProperty({ enum: ['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'] })
-  @IsIn(['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'])
+  @ApiProperty({ example: 'STARTER' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
   plan: string;
 
   @ApiPropertyOptional()
@@ -38,9 +42,10 @@ export class UpdateHostingAccountDto {
   @MaxLength(100)
   server?: string;
 
-  @ApiPropertyOptional({ enum: ['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'] })
+  @ApiPropertyOptional({ example: 'STARTER' })
   @IsOptional()
-  @IsIn(['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'])
+  @IsString()
+  @MaxLength(100)
   plan?: string;
 
   @ApiPropertyOptional({ enum: HostingStatus })

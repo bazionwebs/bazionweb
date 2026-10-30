@@ -136,6 +136,12 @@ export class ClientsService {
     if (dto.country !== undefined) data.country = normalizeNullable(dto.country);
     if (dto.taxPin !== undefined) data.taxPin = normalizeNullable(dto.taxPin);
     if (dto.status) data.status = dto.status as any;
+    if (dto.planTier) {
+      const plan = await this.prisma.plan
+        .findFirst({ where: { tier: dto.planTier as any, isActive: true } })
+        .catch(() => null);
+      if (plan) data.plan = { connect: { id: plan.id } };
+    }
 
     const updated = await this.prisma.client.update({
       where: { id },

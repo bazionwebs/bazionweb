@@ -210,3 +210,60 @@ export function useSystemHealth() {
     ...opts,
   });
 }
+
+export function useClusterHealth() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'health'],
+    queryFn: () => adminApi.getClusterHealth().then(r => r.data ?? r),
+    enabled: !!token,
+    refetchInterval: 15_000,
+    ...opts,
+  });
+}
+
+export function useWebhookLogs(limit = 50) {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'webhooks', limit],
+    queryFn: () => adminApi.getWebhookLogs(limit).then(r => (r.data ?? r) as any[]),
+    enabled: !!token,
+    refetchInterval: 10_000,
+    ...opts,
+  });
+}
+
+export function useReplayWebhook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.replayWebhook(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'webhooks'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'invoices'] });
+    },
+  });
+}
+
+export function useReconcilePayments() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => adminApi.reconcilePayments().then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'webhooks'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+    },
+  });
+}
+
+export function useResolveDns() {
+  return useMutation({
+    mutationFn: (domain: string) => adminApi.resolveDns(domain).then(r => r.data ?? r),
+  });
+}
+
+export function useImpersonateClient() {
+  return useMutation({
+    mutationFn: (clientId: string) => adminApi.impersonateClient(clientId).then(r => r.data ?? r),
+  });
+}

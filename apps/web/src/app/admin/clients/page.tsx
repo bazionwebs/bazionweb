@@ -41,6 +41,7 @@ export default function AdminClientsPage() {
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [planTier, setPlanTier] = useState('STARTER');
 
   const clientsQuery = useAdminClients();
   const hostingQuery = useAdminHosting();
@@ -89,12 +90,14 @@ export default function AdminClientsPage() {
         contactName,
         email,
         phone,
-      });
+        planTier,
+      } as any);
       setShowAddModal(false);
       setBusinessName('');
       setContactName('');
       setEmail('');
       setPhone('');
+      setPlanTier('STARTER');
       clientsQuery.refetch();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create client. Please try again.';
@@ -381,6 +384,20 @@ export default function AdminClientsPage() {
                   placeholder="+254 712 345 678"
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Assigned Plan Tier</label>
+                <select
+                  value={planTier}
+                  onChange={e => setPlanTier(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
+                >
+                  <option value="STARTER">Starter Tier</option>
+                  <option value="GROWTH">Growth Tier</option>
+                  <option value="BUSINESS">Business Tier</option>
+                  <option value="ENTERPRISE">Enterprise Tier</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

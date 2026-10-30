@@ -198,12 +198,39 @@ export const adminApi = {
     api.post('/clients', data).then(r => r.data),
 
   createHosting: (data: { clientId: string; domain: string; serverIp?: string; plan?: string }) =>
-    api.post('/hosting', data).then(r => r.data),
+    api
+      .post('/hosting', {
+        clientId: data.clientId,
+        domain: data.domain,
+        server: data.serverIp || 'Oracle Cloud (Frankfurt)',
+        plan: data.plan || 'STARTER',
+        ipAddress: data.serverIp && /^\d{1,3}(\.\d{1,3}){3}$/.test(data.serverIp) ? data.serverIp : undefined,
+      })
+      .then(r => r.data),
 
   updateHosting: (id: string, data: { status?: string; serverIp?: string }) =>
     api.patch(`/hosting/${id}`, data).then(r => r.data),
 
   getHealth: () => api.get('/health').then(r => r.data),
+
+  // ─── SuperAdmin Diagnostics & Operations Suite ───────────────────────────
+  getClusterHealth: () =>
+    api.get('/admin/diagnostics/health').then(r => r.data),
+
+  resolveDns: (domain: string) =>
+    api.post('/admin/diagnostics/dns-resolve', { domain }).then(r => r.data),
+
+  getWebhookLogs: (limit = 50) =>
+    api.get('/admin/diagnostics/webhooks', { params: { limit } }).then(r => r.data),
+
+  replayWebhook: (id: string) =>
+    api.post(`/admin/diagnostics/webhooks/${id}/replay`).then(r => r.data),
+
+  reconcilePayments: () =>
+    api.post('/admin/diagnostics/reconcile').then(r => r.data),
+
+  impersonateClient: (clientId: string) =>
+    api.post('/admin/diagnostics/impersonate', { clientId }).then(r => r.data),
 };
 
 export default api;

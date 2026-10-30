@@ -19,9 +19,10 @@ export class CreateClientDto {
   @IsOptional() @IsString() @MaxLength(20)
   phone?: string;
 
-  @ApiProperty({ enum: ['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'] })
+  @ApiPropertyOptional({ enum: ['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'], default: 'STARTER' })
+  @IsOptional()
   @IsIn(['STARTER', 'GROWTH', 'BUSINESS', 'ENTERPRISE'])
-  planTier: string;
+  planTier?: string;
 
   @ApiPropertyOptional({ default: 'KE' })
   @IsOptional() @IsString()

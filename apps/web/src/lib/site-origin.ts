@@ -24,3 +24,4 @@ export function getTrustedSiteOrigin(): string {
 
   return 'http://localhost:3000';
 }
+
