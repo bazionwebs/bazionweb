@@ -47,12 +47,12 @@ function buildContentSecurityPolicy() {
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://vercel.live https://va.vercel-scripts.com https://js.paystack.co`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: https: blob:",
-    `connect-src ${connectSrc.join(' ')} https://vitals.vercel-insights.com https://api.paystack.co`,
-    "frame-src https://js.paystack.co https://checkout.paystack.com",
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://vercel.live https://va.vercel-scripts.com https://js.paystack.co https://embed.tawk.to https://*.tawk.to https://cdn.jsdelivr.net`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.tawk.to",
+    "font-src 'self' https://fonts.gstatic.com data: https://*.tawk.to",
+    "img-src 'self' data: https: blob: https://*.tawk.to https://tawk.link",
+    `connect-src ${connectSrc.join(' ')} https://vitals.vercel-insights.com https://api.paystack.co https://*.tawk.to wss://*.tawk.to`,
+    "frame-src https://js.paystack.co https://checkout.paystack.com https://*.tawk.to https://embed.tawk.to",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
