@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Globe, Shield, Wrench, Server, Zap, LifeBuoy, Twitter, Linkedin, Github, Mail, Phone, MapPin } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
-import { SITE_CONTACT } from '@/lib/contact';
+import { SITE_CONTACT, HELP_CENTER_URL } from '@/lib/contact';
 
 const services = [
   { name: 'Website Development', href: '/services/development', icon: Globe },
@@ -17,7 +17,7 @@ const company = [
   { name: 'About Us', href: '/about' },
   { name: 'Our Process', href: '/process' },
   { name: 'Pricing', href: '/pricing' },
-  { name: 'Help Center', href: 'https://help.bazionweb.com' },
+  { name: 'Help Center', href: HELP_CENTER_URL },
   { name: 'Case Studies', href: '/case-studies' },
   { name: 'Blog', href: '/blog' },
   { name: 'FAQ', href: '/faq' },

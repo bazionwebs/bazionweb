@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { escapeHtml } from '@/lib/utils';
+import { HELP_CENTER_ABSOLUTE_URL } from '@/lib/contact';
 
 export interface SendMagicLinkOptions {
   to: string;
@@ -307,7 +308,7 @@ export function generateContactConfirmationEmailHtml(options: ContactInquiryOpti
       <div style="font-size:12px;color:#94A3B8;margin-bottom:8px;font-weight:600;">Need immediate assistance?</div>
       <div style="font-size:13px;color:#E2E8F0;line-height:1.5;">
         &bull; <strong>WhatsApp Hotline:</strong> <a href="https://wa.me/254721287053" style="color:#34D399;text-decoration:none;">+254 721 287 053</a><br>
-        &bull; <strong>Help Center:</strong> <a href="https://help.bazionweb.com" style="color:#38BDF8;text-decoration:none;">help.bazionweb.com</a><br>
+        &bull; <strong>Help Center:</strong> <a href="${HELP_CENTER_ABSOLUTE_URL}" style="color:#38BDF8;text-decoration:none;">${HELP_CENTER_ABSOLUTE_URL.replace(/^https?:\/\//, '')}</a><br>
         &bull; <strong>System Status:</strong> <a href="https://status.bazionweb.com" style="color:#38BDF8;text-decoration:none;">status.bazionweb.com</a>
       </div>
     </div>

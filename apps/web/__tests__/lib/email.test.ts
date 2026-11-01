@@ -60,7 +60,8 @@ describe('Email Service & Template Generators (apps/web/src/lib/email.ts)', () =
       expect(html).toContain('Mobile-First Website Care');
       expect(html).toContain('LEAD-CONF-456');
       expect(html).toContain('+254 721 287 053');
-      expect(html).toContain('help.bazionweb.com');
+      expect(html).toContain('bazionweb.com/faq');
+      expect(html).not.toContain('help.bazionweb.com');
       expect(html).toContain('status.bazionweb.com');
     });
 

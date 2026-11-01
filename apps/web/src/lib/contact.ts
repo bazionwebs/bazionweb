@@ -18,6 +18,18 @@ export const SITE_CONTACT = {
   location: 'Remote-first · Worldwide',
 } as const;
 
+/**
+ * Help Center URL. Defaults to the on-site FAQ so the link never points at an
+ * unresolved domain. Once the Tawk.to Knowledge Base custom domain
+ * (help.bazionweb.com CNAME) is live, set NEXT_PUBLIC_HELP_CENTER_URL to it.
+ */
+export const HELP_CENTER_URL = process.env.NEXT_PUBLIC_HELP_CENTER_URL?.trim() || '/faq';
+
+/** Absolute Help Center URL for contexts outside the site (e.g. emails). */
+export const HELP_CENTER_ABSOLUTE_URL = HELP_CENTER_URL.startsWith('http')
+  ? HELP_CENTER_URL
+  : `https://bazionweb.com${HELP_CENTER_URL}`;
+
 export const WHATSAPP_DEFAULT_MESSAGE =
   "Hello BazionWeb, I'd like to discuss a digital project.";
 

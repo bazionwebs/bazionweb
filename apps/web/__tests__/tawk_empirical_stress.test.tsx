@@ -269,15 +269,14 @@ describe('Empirical Challenger Stress Suite: Tawk.to Hooks, Components, and Navi
   });
 
   describe('3. Footer Help Center Link Verification', () => {
-    it('renders Help Center link with exact URL, target="_blank", rel="noopener noreferrer", and accessible text', () => {
+    it('renders Help Center link pointing to the on-site FAQ by default (no unresolved subdomain)', () => {
       render(<Footer />);
 
       const helpCenterLink = screen.getByRole('link', { name: /Help Center/i });
 
       expect(helpCenterLink).toBeInTheDocument();
-      expect(helpCenterLink).toHaveAttribute('href', 'https://help.bazionweb.com');
-      expect(helpCenterLink).toHaveAttribute('target', '_blank');
-      expect(helpCenterLink).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(helpCenterLink).toHaveAttribute('href', '/faq');
+      expect(helpCenterLink).not.toHaveAttribute('target', '_blank');
       expect(helpCenterLink.textContent).toContain('Help Center');
     });
   });

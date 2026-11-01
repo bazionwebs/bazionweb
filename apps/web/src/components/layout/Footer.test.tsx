@@ -21,7 +21,7 @@ describe('Footer', () => {
     expect(screen.getByText('About Us')).toBeInTheDocument();
     const helpCenterLink = screen.getByRole('link', { name: 'Help Center' });
     expect(helpCenterLink).toBeInTheDocument();
-    expect(helpCenterLink).toHaveAttribute('href', 'https://help.bazionweb.com');
+    expect(helpCenterLink).toHaveAttribute('href', '/faq');
   });
 
   it('should render legal links', () => {
