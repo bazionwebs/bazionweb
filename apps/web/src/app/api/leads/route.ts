@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'crypto';
 import { resolveMarket } from '@/lib/marketEngine';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { sendContactInquiryEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -80,6 +81,28 @@ export async function POST(request: NextRequest) {
       }
     } catch {
       // Backend CRM offline — continue gracefully with client confirmation
+    }
+
+    // Deliver team notification and customer acknowledgment via Resend email service
+    try {
+      await sendContactInquiryEmail({
+        clientName: name.trim(),
+        clientEmail: email.trim().toLowerCase(),
+        company: company?.trim(),
+        phone: phone?.trim(),
+        serviceInterest: serviceInterest || 'Website Development',
+        message: [
+          notes,
+          proposalId ? `Proposal: ${proposalId}` : null,
+          estimatedBudget ? `Estimated Budget: ${estimatedBudget}` : null,
+        ]
+          .filter(Boolean)
+          .join(' | '),
+        leadId: leadReference,
+        country: typeof country === 'string' ? country.trim().toUpperCase() : undefined,
+      });
+    } catch (emailErr) {
+      console.warn('[Leads API] Non-fatal email dispatch error:', emailErr);
     }
 
     return NextResponse.json({

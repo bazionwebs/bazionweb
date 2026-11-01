@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Analytics } from '@vercel/analytics/next';
 import '../styles/globals.css';
 import CookieBanner from '@/components/ui/CookieBanner';
+import MicrosoftClarity from '@/components/analytics/MicrosoftClarity';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://bazionweb.com'),
@@ -85,6 +86,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-white antialiased font-sans">
         {children}
         <Analytics />
+        <MicrosoftClarity />
         <CookieBanner />
       </body>
     </html>

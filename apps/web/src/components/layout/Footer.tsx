@@ -17,6 +17,7 @@ const company = [
   { name: 'About Us', href: '/about' },
   { name: 'Our Process', href: '/process' },
   { name: 'Pricing', href: '/pricing' },
+  { name: 'Help Center', href: 'https://help.bazionweb.com' },
   { name: 'Case Studies', href: '/case-studies' },
   { name: 'Blog', href: '/blog' },
   { name: 'FAQ', href: '/faq' },

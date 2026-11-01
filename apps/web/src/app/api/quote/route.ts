@@ -3,6 +3,7 @@ import { resolveMarket } from '@/lib/marketEngine';
 import { getPriceBookForMarket, formatCurrency } from '@/lib/priceBooks';
 import { ADD_ON_RATE_CARD } from '@/lib/pricingData';
 import { resolveApiV1Base } from '@/lib/api-base';
+import { sendQuoteSummaryEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +76,29 @@ export async function POST(request: NextRequest) {
           const monthlyCare = Number(breakdown.careMonthly?.amount || 0);
           const totalYearOne =
             Number(breakdown.totalBuildGross || 0) + annualHosting + monthlyCare * 12;
+
+          try {
+            await sendQuoteSummaryEmail({
+              clientName: clientName.trim(),
+              clientEmail: clientEmail.trim().toLowerCase(),
+              clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : undefined,
+              proposalId: quote.proposalId,
+              proposalCode: quote.proposalCode,
+              packageName: breakdown.package.name,
+              currency: quote.currency,
+              totalBuild: breakdown.totalBuildGross,
+              formattedTotalBuild: formatCurrency(breakdown.totalBuildGross, quote.currency),
+              monthlyCare,
+              formattedMonthlyCare: formatCurrency(monthlyCare, quote.currency),
+              annualHosting,
+              formattedAnnualHosting: formatCurrency(annualHosting, quote.currency),
+              totalYearOne,
+              formattedTotalYearOne: formatCurrency(totalYearOne, quote.currency),
+              proposalUrl: `https://bazionweb.com/quote?proposal=${encodeURIComponent(quote.proposalCode)}`,
+            });
+          } catch (emailErr) {
+            console.warn('[Quote API] Non-fatal email quote dispatch error:', emailErr);
+          }
 
           return NextResponse.json({
             success: true,
@@ -218,6 +242,29 @@ export async function POST(request: NextRequest) {
         amount: annualHosting,
       },
     };
+
+    try {
+      await sendQuoteSummaryEmail({
+        clientName: clientName.trim(),
+        clientEmail: clientEmail.trim().toLowerCase(),
+        clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : undefined,
+        proposalId,
+        proposalCode,
+        packageName: packageItem?.name || packageType,
+        currency,
+        totalBuild,
+        formattedTotalBuild: formatCurrency(totalBuild, currency),
+        monthlyCare,
+        formattedMonthlyCare: formatCurrency(monthlyCare, currency),
+        annualHosting,
+        formattedAnnualHosting: formatCurrency(annualHosting, currency),
+        totalYearOne,
+        formattedTotalYearOne: formatCurrency(totalYearOne, currency),
+        proposalUrl: `https://bazionweb.com/quote?proposal=${encodeURIComponent(proposalCode)}`,
+      });
+    } catch (emailErr) {
+      console.warn('[Quote API] Non-fatal email quote dispatch error:', emailErr);
+    }
 
     return NextResponse.json({
       success: true,

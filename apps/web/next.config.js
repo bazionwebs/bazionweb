@@ -47,11 +47,11 @@ function buildContentSecurityPolicy() {
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://vercel.live https://va.vercel-scripts.com https://js.paystack.co https://embed.tawk.to https://*.tawk.to https://cdn.jsdelivr.net`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://vercel.live https://va.vercel-scripts.com https://js.paystack.co https://embed.tawk.to https://*.tawk.to https://cdn.jsdelivr.net https://www.clarity.ms https://*.clarity.ms`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.tawk.to",
     "font-src 'self' https://fonts.gstatic.com data: https://*.tawk.to",
-    "img-src 'self' data: https: blob: https://*.tawk.to https://tawk.link",
-    `connect-src ${connectSrc.join(' ')} https://vitals.vercel-insights.com https://api.paystack.co https://*.tawk.to wss://*.tawk.to`,
+    "img-src 'self' data: https: blob: https://*.tawk.to https://tawk.link https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms",
+    `connect-src ${connectSrc.join(' ')} https://vitals.vercel-insights.com https://api.paystack.co https://*.tawk.to wss://*.tawk.to https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms`,
     "frame-src https://js.paystack.co https://checkout.paystack.com https://*.tawk.to https://embed.tawk.to",
     "object-src 'none'",
     "base-uri 'self'",
