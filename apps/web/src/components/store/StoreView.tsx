@@ -12,7 +12,6 @@ import {
   Wrench,
   Puzzle,
   Globe,
-  LayoutList,
   ArrowRight,
   Loader2,
 } from 'lucide-react';
@@ -20,6 +19,8 @@ import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { usePlans, PLAN_MARKETING } from '@/lib/plans';
 import { useCartStore } from '@/lib/cart';
+import { StoreCategoryNav, type StoreCategoryItem } from './StoreCategoryNav';
+import { useStoreScrollspy } from './useStoreScrollspy';
 
 const PLAN_HEADER_STYLES: Record<string, string> = {
   starter: 'bg-slate-800 text-white',
@@ -138,11 +139,7 @@ const fallbackMarketing = (productId: string) => ({
   features: [] as string[],
 });
 
-const CATEGORIES = [
-  { id: 'plans', label: 'Care Plans', icon: Wrench, match: () => true, source: 'plans' as const },
-  { id: 'hosting', label: 'Hosting', icon: Server, match: (p: string) => p.startsWith('host-'), source: 'catalog' as const },
-  { id: 'addons', label: 'Add-ons', icon: Puzzle, match: (p: string) => p.startsWith('addon-'), source: 'catalog' as const },
-];
+const STORE_SECTION_IDS = ['plans', 'hosting', 'addons', 'websites'];
 
 const formatMoney = (amount: number, symbol: string) =>
   `${symbol}${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -169,6 +166,12 @@ export default function StoreView() {
 
   const symbol = catalog.data?.market.currencySymbol ?? 'KES ';
 
+  const isDataReady = !plansLoading && !catalog.isLoading;
+  const { activeSection, scrollToSection } = useStoreScrollspy(STORE_SECTION_IDS, {
+    isDataReady,
+    headerOffset: 176,
+  });
+
   const handleAdd = (item: Parameters<typeof add>[0], key: string) => {
     add(item);
     setAddedKey(key);
@@ -194,7 +197,7 @@ export default function StoreView() {
         currency: 'KES',
       });
       setAddedKey(`PLAN:${plan.slug}:MONTHLY`);
-      document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' });
+      scrollToSection('plans');
     } else {
       const price = (catalog.data?.prices ?? []).find((p) => p.productId === addParam);
       if (price) {
@@ -209,14 +212,12 @@ export default function StoreView() {
           currency: catalog.data?.market.currencyCode ?? 'KES',
         });
         setAddedKey(`CATALOG:${price.productId}:${price.billingPeriod ?? 'one-time'}`);
-        document
-          .getElementById(price.productId.startsWith('host-') ? 'hosting' : 'addons')
-          ?.scrollIntoView({ behavior: 'smooth' });
+        scrollToSection(price.productId.startsWith('host-') ? 'hosting' : 'addons');
       }
     }
     // Clean the param so a refresh doesn't re-trigger the add.
     router.replace('/store', { scroll: false });
-  }, [addParam, plans, plansLoading, catalog.data, catalog.isLoading, add, router]);
+  }, [addParam, plans, plansLoading, catalog.data, catalog.isLoading, add, router, scrollToSection]);
 
   const hostingItems = useMemo(
     () => (catalog.data?.prices ?? []).filter((p) => p.productId.startsWith('host-')),
@@ -227,100 +228,84 @@ export default function StoreView() {
     [catalog.data],
   );
 
+  const categoryItems = useMemo<StoreCategoryItem[]>(() => {
+    const plansCount = (plans ?? []).filter((p) => PLAN_MARKETING[p.slug]).length;
+    return [
+      {
+        id: 'plans',
+        label: 'Care Plans',
+        icon: Wrench,
+        count: plansCount > 0 ? plansCount : undefined,
+        href: '#plans',
+      },
+      {
+        id: 'hosting',
+        label: 'Hosting',
+        icon: Server,
+        count: hostingItems.length > 0 ? hostingItems.length : undefined,
+        href: '#hosting',
+      },
+      {
+        id: 'addons',
+        label: 'Add-ons',
+        icon: Puzzle,
+        count: addonItems.length > 0 ? addonItems.length : undefined,
+        href: '#addons',
+      },
+      {
+        id: 'websites',
+        label: 'Website Builds',
+        icon: Globe,
+        badge: 'Custom',
+        href: '#websites',
+      },
+    ];
+  }, [plans, hostingItems.length, addonItems.length]);
+
+
   return (
-    <main className="bg-white">
-      {/* Hero — mirrors the site's dark navy band */}
-      <section className="bg-[#0F172A] pt-32 pb-16 text-white">
+    <main className="bg-slate-50/50 min-h-screen">
+      {/* Hero — streamlined header banner */}
+      <section className="bg-[#0F172A] pt-28 pb-10 md:pb-12 text-white">
         <div className="container-default max-w-7xl mx-auto px-4">
-          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
+          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
             <ShoppingCart className="h-4 w-4" /> BazionWeb Store
           </span>
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">Build your stack, your way</h1>
-          <p className="text-base md:text-lg text-slate-300 max-w-2xl leading-relaxed">
+          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-3">
+            Build your stack, your way
+          </h1>
+          <p className="text-sm md:text-base text-slate-300 max-w-2xl leading-relaxed">
             Pick a care plan, add hosting and extras, and check out once with M-Pesa or card.
             Every price is pulled live from our commercial schedule — no stale numbers.
           </p>
         </div>
       </section>
 
-      <div className="container-default max-w-7xl mx-auto px-4 py-12">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar — categories & actions, Braysons-style */}
-          <aside className="lg:w-64 shrink-0">
-            <div className="lg:sticky lg:top-28 space-y-6">
-              <nav aria-label="Store categories" className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-                <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200">
-                  <LayoutList className="h-4 w-4 text-slate-500" />
-                  <span className="text-sm font-bold text-slate-800">Categories</span>
-                </div>
-                <ul>
-                  {CATEGORIES.map((cat) => (
-                    <li key={cat.id}>
-                      <a
-                        href={`#${cat.id}`}
-                        className="flex items-center gap-2 px-4 py-3 text-sm text-slate-600 hover:text-[#2563EB] hover:bg-blue-50/60 border-b border-slate-100 last:border-0 transition-colors"
-                      >
-                        <cat.icon className="h-4 w-4" /> {cat.label}
-                      </a>
-                    </li>
-                  ))}
-                  <li>
-                    <a
-                      href="#websites"
-                      className="flex items-center gap-2 px-4 py-3 text-sm text-slate-600 hover:text-[#2563EB] hover:bg-blue-50/60 transition-colors"
-                    >
-                      <Globe className="h-4 w-4" /> Website Builds
-                    </a>
-                  </li>
-                </ul>
-              </nav>
+      {/* Sticky Category Sub-Navigation Bar */}
+      <StoreCategoryNav
+        categories={categoryItems}
+        activeId={activeSection}
+        onSelectCategory={scrollToSection}
+        cartCount={items.reduce((n, i) => n + i.qty, 0)}
+      />
 
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-800">Actions</div>
-                <div className="p-3">
-                  <Link
-                    href="/cart"
-                    className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[#2563EB] text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
-                  >
-                    <span className="flex items-center gap-2">
-                      <ShoppingCart className="h-4 w-4" /> View Cart
-                    </span>
-                    <span className="bg-white/20 rounded-full px-2 py-0.5 text-xs font-bold">
-                      {items.reduce((n, i) => n + i.qty, 0)}
-                    </span>
-                  </Link>
-                </div>
+      {/* Main Full-Width Product Catalog */}
+      <div className="container-default max-w-7xl mx-auto px-4 py-10 pb-28">
+        <div className="space-y-16">
+          {/* Care plans — the subscription anchor */}
+          <section id="plans" aria-labelledby="plans-heading" className="scroll-mt-44">
+            <h2 id="plans-heading" className="text-2xl font-extrabold text-slate-900 mb-2">
+              Managed Care Plans
+            </h2>
+            <p className="text-sm text-slate-500 mb-6">
+              The subscription that keeps your site updated, backed up, and secure. One per order.
+            </p>
+            {plansLoading ? (
+              <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
+                <Loader2 className="h-5 w-5 animate-spin" /> Loading plans…
               </div>
-
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-semibold text-emerald-900 mb-1">Not sure what you need?</p>
-                <p className="text-xs text-emerald-700 mb-3">Talk to us and we&apos;ll scope it for you.</p>
-                <WhatsAppLink
-                  source="store"
-                  message="Hello BazionWeb, I'm browsing your add-ons store and need help choosing the right package."
-                  className="text-sm font-semibold text-emerald-800 hover:text-emerald-900"
-                  iconClassName="h-4 w-4"
-                >
-                  WhatsApp support
-                </WhatsAppLink>
-              </div>
-            </div>
-          </aside>
-
-          {/* Product sections */}
-          <div className="flex-1 min-w-0 space-y-14">
-            {/* Care plans — the subscription anchor */}
-            <section id="plans" aria-labelledby="plans-heading" className="scroll-mt-32">
-              <h2 id="plans-heading" className="text-2xl font-extrabold text-slate-900 mb-2">Managed Care Plans</h2>
-              <p className="text-sm text-slate-500 mb-6">
-                The subscription that keeps your site updated, backed up, and secure. One per order.
-              </p>
-              {plansLoading ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin" /> Loading plans…
-                </div>
-              ) : (
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {(plans ?? []).filter((p) => PLAN_MARKETING[p.slug]).map((plan) => {
                     const marketing = PLAN_MARKETING[plan.slug];
                     const key = `PLAN:${plan.slug}:MONTHLY`;
@@ -399,7 +384,7 @@ export default function StoreView() {
             </section>
 
             {/* Hosting */}
-            <section id="hosting" aria-labelledby="hosting-heading" className="scroll-mt-32">
+            <section id="hosting" aria-labelledby="hosting-heading" className="scroll-mt-44">
               <h2 id="hosting-heading" className="text-2xl font-extrabold text-slate-900 mb-2">Hosting</h2>
               <p className="text-sm text-slate-500 mb-6">Annual hosting billed with your first invoice — no separate signup.</p>
               {catalog.isLoading ? (
@@ -407,7 +392,7 @@ export default function StoreView() {
                   <Loader2 className="h-5 w-5 animate-spin" /> Loading catalog…
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {hostingItems.map((item) => {
                     const marketing = PRODUCT_MARKETING[item.productId] ?? fallbackMarketing(item.productId);
                     const key = `CATALOG:${item.productId}:${item.billingPeriod ?? 'one-time'}`;
@@ -470,7 +455,7 @@ export default function StoreView() {
             </section>
 
             {/* Add-ons */}
-            <section id="addons" aria-labelledby="addons-heading" className="scroll-mt-32">
+            <section id="addons" aria-labelledby="addons-heading" className="scroll-mt-44">
               <h2 id="addons-heading" className="text-2xl font-extrabold text-slate-900 mb-2">Add-ons</h2>
               <p className="text-sm text-slate-500 mb-6">Bolt extras onto any plan — billed once with your first invoice.</p>
               {catalog.isLoading ? (
@@ -480,7 +465,7 @@ export default function StoreView() {
               ) : addonItems.length === 0 ? (
                 <p className="text-sm text-slate-500 py-6">No add-ons published in the current price book.</p>
               ) : (
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
                   {addonItems.map((item) => {
                     const marketing = PRODUCT_MARKETING[item.productId] ?? fallbackMarketing(item.productId);
                     const key = `CATALOG:${item.productId}:${item.billingPeriod ?? 'one-time'}`;
@@ -528,21 +513,56 @@ export default function StoreView() {
               )}
             </section>
 
-            {/* Website builds route to the quote flow — custom-priced, not cart items */}
-            <section id="websites" aria-labelledby="websites-heading" className="scroll-mt-32 rounded-2xl bg-[#0F172A] text-white p-8 md:p-10">
-              <h2 id="websites-heading" className="text-2xl font-extrabold mb-2">Need a website built?</h2>
-              <p className="text-sm text-slate-300 max-w-xl mb-6">
-                Website builds are scoped and priced per project. Answer a few questions and get a
-                fixed quote with a deposit invoice in minutes.
-              </p>
-              <Link
-                href="/quote"
-                className="inline-flex items-center gap-2 rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-[#0F172A] hover:bg-teal-400 transition-colors"
+            {/* Contextual WhatsApp Support Banner */}
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+              <div>
+                <p className="text-sm font-bold text-emerald-950">Not sure what your site needs?</p>
+                <p className="text-xs text-emerald-700">Chat directly with our solutions engineering team on WhatsApp for free architecture advice.</p>
+              </div>
+              <WhatsAppLink
+                source="store"
+                message="Hello BazionWeb, I'm browsing your store and need help choosing the right package."
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-colors shrink-0 shadow-sm"
+                iconClassName="h-4 w-4"
               >
-                Get a quote <ArrowRight className="h-4 w-4" />
-              </Link>
+                Chat on WhatsApp
+              </WhatsAppLink>
+            </div>
+
+            {/* Website builds route to the quote flow — custom-priced, not cart items */}
+            <section
+              id="websites"
+              aria-labelledby="websites-heading"
+              className="scroll-mt-44 rounded-3xl bg-[#0F172A] text-white p-8 md:p-12 border border-slate-800 shadow-xl"
+            >
+              <div className="max-w-3xl">
+                <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
+                  <Globe className="h-4 w-4" /> Custom Development
+                </span>
+                <h2 id="websites-heading" className="text-2xl md:text-3xl font-extrabold mb-3">
+                  Need a website built?
+                </h2>
+                <p className="text-sm md:text-base text-slate-300 mb-6 leading-relaxed">
+                  Website builds are scoped and priced per project to match your exact business requirements.
+                  Answer a few questions in our interactive project builder and receive a fixed-price proposal
+                  with transparent deliverables and deposit milestones in minutes.
+                </p>
+                <div className="flex flex-wrap items-center gap-4">
+                  <Link
+                    href="/quote"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#14B8A6] px-5 py-3 text-sm font-bold text-[#0F172A] hover:bg-teal-400 transition-colors shadow-sm"
+                  >
+                    Get an Instant Quote <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    href="/pricing"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-5 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition-colors"
+                  >
+                    View Fixed Tier Packages
+                  </Link>
+                </div>
+              </div>
             </section>
-          </div>
         </div>
       </div>
     </main>

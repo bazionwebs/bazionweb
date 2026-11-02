@@ -6,7 +6,7 @@ import { buildWhatsAppLink, trackWhatsAppOpen, WHATSAPP_DEFAULT_MESSAGE, type Wh
 import { cn } from '@/lib/utils';
 import WhatsAppIcon from './WhatsAppIcon';
 
-const HIDDEN_WIDGET_PREFIXES = ['/checkout'];
+const HIDDEN_WIDGET_PREFIXES = ['/checkout', '/store'];
 
 interface WhatsAppLinkProps {
   source: WhatsAppSource;
@@ -61,7 +61,7 @@ export default function WhatsAppFloatingChat({
 }: WhatsAppFloatingChatProps) {
   const pathname = usePathname();
 
-  // Keep checkout controls unobstructed; checkout already has its own
+  // Keep checkout and store controls unobstructed; both provide their own
   // contextual support prompts.
   if (HIDDEN_WIDGET_PREFIXES.some(prefix => pathname?.startsWith(prefix))) {
     return null;

@@ -10,6 +10,7 @@ export interface TawkVisitorAttributes {
   budgetEstimate?: number | string;
   scrolled_75_percent?: boolean;
   current_path?: string;
+  current_title?: string;
   [key: string]: string | number | boolean | undefined;
 }
 
