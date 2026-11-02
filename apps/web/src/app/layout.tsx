@@ -83,6 +83,30 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Early synchronous cookie synchronization script to eliminate FOWC & hydration drift */}
+        <script
+          id="market-init-sync"
+          dangerouslySetInnerHTML={{
+            __html: `
+(function() {
+  try {
+    if (!document.cookie.match(/(?:^|;\\s*)bazion_market=/)) {
+      var tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : '';
+      var eaZones = ['Africa/Nairobi','Africa/Kampala','Africa/Dar_es_Salaam','Africa/Kigali','Africa/Bujumbura','Africa/Juba','Africa/Addis_Ababa','Africa/Mogadishu','Africa/Asmara','Africa/Djibouti','Indian/Comoro','Indian/Mayotte','Indian/Antananarivo'];
+      var isKE = tz === 'Africa/Nairobi' || eaZones.indexOf(tz) !== -1 || (tz && tz.toLowerCase().indexOf('nairobi') !== -1);
+      var code = isKE ? 'KE' : 'GLOBAL';
+      var legacy = isKE ? 'kenya' : 'international';
+      var exp = new Date(Date.now() + 365 * 864e5).toUTCString();
+      document.cookie = 'bazion_market=' + code + '; expires=' + exp + '; path=/; SameSite=Lax';
+      document.cookie = 'bw-market=' + legacy + '; expires=' + exp + '; path=/; SameSite=Lax';
+    }
+  } catch (e) {}
+})();
+`,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-white antialiased font-sans">
         {children}
         <Analytics />

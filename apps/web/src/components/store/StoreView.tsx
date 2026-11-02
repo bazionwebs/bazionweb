@@ -19,6 +19,7 @@ import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { usePlans, PLAN_MARKETING } from '@/lib/plans';
 import { useCartStore } from '@/lib/cart';
+import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { StoreCategoryNav, type StoreCategoryItem } from './StoreCategoryNav';
 import { useStoreScrollspy } from './useStoreScrollspy';
 
@@ -146,13 +147,14 @@ const formatMoney = (amount: number, symbol: string) =>
 
 export default function StoreView() {
   const apiBase = resolveApiV1Base();
+  const { marketCode } = useMarketPreference();
   const { plans, loading: plansLoading } = usePlans();
   const [addedKey, setAddedKey] = useState<string | null>(null);
 
   const catalog = useQuery<CatalogResponse>({
-    queryKey: ['store-catalog', 'KE'],
+    queryKey: ['store-catalog', marketCode],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/pricing/catalog?market=KE`, { cache: 'no-store' });
+      const res = await fetch(`${apiBase}/pricing/catalog?market=${marketCode}`, { cache: 'no-store' });
       const envelope = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(envelope?.message || 'Could not load the store catalog.');
       return envelope?.data ?? envelope;

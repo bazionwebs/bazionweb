@@ -1,3 +1,9 @@
+export interface SolutionAddonItem {
+  title: string;
+  priceKenya: string;
+  priceIntl: string;
+}
+
 export interface SolutionVertical {
   slug: string;
   name: string;
@@ -24,7 +30,7 @@ export interface SolutionVertical {
     carePriceIntl: string;
     summary: string;
   };
-  recommendedAddons: string[];
+  recommendedAddons: (string | SolutionAddonItem)[];
   proofMetric: {
     stat: string;
     label: string;
@@ -91,9 +97,9 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       summary: 'Custom 10-page website, CMS integration, lead capture pipeline, and 30-day post-launch warranty.',
     },
     recommendedAddons: [
-      'Dynamic Blog & News Engine (KSh 7,500 / $120)',
-      'Advanced Multi-Step Form (KSh 5,000 / $80)',
-      'Local SEO Foundation (KSh 15,000 / $220)',
+      { title: 'Dynamic Blog & News Engine', priceKenya: 'KSh 7,500', priceIntl: '$120' },
+      { title: 'Advanced Multi-Step Form', priceKenya: 'KSh 5,000', priceIntl: '$80' },
+      { title: 'Local SEO Foundation', priceKenya: 'KSh 15,000', priceIntl: '$220' },
     ],
     proofMetric: {
       stat: '+140%',
@@ -172,9 +178,9 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       summary: 'Up to 15 pages, sermon archive, events manager, M-Pesa integration, and 60-day warranty.',
     },
     recommendedAddons: [
-      'M-Pesa Daraja Automated Giving Gateway (KSh 10,000)',
-      'Africa\'s Talking Bulk SMS Alerts (KSh 8,500)',
-      'Church Management Member Registry (From KSh 200,000 / $3,900)',
+      { title: 'M-Pesa Daraja Automated Giving Gateway', priceKenya: 'KSh 10,000', priceIntl: '$150' },
+      { title: "Africa's Talking Bulk SMS Alerts", priceKenya: 'KSh 8,500', priceIntl: '$120' },
+      { title: 'Church Management Member Registry', priceKenya: 'From KSh 200,000', priceIntl: 'From $3,900' },
     ],
     proofMetric: {
       stat: '99.9%',
@@ -248,9 +254,9 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       summary: 'Complete institutional SIS, student database, fee reconciliation, and high-concurrency exam hosting.',
     },
     recommendedAddons: [
-      'Role-Based Access Control (Admin, Teacher, Parent) (KSh 20,000 / $400)',
-      'Automated PDF Report Card Generator (KSh 18,000 / $350)',
-      'Parent Attendance SMS Alerts (KSh 10,000 / $200)',
+      { title: 'Role-Based Access Control (Admin, Teacher, Parent)', priceKenya: 'KSh 20,000', priceIntl: '$400' },
+      { title: 'Automated PDF Report Card Generator', priceKenya: 'KSh 18,000', priceIntl: '$350' },
+      { title: 'Parent Attendance SMS Alerts', priceKenya: 'KSh 10,000', priceIntl: '$200' },
     ],
     proofMetric: {
       stat: '85%',
@@ -324,9 +330,9 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       summary: 'Impact portal, research publication archive, donor pipeline, and 60-day post-launch support.',
     },
     recommendedAddons: [
-      'Downloadable Document Hub (KSh 6,000 / $120)',
-      'Multilingual i18n Architecture (KSh 15,000 / $240)',
-      'International Card Donation Rails (KSh 10,000 / $150)',
+      { title: 'Downloadable Document Hub', priceKenya: 'KSh 6,000', priceIntl: '$120' },
+      { title: 'Multilingual i18n Architecture', priceKenya: 'KSh 15,000', priceIntl: '$240' },
+      { title: 'International Card Donation Rails', priceKenya: 'KSh 10,000', priceIntl: '$150' },
     ],
     proofMetric: {
       stat: '100%',
@@ -400,9 +406,9 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       summary: 'Complete technical architecture, database ERD, full-stack MVP build, and staging CI/CD deployment.',
     },
     recommendedAddons: [
-      'SSO Authentication (Google / Microsoft) (KSh 15,000 / $300)',
-      'Enterprise Audit Logging (KSh 15,000 / $300)',
-      'Dedicated Staging Environment (KSh 10,000 / $150)',
+      { title: 'SSO Authentication (Google / Microsoft)', priceKenya: 'KSh 15,000', priceIntl: '$300' },
+      { title: 'Enterprise Audit Logging', priceKenya: 'KSh 15,000', priceIntl: '$300' },
+      { title: 'Dedicated Staging Environment', priceKenya: 'KSh 10,000', priceIntl: '$150' },
     ],
     proofMetric: {
       stat: '4–6 Wks',
@@ -476,9 +482,9 @@ export const SOLUTIONS_DATA: Record<string, SolutionVertical> = {
       summary: 'Up to 15 pages, practice area index, partner profiles, appointment intake, and 60-day support.',
     },
     recommendedAddons: [
-      'Advanced Client Intake Screening Form (KSh 5,000 / $80)',
-      'Publications & Legal Insights Hub (KSh 7,500 / $120)',
-      'Online Consultation Booking Engine (From KSh 15,000 / $220)',
+      { title: 'Advanced Client Intake Screening Form', priceKenya: 'KSh 5,000', priceIntl: '$80' },
+      { title: 'Publications & Legal Insights Hub', priceKenya: 'KSh 7,500', priceIntl: '$120' },
+      { title: 'Online Consultation Booking Engine', priceKenya: 'From KSh 15,000', priceIntl: 'From $220' },
     ],
     proofMetric: {
       stat: '3x',

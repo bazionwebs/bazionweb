@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   MarketCode,
   LegacyMarket,
@@ -10,23 +10,21 @@ import {
   BAZION_MARKET_COOKIE,
   LEGACY_MARKET_COOKIE,
 } from '@/lib/marketEngine';
+import { resolveMarketFromClientHints } from '@/lib/geoDetection';
 
-// Re-use the same cookie name strings as localStorage keys for consistency
-const MARKET_STORAGE_KEY = BAZION_MARKET_COOKIE;  // 'bazion_market'
-const LEGACY_STORAGE_KEY = LEGACY_MARKET_COOKIE;  // 'bw-market'
+const MARKET_STORAGE_KEY = BAZION_MARKET_COOKIE;
+const LEGACY_STORAGE_KEY = LEGACY_MARKET_COOKIE;
 
 /**
- * Reads market cookie from document.cookie
+ * Reads market code from document.cookie
  */
 export function readMarketCookie(): MarketCode | null {
   if (typeof document === 'undefined') return null;
   try {
-    // 1. Check authoritative bazion_market cookie
     const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + BAZION_MARKET_COOKIE + '=([^;]*)'));
     if (match) {
       return normalizeMarketCode(decodeURIComponent(match[1]));
     }
-    // 2. Check legacy bw-market cookie
     const legacyMatch = document.cookie.match(new RegExp('(?:^|;\\s*)' + LEGACY_MARKET_COOKIE + '=([^;]*)'));
     if (legacyMatch) {
       return normalizeMarketCode(decodeURIComponent(legacyMatch[1]));
@@ -38,7 +36,7 @@ export function readMarketCookie(): MarketCode | null {
 }
 
 /**
- * Sets persistent market cookies for both edge middleware and legacy support.
+ * Writes persistent market cookies for future server and client requests.
  */
 export function setMarketCookie(market: MarketCode | LegacyMarket) {
   if (typeof document === 'undefined') return;
@@ -47,9 +45,7 @@ export function setMarketCookie(market: MarketCode | LegacyMarket) {
     const legacyVal = canonical === 'KE' ? 'kenya' : 'international';
     const expires = new Date(Date.now() + 365 * 864e5).toUTCString();
 
-    // Set new canonical market cookie
     document.cookie = `${BAZION_MARKET_COOKIE}=${canonical}; expires=${expires}; path=/; SameSite=Lax`;
-    // Set legacy cookie for backward-compatible edge nodes
     document.cookie = `${LEGACY_MARKET_COOKIE}=${legacyVal}; expires=${expires}; path=/; SameSite=Lax`;
   } catch {
     /* ignore cookie writing errors */
@@ -57,129 +53,55 @@ export function setMarketCookie(market: MarketCode | LegacyMarket) {
 }
 
 /**
- * Silent market detection (Level 1 Geo IP & Timezone heuristic)
+ * Synchronous client-side market resolver.
+ * Priority:
+ * 1. Existing cookie (set by server or pre-paint <head> script)
+ * 2. Client hints (Intl timezone)
+ * 3. Fallback: GLOBAL
  */
 export function detectMarket(): MarketCode {
-  // 1. Check cookie injected by Edge Middleware
   const cookieVal = readMarketCookie();
   if (cookieVal) return cookieVal;
 
-  // 2. Check client timezone as fallback
-  try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
-    if (tz === 'Africa/Nairobi' || tz.startsWith('Africa/')) {
-      return 'KE';
-    }
-  } catch {
-    /* ignore */
-  }
+  return resolveMarketFromClientHints();
+}
 
-  return 'GLOBAL';
+export interface UseMarketPreferenceReturn {
+  marketCode: MarketCode;
+  market: LegacyMarket;
+  marketDef: MarketDefinition;
+  isLocked: true;
+  /** @deprecated Manual market switching disabled */
+  setMarket?: (market: MarketCode | LegacyMarket) => void;
+  /** @deprecated Manual market modal disabled */
+  openModal?: () => void;
+  /** @deprecated Manual market modal disabled */
+  closeModal?: () => void;
+  isModalOpen?: boolean;
 }
 
 /**
- * Read stored market from query param, cookie, or local storage.
+ * React hook for market preference consumption.
+ * Strictly auto-detected and read-only.
  */
-export function readStoredMarket(): MarketCode | null {
-  // 1. Check URL override if on client
-  if (typeof window !== 'undefined') {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const cur = params.get('currency')?.toLowerCase();
-      const mkt = params.get('market')?.toLowerCase();
-      if (cur === 'kes' || mkt === 'kenya' || mkt === 'ke') return 'KE';
-      if (cur === 'usd' || mkt === 'international' || mkt === 'intl' || mkt === 'global') return 'GLOBAL';
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // 2. Cookie
-  const cookie = readMarketCookie();
-  if (cookie) return cookie;
-
-  // 3. LocalStorage
-  if (typeof window !== 'undefined') {
-    try {
-      const v = window.localStorage.getItem(MARKET_STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (v) return normalizeMarketCode(v);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  return null;
-}
-
-// Global modal event listener
-const MARKET_MODAL_EVENT = 'bazion:open-market-modal';
-const MARKET_CHANGE_EVENT = 'bazion:market-change';
-
-export function triggerOpenMarketModal() {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(MARKET_MODAL_EVENT));
-  }
-}
-
-/**
- * React hook for market preference resolution and UI binding
- */
-export function useMarketPreference() {
-  const [marketCode, setMarketCodeState] = useState<MarketCode>('GLOBAL');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+export function useMarketPreference(initialMarket?: MarketCode): UseMarketPreferenceReturn {
+  // Synchronous state initialization from cookie / client hints / SSR initialMarket
+  const [marketCode, setMarketCode] = useState<MarketCode>(() => {
+    if (typeof window === 'undefined') return initialMarket || 'GLOBAL';
+    return detectMarket() || initialMarket || 'GLOBAL';
+  });
 
   useEffect(() => {
-    // 1. Try to read market from URL params, cookie, or localStorage in one pass
-    const stored = readStoredMarket();
-    if (stored) {
-      setMarketCodeState(stored);
-    } else {
-      // 2. No persisted preference — fall back to timezone heuristic
-      let detected: MarketCode = 'GLOBAL';
-      try {
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
-        if (tz === 'Africa/Nairobi' || tz.startsWith('Africa/')) detected = 'KE';
-      } catch { /* ignore */ }
-
-      setMarketCodeState(detected);
-      setMarketCookie(detected);
-      try {
-        window.localStorage.setItem(MARKET_STORAGE_KEY, detected);
-        window.localStorage.setItem(LEGACY_STORAGE_KEY, detected === 'KE' ? 'kenya' : 'international');
-      } catch { /* ignore */ }
-    }
-
-    // 3. Listen for modal and market-change broadcast events
-    const handleOpenModal = () => setIsModalOpen(true);
-    const handleMarketChange = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { marketCode: MarketCode };
-      if (detail?.marketCode) setMarketCodeState(detail.marketCode);
-    };
-
-    window.addEventListener(MARKET_MODAL_EVENT, handleOpenModal);
-    window.addEventListener(MARKET_CHANGE_EVENT, handleMarketChange);
-
-    return () => {
-      window.removeEventListener(MARKET_MODAL_EVENT, handleOpenModal);
-      window.removeEventListener(MARKET_CHANGE_EVENT, handleMarketChange);
-    };
-  }, []);
-
-  const setMarket = useCallback((m: MarketCode | LegacyMarket) => {
-    const code = normalizeMarketCode(m);
-    setMarketCodeState(code);
-    setMarketCookie(code);
+    // Re-verify cookie or client hints on mount and persist if not already saved
+    const resolved = detectMarket();
+    setMarketCode(resolved);
+    setMarketCookie(resolved);
 
     try {
-      window.localStorage.setItem(MARKET_STORAGE_KEY, code);
-      window.localStorage.setItem(LEGACY_STORAGE_KEY, code === 'KE' ? 'kenya' : 'international');
+      window.localStorage.setItem(MARKET_STORAGE_KEY, resolved);
+      window.localStorage.setItem(LEGACY_STORAGE_KEY, resolved === 'KE' ? 'kenya' : 'international');
     } catch {
       /* ignore */
-    }
-
-    // Dispatch broadcast event so all components update in real-time
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent(MARKET_CHANGE_EVENT, { detail: { marketCode: code } }));
     }
   }, []);
 
@@ -188,12 +110,8 @@ export function useMarketPreference() {
 
   return {
     marketCode,
-    market: legacyMarket, // legacy compatibility for existing components
+    market: legacyMarket,
     marketDef,
-    setMarket,
-    isModalOpen,
-    openModal: () => setIsModalOpen(true),
-    closeModal: () => setIsModalOpen(false),
-    suggestKenya: false,
+    isLocked: true,
   };
 }

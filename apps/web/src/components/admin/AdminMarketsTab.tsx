@@ -23,7 +23,7 @@ import { MarketCode } from '@/lib/marketEngine';
 type MatrixCategory = 'all' | 'websites' | 'ecommerce' | 'care' | 'hosting';
 
 export default function AdminMarketsTab() {
-  const { marketCode, setMarket } = useMarketPreference();
+  const { marketCode } = useMarketPreference();
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   // ─── Filter Category for Matrix ───
@@ -128,38 +128,23 @@ export default function AdminMarketsTab() {
             </p>
           </div>
 
-          {/* Quick Active Storefront Switcher */}
+          {/* Active Auto-Detected Session Badge */}
           <div className="bg-slate-800/90 rounded-2xl p-4 border border-slate-700 shrink-0">
             <div className="text-xs font-bold text-slate-300 mb-2 flex items-center justify-between">
               <span>Your Active Browser Session:</span>
               <span className="text-[10px] text-teal-400 font-mono">[{marketCode}]</span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMarket('KE')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              <div
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold select-none ${
                   marketCode === 'KE'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-2 ring-white/30'
-                    : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'bg-teal-600 text-white shadow-md shadow-teal-600/30'
                 }`}
               >
-                <span>🇰🇪 Kenya (KES)</span>
-                {marketCode === 'KE' && <Check className="w-3.5 h-3.5" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMarket('GLOBAL')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  marketCode === 'GLOBAL'
-                    ? 'bg-teal-600 text-white shadow-md shadow-teal-600/30 ring-2 ring-white/30'
-                    : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
-              >
-                <span>🌐 International (USD)</span>
-                {marketCode === 'GLOBAL' && <Check className="w-3.5 h-3.5" />}
-              </button>
+                <span>{marketCode === 'KE' ? '🇰🇪 Kenya (KES)' : '🌐 International (USD)'}</span>
+                <Check className="w-3.5 h-3.5" />
+              </div>
             </div>
           </div>
         </div>

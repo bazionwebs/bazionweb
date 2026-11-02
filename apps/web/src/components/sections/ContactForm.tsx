@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Send, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { useMarketPreference } from '@/hooks/useMarketPreference';
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -29,6 +30,8 @@ const initialData: FormData = {
 };
 
 export default function ContactForm() {
+  const { market } = useMarketPreference();
+  const isKe = market === 'kenya';
   const searchParams = useSearchParams();
   const [form, setForm] = useState<FormData>(initialData);
   const [state, setState] = useState<FormState>('idle');
@@ -155,9 +158,15 @@ export default function ContactForm() {
             <label htmlFor="plan" className="label">Plan interest</label>
             <select id="plan" {...field('plan')}>
               <option value="">Select a plan…</option>
-              <option value="care-essential">Care Essential — KSh 5,000 / $75/mo</option>
-              <option value="care-business">Care Business — KSh 10,000 / $150/mo</option>
-              <option value="care-professional">Care Professional — KSh 20,000 / $300/mo</option>
+              <option value="care-essential">
+                Care Essential — {isKe ? 'KSh 5,000/mo' : '$75/mo'}
+              </option>
+              <option value="care-business">
+                Care Business — {isKe ? 'KSh 10,000/mo' : '$150/mo'}
+              </option>
+              <option value="care-professional">
+                Care Professional — {isKe ? 'KSh 20,000/mo' : '$300/mo'}
+              </option>
               <option value="care-enterprise">Care Enterprise — Custom SLA</option>
               <option value="unsure">Not sure yet</option>
             </select>

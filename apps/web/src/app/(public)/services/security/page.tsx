@@ -3,6 +3,7 @@ import { Shield, Check, ArrowRight, Lock, Eye, AlertTriangle, FileSearch, Refres
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
+import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
   title: 'Managed Website Security & Vulnerability Defense',
@@ -20,7 +21,10 @@ const layers = [
   { icon: Bell,         title: 'Incident Response',               desc: 'Documented IRP with P1 escalation: contain, eradicate, recover, report. Post-incident RCA delivered within 48 hours.' },
 ];
 
-export default function SecurityPage() {
+export default async function SecurityPage() {
+  const { market } = await getServerMarket();
+  const isKe = market === 'KE';
+
   return (
     <>
       <JsonLd
@@ -31,10 +35,11 @@ export default function SecurityPage() {
           description: 'Proactive WAF rules, weekly malware scanning, automated SSL monitoring, and monthly security audits to protect your web presence from threats.',
           url: 'https://bazionweb.com/services/security',
           provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
-          areaServed: ['Kenya', 'Worldwide'],
+          areaServed: isKe ? 'Kenya' : 'Worldwide',
           offers: [
-            { '@type': 'Offer', name: 'Security Add-on (Kenya)', price: '3000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
-            { '@type': 'Offer', name: 'Security Add-on (International)', price: '29', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+            isKe
+              ? { '@type': 'Offer', name: 'Security Add-on', price: '3000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' }
+              : { '@type': 'Offer', name: 'Security Add-on', price: '29', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
           ],
         }}
       />
@@ -99,8 +104,16 @@ export default function SecurityPage() {
 
       <section className="section-sm bg-[#F8FAFC]">
         <div className="container-default text-center max-w-xl mx-auto">
-          <h2 className="text-2xl font-bold text-[#0F172A] mb-3">Security management from KSh 5,000/mo ($75/mo)</h2>
-          <p className="text-slate-500 mb-6 text-sm">Included in all Cloud Care plans. Standalone OWASP security audit & hardening from KSh 15,000 ($300).</p>
+          <h2 className="text-2xl font-bold text-[#0F172A] mb-3">
+            {isKe
+              ? 'Security management from KSh 5,000/mo'
+              : 'Security management from $75/mo'}
+          </h2>
+          <p className="text-slate-500 mb-6 text-sm">
+            {isKe
+              ? 'Included in all Cloud Care plans. Standalone OWASP security audit & hardening from KSh 15,000.'
+              : 'Included in all Cloud Care plans. Standalone OWASP security audit & hardening from $300.'}
+          </p>
           <div className="flex gap-3 justify-center">
             <Link href="/pricing" className="btn-primary px-7">See plans <ArrowRight className="w-4 h-4" /></Link>
             <Link href="/contact?service=security" className="btn-secondary px-7">Book audit</Link>

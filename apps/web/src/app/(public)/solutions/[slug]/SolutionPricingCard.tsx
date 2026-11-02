@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { Check, ArrowRight, ShieldCheck } from 'lucide-react';
+import { SolutionAddonItem } from '@/lib/solutionsData';
 
 interface BundleProps {
   bundle: {
@@ -14,7 +15,7 @@ interface BundleProps {
     carePriceIntl: string;
     summary: string;
   };
-  addons: string[];
+  addons: (string | SolutionAddonItem)[];
 }
 
 export default function SolutionPricingCard({ bundle, addons }: BundleProps) {
@@ -72,12 +73,17 @@ export default function SolutionPricingCard({ bundle, addons }: BundleProps) {
             Recommended Modular Add-Ons:
           </h4>
           <div className="space-y-2 mb-6">
-            {addons.map((addon, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs font-medium text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#0D9488]" />
-                <span>{addon}</span>
-              </div>
-            ))}
+            {addons.map((addon, i) => {
+              const text = typeof addon === 'string'
+                ? addon
+                : `${addon.title} (${market === 'kenya' ? addon.priceKenya : addon.priceIntl})`;
+              return (
+                <div key={i} className="flex items-center gap-2 text-xs font-medium text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#0D9488]" />
+                  <span>{text}</span>
+                </div>
+              );
+            })}
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">

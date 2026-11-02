@@ -64,7 +64,7 @@ export default function TermsPage() {
                 Subscriptions are billed monthly in advance on your billing date. One-time project fees are invoiced per your Service Order payment schedule. Payment is due within 14 days of invoice date. Overdue accounts may be suspended after 7 days&apos; notice.
               </p>
               <p className="text-slate-600 leading-relaxed">
-                All prices are in USD unless otherwise stated. Taxes applicable in your jurisdiction are your responsibility.
+                Prices are billed in Kenyan Shillings (KES) for Kenya and East Africa clients, and in US Dollars (USD) for international clients, in accordance with the customer&apos;s auto-identified commercial schedule. Taxes applicable in your jurisdiction are your responsibility.
               </p>
             </section>
 

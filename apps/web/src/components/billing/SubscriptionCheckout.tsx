@@ -19,6 +19,7 @@ import { resolveApiV1Base } from '@/lib/api-base';
 import { useAuthStore } from '@/store/auth.store';
 import { DEFAULT_PLAN_SLUG, planMarketing, usePlans } from '@/lib/plans';
 import { useCartStore, cartTotal } from '@/lib/cart';
+import { useMarketPreference } from '@/hooks/useMarketPreference';
 
 interface CheckoutProps {
   initialPlanSlug?: string;
@@ -60,6 +61,8 @@ export default function SubscriptionCheckout({
   const storeToken = useAuthStore(s => s.accessToken);
   const storeUser = useAuthStore(s => s.user);
   const token = tokenProp || storeToken || '';
+  const { marketCode } = useMarketPreference();
+  const isKe = marketCode === 'KE';
   const { plans, bySlug, loading: plansLoading, error: plansError } = usePlans();
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(initialPlanSlug);
   const [activeTab, setActiveTab] = useState<PaymentTab>('MPESA');
@@ -437,7 +440,11 @@ export default function SubscriptionCheckout({
                   }`}
                 >
                   <div className="text-sm font-bold">{p.name}</div>
-                  <div className="text-xs text-slate-400">${p.priceMonthly}/mo</div>
+                  <div className="text-xs text-slate-400">
+                    {isKe
+                      ? `KES ${(p.priceMonthlyKes ?? 0).toLocaleString()}/mo`
+                      : `$${p.priceMonthly}/mo`}
+                  </div>
                 </button>
               ))}
             </div>
@@ -521,8 +528,15 @@ export default function SubscriptionCheckout({
           <div className="mt-6 pt-4 border-t border-slate-800 flex justify-between items-baseline">
             <span className="text-sm text-slate-400 font-medium">Subtotal Due</span>
             <div className="text-right">
-              <div className="text-2xl font-black text-white">${currentPriceUsd.toLocaleString()} USD</div>
-              <div className="text-xs text-emerald-400 font-mono">≈ KES {currentPriceKes.toLocaleString()}</div>
+              {isKe ? (
+                <div className="text-2xl font-black text-white">
+                  KES {currentPriceKes.toLocaleString()}
+                </div>
+              ) : (
+                <div className="text-2xl font-black text-white">
+                  ${currentPriceUsd.toLocaleString()} USD
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -694,10 +708,11 @@ export default function SubscriptionCheckout({
           {activeTab === 'CARD' && (
             <div className="space-y-4">
               <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400 text-xs font-medium">Card charge (billed in KES)</span>
+                <span className="text-slate-400 text-xs font-medium">Card charge ({isKe ? 'billed in KES' : 'billed in USD'})</span>
                 <span className="text-xl font-bold text-white font-mono">
-                  KES {currentPriceKes.toLocaleString()}
-                  <span className="ml-2 text-xs text-slate-500 font-sans">≈ ${currentPriceUsd.toLocaleString()}</span>
+                  {isKe
+                    ? `KES ${currentPriceKes.toLocaleString()}`
+                    : `$${currentPriceUsd.toLocaleString()} USD`}
                 </span>
               </div>
 

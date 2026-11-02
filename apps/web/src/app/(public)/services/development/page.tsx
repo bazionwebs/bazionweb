@@ -3,6 +3,7 @@ import { Globe, Check, ArrowRight, Code, Figma, Zap, Search, Smartphone, Databas
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
+import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
   title: 'Custom Next.js Web Development & Systems',
@@ -28,7 +29,10 @@ const process = [
   { step: '06', title: 'Launch & handoff',     desc: 'Production deploy, DNS cut-over, and 30-day post-launch support included.' },
 ];
 
-export default function WebDevPage() {
+export default async function WebDevPage() {
+  const { market } = await getServerMarket();
+  const isKe = market === 'KE';
+
   return (
     <>
       <JsonLd
@@ -39,10 +43,11 @@ export default function WebDevPage() {
           description: 'Custom, responsive websites and web applications engineered on modern Next.js. CMS-integrated, mobile-first, SEO-ready, and built to convert visitors into clients.',
           url: 'https://bazionweb.com/services/development',
           provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
-          areaServed: ['Kenya', 'Worldwide'],
+          areaServed: isKe ? 'Kenya' : 'Worldwide',
           offers: [
-            { '@type': 'Offer', name: 'Launch Website (Kenya)', price: '25000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
-            { '@type': 'Offer', name: 'Launch Website (International)', price: '495', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+            isKe
+              ? { '@type': 'Offer', name: 'Launch Website', price: '25000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' }
+              : { '@type': 'Offer', name: 'Launch Website', price: '450', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
           ],
         }}
       />
@@ -115,7 +120,7 @@ export default function WebDevPage() {
           <div className="card p-8 flex flex-col md:flex-row gap-6 items-start">
             <div className="flex-1">
               <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Starting from</div>
-              <div className="text-4xl font-black text-[#0F172A] mb-1">KSh 25,000 <span className="text-lg font-semibold text-slate-400">/ $450</span></div>
+              <div className="text-4xl font-black text-[#0F172A] mb-1">{isKe ? 'KSh 25,000' : '$450'}</div>
               <div className="text-slate-500 text-sm">Launch Website package · Custom & Business builds quoted transparently</div>
               <ul className="mt-4 space-y-1.5">
                 {['Fixed-price contract', 'Staging deploy for review', 'Full source code ownership', '30-day post-launch support'].map(f => (

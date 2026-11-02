@@ -32,6 +32,61 @@ export interface MarketDefinition {
   }>;
 }
 
+export interface CountryOption {
+  code: string;
+  name: string;
+  flag: string;
+  description: string;
+}
+
+/**
+ * Regional country options strictly partitioned by commercial market.
+ * Only options mapped to the customer's auto-identified market are rendered in the proposal modal.
+ */
+export const REGIONAL_COUNTRY_OPTIONS: Record<MarketCode, CountryOption[]> = {
+  KE: [
+    { code: 'KE', name: 'Kenya', flag: '🇰🇪', description: 'KES · M-Pesa & Paystack' },
+    { code: 'UG', name: 'Uganda', flag: '🇺🇬', description: 'East Africa Region · KES' },
+    { code: 'TZ', name: 'Tanzania', flag: '🇹🇿', description: 'East Africa Region · KES' },
+    { code: 'RW', name: 'Rwanda', flag: '🇷🇼', description: 'East Africa Region · KES' },
+    { code: 'BI', name: 'Burundi', flag: '🇧🇮', description: 'East Africa Region · KES' },
+    { code: 'SS', name: 'South Sudan', flag: '🇸🇸', description: 'East Africa Region · KES' },
+    { code: 'ET', name: 'Ethiopia', flag: '🇪🇹', description: 'East Africa Region · KES' },
+  ],
+  GLOBAL: [
+    { code: 'US', name: 'United States & Global', flag: '🇺🇸', description: 'USD · Card & Wire' },
+    { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', description: 'USD · International' },
+    { code: 'CA', name: 'Canada', flag: '🇨🇦', description: 'USD · Global Rails' },
+    { code: 'AU', name: 'Australia', flag: '🇦🇺', description: 'USD · Global Rails' },
+    { code: 'DE', name: 'Germany / Europe', flag: '🇩🇪', description: 'USD · International' },
+    { code: 'OTHER', name: 'Other International', flag: '🌍', description: 'USD · Global SLA' },
+  ],
+  EA: [
+    { code: 'UG', name: 'Uganda', flag: '🇺🇬', description: 'East Africa Region · KES' },
+    { code: 'TZ', name: 'Tanzania', flag: '🇹🇿', description: 'East Africa Region · KES' },
+    { code: 'RW', name: 'Rwanda', flag: '🇷🇼', description: 'East Africa Region · KES' },
+    { code: 'BI', name: 'Burundi', flag: '🇧🇮', description: 'East Africa Region · KES' },
+    { code: 'SS', name: 'South Sudan', flag: '🇸🇸', description: 'East Africa Region · KES' },
+    { code: 'ET', name: 'Ethiopia', flag: '🇪🇹', description: 'East Africa Region · KES' },
+    { code: 'KE', name: 'Kenya', flag: '🇰🇪', description: 'KES · M-Pesa & Paystack' },
+  ],
+  AFRICA: [
+    { code: 'NG', name: 'Nigeria', flag: '🇳🇬', description: 'USD · West Africa' },
+    { code: 'GH', name: 'Ghana', flag: '🇬🇭', description: 'USD · West Africa' },
+    { code: 'ZA', name: 'South Africa', flag: '🇿🇦', description: 'USD · Southern Africa' },
+    { code: 'OTHER', name: 'Other African Country', flag: '🌍', description: 'USD · Global SLA' },
+  ],
+  US: [
+    { code: 'US', name: 'United States', flag: '🇺🇸', description: 'USD · Domestic Rails' },
+  ],
+  UK: [
+    { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', description: 'GBP · Domestic Rails' },
+  ],
+  EU: [
+    { code: 'DE', name: 'Germany / Europe', flag: '🇩🇪', description: 'EUR · SEPA' },
+  ],
+};
+
 export const BAZION_MARKET_COOKIE = 'bazion_market';
 export const LEGACY_MARKET_COOKIE = 'bw-market';
 export const BAZION_MARKET_HEADER = 'x-bazion-market';
@@ -51,7 +106,7 @@ export const MARKETS: Record<MarketCode, MarketDefinition> = {
     activePriceBookId: 'KE-2026-v1',
     active: true,
     defaultLocale: 'en-KE',
-    countryCodes: ['KE'],
+    countryCodes: ['KE', 'UG', 'TZ', 'RW', 'BI', 'SS', 'ET'],
     commercialTermsTitle: 'Kenya Commercial Terms & SME SLAs',
     supportScope: 'East Africa Time (EAT) priority support with direct WhatsApp & phone dispatch',
     paymentRailDescription: 'M-Pesa STK Push (Daraja) & local Visa/Mastercard via Paystack',
@@ -209,6 +264,26 @@ export function mapCountryToMarket(countryCode: string | null | undefined): Mark
   return 'GLOBAL';
 }
 
+/**
+ * Retrieves the scoped list of selectable country options for a given market.
+ * Falls back deterministically to GLOBAL options if the market is invalid or unrecognized.
+ */
+export function getRegionalCountryOptions(market?: MarketCode | string | null): CountryOption[] {
+  if (!market) return REGIONAL_COUNTRY_OPTIONS.GLOBAL;
+  const canonical = normalizeMarketCode(market);
+  return REGIONAL_COUNTRY_OPTIONS[canonical] || REGIONAL_COUNTRY_OPTIONS.GLOBAL;
+}
+
+/**
+ * Validates whether a given ISO country code belongs to the allowed regional options for the market.
+ */
+export function isCountryInMarket(countryCode: string | null | undefined, market: MarketCode): boolean {
+  if (!countryCode) return false;
+  const cleanCode = countryCode.trim().toUpperCase();
+  const options = getRegionalCountryOptions(market);
+  return options.some(opt => opt.code === cleanCode);
+}
+
 export interface MarketResolutionInput {
   ipCountry?: string | null;
   marketCookie?: string | null;
@@ -227,7 +302,7 @@ export interface MarketResolutionResult {
 }
 
 /**
- * 4-Level Market Determination Algorithm:
+ * Authoritative Market Determination Algorithm (Strict Regional Policy):
  *
  * Request
  *   │
@@ -235,60 +310,44 @@ export interface MarketResolutionResult {
  * 0. Existing Account Market? ───► YES ──► Level 0: Account Market (authoritative)
  *   │ NO
  *   ▼
- * 4. In Quotation / Billing Flow with Confirmed Billing Country?
- *   │ YES ──► Level 4: Billing Country (authoritative)
- *   │ NO
- *   ▼
- * 3. Explicit User-Selected Market? (from modal/footer override)
- *   │ YES ──► Level 3: User Choice (saved to cookie)
+ * 1. IP Geolocation (cf-ipcountry / vercel geo / edge headers)?
+ *   │ YES ──► Level 1: Edge Geo-IP (authoritative)
  *   │ NO
  *   ▼
  * 2. Market Cookie (bazion_market / bw-market)?
- *   │ YES ──► Level 2: Cookie Market (stable visitor session)
+ *   │ YES ──► Level 2: Stored Cookie
  *   │ NO
  *   ▼
- * 1. IP Geolocation (cf-ipcountry / vercel geo / headers)
- *   │
+ * 4. Billing Country (fallback for local API/testing when no edge/cookie signals)?
+ *   │ YES ──► Level 4: Billing Country
+ *   │ NO
  *   ▼
- * Default: Kenya if KE/East Africa, else GLOBAL
+ * Default: GLOBAL (Deterministic International fallback)
  */
 export function resolveMarket(input: MarketResolutionInput): MarketResolutionResult {
   // Level 0: Account preference
   if (input.accountMarket) {
     const code = normalizeMarketCode(input.accountMarket);
     return {
-      market: MARKETS[code],
+      market: MARKETS[code] || MARKETS.GLOBAL,
       code,
       level: 'LEVEL_0_ACCOUNT',
       authoritative: true,
-      currency: MARKETS[code].currency,
-      priceBookId: MARKETS[code].activePriceBookId,
+      currency: (MARKETS[code] || MARKETS.GLOBAL).currency,
+      priceBookId: (MARKETS[code] || MARKETS.GLOBAL).activePriceBookId,
     };
   }
 
-  // Level 4: Confirmed Billing Country (authoritative commercial stage)
-  if (input.billingCountry) {
-    const code = mapCountryToMarket(input.billingCountry);
+  // Level 1: Edge IP Geolocation Headers (Authoritative)
+  if (input.ipCountry) {
+    const code = mapCountryToMarket(input.ipCountry);
     return {
-      market: MARKETS[code],
+      market: MARKETS[code] || MARKETS.GLOBAL,
       code,
-      level: 'LEVEL_4_BILLING_COUNTRY',
+      level: 'LEVEL_1_GEO_IP',
       authoritative: true,
-      currency: MARKETS[code].currency,
-      priceBookId: MARKETS[code].activePriceBookId,
-    };
-  }
-
-  // Level 3: User-selected market override
-  if (input.userSelection) {
-    const code = normalizeMarketCode(input.userSelection);
-    return {
-      market: MARKETS[code],
-      code,
-      level: 'LEVEL_3_USER_CHOICE',
-      authoritative: false,
-      currency: MARKETS[code].currency,
-      priceBookId: MARKETS[code].activePriceBookId,
+      currency: (MARKETS[code] || MARKETS.GLOBAL).currency,
+      priceBookId: (MARKETS[code] || MARKETS.GLOBAL).activePriceBookId,
     };
   }
 
@@ -296,25 +355,25 @@ export function resolveMarket(input: MarketResolutionInput): MarketResolutionRes
   if (input.marketCookie) {
     const code = normalizeMarketCode(input.marketCookie);
     return {
-      market: MARKETS[code],
+      market: MARKETS[code] || MARKETS.GLOBAL,
       code,
       level: 'LEVEL_2_COOKIE',
       authoritative: false,
-      currency: MARKETS[code].currency,
-      priceBookId: MARKETS[code].activePriceBookId,
+      currency: (MARKETS[code] || MARKETS.GLOBAL).currency,
+      priceBookId: (MARKETS[code] || MARKETS.GLOBAL).activePriceBookId,
     };
   }
 
-  // Level 1: IP Geolocation
-  if (input.ipCountry) {
-    const code = mapCountryToMarket(input.ipCountry);
+  // Level 4: Billing Country (fallback when no edge headers or cookies are available)
+  if (input.billingCountry) {
+    const code = mapCountryToMarket(input.billingCountry);
     return {
-      market: MARKETS[code],
+      market: MARKETS[code] || MARKETS.GLOBAL,
       code,
-      level: 'LEVEL_1_GEO_IP',
+      level: 'LEVEL_4_BILLING_COUNTRY',
       authoritative: false,
-      currency: MARKETS[code].currency,
-      priceBookId: MARKETS[code].activePriceBookId,
+      currency: (MARKETS[code] || MARKETS.GLOBAL).currency,
+      priceBookId: (MARKETS[code] || MARKETS.GLOBAL).activePriceBookId,
     };
   }
 

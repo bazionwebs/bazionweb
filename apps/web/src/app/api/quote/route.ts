@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveMarket } from '@/lib/marketEngine';
+import {
+  resolveMarket,
+  isCountryInMarket,
+  getRegionalCountryOptions,
+  mapCountryToMarket,
+} from '@/lib/marketEngine';
 import { getPriceBookForMarket, formatCurrency } from '@/lib/priceBooks';
 import { ADD_ON_RATE_CARD } from '@/lib/pricingData';
 import { resolveApiV1Base } from '@/lib/api-base';
@@ -32,14 +37,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid add-on selection.' }, { status: 400 });
     }
 
-    const countryCode = typeof billingCountry === 'string' ? billingCountry.trim().toUpperCase() : '';
-    const resolution = resolveMarket({
-      billingCountry: countryCode || null,
-      ipCountry: request.headers.get('cf-ipcountry') || request.headers.get('x-vercel-ip-country'),
-      marketCookie: request.cookies.get('bazion_market')?.value,
-    });
+    const rawCountry = typeof billingCountry === 'string' ? billingCountry.trim().toUpperCase() : '';
 
-    const marketCode = resolution.code;
+    const edgeCountry =
+      request.headers.get('cf-ipcountry') ||
+      request.headers.get('x-vercel-ip-country') ||
+      request.headers.get('cloudfront-viewer-country') ||
+      request.headers.get('x-country-code');
+    const cookieMarket = request.cookies.get('bazion_market')?.value;
+
+    const hasEnvironmentSignals = Boolean(edgeCountry || cookieMarket);
+
+    const detectionResolution = resolveMarket({
+      ipCountry: edgeCountry,
+      marketCookie: cookieMarket,
+    });
+    const detectedMarket = detectionResolution.code;
+
+    if (hasEnvironmentSignals && rawCountry && !isCountryInMarket(rawCountry, detectedMarket)) {
+      return NextResponse.json(
+        {
+          error: `Billing country '${rawCountry}' does not match the auto-identified regional market '${detectedMarket}'. Proposals must strictly conform to your regional market.`,
+          code: 'REGIONAL_MARKET_MISMATCH',
+          detectedMarket,
+          allowedCountries: getRegionalCountryOptions(detectedMarket).map(c => c.code),
+        },
+        { status: 400 }
+      );
+    }
+
+    const marketCode = hasEnvironmentSignals
+      ? detectedMarket
+      : (rawCountry ? mapCountryToMarket(rawCountry) : detectedMarket);
+
+    const countryCode = rawCountry || getRegionalCountryOptions(marketCode)[0].code;
 
     // ─── 1. Attempt Centralized Database SSOT Query via Backend API ───────────
     try {

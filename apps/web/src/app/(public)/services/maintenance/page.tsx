@@ -3,6 +3,7 @@ import { Wrench, Check, ArrowRight, RefreshCw, FileText, AlertCircle, Edit3, Act
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
+import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
   title: 'Website Care & Monthly Maintenance Plans',
@@ -30,7 +31,10 @@ const whatsNotMinor = [
   'Third-party integration', 'Full rebrand',
 ];
 
-export default function MaintenancePage() {
+export default async function MaintenancePage() {
+  const { market } = await getServerMarket();
+  const isKe = market === 'KE';
+
   return (
     <>
       <JsonLd
@@ -41,10 +45,11 @@ export default function MaintenancePage() {
           description: 'Monthly CMS updates, security patches, health checks, content updates, and transparent monthly reporting. One team, one invoice.',
           url: 'https://bazionweb.com/services/maintenance',
           provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
-          areaServed: ['Kenya', 'Worldwide'],
+          areaServed: isKe ? 'Kenya' : 'Worldwide',
           offers: [
-            { '@type': 'Offer', name: 'Starter Care Plan (Kenya)', price: '5000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
-            { '@type': 'Offer', name: 'Starter Care Plan (International)', price: '49', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+            isKe
+              ? { '@type': 'Offer', name: 'Starter Care Plan', price: '5000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' }
+              : { '@type': 'Offer', name: 'Starter Care Plan', price: '75', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
           ],
         }}
       />
@@ -121,7 +126,11 @@ export default function MaintenancePage() {
             <div className="flex flex-col md:flex-row md:items-center gap-6 justify-between">
               <div>
                 <h3 className="font-bold text-[#0F172A] text-lg mb-1">Maintenance is included in all Cloud Care plans</h3>
-                <p className="text-sm text-slate-500">From KSh 5,000/mo ($75/mo). No setup fees. Monthly or discounted annual billing.</p>
+                <p className="text-sm text-slate-500">
+                  {isKe
+                    ? 'From KSh 5,000/mo. No setup fees. Monthly or discounted annual billing.'
+                    : 'From $75/mo. No setup fees. Monthly or discounted annual billing.'}
+                </p>
               </div>
               <div className="flex gap-3 shrink-0">
                 <Link href="/pricing" className="btn-primary px-6">See plans <ArrowRight className="w-4 h-4" /></Link>

@@ -8,7 +8,7 @@ import {
   ADD_ON_RATE_CARD,
 } from '@/lib/pricingData';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
-import { mapCountryToMarket } from '@/lib/marketEngine';
+import { getRegionalCountryOptions } from '@/lib/marketEngine';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import {
   Check,
@@ -90,7 +90,10 @@ function QuoteCalculatorContent() {
   const [gEmail, setGEmail] = useState('');
   const [gCompany, setGCompany] = useState('');
   const quoteSubmissionRef = useRef(false);
-  const [gCountry, setGCountry] = useState(marketCode === 'KE' ? 'KE' : 'US');
+  const initialCountryOptions = getRegionalCountryOptions(marketCode);
+  const [gCountry, setGCountry] = useState(
+    initialCountryOptions[0]?.code || (marketCode === 'KE' ? 'KE' : 'US')
+  );
   const [gLoading, setGLoading] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
   const [submittedQuote, setSubmittedQuote] = useState<{
@@ -122,10 +125,14 @@ function QuoteCalculatorContent() {
   const [stk, setStk] = useState<{ trackingId: string; message: string } | null>(null);
   const [payState, setPayState] = useState<'waiting' | 'paid' | 'failed'>('waiting');
 
-  // Sync config when market changes
+  // Sync config when market changes & clamp country to allowed regional options
   useEffect(() => {
     setConfig(prev => ({ ...prev, market }));
-    setGCountry(marketCode === 'KE' ? 'KE' : 'US');
+    const scopedOptions = getRegionalCountryOptions(marketCode);
+    setGCountry(current => {
+      const isValid = scopedOptions.some(opt => opt.code === current);
+      return isValid ? current : (scopedOptions[0]?.code || (marketCode === 'KE' ? 'KE' : 'US'));
+    });
   }, [market, marketCode]);
 
   useEffect(() => {
@@ -546,7 +553,7 @@ function QuoteCalculatorContent() {
                           </button>
                           {!isKes && deposit && (
                             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                              💳 International cards (Visa/Mastercard) accepted. Billed via Paystack at official KES rate (~KSh {Math.round(deposit.amount * 129.5).toLocaleString()}).
+                              💳 International cards (Visa/Mastercard) accepted. Secure checkout powered by Paystack.
                             </p>
                           )}
                         </div>
@@ -1222,25 +1229,15 @@ Please confirm availability and discuss next steps.`;
                     id="gs-country"
                     value={gCountry}
                     onChange={e => {
-                      const countryCode = e.target.value;
-                      setGCountry(countryCode);
-                      setConfig(prev => ({
-                        ...prev,
-                        market: mapCountryToMarket(countryCode) === 'KE' ? 'kenya' : 'international',
-                      }));
+                      setGCountry(e.target.value);
                     }}
                     className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 bg-white focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-100 transition-all font-medium cursor-pointer"
                   >
-                    <option value="KE">🇰🇪 Kenya (KES · M-Pesa &amp; Paystack)</option>
-                    <option value="UG">🇺🇬 Uganda (East Africa Region · KES/USD)</option>
-                    <option value="TZ">🇹🇿 Tanzania (East Africa Region · KES/USD)</option>
-                    <option value="RW">🇷🇼 Rwanda (East Africa Region · KES/USD)</option>
-                    <option value="US">🇺🇸 United States &amp; Global (USD · Card &amp; Wire)</option>
-                    <option value="GB">🇬🇧 United Kingdom (USD · International)</option>
-                    <option value="CA">🇨🇦 Canada (USD · Global Rails)</option>
-                    <option value="AU">🇦🇺 Australia (USD · Global Rails)</option>
-                    <option value="DE">🇩🇪 Germany / Europe (USD · International)</option>
-                    <option value="OTHER">🌍 Other International (USD · Global SLA)</option>
+                    {getRegionalCountryOptions(marketCode).map(option => (
+                      <option key={option.code} value={option.code}>
+                        {option.flag} {option.name} ({option.description})
+                      </option>
+                    ))}
                   </select>
                 </div>
 

@@ -4,6 +4,7 @@ import JsonLd from '@/components/seo/JsonLd';
 import HomepagePricingPreview from '@/components/pricing/HomepagePricingPreview';
 import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
 import { SITE_CONTACT } from '@/lib/contact';
+import { getServerMarket } from '@/lib/geoDetection';
 import {
   Globe,
   ShoppingCart,
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
 };
 
 // ─── Service Families ────────────────────────────────────────────────────────
-const serviceFamilies = [
+const getServiceFamilies = (isKe: boolean) => [
   {
     num: '01',
     name: 'Websites',
@@ -43,7 +44,9 @@ const serviceFamilies = [
     href: '/services#websites',
     icon: Globe,
     accent: 'bg-blue-50 text-blue-600 border-blue-200/60',
-    tags: ['Launch (KSh 25k)', 'Business (KSh 90k)', 'Pro (KSh 160k)', 'Corporate'],
+    tags: isKe
+      ? ['Launch (KSh 25k)', 'Business (KSh 90k)', 'Pro (KSh 160k)', 'Corporate']
+      : ['Launch ($450)', 'Business ($950)', 'Pro ($1,750)', 'Corporate'],
   },
   {
     num: '02',
@@ -227,7 +230,11 @@ const caseStudies = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const { market } = await getServerMarket();
+  const isKe = market === 'KE';
+  const serviceFamilies = getServiceFamilies(isKe);
+
   return (
     <>
       <JsonLd

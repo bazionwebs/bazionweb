@@ -2,41 +2,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   MARKETS,
   MarketCode,
-  normalizeMarketCode,
-  resolveMarket,
   BAZION_MARKET_COOKIE,
   LEGACY_MARKET_COOKIE,
   BAZION_MARKET_HEADER,
   BAZION_PRICEBOOK_HEADER,
+  normalizeMarketCode,
 } from '@/lib/marketEngine';
+import { resolveMarketFromHeaders } from '@/lib/geoDetection';
 
 export async function GET(request: NextRequest) {
-  // Edge middleware was removed for Vercel services compatibility (services
-  // do not support Edge Function outputs). Resolve here with the same priority:
-  // explicit ?market/?currency override → canonical/legacy cookie → IP geolocation → GLOBAL.
-  const params = request.nextUrl.searchParams;
-  const qMarket = params.get('market')?.toLowerCase();
-  const qCurrency = params.get('currency')?.toLowerCase();
-  let userSelection: string | null = null;
-  if (qCurrency === 'kes' || qMarket === 'kenya' || qMarket === 'ke') {
-    userSelection = 'KE';
-  } else if (qCurrency === 'usd' || qMarket === 'international' || qMarket === 'intl' || qMarket === 'global') {
-    userSelection = 'GLOBAL';
+  // 1. Authoritative Edge / Reverse Proxy Geo-Headers
+  let resolvedCode: MarketCode | null = resolveMarketFromHeaders(request.headers);
+
+  // 2. Authoritative Cookie check
+  if (!resolvedCode) {
+    const cookieVal =
+      request.cookies.get(BAZION_MARKET_COOKIE)?.value ??
+      request.cookies.get(LEGACY_MARKET_COOKIE)?.value;
+
+    if (cookieVal) {
+      resolvedCode = normalizeMarketCode(cookieVal);
+    }
   }
 
-  const geoCountry =
-    request.headers.get('cf-ipcountry') || request.headers.get('x-vercel-ip-country') || '';
-  const resolution = resolveMarket({
-    userSelection,
-    marketCookie:
-      request.cookies.get(BAZION_MARKET_COOKIE)?.value ??
-      request.cookies.get(LEGACY_MARKET_COOKIE)?.value,
-    ipCountry: geoCountry || null,
-  });
+  // 3. Deterministic Default Fallback
+  if (!resolvedCode) {
+    resolvedCode = 'GLOBAL';
+  }
 
-  const market = MARKETS[resolution.code] || MARKETS.GLOBAL;
+  const market = MARKETS[resolvedCode] || MARKETS.GLOBAL;
+  const legacyVal = market.code === 'KE' ? 'kenya' : 'international';
+  const maxAge = 60 * 60 * 24 * 365; // 1 year
 
-  return NextResponse.json({
+  const response = NextResponse.json({
+    market: market.code,
     marketCode: market.code,
     name: market.name,
     shortName: market.shortName,
@@ -48,50 +47,38 @@ export async function GET(request: NextRequest) {
     commercialTermsTitle: market.commercialTermsTitle,
     supportScope: market.supportScope,
     paymentMethods: market.paymentMethods,
+    isLocked: true,
   });
+
+  // Set persistent cookies so client and subsequent server requests agree
+  response.cookies.set(BAZION_MARKET_COOKIE, market.code, {
+    path: '/',
+    maxAge,
+    sameSite: 'lax',
+    httpOnly: false,
+  });
+
+  response.cookies.set(LEGACY_MARKET_COOKIE, legacyVal, {
+    path: '/',
+    maxAge,
+    sameSite: 'lax',
+    httpOnly: false,
+  });
+
+  response.headers.set(BAZION_MARKET_HEADER, market.code);
+  response.headers.set(BAZION_PRICEBOOK_HEADER, market.activePriceBookId);
+
+  return response;
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const targetCode: MarketCode = normalizeMarketCode(body?.marketCode);
-    const market = MARKETS[targetCode] || MARKETS.GLOBAL;
-
-    const legacyVal = targetCode === 'KE' ? 'kenya' : 'international';
-    const maxAge = 60 * 60 * 24 * 365; // 1 year
-
-    const response = NextResponse.json({
-      success: true,
-      marketCode: market.code,
-      currency: market.currency,
-      priceBookId: market.activePriceBookId,
-      message: `Commercial market switched to ${market.name}`,
-    });
-
-    // Set canonical market cookie
-    response.cookies.set(BAZION_MARKET_COOKIE, market.code, {
-      path: '/',
-      maxAge,
-      sameSite: 'lax',
-      httpOnly: false,
-    });
-
-    // Set legacy cookie
-    response.cookies.set(LEGACY_MARKET_COOKIE, legacyVal, {
-      path: '/',
-      maxAge,
-      sameSite: 'lax',
-      httpOnly: false,
-    });
-
-    response.headers.set(BAZION_MARKET_HEADER, market.code);
-    response.headers.set(BAZION_PRICEBOOK_HEADER, market.activePriceBookId);
-
-    return response;
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid market configuration request' },
-      { status: 400 }
-    );
-  }
+export async function POST(_request: NextRequest) {
+  void _request;
+  // Strictly reject public manual switching per Requirement R2.2
+  return NextResponse.json(
+    {
+      error: 'Manual market switching is disabled. BazionWeb automatically detects and locks regional markets.',
+      isLocked: true,
+    },
+    { status: 403 }
+  );
 }

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Wrench, Server, Puzzle, Info } from 'lucide-react';
 import { useCartStore, cartTotal, type CartItem } from '@/lib/cart';
 import { usePlans } from '@/lib/plans';
+import { useMarketPreference } from '@/hooks/useMarketPreference';
 
 const kindIcon = (item: CartItem) =>
   item.kind === 'PLAN' ? Wrench : item.cycle === 'one-time' ? Puzzle : Server;
@@ -22,12 +23,13 @@ export default function CartView() {
   const clear = useCartStore((s) => s.clear);
 
   const { plans } = usePlans();
+  const { marketCode } = useMarketPreference();
 
   const plan = items.find((i) => i.kind === 'PLAN');
   const extras = items.filter((i) => i.kind !== 'PLAN');
   const total = cartTotal(items);
 
-  const isKes = (extras[0]?.currency ?? 'KES') === 'KES';
+  const isKes = (extras[0]?.currency ?? (marketCode === 'KE' ? 'KES' : 'USD')) === 'KES';
 
   const handleAddEssentialPlan = () => {
     const target = plans.find((p) => p.slug === 'care-essential' || p.slug === 'starter');

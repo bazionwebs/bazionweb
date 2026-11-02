@@ -7,7 +7,7 @@ export interface ServiceFamily {
   whoItsFor: Array<{
     title: string;
     profile: string;
-    fit: string;
+    fit: string | { KE: string; GLOBAL: string };
   }>;
   packages: Array<{
     id: string;
@@ -36,7 +36,7 @@ export interface ServiceFamily {
   outOfScope: string[];
   faqs: Array<{
     question: string;
-    answer: string;
+    answer: string | { KE: string; GLOBAL: string };
   }>;
 }
 
@@ -52,12 +52,18 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Startups & Sole Practitioners',
         profile: 'Launching a brand-new digital footprint',
-        fit: 'Launch Package (Up to 5 pages, 5–10 days turnaround, KSh 25,000 / $450).',
+        fit: {
+          KE: 'Launch Package (Up to 5 pages, 5–10 days turnaround, KSh 25,000).',
+          GLOBAL: 'Launch Package (Up to 5 pages, 5–10 days turnaround, $450).',
+        },
       },
       {
         title: 'Growing SMEs & Organizations',
         profile: 'Established businesses needing CMS and lead funnels',
-        fit: 'Business Package (Up to 10 pages, CMS, blog engine, KSh 90,000 / $950).',
+        fit: {
+          KE: 'Business Package (Up to 10 pages, CMS, blog engine, KSh 90,000).',
+          GLOBAL: 'Business Package (Up to 10 pages, CMS, blog engine, $950).',
+        },
       },
       {
         title: 'Corporations & Institutions',
@@ -239,17 +245,26 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Boutiques & Specialty Retailers',
         profile: 'Selling up to 30 curated products online',
-        fit: 'E-Commerce Starter (M-Pesa STK, Card checkout, KSh 90,000 / $890).',
+        fit: {
+          KE: 'E-Commerce Starter (M-Pesa STK, Card checkout, KSh 90,000).',
+          GLOBAL: 'E-Commerce Starter (M-Pesa STK, Card checkout, $890).',
+        },
       },
       {
         title: 'Established Multi-Product Stores',
         profile: 'Brands requiring inventory management and discount coupons',
-        fit: 'E-Commerce Business (100+ products, stock alerts, KSh 175,000 / $1,650).',
+        fit: {
+          KE: 'E-Commerce Business (100+ products, stock alerts, KSh 175,000).',
+          GLOBAL: 'E-Commerce Business (100+ products, stock alerts, $1,650).',
+        },
       },
       {
         title: 'High-Volume & Wholesale Retailers',
         profile: 'B2B commerce, ERP integrations, and subscription billing',
-        fit: 'E-Commerce Professional (From KSh 320,000 / $3,600+).',
+        fit: {
+          KE: 'E-Commerce Professional (From KSh 320,000).',
+          GLOBAL: 'E-Commerce Professional (From $3,600).',
+        },
       },
     ],
     packages: [
@@ -393,17 +408,26 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Service & Professional Firms',
         profile: 'Requiring customer accounts and document exchange',
-        fit: 'Client & Partner Portals (From KSh 180,000 / $2,200).',
+        fit: {
+          KE: 'Client & Partner Portals (From KSh 180,000).',
+          GLOBAL: 'Client & Partner Portals (From $2,200).',
+        },
       },
       {
         title: 'Churches & Ministry Networks',
         profile: 'Automating tithe tracking, member registries and SMS broadcasts',
-        fit: 'Church Management Systems (ChMS) (From KSh 200,000 / $3,900).',
+        fit: {
+          KE: 'Church Management Systems (ChMS) (From KSh 200,000).',
+          GLOBAL: 'Church Management Systems (ChMS) (From $3,900).',
+        },
       },
       {
         title: 'Schools & Educational Academies',
         profile: 'Managing student admissions, fee ledgers, and grading',
-        fit: 'School Information Systems (SIS/UMS) (From KSh 250,000 / $4,900).',
+        fit: {
+          KE: 'School Information Systems (SIS/UMS) (From KSh 250,000).',
+          GLOBAL: 'School Information Systems (SIS/UMS) (From $4,900).',
+        },
       },
     ],
     packages: [
@@ -554,19 +578,28 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
     badge: 'Family 04 — Managed Technology',
     whoItsFor: [
       {
-        title: 'Website Owners Needing Reliability',
-        profile: 'Businesses wanting fast SSD hosting with free SSL and backups',
-        fit: 'Host Essential & Business Plans (KSh 4,500 – 8,500/year).',
+        title: 'Single Website Owners',
+        profile: 'Businesses wanting fast, secure hosting without cloud management headaches',
+        fit: {
+          KE: 'Host Essential & Business Plans (KSh 4,500 – 8,500/year).',
+          GLOBAL: 'Host Essential & Business Plans ($49 – $99/year).',
+        },
       },
       {
-        title: 'Active SMEs & Commercial Sites',
-        profile: 'Requiring weekly updates, security scans, and dedicated support hours',
-        fit: 'Care Business Plan (KSh 10,000/month | $150/month).',
+        title: 'Active Commercial Websites',
+        profile: 'Companies needing continuous updates, offsite backups, and uptime guarantees',
+        fit: {
+          KE: 'Care Business Plan (KSh 10,000/month).',
+          GLOBAL: 'Care Business Plan ($150/month).',
+        },
       },
       {
-        title: 'Mission-Critical & E-Commerce Platforms',
-        profile: 'Requiring guaranteed 15-minute P1 emergency response and cloud containers',
-        fit: 'Care Professional & Enterprise (From KSh 20,000/month).',
+        title: 'Mission-Critical & E-Commerce Web Apps',
+        profile: 'High-traffic systems requiring 15-minute emergency SLAs and WAF defense',
+        fit: {
+          KE: 'Care Professional & Enterprise (From KSh 20,000/month).',
+          GLOBAL: 'Care Professional & Enterprise (From $300/month).',
+        },
       },
     ],
     packages: [
@@ -705,8 +738,10 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
     faqs: [
       {
         question: 'Do I have to subscribe to a monthly Care plan after launch?',
-        answer:
-          'No. We believe in client ownership. You are free to host or maintain your website independently, or engage BazionWeb on-demand at KSh 3,500/hour.',
+        answer: {
+          KE: 'No. We believe in client ownership. You are free to host or maintain your website independently, or engage BazionWeb on-demand at KSh 3,500/hour.',
+          GLOBAL: 'No. We believe in client ownership. You are free to host or maintain your website independently, or engage BazionWeb on-demand at $50/hour.',
+        },
       },
       {
         question: 'What happens if our website goes down?',
@@ -727,17 +762,26 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
       {
         title: 'Organizations Stuck on Bad Hosting',
         profile: 'Suffering from constant downtime and slow cPanel servers',
-        fit: 'Zero-Downtime Website Migration (From KSh 5,000 / $80).',
+        fit: {
+          KE: 'Zero-Downtime Website Migration (From KSh 5,000).',
+          GLOBAL: 'Zero-Downtime Website Migration (From $80).',
+        },
       },
       {
         title: 'Companies with Security Concerns',
         profile: 'Need compliance penetration testing and malware cleanup',
-        fit: 'Security Audit & Hardening (From KSh 15,000 / $300).',
+        fit: {
+          KE: 'Security Audit & Hardening (From KSh 15,000).',
+          GLOBAL: 'Security Audit & Hardening (From $300).',
+        },
       },
       {
         title: 'Sites Failing Google Core Web Vitals',
         profile: 'Losing SEO rankings due to slow load times and layout shift',
-        fit: 'Core Web Vitals Speed Pass (From KSh 15,000 / $300).',
+        fit: {
+          KE: 'Core Web Vitals Speed Pass (From KSh 15,000).',
+          GLOBAL: 'Core Web Vitals Speed Pass (From $300).',
+        },
       },
     ],
     packages: [

@@ -10,6 +10,7 @@ import {
   MANAGED_HOSTING_PLANS,
 } from '@/lib/pricingData';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import { MarketCode } from '@/lib/marketEngine';
 import AddonPriceCard from '@/components/pricing/AddonPriceCard';
 import PricingPrinciplesSection from '@/components/pricing/PricingPrinciplesSection';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
@@ -26,8 +27,12 @@ import {
 
 type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'hosting' | 'addons';
 
-export default function PricingView() {
-  const { market, marketCode, marketDef } = useMarketPreference();
+export interface PricingViewProps {
+  initialMarket?: MarketCode;
+}
+
+export default function PricingView({ initialMarket }: PricingViewProps = {}) {
+  const { market, marketCode, marketDef } = useMarketPreference(initialMarket);
   const [activeTab, setActiveTab] = useState<TabKey>('websites');
 
   return (
@@ -555,7 +560,7 @@ export default function PricingView() {
               },
               {
                 q: 'What are the standard payment terms?',
-                a: 'For standard projects under KSh 100,000 / $5,000, we require a 50% deposit before commencement and 50% upon final acceptance before production launch. For larger enterprise systems, payments follow transparent milestones: 40% deposit → 30% design sign-off → 20% staging test approval → 10% launch.',
+                a: `For standard projects under ${marketCode === 'KE' ? 'KSh 100,000' : '$5,000'}, we require a 50% deposit before commencement and 50% upon final acceptance before production launch. For larger enterprise systems, payments follow transparent milestones: 40% deposit → 30% design sign-off → 20% staging test approval → 10% launch.`,
               },
               {
                 q: 'What is included in the free post-launch support period?',

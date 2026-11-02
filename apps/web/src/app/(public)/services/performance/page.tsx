@@ -3,6 +3,7 @@ import { Zap, ArrowRight, TrendingUp, Image, Database, Globe, BarChart2, Server 
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
+import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
   title: 'Website Performance & Core Web Vitals Optimization',
@@ -28,7 +29,10 @@ const targets = [
   { metric: 'Total Blocking Time', target: '< 300ms', unit: '' },
 ];
 
-export default function PerformancePage() {
+export default async function PerformancePage() {
+  const { market } = await getServerMarket();
+  const isKe = market === 'KE';
+
   return (
     <>
       <JsonLd
@@ -39,10 +43,11 @@ export default function PerformancePage() {
           description: 'Core Web Vitals tuning, Lighthouse 95+ targets, image compression, CDN caching, and database query optimization for faster Google rankings.',
           url: 'https://bazionweb.com/services/performance',
           provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
-          areaServed: ['Kenya', 'Worldwide'],
+          areaServed: isKe ? 'Kenya' : 'Worldwide',
           offers: [
-            { '@type': 'Offer', name: 'Performance Audit & Fix (Kenya)', price: '15000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
-            { '@type': 'Offer', name: 'Performance Audit & Fix (International)', price: '149', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+            isKe
+              ? { '@type': 'Offer', name: 'Performance Audit & Fix', price: '15000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' }
+              : { '@type': 'Offer', name: 'Performance Audit & Fix', price: '300', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
           ],
         }}
       />
@@ -103,8 +108,16 @@ export default function PerformancePage() {
 
       <section className="section-sm bg-[#0F172A]">
         <div className="container-default text-center max-w-xl mx-auto">
-          <h2 className="text-2xl font-bold text-white mb-3">Performance optimization from KSh 10,000/mo ($150/mo)</h2>
-          <p className="text-slate-400 mb-6 text-sm">Included in Care Business & Professional plans. Standalone Core Web Vitals speed pass from KSh 15,000 ($300).</p>
+          <h2 className="text-2xl font-bold text-white mb-3">
+            {isKe
+              ? 'Performance optimization from KSh 10,000/mo'
+              : 'Performance optimization from $150/mo'}
+          </h2>
+          <p className="text-slate-400 mb-6 text-sm">
+            {isKe
+              ? 'Included in Care Business & Professional plans. Standalone Core Web Vitals speed pass from KSh 15,000.'
+              : 'Included in Care Business & Professional plans. Standalone Core Web Vitals speed pass from $300.'}
+          </p>
           <div className="flex gap-3 justify-center">
             <Link href="/pricing" className="btn-primary px-7">See plans <ArrowRight className="w-4 h-4" /></Link>
             <Link href="/contact?service=performance" className="inline-flex items-center gap-2 px-7 py-3 rounded-xl border border-white/15 text-white font-semibold hover:bg-white/5 transition-all">Book audit</Link>

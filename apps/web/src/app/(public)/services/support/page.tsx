@@ -5,6 +5,7 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
 import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
 import { SITE_CONTACT } from '@/lib/contact';
+import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
   title: 'Technical Support & Incident Escalation Services',
@@ -28,7 +29,9 @@ const channels = [
   { icon: Clock,         title: 'SLA enforcement',    desc: 'SLA breaches auto-trigger service credits applied to your next invoice — you don\'t have to ask.' },
 ];
 
-export default function SupportPage() {
+export default async function SupportPage() {
+  const { market } = await getServerMarket();
+  const isKe = market === 'KE';
   const plans = ['Starter', 'Growth', 'Business', 'Enterprise'];
   return (
     <>
@@ -40,10 +43,11 @@ export default function SupportPage() {
           description: 'Real systems engineers, SLA-backed P1 emergency response, proactive monitoring, and direct escalation. No chatbots, no ticket black holes.',
           url: 'https://bazionweb.com/services/support',
           provider: { '@type': 'Organization', '@id': 'https://bazionweb.com/#organization', name: 'BazionWeb' },
-          areaServed: ['Kenya', 'Worldwide'],
+          areaServed: isKe ? 'Kenya' : 'Worldwide',
           offers: [
-            { '@type': 'Offer', name: 'Support – Growth Plan (Kenya)', price: '8000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' },
-            { '@type': 'Offer', name: 'Support – Growth Plan (International)', price: '79', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
+            isKe
+              ? { '@type': 'Offer', name: 'Support – Growth Plan', price: '8000', priceCurrency: 'KES', url: 'https://bazionweb.com/pricing' }
+              : { '@type': 'Offer', name: 'Support – Growth Plan', price: '79', priceCurrency: 'USD', url: 'https://bazionweb.com/pricing' },
           ],
         }}
       />
@@ -132,7 +136,11 @@ export default function SupportPage() {
       <section className="section-sm bg-[#0F172A]">
         <div className="container-default text-center max-w-xl mx-auto">
           <h2 className="text-2xl font-bold text-white mb-3">Support is included in every plan</h2>
-          <p className="text-slate-400 mb-6 text-sm">Included in Care Essential (KSh 5,000 / $75/mo) and above, or on-demand at KSh 3,500/hr ($50/hr).</p>
+          <p className="text-slate-400 mb-6 text-sm">
+            {isKe
+              ? 'Included in Care Essential (KSh 5,000/mo) and above, or on-demand at KSh 3,500/hr.'
+              : 'Included in Care Essential ($75/mo) and above, or on-demand at $50/hr.'}
+          </p>
           <div className="flex flex-wrap gap-3 justify-center">
             <Link href="/pricing" className="btn-primary px-7">View SLA by plan <ArrowRight className="w-4 h-4" /></Link>
             <Link href="/contact" className="inline-flex items-center gap-2 px-7 py-3 rounded-xl border border-white/15 text-white font-semibold hover:bg-white/5 transition-all">Submit a ticket</Link>

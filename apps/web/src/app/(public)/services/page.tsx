@@ -15,6 +15,7 @@ import {
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
+import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
   title: 'Digital Engineering Services — Websites, E-Commerce & Systems | BazionWeb',
@@ -23,14 +24,31 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://bazionweb.com/services' },
 };
 
-const productFamilies = [
+interface ProductFamily {
+  id: string;
+  icon: React.ComponentType<{ className?: string }>;
+  name: string;
+  tagline: string;
+  desc: string;
+  startingPrice: { KE: string; GLOBAL: string; [code: string]: string | undefined };
+  deliverables: string[];
+  accent: string;
+  bg: string;
+  textColor: string;
+  pricingHref: string;
+}
+
+const productFamilies: ProductFamily[] = [
   {
     id: 'websites',
     icon: Globe,
     name: 'Website Design & Development',
     tagline: 'Custom-built. Launch-ready. Engineered for conversion.',
     desc: 'We design and engineer responsive, high-performance websites on modern Next.js. Fast-loading, CMS-integrated, and built to convert visitors into loyal clients.',
-    startingPrice: 'From KSh 25,000 (Kenya) · From $450 (Intl)',
+    startingPrice: {
+      KE: 'From KSh 25,000',
+      GLOBAL: 'From $450',
+    },
     deliverables: [
       'Mobile-first responsive UX/UI architecture',
       'Full CMS content management (self-manage text & images)',
@@ -50,7 +68,10 @@ const productFamilies = [
     name: 'E-Commerce Solutions',
     tagline: 'High-converting online stores with local & global payment rails.',
     desc: 'From boutique retail shops to high-volume multi-category catalogues. Seamless M-Pesa STK Push prompts, credit card gateways, stock tracking, and automated customer notifications.',
-    startingPrice: 'From KSh 90,000 (Kenya) · From $890 (Intl)',
+    startingPrice: {
+      KE: 'From KSh 90,000',
+      GLOBAL: 'From $890',
+    },
     deliverables: [
       'Product catalogues with multi-attribute variants',
       'Direct M-Pesa Daraja STK Push mobile checkout',
@@ -70,7 +91,10 @@ const productFamilies = [
     name: 'Custom Digital Systems & Portals',
     tagline: 'Tailored software engineered around your specific operational workflows.',
     desc: 'Stop forcing your business into rigid off-the-shelf subscriptions. We build bespoke client portals, booking engines, LMS educational platforms, and CRMs starting with a formal discovery phase.',
-    startingPrice: 'Discovery from KSh 25,000 · Systems from KSh 180,000 / $2,200',
+    startingPrice: {
+      KE: 'Discovery from KSh 25,000 · Systems from KSh 180,000',
+      GLOBAL: 'Discovery from $500 · Systems from $2,200',
+    },
     deliverables: [
       'Formal technical specification & database architecture',
       'Role-based access control (Admins, Staff, Clients, Students)',
@@ -90,7 +114,10 @@ const productFamilies = [
     name: 'Website Care & Ongoing Maintenance',
     tagline: 'Proactive software maintenance, updates, and digital health monitoring.',
     desc: 'Protect your digital investment. We handle monthly CMS updates, security patches, offsite backups, continuous uptime checks, and priority technical support so your site is always fast, secure, and operational.',
-    startingPrice: 'Care from KSh 5,000/mo ($75)',
+    startingPrice: {
+      KE: 'Care from KSh 5,000/mo',
+      GLOBAL: 'Care from $75/mo',
+    },
     deliverables: [
       'Proactive CMS & security patch management',
       'Automated daily/weekly offsite encrypted backups',
@@ -134,7 +161,10 @@ const industries = [
   },
 ];
 
-export default function ServicesPage() {
+export default async function ServicesPage() {
+  const { market } = await getServerMarket();
+  const activeMarket = market === 'KE' ? 'KE' : 'GLOBAL';
+
   return (
     <>
       <JsonLd
@@ -156,7 +186,7 @@ export default function ServicesPage() {
               },
               offers: {
                 '@type': 'Offer',
-                description: family.startingPrice,
+                description: family.startingPrice[activeMarket] ?? family.startingPrice.GLOBAL,
               },
             },
           })),
@@ -229,7 +259,7 @@ export default function ServicesPage() {
                   </p>
 
                   <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 mb-8">
-                    <span>{family.startingPrice}</span>
+                    <span>{family.startingPrice[activeMarket] ?? family.startingPrice.GLOBAL}</span>
                   </div>
 
                   <div className="flex flex-wrap gap-3">

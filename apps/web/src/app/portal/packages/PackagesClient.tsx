@@ -84,19 +84,8 @@ export default function PackagesClient() {
   const { data: hostingAccounts = [] } = useClientHosting();
   const createTicket = useCreateTicket();
 
-  const { marketCode, setMarket } = useMarketPreference();
+  const { marketCode } = useMarketPreference();
   const { plans, loading: plansLoading, error: plansError } = usePlans();
-
-  // Sync market from client profile country on first load if client has KE/Kenya set
-  const syncedCountryRef = useRef(false);
-  useEffect(() => {
-    if (syncedCountryRef.current || !client?.country) return;
-    syncedCountryRef.current = true;
-    const c = client.country.trim().toUpperCase();
-    if (c === 'KE' || c === 'KENYA') {
-      setMarket('KE');
-    }
-  }, [client?.country, setMarket]);
 
   const isKenya = marketCode === 'KE';
   const activeCurrency = isKenya ? 'KES' : 'USD';
@@ -782,36 +771,13 @@ export default function PackagesClient() {
             </p>
           </div>
 
-          {/* Market Currency Switcher */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-2 self-start lg:self-auto shrink-0">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 pb-1.5">
+          {/* Read-Only Market Status Badge */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-2.5 self-start lg:self-auto shrink-0 select-none">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 pb-1">
               Billing Price Book
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => setMarket('KE')}
-                className={cn(
-                  'px-3.5 py-2 rounded-xl text-xs font-bold transition-all',
-                  isKenya
-                    ? 'bg-[#2563EB] text-white shadow-sm'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5',
-                )}
-              >
-                Kenya (KSh)
-              </button>
-              <button
-                type="button"
-                onClick={() => setMarket('GLOBAL')}
-                className={cn(
-                  'px-3.5 py-2 rounded-xl text-xs font-bold transition-all',
-                  !isKenya
-                    ? 'bg-[#2563EB] text-white shadow-sm'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5',
-                )}
-              >
-                Global (USD)
-              </button>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-white">
+              <span>{isKenya ? '🇰🇪 Kenya (KSh)' : '🌐 International (USD)'}</span>
             </div>
           </div>
         </div>

@@ -29,7 +29,7 @@ export default function ServiceFamilyView({ family }: Props) {
       name: f.question,
       acceptedAnswer: {
         '@type': 'Answer',
-        text: f.answer,
+        text: typeof f.answer === 'string' ? f.answer : (market === 'kenya' ? f.answer.KE : f.answer.GLOBAL),
       },
     })),
   };
@@ -108,7 +108,9 @@ export default function ServiceFamilyView({ family }: Props) {
                   <p className="text-xs text-slate-500 mb-6 leading-relaxed">{item.profile}</p>
                 </div>
                 <div className="pt-4 border-t border-slate-100 text-xs text-slate-700 font-semibold bg-teal-50/50 -mx-7 -mb-7 p-4 rounded-b-2xl">
-                  {item.fit}
+                  {typeof item.fit === 'string'
+                    ? item.fit
+                    : (market === 'kenya' ? item.fit.KE : item.fit.GLOBAL)}
                 </div>
               </div>
             ))}
@@ -285,7 +287,11 @@ export default function ServiceFamilyView({ family }: Props) {
                   <HelpCircle className="w-5 h-5 text-[#0D9488] shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-base font-bold text-[#0F172A] mb-2">{faq.question}</h3>
-                    <p className="text-xs md:text-sm text-slate-600 leading-relaxed">{faq.answer}</p>
+                    <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
+                      {typeof faq.answer === 'string'
+                        ? faq.answer
+                        : (market === 'kenya' ? faq.answer.KE : faq.answer.GLOBAL)}
+                    </p>
                   </div>
                 </div>
               </div>
