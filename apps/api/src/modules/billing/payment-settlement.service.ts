@@ -272,7 +272,16 @@ export class PaymentSettlementService {
     }
 
     const expected = Number(invoice.amount);
-    if (!this.amountsMatch(paidAmount, expected, currency, invoice.currency)) {
+    const isFxMatch = Boolean(
+      (existing &&
+        existing.currency === currency &&
+        Math.abs(paidAmount - Number(existing.amount)) < 1) ||
+      (data.metadata?.fxConverted &&
+        data.metadata?.originalCurrency === invoice.currency &&
+        Math.abs(Number(data.metadata?.originalAmount) - expected) < 0.01)
+    );
+
+    if (!isFxMatch && !this.amountsMatch(paidAmount, expected, currency, invoice.currency)) {
       this.logger.warn(
         `Paystack amount/currency mismatch ${reference}: ${paidAmount} ${currency} vs ${expected} ${invoice.currency}`,
       );

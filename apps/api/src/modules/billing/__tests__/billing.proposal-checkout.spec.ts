@@ -39,6 +39,7 @@ const mockPrisma = {
   client: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   user: { findUnique: jest.fn(), create: jest.fn() },
   plan: { findFirst: jest.fn(), findUnique: jest.fn() },
+  currency: { findUnique: jest.fn() },
   paymentLog: { create: jest.fn() },
   $transaction: jest.fn(),
 };
@@ -250,6 +251,31 @@ describe('BillingService — proposal deposit checkout (quote-to-close)', () => 
           status: 'PENDING',
         }),
       });
+    });
+
+    it('falls back to KES conversion when Paystack rejects USD with currency not supported', async () => {
+      mockPrisma.proposal.findUnique.mockResolvedValue({ ...lockedProposal, status: 'ACCEPTED', currency: 'USD' });
+      mockPrisma.invoice.findFirst.mockResolvedValue({ ...depositInvoice, currency: 'USD', amount: 345 });
+      mockPrisma.currency.findUnique.mockResolvedValue({ code: 'KES', exchangeRateToBase: 129.5 });
+
+      mockPaystackService.initializeTransaction
+        .mockRejectedValueOnce(new Error('Currency not supported by merchant'))
+        .mockResolvedValueOnce({
+          authorizationUrl: 'https://paystack.test/checkout/usd-kes',
+          reference: 'ref-usd-kes',
+        });
+
+      const result = await service.payProposalDepositCard(lockedProposal.proposalCode, {});
+
+      expect(result.checkoutUrl).toBe('https://paystack.test/checkout/usd-kes');
+      expect(result.fxConverted).toBe(true);
+      expect(result.chargedCurrency).toBe('KES');
+      expect(result.chargedAmount).toBe(Math.round(345 * 129.5));
+
+      // The second call to Paystack should have converted amount and KES
+      const secondCall = mockPaystackService.initializeTransaction.mock.calls[1][0];
+      expect(secondCall.currency).toBe('KES');
+      expect(secondCall.amount).toBe(Math.round(345 * 129.5));
     });
   });
 

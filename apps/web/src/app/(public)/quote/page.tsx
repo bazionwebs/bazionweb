@@ -534,15 +534,22 @@ function QuoteCalculatorContent() {
                       </div>
                     ) : (
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={handlePayDepositCard}
-                          disabled={payBusy !== null}
-                          className="btn-primary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm disabled:opacity-60"
-                        >
-                          {payBusy === 'card' ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CreditCard className="size-4" aria-hidden="true" />}
-                          Pay by card
-                        </button>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={handlePayDepositCard}
+                            disabled={payBusy !== null}
+                            className="btn-primary w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm disabled:opacity-60"
+                          >
+                            {payBusy === 'card' ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CreditCard className="size-4" aria-hidden="true" />}
+                            Pay by card
+                          </button>
+                          {!isKes && deposit && (
+                            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                              💳 International cards (Visa/Mastercard) accepted. Billed via Paystack at official KES rate (~KSh {Math.round(deposit.amount * 129.5).toLocaleString()}).
+                            </p>
+                          )}
+                        </div>
                         {isKes && (
                           <div className="rounded-xl border border-slate-200 bg-white p-3">
                             <label htmlFor="quote-mpesa-phone" className="flex items-center gap-2 text-xs font-semibold text-slate-700">

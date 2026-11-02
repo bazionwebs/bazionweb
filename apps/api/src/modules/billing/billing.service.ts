@@ -501,14 +501,15 @@ export class BillingService {
     }
 
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
-    const init = await this.paystackService.initializeTransaction({
-      email: dto.email || invoice.client.email || user.email,
-      amount,
-      currency: invoice.currency,
-      invoiceNumber: invoice.invoiceNumber,
-      callbackUrl: `${frontendUrl}/portal/invoices?card_settled=1`,
-      metadata: { clientId: invoice.clientId, purpose: 'invoice_payment', invoiceNumber: invoice.invoiceNumber },
-    });
+    const { init, chargedAmount, chargedCurrency, fxConverted, exchangeRate } =
+      await this.initializePaystackWithFxFallback({
+        email: dto.email || invoice.client.email || user.email,
+        amount,
+        currency: invoice.currency as 'KES' | 'USD',
+        invoiceNumber: invoice.invoiceNumber,
+        callbackUrl: `${frontendUrl}/portal/invoices?card_settled=1`,
+        metadata: { clientId: invoice.clientId, purpose: 'invoice_payment', invoiceNumber: invoice.invoiceNumber },
+      });
 
     await this.prisma.paymentLog.create({
       data: {
@@ -516,13 +517,19 @@ export class BillingService {
         provider: PaymentProvider.PAYSTACK,
         providerRef: init.reference,
         method: PaymentMethodType.CARD,
-        amount,
-        currency: invoice.currency,
+        amount: chargedAmount,
+        currency: chargedCurrency,
         status: PaymentStatus.PENDING,
         clientId: invoice.clientId,
         invoiceId: invoice.id,
         userId: user.id,
-        rawPayload: init as any,
+        rawPayload: {
+          ...init,
+          fxConverted,
+          originalAmount: amount,
+          originalCurrency: invoice.currency,
+          exchangeRate,
+        } as any,
       },
     });
 
@@ -1165,6 +1172,73 @@ export class BillingService {
     return { proposal, invoice };
   }
 
+  /**
+   * Initializes a Paystack card transaction. If the target currency is USD and Paystack
+   * rejects it with "Currency not supported by merchant" (common for Kenya accounts without
+   * international USD multi-currency enabled), this gracefully falls back to charging the
+   * equivalent amount in KES using the active market exchange rate.
+   */
+  private async initializePaystackWithFxFallback(params: {
+    email: string;
+    amount: number;
+    currency: 'KES' | 'USD';
+    invoiceNumber: string;
+    callbackUrl: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    try {
+      const init = await this.paystackService.initializeTransaction(params);
+      return {
+        init,
+        chargedAmount: params.amount,
+        chargedCurrency: params.currency,
+        fxConverted: false,
+        exchangeRate: 1,
+      };
+    } catch (err: any) {
+      const errorMessage =
+        err?.message || (typeof err?.getResponse === 'function' ? String(err.getResponse()?.message || err.getResponse()) : '');
+
+      const isCurrencyUnsupported =
+        errorMessage.includes('Currency not supported') ||
+        err?.response?.data?.message?.includes('Currency not supported');
+
+      if (params.currency === 'USD' && isCurrencyUnsupported) {
+        const kesCurrency = await this.prisma.currency.findUnique({ where: { code: 'KES' } }).catch(() => null);
+        const fxRate = kesCurrency?.exchangeRateToBase ? Number(kesCurrency.exchangeRateToBase) : 129.5;
+        const chargedAmount = Math.round(params.amount * fxRate);
+        const chargedCurrency = 'KES' as const;
+
+        this.logger.log(
+          `[Paystack] Currency not supported by merchant; auto-converting USD ${params.amount} -> KES ${chargedAmount} (rate: ${fxRate}) for ${params.invoiceNumber}`,
+        );
+
+        const init = await this.paystackService.initializeTransaction({
+          ...params,
+          amount: chargedAmount,
+          currency: chargedCurrency,
+          metadata: {
+            ...(params.metadata ?? {}),
+            fxConverted: true,
+            originalAmount: params.amount,
+            originalCurrency: 'USD',
+            exchangeRate: fxRate,
+          },
+        });
+
+        return {
+          init,
+          chargedAmount,
+          chargedCurrency,
+          fxConverted: true,
+          exchangeRate: fxRate,
+        };
+      }
+
+      throw err;
+    }
+  }
+
   /** Guest card payment for an accepted proposal's kickoff deposit. */
   async payProposalDepositCard(code: string, dto: ProposalDepositCardDto) {
     const { proposal, invoice } = await this.proposalDepositInvoice(code);
@@ -1179,14 +1253,20 @@ export class BillingService {
     if (proposalEmail && suppliedEmail && suppliedEmail !== proposalEmail) {
       throw new ForbiddenException('Email does not match the recipient of this proposal.');
     }
-    const init = await this.paystackService.initializeTransaction({
-      email: proposalEmail || suppliedEmail,
-      amount,
-      currency: invoice.currency as 'KES' | 'USD',
-      invoiceNumber: invoice.invoiceNumber,
-      callbackUrl: `${frontendUrl}/checkout/verify`,
-      metadata: { clientId: invoice.clientId, purpose: 'invoice_payment', invoiceNumber: invoice.invoiceNumber },
-    });
+    const { init, chargedAmount, chargedCurrency, fxConverted, exchangeRate } =
+      await this.initializePaystackWithFxFallback({
+        email: proposalEmail || suppliedEmail,
+        amount,
+        currency: invoice.currency as 'KES' | 'USD',
+        invoiceNumber: invoice.invoiceNumber,
+        callbackUrl: `${frontendUrl}/checkout/verify`,
+        metadata: {
+          clientId: invoice.clientId,
+          purpose: 'invoice_payment',
+          invoiceNumber: invoice.invoiceNumber,
+          proposalCode: proposal.proposalCode,
+        },
+      });
 
     await this.prisma.paymentLog.create({
       data: {
@@ -1194,12 +1274,18 @@ export class BillingService {
         provider: PaymentProvider.PAYSTACK,
         providerRef: init.reference,
         method: PaymentMethodType.CARD,
-        amount,
-        currency: invoice.currency,
+        amount: chargedAmount,
+        currency: chargedCurrency,
         status: PaymentStatus.PENDING,
         clientId: invoice.clientId,
         invoiceId: invoice.id,
-        rawPayload: init as any,
+        rawPayload: {
+          ...init,
+          fxConverted,
+          originalAmount: amount,
+          originalCurrency: invoice.currency,
+          exchangeRate,
+        } as any,
       },
     });
 
@@ -1210,6 +1296,10 @@ export class BillingService {
       checkoutUrl: init.authorizationUrl,
       reference: init.reference,
       invoiceNumber: invoice.invoiceNumber,
+      chargedAmount,
+      chargedCurrency,
+      fxConverted,
+      exchangeRate,
     };
   }
 
