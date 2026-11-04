@@ -50,28 +50,28 @@ interface CatalogResponse {
 const PRODUCT_MARKETING: Record<string, { name: string; description: string; features: string[] }> = {
   'host-essential': {
     name: 'Host Essential',
-    description: 'Managed NVMe web hosting with SSL, Cloudflare Edge DNS, and automated weekly backups.',
-    features: ['High-Speed SSD NVMe Storage', 'Free Automated SSL Certificate', 'Cloudflare Edge DNS & CDN', '99.9% Uptime Monitoring', 'Standard Technical Support'],
+    description: 'Isolated container hosting (0.5 vCPU / 384 MB RAM) with 10 GB NVMe, SSL, Cloudflare CDN, and weekly R2 backups.',
+    features: ['0.5 vCPU / 384 MB RAM Container', '10 GB NVMe SSD & 100 GB/mo Bandwidth', 'Free Automated SSL & Cloudflare CDN', 'Email Forwarding (@yourcompany.com)', 'Weekly R2 Off-Site Backups'],
   },
   'host-business': {
     name: 'Host Business',
-    description: 'Enhanced hosting with 5 corporate email inboxes, daily backups, and staging testing.',
-    features: ['3x CPU & Memory Allocation', 'Up to 5 Business Email Inboxes', 'Automated Daily Backups (14-Day)', 'Staging Environment Slot', 'Free Zero-Downtime Migration'],
+    description: '3x compute power (1.5 vCPU / 768 MB RAM) with 25 GB NVMe, 5 corporate email inboxes, and daily R2 backups.',
+    features: ['1.5 vCPU / 768 MB RAM Allocation', '25 GB NVMe SSD & 500 GB/mo Bandwidth', 'Up to 5 Corporate Email Inboxes', 'Shared DB + Redis Object Cache', 'Daily R2 Backups (14-Day) & Staging'],
   },
   'host-pro': {
     name: 'Host Professional',
-    description: 'High-resource managed cloud hosting with Redis object caching and 30-day snapshots.',
-    features: ['Dedicated Compute & Redis Cache', '30-Day Snapshot Retention', 'Continuous Malware & WAF Defense', 'Automated Staging & Git Hooks', 'Priority Phone & Ticket Support'],
+    description: 'High-concurrency container hosting (2.0 vCPU / 1.5 GB RAM) with 50 GB NVMe, isolated Redis 7 cache, and 10 emails.',
+    features: ['2.0 vCPU / 1.5 GB RAM Allocation', '50 GB NVMe SSD & 1 TB/mo Bandwidth', 'Up to 10 Corporate Email Inboxes', 'Isolated Redis 7 Cache & 30-Day Backups', 'Automated Staging & Priority Support'],
   },
   'host-professional': {
     name: 'Host Professional',
-    description: 'High-resource managed cloud hosting with Redis object caching and 30-day snapshots.',
-    features: ['Dedicated Compute & Redis Cache', '30-Day Snapshot Retention', 'Continuous Malware & WAF Defense', 'Automated Staging & Git Hooks', 'Priority Phone & Ticket Support'],
+    description: 'High-concurrency container hosting (2.0 vCPU / 1.5 GB RAM) with 50 GB NVMe, isolated Redis 7 cache, and 10 emails.',
+    features: ['2.0 vCPU / 1.5 GB RAM Allocation', '50 GB NVMe SSD & 1 TB/mo Bandwidth', 'Up to 10 Corporate Email Inboxes', 'Isolated Redis 7 Cache & 30-Day Backups', 'Automated Staging & Priority Support'],
   },
   'host-cloud': {
     name: 'Managed Cloud',
-    description: 'Fully isolated containerized cloud environments with dedicated PostgreSQL and Redis cluster.',
-    features: ['Isolated Docker Container Orchestration', 'Dedicated PostgreSQL Database', 'Redis In-Memory Caching Cluster', 'Automated CI/CD Deployments', 'Direct Systems Engineer Support'],
+    description: 'Dedicated multi-container cloud cluster (4.0 vCPU / 2 GB+ RAM) with 100 GB NVMe, standalone PostgreSQL 16 & Redis 7.',
+    features: ['4.0 vCPU / 2 GB+ RAM Dedicated Cluster', '100 GB NVMe SSD & 2 TB/mo Bandwidth', 'Dedicated PostgreSQL 16 & Redis 7', 'Up to 25 Corporate Email Accounts', 'Zero-Downtime CI/CD & DevOps SLA'],
   },
   'addon-blog-news': {
     name: 'Blog / News Engine',
