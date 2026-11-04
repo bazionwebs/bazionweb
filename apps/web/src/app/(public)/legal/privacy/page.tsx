@@ -2,10 +2,12 @@ import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy',
-  description: 'BazionWeb Privacy Policy — how we collect, use, and protect your personal data. GDPR and POPIA compliant.',
+  title: 'Privacy Policy | BazionWeb',
+  description: 'BazionWeb Privacy Policy — how we collect, use, and protect your personal data under the Kenya Data Protection Act 2019 and GDPR.',
   alternates: { canonical: 'https://bazionweb.com/legal/privacy' },
 };
+
+const LAST_UPDATED = 'November 3, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -13,47 +15,75 @@ export default function PrivacyPage() {
       <div className="bg-[#0F172A] pt-32 pb-16">
         <div className="container-default max-w-3xl">
           <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Privacy Policy' }]} />
-          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">Legal</span>
+          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">Legal & Compliance</span>
           <h1 className="text-4xl font-bold text-white mb-3">Privacy Policy</h1>
-          <p className="text-slate-400 text-sm">Last updated: June 1, 2025 · Compliant with GDPR (EU) 2016/679</p>
+          <p className="text-slate-400 text-sm">
+            Last updated: {LAST_UPDATED} · Compliant with Kenya Data Protection Act (2019) & GDPR (EU 2016/679)
+          </p>
         </div>
       </div>
 
       <div className="container-default max-w-3xl py-16">
         <div className="card p-8 md:p-10 space-y-8 prose prose-slate max-w-none">
 
+          {/* Statutory Registration Banner */}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 not-prose">
+            <div className="flex items-start gap-3">
+              <span className="text-emerald-600 font-bold text-lg">✓</span>
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">
+                  Registered with the Office of the Data Protection Commissioner (ODPC) Kenya
+                </p>
+                <p className="text-xs text-emerald-700 mt-1">
+                  BazionWeb is registered in Kenya as both a <strong>Data Controller</strong> (for customer account and billing operations) and a <strong>Data Processor</strong> (for managed cloud hosting and client application workloads).
+                </p>
+              </div>
+            </div>
+          </div>
+
           <section>
-            <h2 className="text-xl font-bold text-[#0F172A] mb-3">1. Who We Are (Data Controller)</h2>
-            <p className="text-slate-600 leading-relaxed">
-              BazionWeb (&ldquo;we&rdquo;, &ldquo;our&rdquo;, &ldquo;us&rdquo;) is the data controller for personal data collected via bazionweb.com and our client portal. Contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>
+            <h2 className="text-xl font-bold text-[#0F172A] mb-3">1. Who We Are & Our Regulatory Roles</h2>
+            <p className="text-slate-600 leading-relaxed mb-3">
+              BazionWeb (&ldquo;Company&rdquo;, &ldquo;we&rdquo;, &ldquo;our&rdquo;, &ldquo;us&rdquo;), registered in Nairobi, Kenya, provides managed web hosting, cloud infrastructure, and application lifecycle platforms.
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-slate-600 text-sm">
+              <li>
+                <strong>Data Controller:</strong> For personal data collected via bazionweb.com, the customer portal, client registrations, and Safaricom M-PESA billing records, BazionWeb determines the purpose and means of processing.
+              </li>
+              <li>
+                <strong>Data Processor:</strong> When you deploy websites, databases, or container workloads on our servers, you act as the Data Controller, and BazionWeb acts as the Data Processor under our <a href="/legal/dpa" className="text-[#2563EB] underline">Data Processing Agreement (DPA)</a>.
+              </li>
+            </ul>
+            <p className="text-slate-600 text-sm mt-3">
+              Data Protection Contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-[#0F172A] mb-3">2. Data We Collect (GDPR Art. 13)</h2>
-            <div className="overflow-x-auto">
+            <h2 className="text-xl font-bold text-[#0F172A] mb-3">2. Personal Data We Collect</h2>
+            <div className="overflow-x-auto not-prose">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50">
-                    <th className="text-left px-4 py-2 font-semibold text-slate-700">Data</th>
-                    <th className="text-left px-4 py-2 font-semibold text-slate-700">Purpose</th>
-                    <th className="text-left px-4 py-2 font-semibold text-slate-700">Basis</th>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-4 py-2.5 font-semibold text-slate-700">Category</th>
+                    <th className="text-left px-4 py-2.5 font-semibold text-slate-700">Specific Data</th>
+                    <th className="text-left px-4 py-2.5 font-semibold text-slate-700">Statutory Basis (Kenya DPA Sec 30)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {[
-                    ['Name, email, phone', 'Account creation, service delivery', 'Contract'],
-                    ['Billing address, payment info', 'Invoice generation, payment processing', 'Contract'],
-                    ['Usage data, logs', 'Security monitoring, debugging', 'Legitimate interest'],
-                    ['IP address, browser info', 'Fraud prevention, uptime monitoring', 'Legitimate interest'],
-                    ['Support ticket content', 'Service delivery, quality improvement', 'Contract'],
-                    ['Email communications', 'Support, notifications, marketing (opt-in)', 'Consent / Contract'],
-                  ].map(([data, purpose, basis]) => (
-                    <tr key={data}>
-                      <td className="px-4 py-3 text-slate-600">{data}</td>
-                      <td className="px-4 py-3 text-slate-500">{purpose}</td>
+                    ['Account Identity', 'Full name, email address, phone number, company name', 'Performance of Contract'],
+                    ['Payment & Billing', 'M-PESA phone number, M-PESA Receipt ID, CheckoutRequestID, card tokens, tax invoices', 'Performance of Contract / Legal Obligation'],
+                    ['Authentication', 'Salted scrypt password hashes, MFA tokens, API authorization keys', 'Performance of Contract'],
+                    ['Security & Telemetry', 'IP address, HTTP request headers, Traefik edge routing logs, firewall fail2ban events', 'Legitimate Interest (Cybersecurity)'],
+                    ['Customer Support', 'Helpdesk tickets, incident logs, diagnostics', 'Performance of Contract'],
+                    ['Client Workloads', 'Databases, uploads, container environments hosted on behalf of clients', 'Data Processing Agreement (Processor capacity)'],
+                  ].map(([cat, data, basis]) => (
+                    <tr key={cat}>
+                      <td className="px-4 py-3 font-medium text-slate-800">{cat}</td>
+                      <td className="px-4 py-3 text-slate-600 text-xs">{data}</td>
                       <td className="px-4 py-3">
-                        <span className={`badge text-xs ${basis === 'Contract' ? 'badge-blue' : basis === 'Consent' ? 'badge-green' : 'badge-slate'}`}>
+                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                           {basis}
                         </span>
                       </td>
@@ -65,61 +95,93 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-[#0F172A] mb-3">3. Data Retention</h2>
-            <p className="text-slate-600 leading-relaxed">
-              Active client data is retained for the duration of the contract plus 7 years for tax/legal compliance. Support tickets: 3 years. Marketing data: until opt-out or 2 years of inactivity. Audit logs: 5 years (GDPR compliance requirement). Backup data: per plan retention schedule (30–365 days).
+            <h2 className="text-xl font-bold text-[#0F172A] mb-3">3. Technical & Organizational Security Measures</h2>
+            <p className="text-slate-600 leading-relaxed mb-3">
+              In accordance with Section 41 of the Kenya Data Protection Act and Article 32 of GDPR, we maintain robust defense-in-depth safeguards:
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 not-prose">
+              {[
+                ['Container Isolation', 'Strict Linux cgroups v2 resource limits and unprivileged container users (UID 1001)'],
+                ['Encryption in Transit', 'Enforced TLS 1.3 / 1.2 with HSTS for all public routing and API communications'],
+                ['Encrypted Off-Site Backups', 'Automated hourly/daily snapshots encrypted with client-side AES-256 via Restic'],
+                ['Access Security', 'Hardware MFA and SSH key authentication required; zero direct root password access'],
+                ['Network Segmentation', 'Isolated Docker bridge networks preventing inter-tenant cross-talk'],
+                ['Data Masking', 'Customer MSISDN mobile numbers masked (+254 7****1234) in non-essential audit logs'],
+              ].map(([title, desc]) => (
+                <div key={title} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <div className="text-sm font-bold text-slate-900 mb-1">{title}</div>
+                  <div className="text-xs text-slate-600 leading-relaxed">{desc}</div>
+                </div>
+              ))}
+            </div>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-[#0F172A] mb-3">4. Third-Party Processors</h2>
-            <p className="text-slate-600 leading-relaxed mb-3">We share data with these processors under DPA agreements:</p>
-            <ul className="list-disc pl-5 space-y-1 text-slate-600 text-sm">
-              <li>Hetzner / Oracle Cloud — Infrastructure hosting (Germany / USA)</li>
-              <li>Cloudflare — CDN, DNS, DDoS protection (USA — EU SCCs in place)</li>
-              <li>Backblaze B2 — Encrypted backup storage (USA — EU SCCs in place)</li>
-              <li>Resend — Transactional email (USA — EU SCCs in place)</li>
-              <li>Sentry — Error monitoring (USA — EU SCCs in place)</li>
-            </ul>
-            <p className="text-slate-500 text-sm mt-3">We do not sell personal data to any third party.</p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-[#0F172A] mb-3">5. Your Rights</h2>
-            <p className="text-slate-600 leading-relaxed mb-3">Under GDPR and POPIA, you have the right to:</p>
+            <h2 className="text-xl font-bold text-[#0F172A] mb-3">4. International Transfers & Sub-Processors</h2>
+            <p className="text-slate-600 leading-relaxed mb-3">
+              Pursuant to Sections 48 and 49 of the Kenya Data Protection Act, 2019, transfers outside Kenya are governed by adequate data protection frameworks, Standard Contractual Clauses (SCCs), and strong encryption:
+            </p>
             <ul className="list-disc pl-5 space-y-1.5 text-slate-600 text-sm">
-              <li><strong>Access</strong> — request a copy of your personal data</li>
-              <li><strong>Rectification</strong> — correct inaccurate data</li>
-              <li><strong>Erasure</strong> — request deletion (subject to legal retention obligations)</li>
-              <li><strong>Portability</strong> — receive your data in machine-readable format</li>
-              <li><strong>Object</strong> — opt out of legitimate-interest processing</li>
-              <li><strong>Withdraw consent</strong> — at any time, for consent-based processing</li>
+              <li><strong>Leaseweb B.V. (Netherlands/Germany):</strong> VPS worker nodes & compute infrastructure (EU GDPR Adequacy).</li>
+              <li><strong>Hetzner Online GmbH (Germany):</strong> Secondary compute and failover capacity (EU GDPR Adequacy).</li>
+              <li><strong>Backblaze Inc. (USA):</strong> Off-site disaster recovery storage (AES-256 client-encrypted snapshots prior to upload).</li>
+              <li><strong>Cloudflare Inc. (Global Edge):</strong> Edge proxy, DDoS mitigation, and DNS security.</li>
+              <li><strong>Safaricom PLC (Kenya):</strong> In-country M-PESA mobile billing gateway.</li>
+              <li><strong>Paystack Payments (Kenya/Nigeria):</strong> PCI-DSS Level 1 certified payment processing.</li>
             </ul>
-            <p className="text-slate-500 text-sm mt-3">
-              Submit requests to: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>. We respond within 30 days.
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-[#0F172A] mb-3">5. Data Retention & Destruction Schedule</h2>
+            <p className="text-slate-600 leading-relaxed">
+              We retain personal data strictly for as long as necessary:
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-slate-600 text-sm">
+              <li><strong>Active Client Accounts:</strong> Retained for contract duration plus 7 years for Kenya Revenue Authority (KRA) tax compliance.</li>
+              <li><strong>Cancelled / Terminated Hosting Workloads:</strong> Retained in a dormant state for 30 calendar days to allow full data export, after which all volumes, databases, and snapshots are permanently and irrevocably shredded.</li>
+              <li><strong>Server & Access Logs:</strong> Retained for 12 months for security and fraud auditing, then automatically purged.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-[#0F172A] mb-3">6. Your Statutory Rights (Section 26, Kenya DPA)</h2>
+            <p className="text-slate-600 leading-relaxed mb-3">
+              You possess enforceable rights regarding your personal information:
+            </p>
+            <ul className="list-disc pl-5 space-y-1 text-slate-600 text-sm">
+              <li><strong>Right to be informed:</strong> Clear disclosure of all collection and processing activities.</li>
+              <li><strong>Right of access:</strong> Obtain confirmation and copies of personal data held about you.</li>
+              <li><strong>Right to rectification:</strong> Correct inaccurate or incomplete records without delay.</li>
+              <li><strong>Right to erasure:</strong> Request deletion where statutory retention grounds no longer apply.</li>
+              <li><strong>Right to object or restrict processing:</strong> Restrict processing or opt-out of marketing.</li>
+              <li><strong>Right to data portability:</strong> Receive your data in a structured, machine-readable format.</li>
+            </ul>
+            <p className="text-slate-600 text-sm mt-3">
+              To exercise your statutory rights, email <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>. We fulfill requests within thirty (30) days without charge.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-[#0F172A] mb-3">6. Data Breach Notification</h2>
+            <h2 className="text-xl font-bold text-[#0F172A] mb-3">7. Mandatory 72-Hour Breach Notification</h2>
             <p className="text-slate-600 leading-relaxed">
-              In the event of a personal data breach, we will notify affected clients within 72 hours of discovery, in accordance with GDPR Article 33. Notification will include the nature of the breach, data affected, likely consequences, and remediation actions taken.
+              In accordance with Section 43 of the Kenya Data Protection Act, in the event of an unauthorized security breach affecting personal data, BazionWeb will notify the Office of the Data Protection Commissioner (ODPC) within seventy-two (72) hours of confirmation, and promptly notify affected customers in writing with remedial actions and impact mitigation details.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-[#0F172A] mb-3">7. Cookies</h2>
+            <h2 className="text-xl font-bold text-[#0F172A] mb-3">8. Regulatory Contacts & Complaints</h2>
             <p className="text-slate-600 leading-relaxed">
-              We use strictly necessary cookies for portal authentication and session management. Analytics cookies (PostHog) require your consent. See our <a href="/legal/cookies" className="text-[#2563EB]">Cookie Policy</a> for details.
+              If you have concerns regarding our data handling, please contact our Data Protection Team at <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a>.
             </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold text-[#0F172A] mb-3">8. Contact & Complaints</h2>
-            <p className="text-slate-600 leading-relaxed">
-              Data Protection contact: <a href="mailto:privacy@bazionweb.com" className="text-[#2563EB]">privacy@bazionweb.com</a><br />
-              You have the right to lodge a complaint with your local data protection authority.
+            <p className="text-slate-600 leading-relaxed mt-2 text-sm">
+              You also have the statutory right to file a complaint directly with the national regulator:
             </p>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-1 not-prose mt-2">
+              <div className="font-bold text-slate-900">Office of the Data Protection Commissioner (ODPC) Kenya</div>
+              <div>Britam Tower, 12th Floor, Hospital Road, Upper Hill, Nairobi</div>
+              <div>P.O. Box 30920 - 00100, Nairobi, Kenya</div>
+              <div>Email: <a href="mailto:complaints@odpc.go.ke" className="text-[#2563EB]">complaints@odpc.go.ke</a> | Website: <a href="https://www.odpc.go.ke" target="_blank" rel="noopener noreferrer" className="text-[#2563EB]">www.odpc.go.ke</a></div>
+            </div>
           </section>
 
         </div>

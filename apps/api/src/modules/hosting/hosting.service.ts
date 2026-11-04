@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HostingStatus } from '@prisma/client';
@@ -6,6 +6,7 @@ import * as dns from 'dns';
 import * as net from 'net';
 import * as tls from 'tls';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DeploymentProvider, ProvisionResult } from './providers/deployment-provider.interface';
 
 export function isPrivateOrReservedIp(ip: string): boolean {
   const normalized = ip.toLowerCase().trim();
@@ -40,7 +41,10 @@ export class HostingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventEmitter2,
+    @Optional()
+    private readonly deploymentProvider?: DeploymentProvider,
   ) {}
+
 
   async findAll(user: any, filters: { status?: string; page: number; limit: number }) {
     const page = Math.max(1, Math.floor(Number(filters.page) || 1));
@@ -232,9 +236,30 @@ export class HostingService {
       include: { client: { select: { businessName: true } } },
     });
 
-    this.events.emit('hosting.provisioned', { account });
+    let provisionResult: ProvisionResult | null = null;
+    if (this.deploymentProvider && this.deploymentProvider.isConfigured()) {
+      try {
+        provisionResult = await this.deploymentProvider.createWorkload({
+          name: `bazion-${account.id.slice(0, 8)}`,
+          projectName: `client-${dto.clientId}`,
+          domain: dto.domain,
+          clientId: dto.clientId,
+          hostingId: account.id,
+          buildType: 'dockerfile',
+        });
+        this.logger.log(
+          `Workload provisioned on ${this.deploymentProvider.providerName} for ${dto.domain} (ID: ${provisionResult.workloadId})`,
+        );
+      } catch (err: any) {
+        this.logger.error(
+          `Deployment provider provisioning failed for ${dto.domain}: ${err.message}`,
+        );
+      }
+    }
+
+    this.events.emit('hosting.provisioned', { account, provisionResult });
     this.logger.log(`Hosting account created: ${dto.domain} for client ${dto.clientId}`);
-    return { data: account };
+    return { data: account, provisionResult: provisionResult ?? undefined };
   }
 
   async updateAccount(id: string, dto: Record<string, unknown>) {

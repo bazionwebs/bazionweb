@@ -1,0 +1,203 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BazionWeb — Production Stack Composition for Dokploy & Traefik v3
+# Architecture: Isolated Database/Redis internal network + Traefik Edge Ingress
+# ─────────────────────────────────────────────────────────────────────────────
+
+networks:
+  # Internal network with NO external gateway access for stateful stores
+  bazionweb-internal:
+    driver: bridge
+    internal: true
+
+  # Edge ingress network shared with Dokploy and Traefik
+  dokploy-network:
+    external: true
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+services:
+  # ── 1. Next.js Web Frontend (Standalone) ───────────────────────────────────
+  web:
+    image: ghcr.io/bazionweb/web:${IMAGE_TAG:-latest}
+    container_name: bazionweb-web
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+        reservations:
+          memory: 256M
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://bazionweb.com}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.bazionweb.com/api/v1}
+      API_INTERNAL_URL: http://api:4000
+    networks:
+      - dokploy-network
+      - bazionweb-internal
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      # Public Web Router
+      - "traefik.http.routers.bazion-web.rule=Host(`bazionweb.com`, `www.bazionweb.com`)"
+      - "traefik.http.routers.bazion-web.entrypoints=websecure"
+      - "traefik.http.routers.bazion-web.tls=true"
+      - "traefik.http.routers.bazion-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.bazion-web.loadbalancer.server.port=3000"
+      # Security Middlewares
+      - "traefik.http.routers.bazion-web.middlewares=secHeaders@file,rateLimit@file,gzipCompress@file"
+
+  # ── 2. NestJS REST Backend API ─────────────────────────────────────────────
+  api:
+    image: ghcr.io/bazionweb/api:${IMAGE_TAG:-latest}
+    container_name: bazionweb-api
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
+        reservations:
+          memory: 512M
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${DB_USER:-bazionweb}:${DB_PASSWORD}@db:5432/${DB_NAME:-bazionweb}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      DOKPLOY_API_URL: ${DOKPLOY_API_URL:-http://dokploy:3000}
+      DOKPLOY_API_KEY: ${DOKPLOY_API_KEY}
+      DARAJA_CONSUMER_KEY: ${DARAJA_CONSUMER_KEY}
+      DARAJA_CONSUMER_SECRET: ${DARAJA_CONSUMER_SECRET}
+      DARAJA_PASSKEY: ${DARAJA_PASSKEY}
+      DARAJA_BUSINESS_SHORTCODE: ${DARAJA_BUSINESS_SHORTCODE}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY}
+      PAYSTACK_WEBHOOK_SECRET: ${PAYSTACK_WEBHOOK_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL:-https://bazionweb.com}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bazionweb-internal
+      - dokploy-network
+    expose:
+      - "4000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/v1/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      # API Router
+      - "traefik.http.routers.bazion-api.rule=Host(`api.bazionweb.com`)"
+      - "traefik.http.routers.bazion-api.entrypoints=websecure"
+      - "traefik.http.routers.bazion-api.tls=true"
+      - "traefik.http.routers.bazion-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.bazion-api.loadbalancer.server.port=4000"
+      - "traefik.http.routers.bazion-api.middlewares=secHeaders@file,apiRateLimit@file"
+
+  # ── 3. PostgreSQL 16 Relational Database ────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: bazionweb-db
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8192M
+        reservations:
+          memory: 2048M
+    environment:
+      POSTGRES_DB: ${DB_NAME:-bazionweb}
+      POSTGRES_USER: ${DB_USER:-bazionweb}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bazionweb-internal
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-bazionweb} -d ${DB_NAME:-bazionweb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    command: >
+      postgres
+        -c max_connections=150
+        -c shared_buffers=2048MB
+        -c effective_cache_size=6144MB
+        -c maintenance_work_mem=512MB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=64MB
+        -c default_statistics_target=100
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c work_mem=16MB
+        -c min_wal_size=1GB
+        -c max_wal_size=4GB
+        -c log_min_duration_statement=1000
+
+  # ── 4. Redis 7 High-Speed In-Memory Cache & Session Store ──────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: bazionweb-redis
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2048M
+        reservations:
+          memory: 256M
+    command: >
+      redis-server
+        --requirepass ${REDIS_PASSWORD}
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory 1536mb
+        --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - bazionweb-internal
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

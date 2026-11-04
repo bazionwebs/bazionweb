@@ -3,6 +3,7 @@ import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HostingService } from '../hosting.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { DeploymentProvider } from '../providers/deployment-provider.interface';
 
 const mockAccount = {
   id: 'hosting-uuid-1',
@@ -31,6 +32,7 @@ const mockPrisma = {
     findUnique: jest.fn(),
     update:     jest.fn(),
     count:      jest.fn(),
+    create:     jest.fn(),
   },
   client:  { findFirst: jest.fn() },
   backup:  { create: jest.fn() },
@@ -207,4 +209,112 @@ describe('HostingService', () => {
       expect(mockPrisma.hostingAccount.update).toHaveBeenCalledTimes(1); // only second updated
     });
   });
+
+  // ── create() & DeploymentProvider Integration ───────────────────────────────
+
+  describe('create()', () => {
+    const createDto = {
+      clientId: 'client-uuid-1',
+      domain: 'newclient.co.ke',
+      server: 'Contabo Cloud VPS',
+      plan: 'Business',
+      ipAddress: '192.0.2.1',
+      serverOs: 'Ubuntu 24.04',
+    };
+
+    it('creates hosting account in database and emits hosting.provisioned event', async () => {
+      mockPrisma.hostingAccount.create = jest.fn().mockResolvedValue({
+        id: 'new-hosting-uuid',
+        ...createDto,
+        status: 'PROVISIONING',
+        client: { businessName: 'New Client Ltd' },
+      });
+
+      const result = await service.create(createDto);
+
+      expect(result.data.domain).toBe('newclient.co.ke');
+      expect(result.data.status).toBe('PROVISIONING');
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        'hosting.provisioned',
+        expect.objectContaining({
+          account: expect.objectContaining({ domain: 'newclient.co.ke' }),
+        }),
+      );
+    });
+
+    it('invokes deploymentProvider.createWorkload when configured', async () => {
+      mockPrisma.hostingAccount.create = jest.fn().mockResolvedValue({
+        id: 'new-hosting-uuid',
+        ...createDto,
+        status: 'PROVISIONING',
+        client: { businessName: 'New Client Ltd' },
+      });
+
+      const mockProvider = {
+        providerName: 'DokployProvider',
+        name: 'DokployProvider',
+        isConfigured: jest.fn().mockReturnValue(true),
+        createWorkload: jest.fn().mockResolvedValue({
+          workloadId: 'dok-workload-99',
+          applicationId: 'dok-workload-99',
+          domain: 'newclient.co.ke',
+          status: 'PENDING',
+          url: 'https://newclient.co.ke',
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          HostingService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: EventEmitter2, useValue: mockEvents },
+          { provide: DeploymentProvider, useValue: mockProvider },
+        ],
+      }).compile();
+
+      const serviceWithProvider = module.get<HostingService>(HostingService);
+
+      const result = await serviceWithProvider.create(createDto);
+
+      expect(mockProvider.createWorkload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: 'newclient.co.ke',
+          clientId: 'client-uuid-1',
+        }),
+      );
+      expect(result.provisionResult).toBeDefined();
+      expect(result.provisionResult?.workloadId).toBe('dok-workload-99');
+    });
+
+    it('handles deploymentProvider error gracefully without failing database creation', async () => {
+      mockPrisma.hostingAccount.create = jest.fn().mockResolvedValue({
+        id: 'new-hosting-uuid',
+        ...createDto,
+        status: 'PROVISIONING',
+        client: { businessName: 'New Client Ltd' },
+      });
+
+      const failingProvider = {
+        providerName: 'DokployProvider',
+        isConfigured: jest.fn().mockReturnValue(true),
+        createWorkload: jest.fn().mockRejectedValue(new Error('Dokploy API timeout')),
+      };
+
+      const serviceWithFailingProvider = new HostingService(
+        mockPrisma as any,
+        mockEvents as any,
+        failingProvider as any,
+      );
+
+      const result = await serviceWithFailingProvider.create(createDto);
+
+      expect(result.data.id).toBe('new-hosting-uuid');
+      expect(result.provisionResult).toBeUndefined();
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        'hosting.provisioned',
+        expect.objectContaining({ account: expect.anything() }),
+      );
+    });
+  });
 });
+
