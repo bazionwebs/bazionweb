@@ -15,11 +15,16 @@ export type WorkloadStatusType =
   | 'UNKNOWN'
   | 'DECOMMISSIONED';
 
+export type RestartPolicy = 'unless-stopped' | 'always' | 'on-failure' | 'no';
+
 export interface DeploymentResourceLimits {
   cpus?: number;
   memoryLimitMb?: number;
   memoryReservationMb?: number;
   memoryMb?: number;
+  memorySwapMb?: number;
+  pidsLimit?: number;
+  restartPolicy?: RestartPolicy;
 }
 
 export interface WorkloadConfig {
@@ -37,6 +42,7 @@ export interface WorkloadConfig {
   limits?: DeploymentResourceLimits;
   resourceLimits?: DeploymentResourceLimits;
   port?: number;
+  metadata?: Record<string, any>;
 }
 
 export type DeploymentConfig = WorkloadConfig;

@@ -63,6 +63,16 @@ const PRODUCT_MARKETING: Record<string, { name: string; description: string; fea
     description: 'High-resource managed cloud hosting with Redis object caching and 30-day snapshots.',
     features: ['Dedicated Compute & Redis Cache', '30-Day Snapshot Retention', 'Continuous Malware & WAF Defense', 'Automated Staging & Git Hooks', 'Priority Phone & Ticket Support'],
   },
+  'host-professional': {
+    name: 'Host Professional',
+    description: 'High-resource managed cloud hosting with Redis object caching and 30-day snapshots.',
+    features: ['Dedicated Compute & Redis Cache', '30-Day Snapshot Retention', 'Continuous Malware & WAF Defense', 'Automated Staging & Git Hooks', 'Priority Phone & Ticket Support'],
+  },
+  'host-cloud': {
+    name: 'Managed Cloud',
+    description: 'Fully isolated containerized cloud environments with dedicated PostgreSQL and Redis cluster.',
+    features: ['Isolated Docker Container Orchestration', 'Dedicated PostgreSQL Database', 'Redis In-Memory Caching Cluster', 'Automated CI/CD Deployments', 'Direct Systems Engineer Support'],
+  },
   'addon-blog-news': {
     name: 'Blog / News Engine',
     description: 'Full article CMS, categories, author bios, social sharing, and instant search.',

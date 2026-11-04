@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import axios from 'axios';
 import { DokployProvider, formatEnvValue, slugifyAppName } from './dokploy.provider';
 import { WorkloadConfig } from './deployment-provider.interface';
@@ -93,6 +93,14 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
       env: {
         NODE_ENV: 'production',
         PORT: '3000',
+      },
+      resourceLimits: {
+        cpus: 1.5,
+        memoryLimitMb: 1024,
+        memoryReservationMb: 512,
+        memorySwapMb: 1024,
+        pidsLimit: 150,
+        restartPolicy: 'unless-stopped',
       },
     };
 
@@ -507,6 +515,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
           API_SECRET: 'alpha#beta$123',
           PORT: '8080',
         },
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       const envCall = mockHttpClient.post.mock.calls.find(
@@ -550,6 +559,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
       await provider.createWorkload({
         name: 'Acacia Health & Diagnostic Center (HQ)!',
         domain: 'acacia.co.ke',
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       expect(capturedPayload).toBeDefined();
@@ -570,6 +580,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
       await provider.createWorkload({
         name: '---###Super___App$$$---',
         domain: 'superapp.co.ke',
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       expect(capturedPayload.appName).toBe('bazion-super-app');
@@ -589,6 +600,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
       await provider.createWorkload({
         name: '@@@$$$%%%^^^',
         domain: 'fallback.co.ke',
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       expect(capturedPayload.appName).toMatch(/^bazion-\d+$/);
@@ -615,6 +627,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
         name: 'compose-service',
         domain: 'compose.bazion.ke',
         buildType: 'compose',
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       const appCreateCall = mockHttpClient.post.mock.calls.find(
@@ -630,6 +643,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
         domain: 'image.bazion.ke',
         buildType: 'image',
         dockerImage: 'redis:7-alpine',
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       const appCreateCall = mockHttpClient.post.mock.calls.find(
@@ -647,6 +661,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
         domain: 'dockerfile.bazion.ke',
         buildType: 'dockerfile',
         repositoryUrl: 'https://github.com/bazionweb/custom-app',
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       const appCreateCall = mockHttpClient.post.mock.calls.find(
@@ -662,6 +677,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
         domain: 'git.bazion.ke',
         buildType: 'git',
         repositoryUrl: 'https://github.com/bazionweb/custom-app',
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       const appCreateCall = mockHttpClient.post.mock.calls.find(
@@ -676,6 +692,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
         name: 'inferred-image-service',
         domain: 'inferred.bazion.ke',
         dockerImage: 'postgres:16-alpine',
+        resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
       });
 
       const appCreateCall = mockHttpClient.post.mock.calls.find(
@@ -745,24 +762,232 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
       expect(capturedPayload.memoryReservation).toBeUndefined();
     });
 
-    it('does not populate limit keys when no resource limits are specified', async () => {
+    it('rejects unconstrained container allocations when resource limits are undefined', async () => {
+      // 1. Missing entirely
+      await expect(
+        provider.createWorkload({
+          name: 'app-no-limits',
+          domain: 'nolimits.co.ke',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // 2. Explicitly undefined resourceLimits
+      await expect(
+        provider.createWorkload({
+          name: 'app-undef-resource-limits',
+          domain: 'undef-rl.co.ke',
+          resourceLimits: undefined,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // 3. Explicitly undefined limits alias
+      await expect(
+        provider.createWorkload({
+          name: 'app-undef-limits',
+          domain: 'undef-l.co.ke',
+          limits: undefined,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // 4. Empty limits object
+      await expect(
+        provider.createWorkload({
+          name: 'app-empty-limits',
+          domain: 'empty-limits.co.ke',
+          resourceLimits: {} as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects unconstrained container allocations when only cpus is provided (missing memory)', async () => {
+      // With resourceLimits
+      await expect(
+        provider.createWorkload({
+          name: 'app-only-cpus-rl',
+          domain: 'onlycpus-rl.co.ke',
+          resourceLimits: {
+            cpus: 1.5,
+          } as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // With limits alias
+      await expect(
+        provider.createWorkload({
+          name: 'app-only-cpus-alias',
+          domain: 'onlycpus-alias.co.ke',
+          limits: {
+            cpus: 2.0,
+          } as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects unconstrained container allocations when only memory is provided (missing cpus)', async () => {
+      // With memoryLimitMb
+      await expect(
+        provider.createWorkload({
+          name: 'app-only-mem-limit',
+          domain: 'onlymem-limit.co.ke',
+          resourceLimits: {
+            memoryLimitMb: 1024,
+          } as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // With memoryMb fallback alias
+      await expect(
+        provider.createWorkload({
+          name: 'app-only-mem-alias',
+          domain: 'onlymem-alias.co.ke',
+          limits: {
+            memoryMb: 512,
+          } as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects allocation when cpus <= 0 or memory <= 0', async () => {
+      // cpus = 0
+      await expect(
+        provider.createWorkload({
+          name: 'app-zero-cpu',
+          domain: 'zerocpu.co.ke',
+          resourceLimits: {
+            cpus: 0,
+            memoryLimitMb: 1024,
+          },
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // cpus < 0
+      await expect(
+        provider.createWorkload({
+          name: 'app-negative-cpu',
+          domain: 'negcpu.co.ke',
+          resourceLimits: {
+            cpus: -1,
+            memoryLimitMb: 1024,
+          },
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // memoryLimitMb = 0
+      await expect(
+        provider.createWorkload({
+          name: 'app-zero-mem',
+          domain: 'zeromem.co.ke',
+          resourceLimits: {
+            cpus: 1.0,
+            memoryLimitMb: 0,
+          },
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // memoryLimitMb < 0
+      await expect(
+        provider.createWorkload({
+          name: 'app-negative-mem',
+          domain: 'negmem.co.ke',
+          resourceLimits: {
+            cpus: 1.0,
+            memoryLimitMb: -512,
+          },
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // memoryMb alias <= 0
+      await expect(
+        provider.createWorkload({
+          name: 'app-negative-mem-alias',
+          domain: 'negmem-alias.co.ke',
+          limits: {
+            cpus: 1.0,
+            memoryMb: -256,
+          },
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // Both cpus and memory <= 0
+      await expect(
+        provider.createWorkload({
+          name: 'app-both-negative',
+          domain: 'bothneg.co.ke',
+          resourceLimits: {
+            cpus: -1,
+            memoryLimitMb: -512,
+          },
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects allocation when cpus or memory are NaN or non-numeric', async () => {
+      // NaN cpus
+      await expect(
+        provider.createWorkload({
+          name: 'app-nan-cpu',
+          domain: 'nancpu.co.ke',
+          resourceLimits: {
+            cpus: NaN,
+            memoryLimitMb: 1024,
+          } as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // NaN memory
+      await expect(
+        provider.createWorkload({
+          name: 'app-nan-mem',
+          domain: 'nanmem.co.ke',
+          resourceLimits: {
+            cpus: 1.0,
+            memoryLimitMb: NaN,
+          } as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      // String limits
+      await expect(
+        provider.createWorkload({
+          name: 'app-string-limits',
+          domain: 'stringlimits.co.ke',
+          resourceLimits: {
+            cpus: '1.5' as any,
+            memoryLimitMb: '1024' as any,
+          } as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('forwards memorySwapMb, pidsLimit, and restartPolicy into appPayload', async () => {
       let capturedPayload: any = null;
       mockHttpClient.post.mockImplementation((url: string, payload: any) => {
         if (url === '/api/application.create') {
           capturedPayload = payload;
-          return Promise.resolve({ data: { applicationId: 'app-limits-03' } });
+          return Promise.resolve({ data: { applicationId: 'app-limits-04' } });
         }
         return Promise.resolve({ data: {} });
       });
 
       await provider.createWorkload({
-        name: 'app-no-limits',
-        domain: 'nolimits.co.ke',
+        name: 'app-with-full-cgroups',
+        domain: 'cgroups.co.ke',
+        resourceLimits: {
+          cpus: 2.0,
+          memoryLimitMb: 2048,
+          memoryReservationMb: 1024,
+          memorySwapMb: 2048,
+          pidsLimit: 250,
+          restartPolicy: 'unless-stopped',
+        },
       });
 
-      expect(capturedPayload.cpuLimit).toBeUndefined();
-      expect(capturedPayload.memoryLimit).toBeUndefined();
-      expect(capturedPayload.memoryReservation).toBeUndefined();
+      expect(capturedPayload.cpuLimit).toBe('2');
+      expect(capturedPayload.memoryLimit).toBe('2048M');
+      expect(capturedPayload.memoryReservation).toBe('1024M');
+      expect(capturedPayload.memorySwap).toBe('2048M');
+      expect(capturedPayload.pidsLimit).toBe(250);
+      expect(capturedPayload.restartPolicy).toBe('unless-stopped');
     });
   });
 
@@ -941,6 +1166,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
         provider.createWorkload({
           name: 'failed-domain-workload',
           domain: 'conflict.co.ke',
+          resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
         }),
       ).rejects.toThrow('Domain conflict');
 
@@ -968,6 +1194,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
           name: 'failed-env-workload',
           domain: 'envfail.co.ke',
           env: { BAD_ENV: 'value' },
+          resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
         }),
       ).rejects.toThrow('Invalid env syntax');
 
@@ -991,6 +1218,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
         provider.createWorkload({
           name: 'failed-create-workload',
           domain: 'createfail.co.ke',
+          resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
         }),
       ).rejects.toThrow('Docker daemon out of space');
 
@@ -1015,6 +1243,7 @@ describe('DokployProvider — Comprehensive Unit Test Suite', () => {
         provider.createWorkload({
           name: 'double-fault-workload',
           domain: 'doublefault.co.ke',
+          resourceLimits: { cpus: 1.0, memoryLimitMb: 512 },
         }),
       ).rejects.toThrow('Original domain failure');
     });

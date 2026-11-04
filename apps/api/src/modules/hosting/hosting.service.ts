@@ -7,6 +7,11 @@ import * as net from 'net';
 import * as tls from 'tls';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DeploymentProvider, ProvisionResult } from './providers/deployment-provider.interface';
+import { resolveHostingTier } from './constants/hosting-tiers.config';
+import { resolveServerTopology } from './constants/server-topologies.config';
+import { EmailRoutingHelper, EmailDnsConfig } from './email/email-routing.helper';
+import { DatabaseTenancyHelper, TenantDatabaseConfig } from './database/database-tenancy.helper';
+import { RedisTenancyHelper, TenantRedisConfig } from './cache/redis-tenancy.helper';
 
 export function isPrivateOrReservedIp(ip: string): boolean {
   const normalized = ip.toLowerCase().trim();
@@ -220,22 +225,136 @@ export class HostingService {
   }
 
   async create(dto: {
-    clientId: string; domain: string; server: string;
-    plan: string; ipAddress?: string; serverOs?: string;
+    clientId: string;
+    domain: string;
+    server: string;
+    plan: string;
+    ipAddress?: string;
+    serverOs?: string;
+    databaseType?: 'postgresql' | 'mariadb' | 'none';
+    emailProvider?: string;
+    emailAliases?: string[];
   }) {
+    // 1. Validate and resolve plan to canonical tier profile
+    const tierProfile = resolveHostingTier(dto.plan);
+    if (!tierProfile) {
+      throw new BadRequestException(
+        `Invalid or unsupported hosting plan tier: "${dto.plan}". Supported tiers: host-essential, host-business, host-professional, host-cloud`,
+      );
+    }
+
+    // 2. Validate server node topology & reject control plane provisioning
+    const targetNode = resolveServerTopology(dto.server);
+    if (targetNode.role === 'control-plane' || targetNode.usableMemoryMb === 0) {
+      throw new BadRequestException(
+        `Tenant workloads cannot be provisioned on control plane node "${targetNode.name}"`,
+      );
+    }
+
+    // 3. Enforce server node capacity boundaries
+    const activeAccounts =
+      (await this.prisma.hostingAccount.findMany({
+        where: {
+          server: { in: [dto.server, targetNode.nodeId, targetNode.name] },
+          status: { in: ['ACTIVE', 'PROVISIONING'] },
+          deletedAt: null,
+        },
+        select: { id: true, plan: true, server: true },
+      })) || [];
+
+    // 3a. Maximum tenant density boundary check
+    if (activeAccounts.length >= targetNode.maxTenantCount) {
+      throw new BadRequestException(
+        `Server capacity boundary reached: node "${targetNode.name}" has reached its maximum tenant density threshold (${targetNode.maxTenantCount} active containers)`,
+      );
+    }
+
+    // 3b. Usable memory headroom reservation check
+    const currentAllocatedMemoryMb = activeAccounts.reduce((sum, acct) => {
+      const p = resolveHostingTier(acct.plan);
+      return sum + (p?.memoryReservationMb ?? 256);
+    }, 0);
+
+    const availableMemoryMb = targetNode.usableMemoryMb - currentAllocatedMemoryMb;
+    if (currentAllocatedMemoryMb + tierProfile.memoryReservationMb > targetNode.usableMemoryMb) {
+      throw new BadRequestException(
+        `Server memory capacity boundary exceeded: node "${targetNode.name}" has only ${availableMemoryMb}MB available memory headroom, but tier "${tierProfile.name}" requires ${tierProfile.memoryReservationMb}MB reservation`,
+      );
+    }
+
+    // 4. Generate Corporate Email DNS records & enforce mailbox quotas
+    let emailDnsConfig: EmailDnsConfig | undefined;
+    const maxInboxes = EmailRoutingHelper.getMaxInboxesForTier(tierProfile.tierId);
+    if (maxInboxes > 0 || (dto.emailAliases && dto.emailAliases.length > 0)) {
+      emailDnsConfig = EmailRoutingHelper.generateEmailDnsRecords(
+        dto.domain,
+        dto.emailProvider || 'CLOUDFLARE_EMAIL_ROUTING',
+        dto.emailAliases,
+        tierProfile.tierId,
+      );
+    }
+
+    // 5. Generate Tenant Database configuration (shared vs dedicated)
+    let tenantDbConfig: TenantDatabaseConfig | undefined;
+    if (dto.databaseType !== 'none') {
+      tenantDbConfig = DatabaseTenancyHelper.provisionTenantDatabase({
+        domain: dto.domain,
+        clientId: dto.clientId,
+        plan: tierProfile.tierId,
+        type: (dto.databaseType as any) || 'postgresql',
+        isDedicated: tierProfile.database === 'dedicated',
+      });
+    }
+
+    // 6. Generate Tenant Redis Cache configuration (Host Pro & Managed Cloud)
+    let tenantRedisConfig: TenantRedisConfig | undefined;
+    if (
+      tierProfile.tierId === 'host-professional' ||
+      tierProfile.tierId === 'host-cloud' ||
+      tierProfile.redis === 'dedicated'
+    ) {
+      tenantRedisConfig = RedisTenancyHelper.provisionTenantRedis({
+        domain: dto.domain,
+        clientId: dto.clientId,
+        plan: tierProfile.tierId,
+        isDedicated: tierProfile.redis === 'dedicated',
+      });
+    }
+
+    // 7. Persist HostingAccount in database
     const account = await this.prisma.hostingAccount.create({
       data: {
-        clientId:  dto.clientId,
-        domain:    dto.domain,
-        server:    dto.server,
-        plan:      dto.plan,
-        status:    'PROVISIONING',
+        clientId: dto.clientId,
+        domain: dto.domain,
+        server: targetNode.nodeId,
+        plan: tierProfile.tierId,
+        status: 'PROVISIONING',
         ipAddress: dto.ipAddress,
-        serverOs:  dto.serverOs,
+        serverOs: dto.serverOs,
       },
       include: { client: { select: { businessName: true } } },
     });
 
+    // 8. Inject Environment Variables into container workload
+    const workloadEnv: Record<string, string> = {
+      DOMAIN: dto.domain,
+      NODE_ENV: 'production',
+    };
+    if (tenantDbConfig) {
+      workloadEnv.DATABASE_URL = tenantDbConfig.connectionString;
+      workloadEnv.DB_NAME = tenantDbConfig.databaseName;
+      workloadEnv.DB_USER = tenantDbConfig.databaseUser;
+      workloadEnv.DB_PASSWORD = tenantDbConfig.password;
+    }
+    if (tenantRedisConfig) {
+      workloadEnv.REDIS_URL = tenantRedisConfig.connectionString;
+      workloadEnv.REDIS_PREFIX = tenantRedisConfig.keyPrefix;
+    }
+    if (emailDnsConfig) {
+      workloadEnv.EMAIL_PROVIDER = emailDnsConfig.provider;
+    }
+
+    // 9. Provision container workload with strict cgroups resource limits
     let provisionResult: ProvisionResult | null = null;
     if (this.deploymentProvider && this.deploymentProvider.isConfigured()) {
       try {
@@ -246,6 +365,36 @@ export class HostingService {
           clientId: dto.clientId,
           hostingId: account.id,
           buildType: 'dockerfile',
+          env: workloadEnv,
+          resourceLimits: {
+            cpus: tierProfile.cpus,
+            memoryLimitMb: tierProfile.memoryLimitMb,
+            memoryReservationMb: tierProfile.memoryReservationMb,
+            memorySwapMb: tierProfile.memorySwapMb,
+            pidsLimit: tierProfile.pidsLimit,
+            restartPolicy: tierProfile.restartPolicy,
+          },
+          metadata: {
+            database: tenantDbConfig
+              ? {
+                  name: tenantDbConfig.databaseName,
+                  type: tenantDbConfig.type,
+                  isDedicated: tenantDbConfig.isDedicated,
+                }
+              : undefined,
+            redis: tenantRedisConfig
+              ? {
+                  prefix: tenantRedisConfig.keyPrefix,
+                  isDedicated: tenantRedisConfig.isDedicated,
+                }
+              : undefined,
+            emailDns: emailDnsConfig
+              ? {
+                  provider: emailDnsConfig.provider,
+                  maxInboxes: emailDnsConfig.maxInboxes,
+                }
+              : undefined,
+          },
         });
         this.logger.log(
           `Workload provisioned on ${this.deploymentProvider.providerName} for ${dto.domain} (ID: ${provisionResult.workloadId})`,
@@ -257,9 +406,42 @@ export class HostingService {
       }
     }
 
-    this.events.emit('hosting.provisioned', { account, provisionResult });
+    // 10. Emit enriched event
+    this.events.emit('hosting.provisioned', {
+      account,
+      provisionResult,
+      database: tenantDbConfig,
+      redis: tenantRedisConfig,
+      emailDns: emailDnsConfig,
+    });
+
     this.logger.log(`Hosting account created: ${dto.domain} for client ${dto.clientId}`);
-    return { data: account, provisionResult: provisionResult ?? undefined };
+
+    return {
+      data: account,
+      provisionResult: provisionResult ?? undefined,
+      database: tenantDbConfig
+        ? {
+            databaseName: tenantDbConfig.databaseName,
+            databaseUser: tenantDbConfig.databaseUser,
+            host: tenantDbConfig.host,
+            port: tenantDbConfig.port,
+            type: tenantDbConfig.type,
+            isDedicated: tenantDbConfig.isDedicated,
+            provisioningSql: tenantDbConfig.provisioningSql,
+          }
+        : undefined,
+      redis: tenantRedisConfig
+        ? {
+            host: tenantRedisConfig.host,
+            port: tenantRedisConfig.port,
+            keyPrefix: tenantRedisConfig.keyPrefix,
+            isDedicated: tenantRedisConfig.isDedicated,
+            aclUserCommand: tenantRedisConfig.aclUserCommand,
+          }
+        : undefined,
+      emailDns: emailDnsConfig ?? undefined,
+    };
   }
 
   async updateAccount(id: string, dto: Record<string, unknown>) {

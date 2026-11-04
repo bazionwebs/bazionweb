@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import {
@@ -166,6 +166,24 @@ export class DokployProvider extends DeploymentProvider {
     let applicationId: string | undefined;
 
     try {
+      // PAYLOAD-06: Resource limits forwarding & Hardened Unconstrained Allocation Guard
+      const limits = config.resourceLimits || config.limits;
+      const memLimit = limits?.memoryLimitMb ?? limits?.memoryMb;
+
+      if (
+        !limits ||
+        typeof limits.cpus !== 'number' ||
+        !Number.isFinite(limits.cpus) ||
+        limits.cpus <= 0 ||
+        typeof memLimit !== 'number' ||
+        !Number.isFinite(memLimit) ||
+        memLimit <= 0
+      ) {
+        throw new BadRequestException(
+          'Unconstrained container allocation rejected: explicit resource limits (cpus and memoryLimitMb) must be configured',
+        );
+      }
+
       const projectName =
         config.projectName ||
         (config.clientId ? `client-${config.clientId}` : `project-${config.name || 'default'}`);
@@ -205,20 +223,18 @@ export class DokployProvider extends DeploymentProvider {
         appPayload.dockerImage = config.dockerImage;
       }
 
-      // PAYLOAD-06: Resource limits forwarding
-      const limits = config.resourceLimits || config.limits;
-      if (limits) {
-        if (limits.cpus) {
-          appPayload.cpuLimit = String(limits.cpus);
-        }
-        const memLimit = limits.memoryLimitMb || limits.memoryMb;
-        if (memLimit) {
-          appPayload.memoryLimit = `${memLimit}M`;
-        }
-        if (limits.memoryReservationMb) {
-          appPayload.memoryReservation = `${limits.memoryReservationMb}M`;
-        }
+      appPayload.cpuLimit = String(limits.cpus);
+      appPayload.memoryLimit = `${memLimit}M`;
+      if (limits.memoryReservationMb && limits.memoryReservationMb > 0) {
+        appPayload.memoryReservation = `${limits.memoryReservationMb}M`;
       }
+      if (limits.memorySwapMb && limits.memorySwapMb > 0) {
+        appPayload.memorySwap = `${limits.memorySwapMb}M`;
+      }
+      if (limits.pidsLimit && limits.pidsLimit > 0) {
+        appPayload.pidsLimit = limits.pidsLimit;
+      }
+      appPayload.restartPolicy = limits.restartPolicy || 'unless-stopped';
 
       const createRes = await this.http.post('/api/application.create', appPayload);
       applicationId = createRes.data?.applicationId || createRes.data?.id;
