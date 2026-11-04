@@ -36,7 +36,7 @@ export default function DPAPage() {
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">1. Parties & Capacities</h2>
             <p className="text-slate-600 leading-relaxed">
               <strong>Data Controller:</strong> The Client, as identified in the Service Order or customer portal account.<br />
-              <strong>Data Processor:</strong> BazionWeb, registered in Nairobi, Kenya (ODPC Registered Data Controller & Data Processor).<br />
+              <strong>Data Processor:</strong> BazionWeb, registered in Nairobi, Kenya (acting in dual capacity as Data Controller and Data Processor under the Kenya Data Protection Act 2019).<br />
               This DPA supplements the Hosting Terms of Service and supersedes any conflicting terms regarding personal data processing.
             </p>
           </section>

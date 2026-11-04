@@ -92,7 +92,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-xl font-bold text-[#0F172A] mb-3">7. Data Protection & International Transfers</h2>
               <p className="text-slate-600 leading-relaxed">
-                BazionWeb is registered with the Office of the Data Protection Commissioner (ODPC) Kenya as both a Data Controller and Data Processor. By using our hosting services, you consent to our processing of personal data under our <a href="/legal/privacy" className="text-[#2563EB] underline">Privacy Policy</a> and <a href="/legal/dpa" className="text-[#2563EB] underline">DPA</a>, including international transfers to certified European and US data centers under Sections 48 and 49 of the Kenya Data Protection Act, 2019.
+                BazionWeb operates in compliance with the Kenya Data Protection Act, 2019, acting in dual capacity as a Data Controller and Data Processor. By using our hosting services, you consent to our processing of personal data under our <a href="/legal/privacy" className="text-[#2563EB] underline">Privacy Policy</a> and <a href="/legal/dpa" className="text-[#2563EB] underline">DPA</a>, including international transfers to certified European and US data centers under Sections 48 and 49 of the Kenya Data Protection Act, 2019.
               </p>
             </section>
 

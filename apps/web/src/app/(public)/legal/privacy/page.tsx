@@ -26,21 +26,6 @@ export default function PrivacyPage() {
       <div className="container-default max-w-3xl py-16">
         <div className="card p-8 md:p-10 space-y-8 prose prose-slate max-w-none">
 
-          {/* Statutory Registration Banner */}
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 not-prose">
-            <div className="flex items-start gap-3">
-              <span className="text-emerald-600 font-bold text-lg">✓</span>
-              <div>
-                <p className="text-sm font-semibold text-emerald-900">
-                  Registered with the Office of the Data Protection Commissioner (ODPC) Kenya
-                </p>
-                <p className="text-xs text-emerald-700 mt-1">
-                  BazionWeb is registered in Kenya as both a <strong>Data Controller</strong> (for customer account and billing operations) and a <strong>Data Processor</strong> (for managed cloud hosting and client application workloads).
-                </p>
-              </div>
-            </div>
-          </div>
-
           <section>
             <h2 className="text-xl font-bold text-[#0F172A] mb-3">1. Who We Are & Our Regulatory Roles</h2>
             <p className="text-slate-600 leading-relaxed mb-3">
