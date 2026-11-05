@@ -155,16 +155,35 @@ export class ClientsService {
     const isStaff = ['ADMIN', 'SUPER_ADMIN'].some(r => user.roles?.includes(r));
     if (!isStaff && client.userId !== user.id) throw new ForbiddenException('Access denied');
 
-    // Clients can't change their own plan/status
+    // Clients can't change their own plan, status, or login email
     if (!isStaff) {
       delete (dto as any).status;
       delete (dto as any).planTier;
+      delete (dto as any).email;
     }
 
     const normalizeNullable = (v: string | undefined) =>
       v === undefined ? undefined : v.trim() === '' ? null : v.trim();
 
     const data: Record<string, any> = {};
+    const userPatch: Record<string, any> = {};
+
+    if (dto.email !== undefined && dto.email.trim()) {
+      const cleanEmail = dto.email.trim().toLowerCase();
+      if (cleanEmail !== client.email) {
+        if (!isStaff) throw new ForbiddenException('Only administrators can update account email addresses');
+        const [conflictClient, conflictUser] = await Promise.all([
+          this.prisma.client.findFirst({ where: { email: cleanEmail, id: { not: id } } }),
+          this.prisma.user.findFirst({ where: { email: cleanEmail, id: { not: client.userId } } }),
+        ]);
+        if (conflictClient || conflictUser) {
+          throw new ConflictException('This email address is already in use by another account');
+        }
+        data.email = cleanEmail;
+        userPatch.email = cleanEmail;
+      }
+    }
+
     if (dto.businessName !== undefined && dto.businessName.trim()) {
       data.businessName = dto.businessName.trim();
     }
@@ -180,7 +199,14 @@ export class ClientsService {
       const plan = await this.prisma.plan
         .findFirst({ where: { tier: dto.planTier as any, isActive: true } })
         .catch(() => null);
-      if (plan) data.plan = { connect: { id: plan.id } };
+      if (plan) {
+        data.plan = { connect: { id: plan.id } };
+        // Sync active subscriptions to the new plan to prevent SSOT billing drift
+        await this.prisma.subscription.updateMany({
+          where: { clientId: id, status: 'ACTIVE' },
+          data: { planId: plan.id },
+        }).catch(() => undefined);
+      }
     }
 
     const updated = await this.prisma.client.update({
@@ -190,7 +216,6 @@ export class ClientsService {
     });
 
     // Keep linked User identity fields synchronized with Client contact details
-    const userPatch: Record<string, any> = {};
     if (data.contactName) {
       const parts = String(data.contactName).split(/\s+/);
       userPatch.firstName = parts[0] || null;
@@ -203,6 +228,22 @@ export class ClientsService {
       await this.prisma.user
         .update({ where: { id: client.userId }, data: userPatch })
         .catch(() => undefined);
+    }
+
+    if (this.prisma.auditLog) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: user?.id || null,
+          action: 'client.update',
+          resourceType: 'Client',
+          resourceId: id,
+          newValue: {
+            updatedFields: Object.keys(data),
+            changes: data,
+            updatedBy: user?.email || user?.id || 'admin',
+          },
+        },
+      }).catch(() => undefined);
     }
 
     return { data: updated };

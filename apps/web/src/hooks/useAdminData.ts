@@ -273,6 +273,31 @@ export function useImpersonateClient() {
   });
 }
 
+export function useUpdateClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof adminApi.updateClient>[1] }) =>
+      adminApi.updateClient(id, data).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'mrr'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+export function useDeleteClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.deleteClient(id).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'mrr'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
 export function useClientVault(clientId: string | null | undefined) {
   const token = useToken();
   return useQuery({

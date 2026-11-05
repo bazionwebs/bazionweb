@@ -173,6 +173,24 @@ export const adminApi = {
   listClients: (params: { q?: string; page?: number; limit?: number } = {}) =>
     api.get('/clients', { params: { limit: 100, ...params } }).then(r => r.data),
 
+  updateClient: (
+    id: string,
+    data: {
+      businessName?: string;
+      contactName?: string;
+      email?: string;
+      phone?: string | null;
+      address?: string | null;
+      country?: string | null;
+      taxPin?: string | null;
+      status?: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'TRIAL';
+      planTier?: 'STARTER' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE';
+    },
+  ) => api.patch(`/clients/${id}`, data).then(r => r.data),
+
+  deleteClient: (id: string) =>
+    api.delete(`/clients/${id}`).then(r => r.data),
+
   listTickets: (params: { status?: string; priority?: string; page?: number; limit?: number } = {}) =>
     api.get('/tickets', { params: { limit: 50, ...params } }).then(r => r.data),
 
