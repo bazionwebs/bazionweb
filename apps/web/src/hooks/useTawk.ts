@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TawkVisitorAttributes } from '@/types/tawk';
+import { safeAddEvent, safeSetAttributes } from '@/lib/tawk-bridge';
 
 export function useTawk() {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -74,21 +75,11 @@ export function useTawk() {
   }, []);
 
   const setAttributes = useCallback((attrs: TawkVisitorAttributes) => {
-    if (typeof window === 'undefined') return;
-    if (window.Tawk_API?.setAttributes) {
-      window.Tawk_API.setAttributes(attrs, (err) => {
-        if (err) console.warn('[Tawk] Failed to set attributes:', err);
-      });
-    }
+    safeSetAttributes(attrs);
   }, []);
 
   const addEvent = useCallback((eventName: string, metadata?: Record<string, unknown>) => {
-    if (typeof window === 'undefined') return;
-    if (window.Tawk_API?.addEvent) {
-      window.Tawk_API.addEvent(eventName, metadata, (err) => {
-        if (err) console.warn('[Tawk] Failed to add event:', err);
-      });
-    }
+    safeAddEvent(eventName, metadata);
   }, []);
 
   const addTags = useCallback((tags: string[]) => {

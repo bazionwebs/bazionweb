@@ -1,8 +1,11 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import Script from 'next/script';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { safeAddEvent, safeSetAttributes } from '@/lib/tawk-bridge';
+
+const TAWK_TITLE_NOTIFICATION_RE = /\bnew message/i;
 
 const DEFAULT_PROPERTY_ID = '6ae6de21896a4b3c3630071b';
 const DEFAULT_WIDGET_ID = '1k6at7dq5';
@@ -109,6 +112,7 @@ export function resolveTitleForPath(pathOrUrl: string): string {
 function TawkRouteTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const lastSentTitleRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -123,32 +127,32 @@ function TawkRouteTracker() {
         document.title = resolvedTitle;
       }
 
-      if (window.Tawk_API?.setAttributes) {
-        window.Tawk_API.setAttributes({
-          current_path: fullUrl,
-          current_title: document.title || resolvedTitle,
-        });
-      }
-
-      if (window.Tawk_API?.addEvent) {
-        window.Tawk_API.addEvent('route_change', {
-          path: fullUrl,
-          title: document.title || resolvedTitle,
-        });
-      }
+      const appliedTitle = document.title || resolvedTitle;
+      lastSentTitleRef.current = appliedTitle;
+      safeSetAttributes({
+        current_path: fullUrl,
+        current_title: appliedTitle,
+      });
+      safeAddEvent('route_change', {
+        path: fullUrl,
+        title: appliedTitle,
+      });
     });
 
-    // Listen for subsequent dynamic DOM <title> changes by Next.js metadata streaming
+    // Listen for subsequent dynamic DOM <title> changes by Next.js metadata streaming.
+    // Tawk mutates the same node with chat-notification titles (e.g. "1 new message") —
+    // those are echoes, not page titles, and must never be pushed back into setAttributes.
     let observer: MutationObserver | null = null;
     const titleEl = document.querySelector('title');
     if (titleEl && typeof MutationObserver !== 'undefined') {
       observer = new MutationObserver(() => {
-        if (window.Tawk_API?.setAttributes) {
-          window.Tawk_API.setAttributes({
-            current_path: fullUrl,
-            current_title: document.title,
-          });
-        }
+        if (TAWK_TITLE_NOTIFICATION_RE.test(document.title)) return;
+        if (lastSentTitleRef.current === document.title) return;
+        lastSentTitleRef.current = document.title;
+        safeSetAttributes({
+          current_path: fullUrl,
+          current_title: document.title,
+        });
       });
       observer.observe(titleEl, { subtree: true, characterData: true, childList: true });
     }

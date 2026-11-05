@@ -60,7 +60,8 @@ describe('TawkToChat Component & Title Synchronization', () => {
           expect.objectContaining({
             current_path: '/pricing',
             current_title: expect.stringContaining('Pricing'),
-          })
+          }),
+          expect.any(Function)
         );
 
         expect(window.Tawk_API?.addEvent).toHaveBeenCalledWith(
@@ -68,7 +69,8 @@ describe('TawkToChat Component & Title Synchronization', () => {
           expect.objectContaining({
             path: '/pricing',
             title: expect.stringContaining('Pricing'),
-          })
+          }),
+          expect.any(Function)
         );
       } finally {
         window.requestAnimationFrame = originalRaf;
