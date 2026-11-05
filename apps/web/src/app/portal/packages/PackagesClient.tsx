@@ -52,7 +52,7 @@ import {
 } from '@/hooks/usePortalData';
 import { useAuthStore } from '@/store/auth.store';
 import { resolveApiV1Base } from '@/lib/api-base';
-import { cn } from '@/lib/utils';
+import { cn, isTrustedCheckoutUrl } from '@/lib/utils';
 
 type CatalogTab = 'care' | 'builds' | 'hosting' | 'addons';
 type Cycle = 'MONTHLY' | 'ANNUAL';
@@ -283,7 +283,7 @@ export default function PackagesClient() {
       const body = await res.json().catch(() => ({}));
       const data = body?.data ?? body;
       if (!res.ok) throw new Error(data.message || body.message || 'Card gateway error');
-      if (data.checkoutUrl) {
+      if (data.checkoutUrl && isTrustedCheckoutUrl(data.checkoutUrl)) {
         window.location.href = data.checkoutUrl;
         return;
       }
@@ -633,7 +633,7 @@ export default function PackagesClient() {
       const body = await res.json().catch(() => ({}));
       const data = body?.data ?? body;
       if (!res.ok) throw new Error(data.message || body.message || 'Card checkout failed');
-      if (data.checkoutUrl) {
+      if (data.checkoutUrl && isTrustedCheckoutUrl(data.checkoutUrl)) {
         window.location.href = data.checkoutUrl;
         return;
       }

@@ -40,19 +40,30 @@ export function toSafeExternalUrl(raw?: string | null): string | undefined {
 
 /**
  * Validates hosted checkout redirect destinations (e.g. Paystack).
+ * Strictly requires HTTPS and ensures the destination hostname matches
+ * an approved payment processor domain (e.g. paystack.com, checkout.paystack.com, paystack.co)
+ * rejecting javascript:, data:, relative, protocol-relative (//evil.com), or deceptive spoofing.
  */
 export function isTrustedCheckoutUrl(raw?: string | null): boolean {
-  if (!raw) return false;
+  if (!raw || typeof raw !== 'string') return false;
   try {
     const parsed = new URL(raw.trim());
+    if (parsed.protocol !== 'https:') return false;
+    const hostname = parsed.hostname.toLowerCase();
+    const trustedDomains = ['paystack.com', 'paystack.co'];
     return (
-      parsed.protocol === 'https:' &&
-      (parsed.hostname === 'checkout.paystack.com' ||
-        parsed.hostname === 'standard.paystack.co' ||
-        parsed.hostname.endsWith('.paystack.co') ||
-        parsed.hostname.endsWith('.paystack.com'))
+      trustedDomains.includes(hostname) ||
+      trustedDomains.some((domain) => hostname.endsWith('.' + domain))
     );
   } catch {
     return false;
   }
 }
+
+export {
+  KENYAN_PHONE_REGEX,
+  isValidKenyanPhone,
+  normalizeKenyanPhoneNumber,
+  formatKenyanPhoneDisplay,
+} from './phone';
+

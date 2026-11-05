@@ -25,6 +25,7 @@ import { authApi } from '@/lib/api';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { planMarketing, usePlans } from '@/lib/plans';
+import { isTrustedCheckoutUrl } from '@/lib/utils';
 
 const DEFAULT_ONBOARDING_PLAN = 'care-business';
 
@@ -151,7 +152,7 @@ export default function OnboardingPage() {
       const body = await res.json().catch(() => ({}));
       const data = body?.data ?? body;
       if (!res.ok) throw new Error(data.message || body.message || 'Card gateway error');
-      if (data.checkoutUrl) {
+      if (data.checkoutUrl && isTrustedCheckoutUrl(data.checkoutUrl)) {
         window.location.href = data.checkoutUrl;
         return;
       }

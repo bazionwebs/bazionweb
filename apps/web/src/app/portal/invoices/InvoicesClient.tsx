@@ -18,7 +18,10 @@ import {
   RefreshCw,
   ArrowUpRight,
   Printer,
+  Eye,
 } from 'lucide-react';
+import { resolveApiV1Base } from '@/lib/api-base';
+import { portalApi } from '@/lib/api';
 import {
   useClientInvoices,
   useClientProfile,
@@ -30,6 +33,7 @@ import {
 import { TableSkeletonRows, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatMoney, formatDate, titleCase, providerLabel } from '@/lib/format';
 import { cn, isTrustedCheckoutUrl, toSafeExternalUrl } from '@/lib/utils';
+
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   PAID: {
@@ -88,11 +92,51 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Tax split for display. Uses the server-computed breakdown when present,
+ * falling back to standard KRA 16% VAT (Inclusive) for KES and 0% Export Rate
+ * for international currencies.
+ */
+export function computeInvoiceTaxBreakdown(inv: ApiInvoice) {
+  if (inv.breakdown) return inv.breakdown;
+  const total = Number(inv.amount || 0);
+  const isKes = (inv.currency || 'KES').toUpperCase() === 'KES';
+  const vatRate = isKes ? 0.16 : 0.0;
+  const isInclusive = isKes;
+
+  let subtotal = total;
+  let vatAmount = 0;
+
+  if (vatRate > 0) {
+    if (isInclusive) {
+      subtotal = Math.round((total / (1 + vatRate)) * 100) / 100;
+      vatAmount = Math.round((total - subtotal) * 100) / 100;
+    } else {
+      vatAmount = Math.round(total * vatRate * 100) / 100;
+    }
+  }
+
+  const isPaid = inv.status === 'PAID';
+  const amountPaid = isPaid ? total : 0;
+  const balanceDue = isPaid ? 0 : total;
+
+  return {
+    subtotal,
+    vatRate,
+    vatAmount,
+    vatLabel: vatRate > 0 ? '16% KRA VAT (Inclusive)' : '0% Export Rate',
+    total,
+    amountPaid,
+    balanceDue,
+  };
+}
+
 function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
   if (typeof window === 'undefined') return;
   const isPaid = inv.status === 'PAID';
   const docTitle = isPaid ? 'OFFICIAL PAYMENT RECEIPT' : 'COMMERCIAL INVOICE';
   const paymentLog = inv.paymentLogs?.[0];
+  const breakdown = computeInvoiceTaxBreakdown(inv);
   const rawItems = Array.isArray(inv.lineItems) ? inv.lineItems : [];
   const rowsHtml =
     rawItems.length > 0
@@ -176,10 +220,26 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
     </table>
 
     <div style="display:flex;justify-content:flex-end;margin-top:24px;">
-      <div style="min-width:260px;background:#f8fafc;padding:18px 20px;border-radius:14px;border:1px solid #e2e8f0;">
-        <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:900;">
-          <span>${isPaid ? 'Total Settled' : 'Total Due'}</span>
-          <span>${escapeHtml(formatMoney(inv.amount, inv.currency))}</span>
+      <div style="min-width:320px;background:#f8fafc;padding:18px 20px;border-radius:14px;border:1px solid #e2e8f0;">
+        ${breakdown.vatAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:#475569;margin-bottom:8px;">
+          <span>Subtotal (Net):</span>
+          <span style="font-weight:600;color:#0f172a;">${escapeHtml(formatMoney(breakdown.subtotal, inv.currency))}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#475569;margin-bottom:8px;">
+          <span>${escapeHtml(breakdown.vatLabel)}:</span>
+          <span style="font-weight:600;color:#0f172a;">${escapeHtml(formatMoney(breakdown.vatAmount, inv.currency))}</span>
+        </div>` : ''}
+        <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:900;border-top:1px solid #cbd5e1;padding-top:10px;margin-bottom:8px;">
+          <span>Invoice Total:</span>
+          <span style="color:#0f172a;">${escapeHtml(formatMoney(breakdown.total, inv.currency))}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#166534;margin-bottom:6px;">
+          <span>Amount Paid:</span>
+          <span style="font-weight:700;">${escapeHtml(formatMoney(breakdown.amountPaid, inv.currency))}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;color:${breakdown.balanceDue > 0 ? '#991b1b' : '#166534'};border-top:1px dashed #cbd5e1;padding-top:8px;">
+          <span>Balance Due:</span>
+          <span>${escapeHtml(formatMoney(breakdown.balanceDue, inv.currency))}</span>
         </div>
       </div>
     </div>
@@ -188,6 +248,7 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
       Generated electronically by BazionWeb Client Portal. Keep this statement for your accounting records.
     </div>
   </div>
+
 </body>
 </html>`;
 
@@ -212,7 +273,25 @@ export default function InvoicesClient() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'AWAITING' | 'OVERDUE'>('ALL');
   const [selectedInvoiceForPay, setSelectedInvoiceForPay] = useState<ApiInvoice | null>(null);
+  const [selectedInvoiceForInspect, setSelectedInvoiceForInspect] = useState<ApiInvoice | null>(null);
   const [paymentMethodTab, setPaymentMethodTab] = useState<'mpesa' | 'card'>('mpesa');
+
+  const handleDownloadPdf = async (inv: ApiInvoice) => {
+    try {
+      const res = await portalApi.getInvoicePdfLink(inv.id);
+      const data = res?.data ?? res;
+      const signedPath: string | undefined = data?.downloadUrlWithToken || data?.url;
+      if (signedPath) {
+        const origin = resolveApiV1Base().replace(/\/api\/v1$/, '');
+        const fullUrl = signedPath.startsWith('http') ? signedPath : `${origin}${signedPath}`;
+        window.open(fullUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+    } catch {
+      // Fall back to printable statement if API is unreachable in mock mode
+    }
+    openPrintableStatement(inv, liveClient);
+  };
   const [phoneNumber, setPhoneNumber] = useState('');
   const [phoneSeeded, setPhoneSeeded] = useState(false);
   const [stkResult, setStkResult] = useState<{
@@ -806,6 +885,15 @@ export default function InvoicesClient() {
 
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInvoiceForInspect(inv)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
+                            title="Inspect itemized tax breakdown"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-slate-500" />
+                            Breakdown
+                          </button>
                           {isPayable && (
                             <button
                               type="button"
@@ -830,13 +918,21 @@ export default function InvoicesClient() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => openPrintableStatement(inv, liveClient)}
+                              onClick={() => handleDownloadPdf(inv)}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
                             >
-                              <Printer className="w-3.5 h-3.5 text-slate-500" />
-                              {isPaid ? 'Receipt' : 'Invoice'}
+                              <Download className="w-3.5 h-3.5 text-slate-500" />
+                              PDF
                             </button>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => openPrintableStatement(inv, liveClient)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-slate-500" />
+                            {isPaid ? 'Receipt' : 'Invoice'}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1044,6 +1140,129 @@ export default function InvoicesClient() {
           </div>
         </div>
       )}
+
+      {/* Itemized Tax & Statement Breakdown Modal */}
+      {selectedInvoiceForInspect && (() => {
+        const inspectBreakdown = computeInvoiceTaxBreakdown(selectedInvoiceForInspect);
+        const inspectItems = Array.isArray(selectedInvoiceForInspect.lineItems) && selectedInvoiceForInspect.lineItems.length > 0
+          ? selectedInvoiceForInspect.lineItems
+          : [{ description: selectedInvoiceForInspect.notes || 'BazionWeb Engineering & Cloud Services', quantity: 1, amount: Number(selectedInvoiceForInspect.amount || 0) }];
+        const inspectPayable = isAwaitingPayment(selectedInvoiceForInspect.status) || selectedInvoiceForInspect.status === 'OVERDUE';
+        return (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inspect-statement-title"
+          >
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl border border-slate-200">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+                <div>
+                  <h3 id="inspect-statement-title" className="text-xl font-black text-[#0F172A]">
+                    Statement Breakdown
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Invoice <span className="font-mono font-bold text-slate-800">{selectedInvoiceForInspect.invoiceNumber}</span> • Issued {formatDate(selectedInvoiceForInspect.createdAt)} • Due {formatDate(selectedInvoiceForInspect.dueDate)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInvoiceForInspect(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 overflow-hidden mb-5">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <th className="py-2.5 px-4">Description</th>
+                      <th className="py-2.5 px-3 text-center">Qty</th>
+                      <th className="py-2.5 px-4 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {inspectItems.map((item, idx) => (
+                      <tr key={idx} className="text-slate-700">
+                        <td className="py-3 px-4 font-medium">{String(item.description || item.label || 'BazionWeb Service')}</td>
+                        <td className="py-3 px-3 text-center">{Number(item.quantity ?? 1)}</td>
+                        <td className="py-3 px-4 text-right font-semibold text-slate-900">
+                          {formatMoney(Number(item.amount ?? item.total ?? selectedInvoiceForInspect.amount ?? 0), selectedInvoiceForInspect.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-2 text-xs mb-6">
+                <div className="flex justify-between text-slate-600">
+                  <span>Subtotal (Net):</span>
+                  <span className="font-semibold text-slate-900">
+                    {formatMoney(inspectBreakdown.subtotal, selectedInvoiceForInspect.currency)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>{inspectBreakdown.vatLabel}:</span>
+                  <span className="font-semibold text-slate-900">
+                    {formatMoney(inspectBreakdown.vatAmount, selectedInvoiceForInspect.currency)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm font-black text-[#0F172A] pt-2 border-t border-slate-200">
+                  <span>Invoice Total:</span>
+                  <span>{formatMoney(inspectBreakdown.total, selectedInvoiceForInspect.currency)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-700 font-semibold">
+                  <span>Amount Paid:</span>
+                  <span>{formatMoney(inspectBreakdown.amountPaid, selectedInvoiceForInspect.currency)}</span>
+                </div>
+                <div className={cn(
+                  'flex justify-between text-sm font-extrabold pt-2 border-t border-dashed border-slate-300',
+                  inspectBreakdown.balanceDue > 0 ? 'text-rose-700' : 'text-emerald-700'
+                )}>
+                  <span>Balance Due:</span>
+                  <span>{formatMoney(inspectBreakdown.balanceDue, selectedInvoiceForInspect.currency)}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPdf(selectedInvoiceForInspect)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openPrintableStatement(selectedInvoiceForInspect, liveClient)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Print Statement
+                </button>
+                {inspectPayable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = selectedInvoiceForInspect;
+                      setSelectedInvoiceForInspect(null);
+                      openPayModal(target);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold transition-colors"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    Pay Now
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

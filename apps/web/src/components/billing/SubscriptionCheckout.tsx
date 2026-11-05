@@ -20,6 +20,8 @@ import { useAuthStore } from '@/store/auth.store';
 import { DEFAULT_PLAN_SLUG, planMarketing, usePlans } from '@/lib/plans';
 import { useCartStore, cartTotal } from '@/lib/cart';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import { isTrustedCheckoutUrl, normalizeKenyanPhoneNumber } from '@/lib/utils';
+
 
 interface CheckoutProps {
   initialPlanSlug?: string;
@@ -65,8 +67,16 @@ export default function SubscriptionCheckout({
   const isKe = marketCode === 'KE';
   const { plans, bySlug, loading: plansLoading, error: plansError } = usePlans();
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(initialPlanSlug);
-  const [activeTab, setActiveTab] = useState<PaymentTab>('MPESA');
+  const [activeTab, setActiveTab] = useState<PaymentTab>(isKe ? 'MPESA' : 'CARD');
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>(initialCycle);
+
+  // Sync default tab if market resolves to international after initial load
+  useEffect(() => {
+    if (!isKe && activeTab === 'MPESA') {
+      setActiveTab('CARD');
+    }
+  }, [isKe, activeTab]);
+
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -197,7 +207,14 @@ export default function SubscriptionCheckout({
   // M-Pesa STK via Paystack (KES) — server-side pricing, phone only.
   const handleMpesaPay = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPhone = phone.replace(/[^0-9+]/g, '');
+    const normalizedPhone = normalizeKenyanPhoneNumber(phone);
+    if (!normalizedPhone) {
+      setFeedback({
+        type: 'error',
+        message: 'Please enter a valid Kenyan mobile number (e.g. 0712 345 678, 0110 123 456, or +254 7XX XXX XXX).',
+      });
+      return;
+    }
 
     if (!token) {
       // Guest pay-first: no account needed. Email becomes the claim identity;
@@ -217,7 +234,7 @@ export default function SubscriptionCheckout({
             planId: currentPlan.id,
             billingCycle,
             email: cleanEmail,
-            mpesaPhoneNumber: cleanPhone,
+            mpesaPhoneNumber: normalizedPhone,
             ...(cartExtras.length ? { extras: cartExtras } : {}),
           }),
         });
@@ -248,10 +265,11 @@ export default function SubscriptionCheckout({
         body: JSON.stringify({
           planId: currentPlan.id,
           billingCycle,
-          mpesaPhoneNumber: cleanPhone,
+          mpesaPhoneNumber: normalizedPhone,
           ...(cartExtras.length ? { extras: cartExtras } : {}),
         }),
       });
+
 
       const envelope = await res.json();
       const data = envelope?.data ?? envelope;
@@ -285,7 +303,7 @@ export default function SubscriptionCheckout({
           body: JSON.stringify({
             planId: currentPlan.id,
             billingCycle,
-            currency: 'KES',
+            currency: isKe ? 'KES' : 'USD',
             ...(email ? { email } : {}),
             ...(cartExtras.length ? { extras: cartExtras } : {}),
           }),
@@ -293,11 +311,11 @@ export default function SubscriptionCheckout({
         const body = await res.json().catch(() => ({}));
         const data = body?.data ?? body;
         if (!res.ok) throw new Error(data.message || body.message || 'Card gateway initialization failed');
-        if (data.checkoutUrl) {
+        if (data.checkoutUrl && isTrustedCheckoutUrl(data.checkoutUrl)) {
           window.location.href = data.checkoutUrl;
           return;
         }
-        throw new Error('Payment gateway did not return a checkout URL');
+        throw new Error('Payment gateway returned an invalid or untrusted checkout URL');
       }
 
       // Guest checkout — pay first, claim the account after success.
@@ -315,7 +333,7 @@ export default function SubscriptionCheckout({
         body: JSON.stringify({
           planId: currentPlan.id,
           billingCycle,
-          currency: 'KES',
+          currency: isKe ? 'KES' : 'USD',
           email: cleanEmail,
           firstName: firstName.trim(),
           lastName: lastName.trim(),
@@ -325,15 +343,16 @@ export default function SubscriptionCheckout({
       const body = await res.json().catch(() => ({}));
       const data = body?.data ?? body;
       if (!res.ok) throw new Error(data.message || body.message || 'Card gateway initialization failed');
-      if (data.checkoutUrl) {
+      if (data.checkoutUrl && isTrustedCheckoutUrl(data.checkoutUrl)) {
         window.location.href = data.checkoutUrl;
         return;
       }
-      throw new Error('Payment gateway did not return a checkout URL');
+      throw new Error('Payment gateway returned an invalid or untrusted checkout URL');
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Card gateway error') });
       setLoading(false);
     }
+
   };
 
   // Manual B2B bank transfer (Wise = payouts/invoice links only — no virtual accounts in KE).
@@ -686,12 +705,15 @@ export default function SubscriptionCheckout({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="0712 345 678"
+                  pattern="^(?:254|\+254|0)?(7|1)[0-9]{8}$"
+                  title="Enter a valid Kenyan mobile number (e.g. 0712 345 678, 0110 123 456, or +254 7XX XXX XXX)"
                   required
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
                 />
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  You will receive an STK Push PIN prompt directly on your handset via Paystack.
+                  Format: 07XX XXX XXX or 01XX XXX XXX (Safaricom / Airtel M-Pesa). You will receive an STK Push PIN prompt.
                 </span>
+
               </div>
 
               <button

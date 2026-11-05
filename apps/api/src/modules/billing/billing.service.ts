@@ -36,10 +36,27 @@ import {
 } from './dto/billing.dto';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import * as jwt from 'jsonwebtoken';
 import { checkoutLineItem, PaymentSettlementService } from './payment-settlement.service';
+import { InvoicePdfGenerator } from './invoice-pdf.generator';
+
+/** JWT audience for short-lived invoice PDF download links. */
+const INVOICE_DOWNLOAD_AUDIENCE = 'bazionweb:invoice-download';
+
+export interface InvoiceBreakdown {
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  vatLabel: string;
+  total: number;
+  amountPaid: number;
+  balanceDue: number;
+  isInclusive: boolean;
+}
 
 @Injectable()
 export class BillingService {
+
   private readonly logger = new Logger(BillingService.name);
 
   constructor(
@@ -160,6 +177,8 @@ export class BillingService {
               provider: true,
               method: true,
               createdAt: true,
+              status: true,
+              amount: true,
             },
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -171,8 +190,18 @@ export class BillingService {
       }),
     ]);
 
+    // Attach a server-computed tax breakdown so every surface (portal table,
+    // statement modal, PDF) shows the same VAT split from the Market table.
+    const taxByCurrency = new Map<string, { vatRate: number; isInclusive: boolean }>();
+    for (const currency of new Set(items.map((i) => i.currency))) {
+      taxByCurrency.set(currency, await this.resolveInvoiceTax(currency));
+    }
+
     return {
-      data: items,
+      data: items.map((inv) => ({
+        ...inv,
+        breakdown: this.calculateInvoiceBreakdown(inv, taxByCurrency.get(inv.currency)),
+      })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -1043,6 +1072,137 @@ export class BillingService {
   }
 
   /**
+   * Public Proposal Retrieval:
+   * Looks up a locked, accepted, or expired proposal by its reference code,
+   * calculates deposit (50%) and balance terms, maps line items, and attaches
+   * linked deposit invoice details if already accepted.
+   */
+  async getProposalByCode(code: string) {
+    const raw = String(code || '').trim();
+    if (!raw) {
+      throw new NotFoundException('Proposal not found');
+    }
+
+    const cleanCode = raw.toUpperCase();
+    if (!/^[A-Z0-9_-]{4,64}$/.test(cleanCode)) {
+      throw new NotFoundException('Proposal not found');
+    }
+
+    const proposal = await this.prisma.proposal.findUnique({
+      where: { proposalCode: cleanCode },
+      include: {
+        market: {
+          include: {
+            currency: true,
+          },
+        },
+      },
+    });
+
+    if (!proposal) {
+      throw new NotFoundException(`Proposal ${cleanCode} not found`);
+    }
+
+    const now = new Date();
+    let status: 'LOCKED' | 'ACCEPTED' | 'EXPIRED' = 'LOCKED';
+    if (proposal.status === 'ACCEPTED') {
+      status = 'ACCEPTED';
+    } else if (proposal.status === 'EXPIRED' || proposal.expiresAt < now) {
+      status = 'EXPIRED';
+    } else {
+      status = 'LOCKED';
+    }
+
+    const depositPercent = this.proposalDepositPercent();
+    const totalAmount = Number(proposal.totalAmount);
+    const depositAmount = Math.round(((totalAmount * depositPercent) / 100) * 100) / 100;
+    const finalAmount = Math.round((totalAmount - depositAmount) * 100) / 100;
+
+    const currency = proposal.currency || proposal.market?.currencyCode || 'USD';
+    const currencySymbol =
+      proposal.market?.currency?.symbol ||
+      (currency === 'KES' ? 'KSh' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$');
+
+    const marketCode: 'KE' | 'GLOBAL' =
+      proposal.market?.code === 'KE' || currency === 'KES' ? 'KE' : 'GLOBAL';
+
+    // Normalize raw lineItems JSON into strict array shape (schema-tolerant defensive parsing)
+    let rawItems: any[] = [];
+    if (Array.isArray(proposal.lineItems)) {
+      rawItems = proposal.lineItems;
+    } else if (typeof proposal.lineItems === 'string') {
+      try {
+        const parsed = JSON.parse(proposal.lineItems);
+        if (Array.isArray(parsed)) {
+          rawItems = parsed;
+        } else if (parsed && typeof parsed === 'object' && Array.isArray((parsed as any).items)) {
+          rawItems = (parsed as any).items;
+        }
+      } catch {
+        rawItems = [];
+      }
+    } else if (proposal.lineItems && typeof proposal.lineItems === 'object' && Array.isArray((proposal.lineItems as any).items)) {
+      rawItems = (proposal.lineItems as any).items;
+    }
+
+    const lineItems = rawItems
+      .filter((item: any) => Boolean(item) && typeof item === 'object')
+      .map((item: any) => {
+        const title = String(item.title || item.name || item.description || item.productId || 'Project Item');
+        const price = Number(item.price ?? item.amount ?? 0);
+        const quantity = item.quantity !== undefined && Number.isFinite(Number(item.quantity))
+          ? Number(item.quantity)
+          : (item.count !== undefined && Number.isFinite(Number(item.count)) ? Number(item.count) : undefined);
+        const subtitle = item.subtitle || (item.billingPeriod && item.billingPeriod !== 'one-time' ? `${item.billingPeriod}ly recurring` : undefined);
+        return {
+          title,
+          ...(subtitle ? { subtitle } : {}),
+          price: Number.isFinite(price) ? price : 0,
+          ...(quantity !== undefined ? { quantity } : {}),
+        };
+      });
+
+    // Check if a kickoff deposit invoice was already generated
+    const marker = this.depositInvoiceMarker(cleanCode);
+    const existingInvoice = await this.prisma.invoice.findFirst({
+      where: { notes: { contains: marker }, status: { not: InvoiceStatus.CANCELLED } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, invoiceNumber: true, amount: true, status: true, dueDate: true },
+    });
+
+    return {
+      success: true,
+      data: {
+        proposalCode: proposal.proposalCode,
+        currency,
+        currencySymbol,
+        totalAmount,
+        depositAmount,
+        finalAmount,
+        status,
+        clientName: proposal.clientName || '',
+        clientCompany: proposal.clientCompany || '',
+        clientEmail: proposal.clientEmail || '',
+        marketCode,
+        lineItems,
+        expiresAt: proposal.expiresAt.toISOString(),
+        createdAt: proposal.createdAt.toISOString(),
+        ...(existingInvoice ? {
+          invoice: {
+            id: existingInvoice.id,
+            invoiceNumber: existingInvoice.invoiceNumber,
+            amount: Number(existingInvoice.amount),
+            status: existingInvoice.status as any,
+            dueDate: existingInvoice.dueDate instanceof Date 
+              ? existingInvoice.dueDate.toISOString() 
+              : new Date(existingInvoice.dueDate).toISOString(),
+          },
+        } : {}),
+      },
+    };
+  }
+
+  /**
    * Guest proposal acceptance (quote-to-close): validates the locked proposal,
    * provisions the passwordless guest identity, and creates the kickoff-deposit
    * invoice. Idempotent — re-accepting returns the same deposit invoice.
@@ -1374,15 +1534,217 @@ export class BillingService {
     return { data: updated };
   }
 
+  /**
+   * Resolves the VAT rule for an invoice currency from the Market table
+   * (the same source of truth used by the pricing engine), so invoices never
+   * show a tax line that the quote/price book did not charge.
+   */
+  private async resolveInvoiceTax(currency: string): Promise<{ vatRate: number; isInclusive: boolean }> {
+    const fallback = { vatRate: 0, isInclusive: true };
+    try {
+      const market = await this.prisma.market.findFirst({
+        where: { currencyCode: (currency || '').toUpperCase(), active: true },
+        select: { vatRate: true, taxIncludedInPrice: true },
+      });
+      if (!market) return fallback;
+      return { vatRate: Number(market.vatRate) || 0, isInclusive: market.taxIncludedInPrice };
+    } catch {
+      return fallback;
+    }
+  }
+
+  calculateInvoiceBreakdown(
+    invoice: {
+      amount: any;
+      currency: string;
+      status: string;
+      paymentLogs?: Array<{ status: string; amount: any }>;
+    },
+    tax?: { vatRate: number; isInclusive: boolean },
+  ): InvoiceBreakdown {
+    const total = Number(invoice.amount || 0);
+    const isKes = (invoice.currency || 'KES').toUpperCase() === 'KES';
+    const resolvedTax = tax ?? { vatRate: isKes ? 0.16 : 0.0, isInclusive: isKes };
+    const vatRate = resolvedTax.vatRate > 0 ? resolvedTax.vatRate : 0;
+    const isInclusive = resolvedTax.isInclusive;
+
+    let subtotal = total;
+    let vatAmount = 0;
+
+    // invoice.amount is always the gross amount the client is charged (the
+    // pricing engine adds exclusive tax before the invoice is issued), so the
+    // net/VAT split is always derived from the gross: total = subtotal + VAT.
+    if (vatRate > 0) {
+      subtotal = Math.round((total / (1 + vatRate)) * 100) / 100;
+      vatAmount = Math.round((total - subtotal) * 100) / 100;
+    }
+
+    const ratePct = Math.round(vatRate * 10000) / 100;
+    const vatLabel =
+      vatRate > 0 ? `${ratePct}% KRA VAT (Inclusive)` : '0% Cross-Border Export';
+
+    const isPaid = invoice.status === InvoiceStatus.PAID;
+    const paidLogsSum = (invoice.paymentLogs || [])
+      .filter((log) => log.status === PaymentStatus.SUCCESS)
+      .reduce((sum, log) => sum + Number(log.amount || 0), 0);
+
+    const amountPaid = isPaid ? total : Math.min(total, paidLogsSum);
+    const balanceDue = isPaid ? 0 : Math.max(0, Math.round((total - amountPaid) * 100) / 100);
+
+    return {
+      subtotal,
+      vatRate,
+      vatAmount,
+      vatLabel,
+      total,
+      amountPaid,
+      balanceDue,
+      isInclusive,
+    };
+  }
+
+  async verifyInvoiceAccess(
+    id: string,
+    options: {
+      user?: any;
+      token?: string;
+      proposalCode?: string;
+    },
+  ) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        client: {
+          include: {
+            user: { select: { id: true, email: true, firstName: true, lastName: true, role: true } },
+          },
+        },
+        paymentLogs: {
+          where: { status: PaymentStatus.SUCCESS },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!invoice) throw new NotFoundException('Invoice not found');
+
+    // Path 1: Proposal code (unauthenticated guests downloading the kickoff
+    // deposit invoice of their own proposal). Exact marker match only — a bare
+    // substring match on the code could authorize unrelated invoices.
+    if (options.proposalCode) {
+      const marker = this.depositInvoiceMarker(options.proposalCode);
+      if (invoice.notes?.includes(marker)) {
+        return invoice;
+      }
+    }
+
+    // Path 2: Short-lived signed download token minted by the authenticated
+    // GET /invoices/:id/pdf endpoint (ownership is checked when it is minted).
+    if (options.token) {
+      try {
+        const decoded = jwt.verify(options.token, this.invoiceDownloadSecret(), {
+          algorithms: ['HS256'],
+          audience: INVOICE_DOWNLOAD_AUDIENCE,
+        }) as { invoiceId?: string };
+        if (decoded.invoiceId === id) {
+          return invoice;
+        }
+      } catch {
+        // Invalid or expired token — fall through to user check.
+      }
+    }
+
+    // Path 3: Authenticated user context (staff or owning client)
+    if (options.user) {
+      const isStaff = ['ADMIN', 'SUPER_ADMIN'].some((r) => options.user.roles?.includes(r));
+      if (isStaff || invoice.client?.userId === options.user.id) {
+        return invoice;
+      }
+    }
+
+    throw new ForbiddenException('Access denied to this invoice statement');
+  }
+
+  /**
+   * Download tokens are signed with a key derived from JWT_SECRET (never a
+   * hardcoded fallback) and carry a dedicated audience and no `iss`, so they
+   * can never be replayed as API access tokens by JwtAuthGuard.
+   */
+  private invoiceDownloadSecret(): string {
+    const configured = this.config.get<string>('JWT_SECRET');
+    if (configured && configured.length >= 32) {
+      return `${configured}:${INVOICE_DOWNLOAD_AUDIENCE}`;
+    }
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException('Invoice downloads are not configured');
+    }
+    return `dev-test-ephemeral-secret-32chars-min:${INVOICE_DOWNLOAD_AUDIENCE}`;
+  }
+
+  async generateInvoicePdfStream(
+    id: string,
+    accessOptions: { user?: any; token?: string; proposalCode?: string },
+  ) {
+    const invoice = await this.verifyInvoiceAccess(id, accessOptions);
+    const breakdown = this.calculateInvoiceBreakdown(invoice, await this.resolveInvoiceTax(invoice.currency));
+
+    const rawLineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+    const paymentLog = invoice.paymentLogs?.[0];
+
+    const pdfBuffer = InvoicePdfGenerator.generate({
+      invoiceNumber: invoice.invoiceNumber,
+      currency: invoice.currency,
+      amount: Number(invoice.amount),
+      status: invoice.status,
+      createdAt: invoice.createdAt,
+      dueDate: invoice.dueDate,
+      paidAt: invoice.paidAt,
+      notes: invoice.notes,
+      client: {
+        businessName: invoice.client?.businessName || 'Valued Client',
+        contactName:
+          invoice.client?.contactName ||
+          (invoice.client?.user
+            ? `${invoice.client.user.firstName || ''} ${invoice.client.user.lastName || ''}`.trim()
+            : null),
+        email: invoice.client?.email || invoice.client?.user?.email || 'billing@bazionweb.com',
+        address: invoice.client?.address,
+        country: invoice.client?.country,
+        taxPin: invoice.client?.taxPin,
+      },
+      lineItems: rawLineItems as any[],
+      breakdown,
+      paymentRef: paymentLog?.providerRef,
+      supplier: {
+        address: this.config.get<string>('COMPANY_POSTAL_ADDRESS') || null,
+        taxPin: this.config.get<string>('COMPANY_KRA_PIN') || null,
+      },
+    });
+
+    return {
+      stream: pdfBuffer,
+      filename: `invoice-${invoice.invoiceNumber}.pdf`,
+    };
+  }
+
   async getPdfUrl(id: string, user: any) {
     await this.findOne(id, user);
+    const downloadToken = jwt.sign({ sub: user?.id, invoiceId: id }, this.invoiceDownloadSecret(), {
+      algorithm: 'HS256',
+      audience: INVOICE_DOWNLOAD_AUDIENCE,
+      expiresIn: '5m',
+    });
+
     return {
       data: {
         url: `/api/v1/invoices/${id}/pdf/download`,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        downloadUrlWithToken: `/api/v1/invoices/${id}/pdf/download?token=${encodeURIComponent(downloadToken)}`,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       },
     };
   }
+
 
   /** Auto-generate monthly invoices for active subscriptions — runs 1st of each month at 00:05 */
   @Cron('5 0 1 * *', { name: 'auto-invoice-generation' })

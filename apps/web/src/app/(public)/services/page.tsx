@@ -15,6 +15,7 @@ import {
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
+import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
@@ -197,6 +198,9 @@ export default async function ServicesPage() {
         <div className="container-default max-w-4xl mx-auto text-center">
           <div className="flex justify-center mb-4">
             <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services' }]} />
+          </div>
+          <div className="mb-6 max-w-4xl mx-auto">
+            <ClientJourneyProgress currentStep={1} variant="dark" />
           </div>
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
             Core Service Architecture

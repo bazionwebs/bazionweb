@@ -31,6 +31,7 @@ import {
 } from '@/hooks/usePortalData';
 import { formatDate, formatMoney, titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import ClientOnboardingChecklist from '@/components/portal/ClientOnboardingChecklist';
 
 export default function PortalDashboardPage() {
   const { data: liveClient, isLoading: clientLoading, isError: clientError } = useClientProfile();
@@ -112,6 +113,15 @@ export default function PortalDashboardPage() {
 
         <div className="absolute -right-10 -bottom-10 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
       </div>
+
+      {/* ── Guided Onboarding Checklist (hidden once onboardedAt is set) ──── */}
+      {!clientLoading && !liveClient?.onboardedAt && (
+        <ClientOnboardingChecklist
+          client={liveClient}
+          hasAssets={hostingAccounts.length > 0}
+          hasProjects={projects.length > 0}
+        />
+      )}
 
       {/* ── Overview Metrics ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

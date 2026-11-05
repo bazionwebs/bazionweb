@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -28,6 +28,8 @@ function ClaimContent() {
   const [devNotice, setDevNotice] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const autoRequestedRef = useRef(false);
+  const autostart = searchParams.get('autostart') === '1' || searchParams.get('claim') === '1';
 
   useEffect(() => {
     if (claimToken && typeof window !== 'undefined') {
@@ -39,13 +41,12 @@ function ClaimContent() {
     }
   }, [claimToken, email]);
 
-  async function handleRequestLink(e: React.FormEvent) {
-    e.preventDefault();
+  const dispatchClaimLink = useCallback(async (targetEmail: string) => {
     setError('');
     setDevPreviewUrl('');
     setDevNotice('');
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) {
       setError('Enter the billing email you used during payment.');
       return;
     }
@@ -55,7 +56,7 @@ function ClaimContent() {
       const res = await fetch('/api/auth/claim-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: targetEmail.trim() }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -80,6 +81,19 @@ function ClaimContent() {
     } finally {
       setRequesting(false);
     }
+  }, []);
+
+  // Streamlined post-payment claim: auto-dispatch when arriving from /checkout/verify with ?email=...&autostart=1
+  useEffect(() => {
+    if (!claimToken && autostart && email && !autoRequestedRef.current) {
+      autoRequestedRef.current = true;
+      void dispatchClaimLink(email);
+    }
+  }, [claimToken, autostart, email, dispatchClaimLink]);
+
+  async function handleRequestLink(e: React.FormEvent) {
+    e.preventDefault();
+    await dispatchClaimLink(email);
   }
 
   async function handleClaim(e: React.FormEvent) {

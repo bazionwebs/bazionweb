@@ -97,6 +97,11 @@ export const portalApi = {
   getMyHosting: () => api.get('/hosting/me').then(r => r.data),
   getMyTickets: () => api.get('/tickets?scope=mine').then(r => r.data),
   getMyInvoices: () => api.get('/invoices?scope=mine').then(r => r.data),
+  /** Mints a 5-minute signed PDF download link for an invoice the caller owns. */
+  getInvoicePdfLink: (invoiceId: string) =>
+    api.get(`/invoices/${invoiceId}/pdf`).then(r => r.data),
+  markOnboarded: (completedSteps?: string[]) =>
+    api.post('/clients/me/onboard', { completedSteps }).then(r => r.data),
   getMyReports: () => api.get('/reports/me').then(r => r.data),
 
   signOffProjectTask: (projectId: string, taskId: string) =>

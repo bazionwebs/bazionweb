@@ -93,6 +93,40 @@ export class ClientsService {
     return { data: client };
   }
 
+  /**
+   * Client: mark the guided portal onboarding as complete. Idempotent — the
+   * first completion timestamp is preserved on repeat calls.
+   */
+  async markOnboarded(userId: string, completedSteps?: string[]) {
+    const validStepKeys = new Set(['profile', 'domain', 'vault', 'roadmap']);
+    const sanitizedSteps = Array.isArray(completedSteps)
+      ? Array.from(new Set(completedSteps.filter((s) => typeof s === 'string' && validStepKeys.has(s))))
+      : Array.from(validStepKeys);
+
+    const client = await this.prisma.client.findFirst({
+      where: { userId, deletedAt: null },
+      select: { id: true, onboardedAt: true },
+    });
+    if (!client) throw new NotFoundException('Client account not found');
+    if (client.onboardedAt) {
+      return {
+        success: true,
+        onboardedAt: client.onboardedAt.toISOString(),
+        completedSteps: sanitizedSteps,
+      };
+    }
+    const updated = await this.prisma.client.update({
+      where: { id: client.id },
+      data: { onboardedAt: new Date() },
+      select: { onboardedAt: true },
+    });
+    return {
+      success: true,
+      onboardedAt: updated.onboardedAt!.toISOString(),
+      completedSteps: sanitizedSteps,
+    };
+  }
+
   async findOne(id: string, user: any) {
     const client = await this.prisma.client.findUnique({
       where: { id },

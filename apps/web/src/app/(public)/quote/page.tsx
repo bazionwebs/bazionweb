@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect, Suspense, useRef } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  Market,
   ADD_ON_RATE_CARD,
 } from '@/lib/pricingData';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
@@ -23,54 +22,24 @@ import {
   User,
   Globe,
   Lock,
-  CreditCard,
-  Smartphone,
-  CalendarDays,
-  Rocket,
-  FolderKanban,
   FileText,
   AlertCircle,
 } from 'lucide-react';
-import { resolveApiV1Base } from '@/lib/api-base';
 import { buildWhatsAppLink, trackWhatsAppOpen } from '@/lib/contact';
-
-interface QuoteConfig {
-  market: Market;
-  packageType: 'launch' | 'business' | 'professional' | 'ecom-starter' | 'ecom-business' | 'custom';
-  extraPages: number;
-  selectedAddOns: string[];
-  rushDelivery: boolean;
-  care: string; // 'none' | 'care-essential' | 'care-business' | 'care-professional'
-  hosting: string; // hosting option id, 'none' = self-managed
-}
-
-const PACKAGE_DEFAULTS = {
-  launch: { name: 'Launch Website', basePages: 5, kenyaCost: 25000, intlCost: 450 },
-  business: { name: 'Business Website', basePages: 10, kenyaCost: 90000, intlCost: 950 },
-  professional: { name: 'Professional Website', basePages: 15, kenyaCost: 160000, intlCost: 1750 },
-  'ecom-starter': { name: 'E-Commerce Starter', basePages: 8, kenyaCost: 90000, intlCost: 890 },
-  'ecom-business': { name: 'E-Commerce Business', basePages: 15, kenyaCost: 175000, intlCost: 1650 },
-  custom: { name: 'Custom Project Build', basePages: 5, kenyaCost: 320000, intlCost: 3600 },
-};
-
-// The API's global TransformInterceptor wraps every success as { data: ... }.
-// Unwrap the envelope once so callers can read the payload directly.
-function unwrapApiPayload<T>(payload: unknown): T {
-  const node = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-  return (node.data && typeof node.data === 'object' ? node.data : node) as T;
-}
-
-// NestJS error `message` may be a string or a validation array — normalize it.
-function apiErrorMessage(payload: unknown, fallback: string): string {
-  const node = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-  const message = node.message;
-  if (typeof message === 'string' && message.trim()) return message;
-  if (Array.isArray(message) && message.length) return message.join('. ');
-  return fallback;
-}
+import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
+import ProposalPresentationView, { ProposalViewModel } from '@/components/quote/ProposalPresentationView';
+import {
+  type QuoteConfig,
+  SERVICE_TO_QUOTE_CONFIG,
+  PACKAGE_DEFAULTS,
+  normalizeProposalPayload,
+} from '@/lib/quote-flow';
 
 function QuoteCalculatorContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const dismissedProposalRef = useRef<string | null>(null);
+  const lastFetchedCodeRef = useRef<string | null>(null);
 
   const { market, marketCode, marketDef } = useMarketPreference();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -96,34 +65,9 @@ function QuoteCalculatorContent() {
   );
   const [gLoading, setGLoading] = useState(false);
   const [submissionError, setSubmissionError] = useState('');
-  const [submittedQuote, setSubmittedQuote] = useState<{
-    proposalCode: string;
-    currencySymbol: string;
-    package: { name: string };
-    totals: {
-      formattedTotalBuild: string;
-      formattedMonthlyCare: string;
-      formattedAnnualHosting: string;
-      formattedTotalYearOne: string;
-    };
-    expiresAt: string;
-  } | null>(null);
-
-  // Accept & pay kickoff deposit (quote-to-close)
-  const [acceptStage, setAcceptStage] = useState<'idle' | 'confirm' | 'accepted'>('idle');
-  const [accepting, setAccepting] = useState(false);
-  const [acceptError, setAcceptError] = useState('');
-  const [deposit, setDeposit] = useState<{
-    invoiceNumber: string;
-    amount: number;
-    currency: string;
-    depositPercent: number;
-  } | null>(null);
-  const [payBusy, setPayBusy] = useState<'card' | 'mpesa' | null>(null);
-  const [payError, setPayError] = useState('');
-  const [mpesaPhone, setMpesaPhone] = useState('');
-  const [stk, setStk] = useState<{ trackingId: string; message: string } | null>(null);
-  const [payState, setPayState] = useState<'waiting' | 'paid' | 'failed'>('waiting');
+  const [activeProposal, setActiveProposal] = useState<ProposalViewModel | null>(null);
+  const [isLoadingProposal, setIsLoadingProposal] = useState(false);
+  const [proposalFetchError, setProposalFetchError] = useState<string | null>(null);
 
   // Sync config when market changes & clamp country to allowed regional options
   useEffect(() => {
@@ -135,21 +79,146 @@ function QuoteCalculatorContent() {
     });
   }, [market, marketCode]);
 
+  async function fetchProposalByCode(code: string) {
+    setIsLoadingProposal(true);
+    setProposalFetchError(null);
+    try {
+      const res = await fetch(`/api/quote?code=${encodeURIComponent(code)}`);
+      const envelope = await res.json().catch(() => ({}));
+      if (!res.ok || !envelope.success || !envelope.data) {
+        throw new Error(envelope.error || 'Proposal not found or reference code is invalid.');
+      }
+      const model = normalizeProposalPayload(envelope.data);
+      setActiveProposal(model);
+      if (model.clientName) setGName(model.clientName);
+      if (model.clientEmail) setGEmail(model.clientEmail);
+      if (model.clientCompany) setGCompany(model.clientCompany);
+    } catch (err) {
+      setProposalFetchError(err instanceof Error ? err.message : 'Could not retrieve proposal.');
+    } finally {
+      setIsLoadingProposal(false);
+    }
+  }
+
+  const proposalParam = searchParams.get('proposal')?.trim() || null;
+  const serviceParam = searchParams.get('service')?.toLowerCase().trim() || null;
+  const pkgParam = searchParams.get('package')?.toLowerCase().trim() || null;
+  const addonParam = searchParams.get('addon') || null;
+
+  // Hydrate proposal from URL parameter ?proposal=... on initial mount or URL change
   useEffect(() => {
-    const pkgParam = searchParams.get('package');
-    if (pkgParam && pkgParam in PACKAGE_DEFAULTS) {
-      setConfig(prev => ({ ...prev, packageType: pkgParam as QuoteConfig['packageType'] }));
+    if (proposalParam) {
+      const code = proposalParam.toUpperCase();
+      if (dismissedProposalRef.current === code) {
+        return;
+      }
+      if (!activeProposal || activeProposal.proposalCode !== code) {
+        lastFetchedCodeRef.current = code;
+        fetchProposalByCode(code);
+      }
+    } else {
+      lastFetchedCodeRef.current = null;
+      dismissedProposalRef.current = null;
+      setActiveProposal(null);
     }
-    const addonParam = searchParams.get('addon');
-    if (addonParam) {
-      setConfig(prev => ({
+  }, [proposalParam, activeProposal]);
+
+  // Support browser Back/Forward (popstate) between proposal view and calculator
+  useEffect(() => {
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('proposal');
+      if (code) {
+        const clean = code.trim().toUpperCase();
+        dismissedProposalRef.current = null;
+        lastFetchedCodeRef.current = clean;
+        fetchProposalByCode(clean);
+      } else {
+        lastFetchedCodeRef.current = null;
+        dismissedProposalRef.current = null;
+        setActiveProposal(null);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  function handleResetToCalculator() {
+    if (activeProposal) {
+      dismissedProposalRef.current = activeProposal.proposalCode;
+    } else if (proposalParam) {
+      dismissedProposalRef.current = proposalParam.toUpperCase();
+    }
+    lastFetchedCodeRef.current = null;
+    setActiveProposal(null);
+    setProposalFetchError(null);
+    router.replace('/quote', { scroll: false });
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/quote');
+    }
+  }
+
+  // Map service parameter and explicit package/addon parameters
+  useEffect(() => {
+    if (!serviceParam && !pkgParam && !addonParam) {
+      return;
+    }
+
+    setConfig(prev => {
+      let packageType = prev.packageType;
+      let care = prev.care;
+      let hosting = prev.hosting;
+      let selectedAddOns = [...prev.selectedAddOns];
+
+      // 1. Map service slug to calculator defaults if present
+      if (serviceParam && serviceParam in SERVICE_TO_QUOTE_CONFIG) {
+        const mapping = SERVICE_TO_QUOTE_CONFIG[serviceParam];
+        if (mapping.packageType) {
+          packageType = mapping.packageType;
+        }
+        if (mapping.care) {
+          care = mapping.care;
+        }
+        if (mapping.hosting) {
+          hosting = mapping.hosting;
+        }
+        if (mapping.selectedAddOns) {
+          selectedAddOns = Array.from(new Set([...selectedAddOns, ...mapping.selectedAddOns]));
+        }
+      }
+
+      // 2. Explicit package parameter takes highest precedence for packageType
+      if (pkgParam && pkgParam in PACKAGE_DEFAULTS) {
+        packageType = pkgParam as QuoteConfig['packageType'];
+      }
+
+      // 3. Explicit add-on parameter
+      if (addonParam && !selectedAddOns.includes(addonParam)) {
+        selectedAddOns = [...selectedAddOns, addonParam];
+      }
+
+      const addonsUnchanged =
+        selectedAddOns.length === prev.selectedAddOns.length &&
+        selectedAddOns.every((val, idx) => val === prev.selectedAddOns[idx]);
+
+      if (
+        packageType === prev.packageType &&
+        care === prev.care &&
+        hosting === prev.hosting &&
+        addonsUnchanged
+      ) {
+        return prev;
+      }
+
+      return {
         ...prev,
-        selectedAddOns: prev.selectedAddOns.includes(addonParam)
-          ? prev.selectedAddOns
-          : [...prev.selectedAddOns, addonParam],
-      }));
-    }
-  }, [searchParams]);
+        packageType,
+        care,
+        hosting,
+        selectedAddOns,
+      };
+    });
+  }, [serviceParam, pkgParam, addonParam]);
 
   const currencySymbol = config.market === 'kenya' ? 'KSh' : '$';
   const pkgInfo = PACKAGE_DEFAULTS[config.packageType] || PACKAGE_DEFAULTS.business;
@@ -229,8 +298,19 @@ function QuoteCalculatorContent() {
         throw new Error(quote.error || 'We could not save your proposal. Please retry.');
       }
 
-      setSubmittedQuote(quote);
+      const model = normalizeProposalPayload(quote, {
+        name: gName.trim(),
+        email: gEmail.trim().toLowerCase(),
+        company: gCompany.trim(),
+      });
+
+      setActiveProposal(model);
       setShowModal(false);
+
+      if (typeof window !== 'undefined') {
+        const nextUrl = `/quote?proposal=${encodeURIComponent(model.proposalCode)}`;
+        window.history.pushState({ proposalCode: model.proposalCode }, '', nextUrl);
+      }
     } catch (error) {
       setSubmissionError(error instanceof Error ? error.message : 'We could not save your proposal. Please retry.');
     } finally {
@@ -239,370 +319,29 @@ function QuoteCalculatorContent() {
     }
   }
 
-  const proposalApi = (path: string) => `${resolveApiV1Base()}/invoices/proposals/${encodeURIComponent(submittedQuote?.proposalCode ?? '')}${path}`;
-
-  async function handleAcceptProposal() {
-    if (!submittedQuote) return;
-    setAccepting(true);
-    setAcceptError('');
-    try {
-      const nameParts = gName.trim().split(/\s+/);
-      const response = await fetch(proposalApi('/accept'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: submittedQuote.proposalCode,
-          email: gEmail.trim().toLowerCase(),
-          firstName: nameParts[0] || undefined,
-          lastName: nameParts.slice(1).join(' ') || undefined,
-          businessName: gCompany.trim() || undefined,
-        }),
-      });
-      const envelope = await response.json().catch(() => ({}));
-      const data = unwrapApiPayload(envelope) as {
-        invoice?: { invoiceNumber: string; amount: number; currency: string };
-        depositPercent?: number;
-      };
-      if (!response.ok || !data.invoice) {
-        throw new Error(apiErrorMessage(envelope, 'We could not accept the proposal. Please try again.'));
-      }
-      setDeposit({
-        invoiceNumber: data.invoice.invoiceNumber,
-        amount: data.invoice.amount,
-        currency: data.invoice.currency,
-        depositPercent: data.depositPercent ?? 50,
-      });
-      setAcceptStage('accepted');
-    } catch (error) {
-      setAcceptError(error instanceof Error ? error.message : 'We could not accept the proposal. Please try again.');
-    } finally {
-      setAccepting(false);
-    }
-  }
-
-  async function handlePayDepositCard() {
-    setPayBusy('card');
-    setPayError('');
-    try {
-      const response = await fetch(proposalApi('/pay/card'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: gEmail.trim().toLowerCase() }),
-      });
-      const envelope = await response.json().catch(() => ({}));
-      const data = unwrapApiPayload(envelope) as { checkoutUrl?: string };
-      if (!response.ok || !data.checkoutUrl) {
-        throw new Error(apiErrorMessage(envelope, 'Card checkout could not start. Please try again.'));
-      }
-      // Paystack hosted checkout; the return URL (/checkout/verify) confirms settlement.
-      window.location.href = data.checkoutUrl;
-    } catch (error) {
-      setPayError(error instanceof Error ? error.message : 'Card checkout could not start. Please try again.');
-      setPayBusy(null);
-    }
-  }
-
-  async function handlePayDepositMpesa() {
-    const phone = mpesaPhone.replace(/\s+/g, '');
-    if (!/^(\+?254|0)?[17]\d{8}$/.test(phone)) {
-      setPayError('Enter a valid Safaricom number, e.g. 0712345678.');
-      return;
-    }
-    setPayBusy('mpesa');
-    setPayError('');
-    try {
-      const response = await fetch(proposalApi('/pay/mpesa'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mpesaPhoneNumber: phone }),
-      });
-      const envelope = await response.json().catch(() => ({}));
-      const data = unwrapApiPayload(envelope) as { trackingId?: string; message?: string };
-      if (!response.ok || !data.trackingId) {
-        throw new Error(apiErrorMessage(envelope, 'M-Pesa prompt could not be sent. Please try again.'));
-      }
-      setStk({ trackingId: String(data.trackingId), message: String(data.message || 'M-Pesa prompt sent. Check your handset and enter your PIN.') });
-    } catch (error) {
-      setPayError(error instanceof Error ? error.message : 'M-Pesa prompt could not be sent. Please try again.');
-    } finally {
-      setPayBusy(null);
-    }
-  }
-
-  // Poll the settlement status while an M-Pesa STK prompt is outstanding.
-  useEffect(() => {
-    if (!stk || payState !== 'waiting') return;
-    let tries = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const poll = async () => {
-      tries += 1;
-      try {
-        const response = await fetch(`${resolveApiV1Base()}/invoices/payments/${encodeURIComponent(stk.trackingId)}/status`);
-        const envelope = await response.json().catch(() => ({}));
-        const data = unwrapApiPayload(envelope) as { status?: string };
-        if (data.status === 'SUCCESS') {
-          setPayState('paid');
-          return;
-        }
-        if (data.status === 'FAILED') {
-          setPayState('failed');
-          return;
-        }
-      } catch {
-        // Transient network error — keep polling until the budget runs out.
-      }
-      if (tries >= 40) {
-        setPayState('failed');
-        return;
-      }
-      timer = setTimeout(poll, 3000);
-    };
-    timer = setTimeout(poll, 3000);
-    return () => clearTimeout(timer);
-  }, [stk, payState]);
-
-  if (submittedQuote) {
-    const isKes = submittedQuote.currencySymbol === 'KSh';
+  if (isLoadingProposal) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-16 sm:py-24">
-        <section className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-10">
-          <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-            <Check className="size-7" aria-hidden="true" />
-          </div>
-          <p className="text-center text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Proposal saved</p>
-          <h1 className="mt-2 text-center text-3xl font-extrabold tracking-tight text-slate-900">Your project request is recorded</h1>
-          <p className="mx-auto mt-3 max-w-xl text-center text-sm leading-relaxed text-slate-600">
-            We&apos;ve saved the server-priced proposal and your contact details. Accept it below to lock your slot and kick off the build — or our team will follow up at {gEmail.trim()}.
-          </p>
-          <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Reference</span>
-              <span className="font-mono text-sm font-bold text-slate-900">{submittedQuote.proposalCode}</span>
-            </div>
-            <div className="mt-4 flex items-center justify-between gap-4 text-sm">
-              <span className="text-slate-600">{submittedQuote.package.name} · one-time build</span>
-              <span className="font-bold text-slate-900">{submittedQuote.totals.formattedTotalBuild}</span>
-            </div>
-            {config.care !== 'none' && (
-              <div className="mt-3 flex items-center justify-between gap-4 text-sm text-slate-600">
-                <span>Ongoing care · monthly</span>
-                <span className="font-semibold text-slate-900">{submittedQuote.totals.formattedMonthlyCare}</span>
-              </div>
-            )}
-            {config.hosting !== 'none' && (
-              <div className="mt-3 flex items-center justify-between gap-4 text-sm text-slate-600">
-                <span>Hosting · annual</span>
-                <span className="font-semibold text-slate-900">{submittedQuote.totals.formattedAnnualHosting}</span>
-              </div>
-            )}
-            <div className="mt-4 flex items-center justify-between gap-4 border-t border-slate-200 pt-4 text-sm">
-              <span className="font-bold text-slate-700">Estimated first-year total</span>
-              <span className="text-lg font-extrabold text-blue-700">{submittedQuote.totals.formattedTotalYearOne}</span>
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Price book estimate expires {new Date(submittedQuote.expiresAt).toLocaleDateString()} and is subject to final scope approval.
-            </p>
-          </div>
-
-          {/* What happens next — set expectations up front */}
-          <div className="mt-8">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">What happens next</h2>
-            <ol className="mt-3 grid gap-3 sm:grid-cols-2">
-              {[
-                { icon: CreditCard, title: 'Pay the kickoff deposit', body: 'Accept the proposal and pay a 50% deposit by card or M-Pesa to reserve your build slot.' },
-                { icon: CalendarDays, title: 'Kickoff within 2 business days', body: 'We confirm scope, timeline, and hand over a milestone plan — no long back-and-forth.' },
-                { icon: FolderKanban, title: 'Track progress in your portal', body: 'Watch milestones, invoices, and messages in a client portal you unlock with your deposit.' },
-                { icon: Rocket, title: 'Launch & handover', body: 'We deploy, hand over credentials, and your care plan keeps everything maintained.' },
-              ].map((item, index) => (
-                <li key={item.title} className="flex gap-3 rounded-2xl border border-slate-100 bg-white p-4">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700">
-                    <item.icon className="size-4.5" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">
-                      <span className="mr-1.5 text-slate-400">{index + 1}.</span>
-                      {item.title}
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.body}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          {/* Accept & pay */}
-          <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
-            {acceptStage === 'idle' && (
-              <>
-                <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">Ready to start?</p>
-                    <p className="mt-0.5 text-xs text-slate-600">Accept now and pay a 50% kickoff deposit — the balance is invoiced at launch.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setAcceptStage('confirm')}
-                    className="btn-primary shrink-0 justify-center px-5 py-3 text-sm"
-                  >
-                    Accept proposal &amp; pay deposit
-                    <ArrowRight className="size-4" aria-hidden="true" />
-                  </button>
-                </div>
-                {acceptError && <p className="mt-3 text-xs font-medium text-red-600">{acceptError}</p>}
-              </>
-            )}
-
-            {acceptStage === 'confirm' && (
-              <div>
-                <p className="text-sm font-bold text-slate-900">Confirm your details</p>
-                <dl className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                  <div className="rounded-xl bg-white px-3 py-2">
-                    <dt className="text-xs text-slate-500">Name</dt>
-                    <dd className="font-semibold">{gName.trim()}</dd>
-                  </div>
-                  <div className="rounded-xl bg-white px-3 py-2">
-                    <dt className="text-xs text-slate-500">Email</dt>
-                    <dd className="truncate font-semibold">{gEmail.trim()}</dd>
-                  </div>
-                </dl>
-                {acceptError && <p className="mt-3 text-xs font-medium text-red-600">{acceptError}</p>}
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={handleAcceptProposal}
-                    disabled={accepting}
-                    className="btn-primary inline-flex items-center justify-center gap-2 px-5 py-3 text-sm disabled:opacity-60"
-                  >
-                    {accepting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="size-4" aria-hidden="true" />}
-                    {accepting ? 'Accepting…' : 'Confirm & create deposit invoice'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setAcceptStage('idle'); setAcceptError(''); }}
-                    className="btn-secondary justify-center px-5 py-3 text-sm"
-                  >
-                    Not yet
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {acceptStage === 'accepted' && deposit && (
-              <div>
-                {payState === 'paid' ? (
-                  <div className="text-center">
-                    <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                      <Check className="size-6" aria-hidden="true" />
-                    </div>
-                    <p className="mt-3 text-sm font-bold text-slate-900">Deposit received — your slot is reserved</p>
-                    <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-600">
-                      Invoice {deposit.invoiceNumber} is settled. Create your portal password to follow the build from day one.
-                    </p>
-                    <Link
-                      href={`/portal/claim?email=${encodeURIComponent(gEmail.trim().toLowerCase())}`}
-                      className="btn-primary mt-4 inline-flex justify-center px-5 py-3 text-sm"
-                    >
-                      Set up my portal account
-                      <ArrowRight className="size-4" aria-hidden="true" />
-                    </Link>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-slate-900">Proposal accepted</p>
-                      <span className="font-mono text-xs text-slate-500">{deposit.invoiceNumber}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Kickoff deposit ({deposit.depositPercent}%): <span className="font-bold text-slate-900">{deposit.currency} {deposit.amount.toLocaleString()}</span> — due within 7 days. Choose how to pay:
-                    </p>
-
-                    {stk ? (
-                      <div className="mt-4 rounded-xl bg-white p-4 text-center">
-                        {payState === 'waiting' && (
-                          <>
-                            <Loader2 className="mx-auto size-5 animate-spin text-blue-600" aria-hidden="true" />
-                            <p className="mt-2 text-sm font-semibold text-slate-900">{stk.message}</p>
-                            <p className="mt-1 font-mono text-xs text-slate-500">Ref {stk.trackingId}</p>
-                          </>
-                        )}
-                        {payState === 'failed' && (
-                          <>
-                            <p className="text-sm font-bold text-red-600">Payment not completed</p>
-                            <p className="mt-1 text-xs text-slate-600">The prompt expired or was declined. You can retry below.</p>
-                            <button
-                              type="button"
-                              onClick={() => { setStk(null); setPayState('waiting'); }}
-                              className="btn-secondary mt-3 justify-center px-4 py-2 text-xs"
-                            >
-                              Try M-Pesa again
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <button
-                            type="button"
-                            onClick={handlePayDepositCard}
-                            disabled={payBusy !== null}
-                            className="btn-primary w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm disabled:opacity-60"
-                          >
-                            {payBusy === 'card' ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CreditCard className="size-4" aria-hidden="true" />}
-                            Pay by card
-                          </button>
-                          {!isKes && deposit && (
-                            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                              💳 International cards (Visa/Mastercard) accepted. Secure checkout powered by Paystack.
-                            </p>
-                          )}
-                        </div>
-                        {isKes && (
-                          <div className="rounded-xl border border-slate-200 bg-white p-3">
-                            <label htmlFor="quote-mpesa-phone" className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                              <Smartphone className="size-4 text-slate-500" aria-hidden="true" />
-                              M-Pesa number
-                            </label>
-                            <div className="mt-2 flex gap-2">
-                              <input
-                                id="quote-mpesa-phone"
-                                type="tel"
-                                inputMode="tel"
-                                autoComplete="tel"
-                                placeholder="0712345678"
-                                value={mpesaPhone}
-                                onChange={(event) => setMpesaPhone(event.target.value)}
-                                className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                              />
-                              <button
-                                type="button"
-                                onClick={handlePayDepositMpesa}
-                                disabled={payBusy !== null}
-                                className="btn-primary shrink-0 px-3 py-2 text-xs disabled:opacity-60"
-                              >
-                                {payBusy === 'mpesa' ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : 'Push'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {payError && <p className="mt-3 text-xs font-medium text-red-600">{payError}</p>}
-                    <p className="mt-3 text-xs text-slate-500">
-                      Prefer bank transfer or have questions? <Link href="/contact" className="font-semibold text-blue-700 underline-offset-2 hover:underline">Contact our team</Link> with reference {submittedQuote.proposalCode}.
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 flex flex-col justify-center gap-3 text-center sm:flex-row">
-            <Link href="/pricing" className="btn-secondary justify-center px-5 py-3 text-sm">Review service plans</Link>
-            <Link href="/contact" className="text-sm font-semibold text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline">Contact our team</Link>
-          </div>
-        </section>
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="text-center">
+          <Loader2 className="size-10 animate-spin text-[#2563EB] mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-slate-800">Retrieving official commercial proposal...</h2>
+          <p className="text-xs text-slate-500 mt-1">Connecting to BazionWeb SSOT registry</p>
+        </div>
       </main>
+    );
+  }
+
+  if (activeProposal) {
+    return (
+      <ProposalPresentationView
+        proposal={activeProposal}
+        onReset={handleResetToCalculator}
+        initialContact={{
+          name: gName || activeProposal.clientName,
+          email: gEmail || activeProposal.clientEmail,
+          company: gCompany || activeProposal.clientCompany,
+        }}
+      />
     );
   }
 
@@ -627,6 +366,9 @@ Please confirm availability and discuss next steps.`;
       <div className="bg-[#0F172A] pt-32 pb-16 text-white">
         <div className="container-default max-w-5xl">
           <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Instant Quote Calculator' }]} />
+          <div className="my-6 max-w-5xl">
+            <ClientJourneyProgress currentStep={2} variant="dark" />
+          </div>
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
             Interactive Cost Estimator
           </span>
@@ -648,6 +390,24 @@ Please confirm availability and discuss next steps.`;
           </div>
         </div>
       </div>
+
+      {proposalFetchError && (
+        <div className="container-default max-w-5xl mx-auto pt-6 px-4">
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="size-4 text-amber-600 shrink-0" aria-hidden="true" />
+              <span>{proposalFetchError} You can configure a new custom quote below.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setProposalFetchError(null)}
+              className="text-amber-800 hover:text-amber-950 font-bold underline shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="container-default max-w-5xl py-12">
         {/* Progress Navigation */}

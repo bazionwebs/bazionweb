@@ -9,8 +9,96 @@ import { getPriceBookForMarket, formatCurrency } from '@/lib/priceBooks';
 import { ADD_ON_RATE_CARD } from '@/lib/pricingData';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { sendQuoteSummaryEmail } from '@/lib/email';
+import {
+  saveProposalToLocalCache,
+  getProposalFromLocalCache,
+} from '@/lib/proposal-cache';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * BFF GET Handler: Retrieve commercial proposal by reference code (?code=... or ?proposal=...).
+ * Queries the authoritative NestJS API with resilient fallback to local in-memory cache.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const rawCode = searchParams.get('code') || searchParams.get('proposal');
+
+    if (!rawCode || !rawCode.trim()) {
+      return NextResponse.json(
+        { success: false, error: 'Proposal reference code is required.' },
+        { status: 400 }
+      );
+    }
+
+    const cleanCode = rawCode.trim().toUpperCase();
+
+    // Adversarial sanitize: reject codes that violate pattern
+    if (!/^[A-Z0-9_-]{4,64}$/.test(cleanCode)) {
+      return NextResponse.json(
+        { success: false, error: 'Proposal code not found or invalid format.' },
+        { status: 404 }
+      );
+    }
+
+    // 1. Upstream call to NestJS backend
+    try {
+      const backendUrl = `${resolveApiV1Base()}/invoices/proposals/${encodeURIComponent(cleanCode)}`;
+      const res = await fetch(backendUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (res.ok) {
+        const envelope = await res.json().catch(() => ({}));
+        const payload = envelope?.data ?? envelope;
+        if (payload?.proposalCode) {
+          saveProposalToLocalCache(cleanCode, payload);
+        }
+        return NextResponse.json(envelope, { status: 200 });
+      }
+
+      if (res.status === 404) {
+        return NextResponse.json(
+          { success: false, error: 'Proposal not found' },
+          { status: 404 }
+        );
+      }
+
+      if (res.status === 429) {
+        return NextResponse.json(
+          { success: false, error: 'Rate limit exceeded. Please try again shortly.' },
+          { status: 429 }
+        );
+      }
+    } catch (err) {
+      console.warn('[Quote BFF] Backend proposal retrieval offline or timed out:', err);
+    }
+
+    // 2. Fallback to local in-memory cache if backend is unavailable
+    const cached = getProposalFromLocalCache(cleanCode);
+    if (cached) {
+      return NextResponse.json(
+        { success: true, data: cached, _source: 'cache_fallback' },
+        { status: 200 }
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Proposal not found or temporarily unavailable.' },
+      { status: 404 }
+    );
+  } catch (error) {
+    console.error('[Quote BFF] Proposal retrieval error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to retrieve proposal' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -130,6 +218,27 @@ export async function POST(request: NextRequest) {
           } catch (emailErr) {
             console.warn('[Quote API] Non-fatal email quote dispatch error:', emailErr);
           }
+
+          saveProposalToLocalCache(quote.proposalCode, {
+            proposalCode: quote.proposalCode,
+            currency: quote.currency,
+            currencySymbol: quote.currencySymbol,
+            totalAmount: breakdown.totalBuildGross,
+            depositAmount: Math.round(breakdown.totalBuildGross * 0.5 * 100) / 100,
+            finalAmount: Math.round((breakdown.totalBuildGross - Math.round(breakdown.totalBuildGross * 0.5 * 100) / 100) * 100) / 100,
+            status: 'LOCKED',
+            clientName: clientName.trim(),
+            clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : '',
+            clientEmail: clientEmail.trim().toLowerCase(),
+            marketCode: quote.marketCode,
+            lineItems: [
+              { title: breakdown.package.name, subtitle: 'Core Website Build', price: breakdown.package.amount, quantity: 1 },
+              ...(Number(extraPages) > 0 ? [{ title: 'Additional Pages', subtitle: `${extraPages} page(s)`, price: breakdown.extraPages?.amount || 0, quantity: Number(extraPages) }] : []),
+              ...(Array.isArray(breakdown.addOns) ? breakdown.addOns.map((a: { name: string; amount: number }) => ({ title: a.name, subtitle: 'Add-on Module', price: a.amount, quantity: 1 })) : []),
+            ],
+            expiresAt: quote.expiresAt,
+            createdAt: quote.calculatedAt,
+          });
 
           return NextResponse.json({
             success: true,
@@ -296,6 +405,27 @@ export async function POST(request: NextRequest) {
     } catch (emailErr) {
       console.warn('[Quote API] Non-fatal email quote dispatch error:', emailErr);
     }
+
+    saveProposalToLocalCache(proposalCode, {
+      proposalCode,
+      currency,
+      currencySymbol: priceBook.currencySymbol,
+      totalAmount: totalBuild,
+      depositAmount: Math.round(totalBuild * 0.5 * 100) / 100,
+      finalAmount: Math.round((totalBuild - Math.round(totalBuild * 0.5 * 100) / 100) * 100) / 100,
+      status: 'LOCKED',
+      clientName: clientName.trim(),
+      clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : '',
+      clientEmail: clientEmail.trim().toLowerCase(),
+      marketCode,
+      lineItems: [
+        { title: packageItem?.name || packageType, subtitle: 'Core Website Build', price: baseCost, quantity: 1 },
+        ...(Number(extraPages) > 0 ? [{ title: 'Additional Pages', subtitle: `${extraPages} page(s)`, price: extraPagesCost, quantity: Number(extraPages) }] : []),
+        ...itemizedAddOns.map(a => ({ title: a.name, subtitle: 'Add-on Module', price: a.amount, quantity: 1 })),
+      ],
+      expiresAt: expires.toISOString(),
+      createdAt: now.toISOString(),
+    });
 
     return NextResponse.json({
       success: true,

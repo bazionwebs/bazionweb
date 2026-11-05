@@ -37,6 +37,7 @@ const mockPrisma = {
   wiseReceivingAccount: { create: jest.fn() },
   paymentLog: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   subscription: { findMany: jest.fn() },
+  market: { findFirst: jest.fn().mockResolvedValue(null) },
   $transaction: jest.fn((cb) => (typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb))),
 };
 

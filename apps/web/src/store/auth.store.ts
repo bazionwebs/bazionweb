@@ -90,11 +90,55 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name:    'bazionweb-auth',
-      storage: createJSONStorage(() => (typeof window !== 'undefined' ? sessionStorage : {
-        getItem: () => null,
-        setItem: () => {},
-        removeItem: () => {},
-      })),
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined') {
+          return {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+          };
+        }
+        return {
+          getItem: (name: string): string | null => {
+            try {
+              const fromSession = window.sessionStorage.getItem(name);
+              const fromLocal = window.localStorage.getItem(name);
+              const raw = fromSession ?? fromLocal;
+              if (!raw) return null;
+              // Guard against expired tokens lingering in localStorage across tabs
+              const parsed = JSON.parse(raw);
+              const expiresAt = parsed?.state?.expiresAt;
+              if (typeof expiresAt === 'number' && Date.now() >= expiresAt) {
+                window.sessionStorage.removeItem(name);
+                window.localStorage.removeItem(name);
+                return null;
+              }
+              if (!fromSession && fromLocal) {
+                window.sessionStorage.setItem(name, fromLocal);
+              }
+              return raw;
+            } catch {
+              return null;
+            }
+          },
+          setItem: (name: string, value: string): void => {
+            try {
+              window.sessionStorage.setItem(name, value);
+              window.localStorage.setItem(name, value);
+            } catch {
+              // Ignore quota errors
+            }
+          },
+          removeItem: (name: string): void => {
+            try {
+              window.sessionStorage.removeItem(name);
+              window.localStorage.removeItem(name);
+            } catch {
+              // Ignore storage removal errors
+            }
+          },
+        };
+      }),
       partialize: (state) => ({
         user:         state.user,
         accessToken:  state.accessToken,
@@ -112,6 +156,34 @@ if (typeof window !== 'undefined') {
   }
   useAuthStore.persist?.onFinishHydration(() => {
     useAuthStore.setState({ _hasHydrated: true });
+  });
+  // Synchronize auth state across browser tabs (e.g. magic-link verification or logout in another tab)
+  window.addEventListener('storage', (event: StorageEvent) => {
+    if (event.key !== 'bazionweb-auth') return;
+    if (!event.newValue) {
+      useAuthStore.setState({
+        user: null,
+        accessToken: null,
+        refreshToken: null,
+        expiresAt: null,
+        pendingPlan: null,
+      });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(event.newValue);
+      if (parsed?.state) {
+        useAuthStore.setState({
+          user: parsed.state.user ?? null,
+          accessToken: parsed.state.accessToken ?? null,
+          refreshToken: parsed.state.refreshToken ?? null,
+          expiresAt: parsed.state.expiresAt ?? null,
+          pendingPlan: parsed.state.pendingPlan ?? null,
+        });
+      }
+    } catch {
+      // Ignore malformed cross-tab storage payloads
+    }
   });
 }
 

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
   WEBSITE_PACKAGES,
   ECOMMERCE_PACKAGES,
@@ -14,6 +15,7 @@ import { MarketCode } from '@/lib/marketEngine';
 import AddonPriceCard from '@/components/pricing/AddonPriceCard';
 import PricingPrinciplesSection from '@/components/pricing/PricingPrinciplesSection';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 import {
   Check,
   ArrowRight,
@@ -25,7 +27,16 @@ import {
   HelpCircle,
 } from 'lucide-react';
 
-type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'hosting' | 'addons';
+export type TabKey = 'websites' | 'ecommerce' | 'custom' | 'care' | 'hosting' | 'addons';
+
+export const VALID_TABS: readonly TabKey[] = [
+  'websites',
+  'ecommerce',
+  'custom',
+  'care',
+  'hosting',
+  'addons',
+] as const;
 
 export interface PricingViewProps {
   initialMarket?: MarketCode;
@@ -33,7 +44,28 @@ export interface PricingViewProps {
 
 export default function PricingView({ initialMarket }: PricingViewProps = {}) {
   const { market, marketCode, marketDef } = useMarketPreference(initialMarket);
-  const [activeTab, setActiveTab] = useState<TabKey>('websites');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const tabParam = searchParams.get('tab') as TabKey | null;
+  const initialTab: TabKey = tabParam && (VALID_TABS as readonly string[]).includes(tabParam) ? tabParam : 'websites';
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+
+  useEffect(() => {
+    const currentTab = searchParams.get('tab') as TabKey | null;
+    if (currentTab && (VALID_TABS as readonly string[]).includes(currentTab) && currentTab !== activeTab) {
+      setActiveTab(currentTab);
+    }
+  }, [searchParams, activeTab]);
+
+  const handleTabChange = (newTab: TabKey) => {
+    setActiveTab(newTab);
+    const params = new URLSearchParams(searchParams ? searchParams.toString() : '');
+    params.set('tab', newTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
 
   return (
     <>
@@ -42,6 +74,10 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
         <div className="container-default text-center max-w-4xl mx-auto">
           <div className="flex justify-center mb-4">
             <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Pricing Architecture' }]} />
+          </div>
+
+          <div className="mb-6 max-w-4xl mx-auto">
+            <ClientJourneyProgress currentStep={1} variant="dark" />
           </div>
 
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
@@ -85,7 +121,7 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabKey)}
+                  onClick={() => handleTabChange(tab.id as TabKey)}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-all duration-150 ${
                     isActive
                       ? 'bg-[#2563EB] text-white shadow-md shadow-blue-500/20'
@@ -272,7 +308,7 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                           E-Commerce Features:
                         </div>
-                        {pkg.features.map((feature, idx) => (
+                        {(pkg.features ?? []).map((feature, idx) => (
                           <div key={idx} className="flex items-start gap-2 text-xs text-slate-600 leading-tight">
                             <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
                             <span>{feature}</span>
@@ -433,7 +469,7 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                       </div>
 
                       <div className="space-y-2 border-t border-slate-100 pt-4 flex-1">
-                        {care.features.map((feat, i) => (
+                        {(care.features ?? []).map((feat, i) => (
                           <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
                             <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
                             <span>{feat}</span>
@@ -498,7 +534,7 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                           Infrastructure Includes:
                         </div>
-                        {host.features.map((feat, i) => (
+                        {(host.features ?? []).map((feat, i) => (
                           <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
                             <Check className="w-3.5 h-3.5 text-[#22C55E] shrink-0 mt-0.5" />
                             <span>{feat}</span>

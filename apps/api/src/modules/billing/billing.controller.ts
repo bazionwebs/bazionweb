@@ -8,8 +8,10 @@ import {
   Query, 
   UseGuards, 
   Request, 
+  Res,
   ParseUUIDPipe 
 } from '@nestjs/common';
+
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
 import { PaymentSettlementService } from './payment-settlement.service';
@@ -64,6 +66,18 @@ export class BillingController {
   @ApiOperation({ summary: 'Guest B2B bank-transfer invoice — no account required' })
   createBankTransferInvoiceGuest(@Body() body: GuestBankTransferInvoiceDto) {
     return this.svc.createBankTransferInvoiceGuest(body);
+  }
+
+  /**
+   * Public: Retrieve proposal details by commercial reference code.
+   * Throttled to 30 requests per minute to prevent scraping.
+   */
+  @Get('proposals/:code')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Retrieve commercial proposal by reference code (public)' })
+  async getProposal(@Param('code') code: string) {
+    return this.svc.getProposalByCode(code);
   }
 
   /**
@@ -213,4 +227,32 @@ export class BillingController {
   getPdf(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
     return this.svc.getPdfUrl(id, req.user);
   }
+
+  @Get(':id/pdf/download')
+  @Public() // Authorized by a short-lived signed ?token= (minted by GET :id/pdf), deposit ?proposalCode=, or req.user
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Stream and download official invoice PDF (attachment)' })
+  async downloadPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('token') token: string | undefined,
+    @Query('proposalCode') proposalCode: string | undefined,
+    @Request() req: any,
+    @Res() res: any,
+  ) {
+    const { stream, filename } = await this.svc.generateInvoicePdfStream(id, {
+      user: req?.user,
+      token,
+      proposalCode,
+    });
+    const safeName = filename.replace(/[^A-Za-z0-9._-]/g, '_');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    res.setHeader('Content-Length', stream.length);
+    // The URL carries a bearer-style token: never cache it or leak it via Referer.
+    res.setHeader('Cache-Control', 'no-store, private');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.end(stream);
+  }
 }
+

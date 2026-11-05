@@ -166,16 +166,16 @@ function VerifyPaymentContent() {
             ) : (
               <>
                 <Link
-                  href={`/portal/claim?email=${encodeURIComponent(data?.customerEmail || '')}`}
+                  href={`/portal/claim?email=${encodeURIComponent(data?.customerEmail || '')}&autostart=1`}
                   className="btn-primary w-full py-3.5 justify-center text-xs font-bold shadow-lg shadow-blue-600/20"
                 >
                   <Lock className="w-4 h-4" />
-                  Email Me a Claim Link
+                  Claim Account &amp; Set Password
                   <ArrowRight className="w-4 h-4" />
                 </Link>
                 <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-                  We send the link to the billing address above. If your webhook is still settling,
-                  wait a minute and request it again.
+                  Clicking above immediately dispatches a one-time claim link to{' '}
+                  <span className="font-semibold text-slate-600">{data?.customerEmail || 'your billing email'}</span>.
                 </p>
 
                 <Link

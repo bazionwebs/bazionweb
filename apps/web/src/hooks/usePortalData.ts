@@ -36,6 +36,8 @@ export interface ApiClient {
   address?: string | null;
   country?: string | null;
   taxPin?: string | null;
+  website?: string | null;
+  onboardedAt?: string | null;
   status: string;
   createdAt?: string;
   plan?: ApiPlan | null;
@@ -106,6 +108,16 @@ export interface ApiInvoice {
   createdAt: string;
   dueDate: string;
   paidAt?: string | null;
+  /** Server-computed VAT split (from the Market tax rule that priced the invoice). */
+  breakdown?: {
+    subtotal: number;
+    vatRate: number;
+    vatAmount: number;
+    vatLabel: string;
+    total: number;
+    amountPaid: number;
+    balanceDue: number;
+  };
 }
 
 export interface ApiHostingBackup {

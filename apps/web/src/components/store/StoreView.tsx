@@ -20,6 +20,7 @@ import { resolveApiV1Base } from '@/lib/api-base';
 import { usePlans, PLAN_MARKETING } from '@/lib/plans';
 import { useCartStore } from '@/lib/cart';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 import { StoreCategoryNav, type StoreCategoryItem } from './StoreCategoryNav';
 import { useStoreScrollspy } from './useStoreScrollspy';
 
@@ -157,7 +158,8 @@ const formatMoney = (amount: number, symbol: string) =>
 
 export default function StoreView() {
   const apiBase = resolveApiV1Base();
-  const { marketCode } = useMarketPreference();
+  const { marketCode, marketDef } = useMarketPreference();
+  const isKenya = marketCode === 'KE';
   const { plans, loading: plansLoading } = usePlans();
   const [addedKey, setAddedKey] = useState<string | null>(null);
 
@@ -176,7 +178,10 @@ export default function StoreView() {
   const items = useCartStore((s) => s.items);
   const inCart = (key: string) => items.some((i) => i.key === key);
 
-  const symbol = catalog.data?.market.currencySymbol ?? 'KES ';
+  const defaultCurrency = marketDef?.currency ?? (isKenya ? 'KES' : 'USD');
+  const defaultSymbol = marketDef?.currencySymbol ?? (isKenya ? 'KES ' : '$');
+  const symbol = catalog.data?.market.currencySymbol ?? defaultSymbol;
+  const activeCurrency = catalog.data?.market.currencyCode ?? defaultCurrency;
 
   const isDataReady = !plansLoading && !catalog.isLoading;
   const { activeSection, scrollToSection } = useStoreScrollspy(STORE_SECTION_IDS, {
@@ -199,14 +204,16 @@ export default function StoreView() {
     if (!addParam || plansLoading || catalog.isLoading) return;
     const plan = (plans ?? []).find((p) => p.slug === addParam);
     if (plan && PLAN_MARKETING[plan.slug]) {
+      const planPrice = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
+      const planCurrency = isKenya ? 'KES' : activeCurrency;
       add({
         kind: 'PLAN',
         id: plan.slug,
         name: plan.name,
         cycle: 'MONTHLY',
         qty: 1,
-        unitPrice: plan.priceMonthlyKes,
-        currency: 'KES',
+        unitPrice: planPrice,
+        currency: planCurrency,
       });
       setAddedKey(`PLAN:${plan.slug}:MONTHLY`);
       scrollToSection('plans');
@@ -221,7 +228,7 @@ export default function StoreView() {
           cycle: price.billingPeriod ?? 'one-time',
           qty: 1,
           unitPrice: price.amount,
-          currency: catalog.data?.market.currencyCode ?? 'KES',
+          currency: activeCurrency,
         });
         setAddedKey(`CATALOG:${price.productId}:${price.billingPeriod ?? 'one-time'}`);
         scrollToSection(price.productId.startsWith('host-') ? 'hosting' : 'addons');
@@ -229,7 +236,7 @@ export default function StoreView() {
     }
     // Clean the param so a refresh doesn't re-trigger the add.
     router.replace('/store', { scroll: false });
-  }, [addParam, plans, plansLoading, catalog.data, catalog.isLoading, add, router, scrollToSection]);
+  }, [addParam, plans, plansLoading, catalog.data, catalog.isLoading, add, router, scrollToSection, isKenya, activeCurrency]);
 
   const hostingItems = useMemo(
     () => (catalog.data?.prices ?? []).filter((p) => p.productId.startsWith('host-')),
@@ -280,6 +287,9 @@ export default function StoreView() {
       {/* Hero — streamlined header banner */}
       <section className="bg-[#0F172A] pt-28 pb-10 md:pb-12 text-white">
         <div className="container-default max-w-7xl mx-auto px-4">
+          <div className="mb-6 max-w-5xl">
+            <ClientJourneyProgress currentStep={1} variant="dark" />
+          </div>
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
             <ShoppingCart className="h-4 w-4" /> BazionWeb Store
           </span>
@@ -339,9 +349,9 @@ export default function StoreView() {
                           ) : null}
                         </div>
                         <div className="p-5 flex flex-col flex-1">
-                          <p className="text-xs text-slate-500 mb-4">{marketing.description}</p>
+                          <p className="text-xs text-slate-500 mb-4">{marketing?.description ?? ''}</p>
                           <ul className="space-y-2 mb-5 flex-1">
-                            {marketing.features.slice(0, 5).map((f) => (
+                            {(marketing?.features ?? []).slice(0, 5).map((f) => (
                               <li key={f} className="flex items-start gap-2 text-xs text-slate-600">
                                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" /> {f}
                               </li>
@@ -350,14 +360,16 @@ export default function StoreView() {
                           <div className="flex items-end justify-between mb-4">
                             <div>
                               <span className="text-2xl font-extrabold text-slate-900">
-                                {formatMoney(plan.priceMonthlyKes, 'KES ')}
+                                {formatMoney(isKenya ? plan.priceMonthlyKes : plan.priceMonthly, symbol)}
                               </span>
                               <span className="text-xs text-slate-500"> /month</span>
                             </div>
                           </div>
                           <button
                             type="button"
-                            onClick={() =>
+                            onClick={() => {
+                              const planPrice = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
+                              const planCurrency = isKenya ? 'KES' : activeCurrency;
                               handleAdd(
                                 {
                                   kind: 'PLAN',
@@ -365,12 +377,12 @@ export default function StoreView() {
                                   name: plan.name,
                                   cycle: 'MONTHLY',
                                   qty: 1,
-                                  unitPrice: plan.priceMonthlyKes,
-                                  currency: 'KES',
+                                  unitPrice: planPrice,
+                                  currency: planCurrency,
                                 },
                                 key,
-                              )
-                            }
+                              );
+                            }}
                             className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
                               addedKey === key || inCart(key)
                                 ? 'bg-emerald-600 text-white'
@@ -414,9 +426,9 @@ export default function StoreView() {
                           <h3 className="text-white font-bold text-lg">{marketing.name}</h3>
                         </div>
                         <div className="p-5 flex flex-col flex-1">
-                          <p className="text-xs text-slate-500 mb-4">{marketing.description}</p>
+                          <p className="text-xs text-slate-500 mb-4">{marketing?.description ?? ''}</p>
                           <ul className="space-y-2 mb-5 flex-1">
-                            {marketing.features.map((f) => (
+                            {(marketing?.features ?? []).map((f) => (
                               <li key={f} className="flex items-start gap-2 text-xs text-slate-600">
                                 <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" /> {f}
                               </li>
@@ -437,7 +449,7 @@ export default function StoreView() {
                                   cycle: item.billingPeriod ?? 'one-time',
                                   qty: 1,
                                   unitPrice: item.amount,
-                                  currency: catalog.data?.market.currencyCode ?? 'KES',
+                                  currency: activeCurrency,
                                 },
                                 key,
                               )
@@ -489,7 +501,7 @@ export default function StoreView() {
                             {item.billingPeriod ?? 'one-time'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mb-4 flex-1">{marketing.description}</p>
+                        <p className="text-xs text-slate-500 mb-4 flex-1">{marketing?.description ?? ''}</p>
                         <div className="flex items-center justify-between">
                           <span className="text-lg font-extrabold text-slate-900">{formatMoney(item.amount, symbol)}</span>
                           <button
@@ -503,7 +515,7 @@ export default function StoreView() {
                                   cycle: item.billingPeriod ?? 'one-time',
                                   qty: 1,
                                   unitPrice: item.amount,
-                                  currency: catalog.data?.market.currencyCode ?? 'KES',
+                                  currency: activeCurrency,
                                 },
                                 key,
                               )

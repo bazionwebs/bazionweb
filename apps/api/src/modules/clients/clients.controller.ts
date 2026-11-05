@@ -45,6 +45,13 @@ export class ClientsController {
     return this.svc.findByUserId(req.user.id);
   }
 
+  /** Client: mark guided portal onboarding complete (sets onboardedAt once) */
+  @Post('me/onboard')
+  @ApiOperation({ summary: 'Mark my portal onboarding as complete' })
+  markOnboarded(@Request() req: any, @Body() body?: { completedSteps?: string[] }) {
+    return this.svc.markOnboarded(req.user.id, body?.completedSteps);
+  }
+
   /** Admin or self */
   @Get(':id')
   @ApiOperation({ summary: 'Get client by ID' })

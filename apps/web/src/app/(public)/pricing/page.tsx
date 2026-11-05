@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import PricingView from '@/components/pricing/PricingView';
 import JsonLd from '@/components/seo/JsonLd';
@@ -239,7 +240,15 @@ export default async function PricingPage() {
   return (
     <>
       <JsonLd data={pricingSchema} />
-      <PricingView initialMarket={market} />
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-[#0F172A] pt-40 flex items-center justify-center text-white">
+            Loading 2026 pricing schedule...
+          </div>
+        }
+      >
+        <PricingView initialMarket={market} />
+      </Suspense>
     </>
   );
 }

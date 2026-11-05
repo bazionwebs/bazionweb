@@ -347,6 +347,84 @@ export class ProposalDepositMpesaDto {
   mpesaPhoneNumber: string;
 }
 
+export class ProposalLineItemResponseDto {
+  @ApiProperty({ description: 'Line item title or product name' })
+  title: string;
+
+  @ApiPropertyOptional({ description: 'Subtitle or period description' })
+  subtitle?: string;
+
+  @ApiProperty({ description: 'Line item unit or total price' })
+  price: number;
+
+  @ApiPropertyOptional({ description: 'Quantity (if applicable)' })
+  quantity?: number;
+}
+
+export class ProposalLinkedInvoiceDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  invoiceNumber: string;
+
+  @ApiProperty()
+  amount: number;
+
+  @ApiProperty()
+  status: string;
+
+  @ApiProperty()
+  dueDate: string;
+}
+
+export class ProposalDetailsDto {
+  @ApiProperty({ example: 'BZ-KE-2026-ABC12' })
+  proposalCode: string;
+
+  @ApiProperty({ example: 'KES' })
+  currency: string;
+
+  @ApiProperty({ example: 'KSh' })
+  currencySymbol: string;
+
+  @ApiProperty({ example: 90000 })
+  totalAmount: number;
+
+  @ApiProperty({ example: 45000 })
+  depositAmount: number;
+
+  @ApiProperty({ example: 45000 })
+  finalAmount: number;
+
+  @ApiProperty({ enum: ['LOCKED', 'ACCEPTED', 'EXPIRED'], example: 'LOCKED' })
+  status: 'LOCKED' | 'ACCEPTED' | 'EXPIRED';
+
+  @ApiProperty({ example: 'Jane Wanjiku' })
+  clientName: string;
+
+  @ApiProperty({ example: 'Acacia Healthcare Ltd' })
+  clientCompany: string;
+
+  @ApiProperty({ example: 'jane@acacia.co.ke' })
+  clientEmail: string;
+
+  @ApiProperty({ enum: ['KE', 'GLOBAL'], example: 'KE' })
+  marketCode: 'KE' | 'GLOBAL';
+
+  @ApiProperty({ type: [ProposalLineItemResponseDto] })
+  lineItems: ProposalLineItemResponseDto[];
+
+  @ApiProperty({ example: '2026-12-01T00:00:00.000Z' })
+  expiresAt: string;
+
+  @ApiProperty({ example: '2026-11-01T00:00:00.000Z' })
+  createdAt: string;
+
+  @ApiPropertyOptional({ type: ProposalLinkedInvoiceDto })
+  invoice?: ProposalLinkedInvoiceDto;
+}
+
 /** Manually generate an invoice (admin). */
 export class GenerateInvoiceDto {
   @ApiProperty({ description: 'Target client UUID' })
