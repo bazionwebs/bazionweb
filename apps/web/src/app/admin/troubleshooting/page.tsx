@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Activity,
   Globe,
@@ -17,6 +18,18 @@ import {
   Cpu,
   AlertCircle,
   ArrowRight,
+  DollarSign,
+  Key,
+  Lock,
+  Unlock,
+  Server,
+  ShieldCheck,
+  Copy,
+  AlertTriangle,
+  Zap,
+  Clock,
+  Layers,
+  FileText,
 } from 'lucide-react';
 import {
   useAdminClients,
@@ -26,40 +39,134 @@ import {
   useReconcilePayments,
   useResolveDns,
   useImpersonateClient,
+  useTroubleshootingOverview,
+  useOrphanPayments,
+  useRemediateOrphanPayment,
+  useDnsSslFleet,
+  useRemediateDnsSsl,
+  useWebhookFailures,
+  useRetryWebhooksBatch,
+  useUnsyncedInvoices,
+  useRemediateInvoiceSync,
+  useClientAccessIssues,
+  useRemediateClientAccess,
+  useSuspendedDomains,
+  useRemediateDomainState,
+  useProactiveHealthScan,
+  useRemediateProactiveAnomaly,
+  type ProactiveAnomaly,
 } from '@/hooks/useAdminData';
 import { formatDate } from '@/lib/format';
 
-export default function AdminTroubleshootingPage() {
+type TroubleshootingTab =
+  | 'health'
+  | 'orphans'
+  | 'dns'
+  | 'webhooks'
+  | 'invoices'
+  | 'access'
+  | 'domains'
+  | 'impersonation';
+
+function AdminTroubleshootingContent() {
+  const searchParams = useSearchParams();
+
+  // Queries
   const clientsQuery = useAdminClients();
   const clusterHealthQuery = useClusterHealth();
-  const webhookLogsQuery = useWebhookLogs(50);
+  const overviewQuery = useTroubleshootingOverview();
+  const orphanQuery = useOrphanPayments();
+  const dnsFleetQuery = useDnsSslFleet();
+  const webhookFailuresQuery = useWebhookFailures(50);
+  const webhookStreamQuery = useWebhookLogs(50);
+  const unsyncedInvoicesQuery = useUnsyncedInvoices();
+  const clientAccessQuery = useClientAccessIssues();
+  const suspendedDomainsQuery = useSuspendedDomains();
+  const proactiveScanQuery = useProactiveHealthScan();
+
+  // Mutations
   const replayMutation = useReplayWebhook();
+  const retryBatchMutation = useRetryWebhooksBatch();
   const reconcileMutation = useReconcilePayments();
   const resolveDnsMutation = useResolveDns();
   const impersonateMutation = useImpersonateClient();
+  const remediateOrphanMutation = useRemediateOrphanPayment();
+  const remediateDnsSslMutation = useRemediateDnsSsl();
+  const remediateInvoiceMutation = useRemediateInvoiceSync();
+  const remediateAccessMutation = useRemediateClientAccess();
+  const remediateDomainMutation = useRemediateDomainState();
+  const remediateProactiveMutation = useRemediateProactiveAnomaly();
 
-  // ── Tab state within Diagnostics
-  const [activeTool, setActiveTool] = useState<'health' | 'dns' | 'webhooks' | 'reconciliation' | 'impersonation'>('health');
+  // ── Tab State
+  const [activeTool, setActiveTool] = useState<TroubleshootingTab>('health');
 
-  // ── DNS Diagnostic State
+  // ── Action Feedback State
+  const [inFlightActionId, setInFlightActionId] = useState<string | null>(null);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+
+  // ── DNS Inspector State (Manual Single Domain)
   const [dnsDomain, setDnsDomain] = useState('acaciahealthcare.co.ke');
   const [dnsResults, setDnsResults] = useState<any>(null);
   const [dnsError, setDnsError] = useState<string | null>(null);
 
-  // ── Webhook Replay State
-  const [replayingId, setReplayingId] = useState<string | null>(null);
-  const [replaySuccess, setReplaySuccess] = useState<string | null>(null);
-  const [replayError, setReplayError] = useState<string | null>(null);
+  // ── Webhook Filter State
+  const [webhookFilter, setWebhookFilter] = useState<'failures' | 'all'>('failures');
 
-  // ── Reconciliation State
-  const [reconcileReport, setReconcileReport] = useState<any>(null);
+  // ── Generated Magic Link Modal State
+  const [generatedMagicLink, setGeneratedMagicLink] = useState<{
+    clientId: string;
+    clientName: string;
+    url: string;
+  } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // ── Impersonation State
   const [impersonateClient, setImpersonateClient] = useState('');
-  const [impersonationSession, setImpersonationSession] = useState<{ token: string; clientName: string } | null>(null);
+  const [impersonationSession, setImpersonationSession] = useState<{
+    token: string;
+    clientName: string;
+  } | null>(null);
   const [impersonationError, setImpersonationError] = useState<string | null>(null);
 
-  // Handle live DNS lookup
+  // Deep-linking from query params
+  useEffect(() => {
+    const tabParam = searchParams?.get('tab') as TroubleshootingTab | null;
+    if (
+      tabParam &&
+      [
+        'health',
+        'orphans',
+        'dns',
+        'webhooks',
+        'invoices',
+        'access',
+        'domains',
+        'impersonation',
+      ].includes(tabParam)
+    ) {
+      setActiveTool(tabParam);
+    }
+    const impersonateParam = searchParams?.get('impersonate');
+    if (impersonateParam) {
+      setActiveTool('impersonation');
+      setImpersonateClient(impersonateParam);
+    }
+  }, [searchParams]);
+
+  // Flash feedback helper
+  const showFeedback = (successMsg: string | null, errorMsg: string | null = null) => {
+    if (successMsg) {
+      setFeedbackSuccess(successMsg);
+      setTimeout(() => setFeedbackSuccess(null), 4500);
+    }
+    if (errorMsg) {
+      setFeedbackError(errorMsg);
+      setTimeout(() => setFeedbackError(null), 6000);
+    }
+  };
+
+  // ── Handler: Single Domain DNS Resolve
   const handleCheckDns = async () => {
     if (!dnsDomain.trim()) return;
     setDnsError(null);
@@ -72,34 +179,136 @@ export default function AdminTroubleshootingPage() {
     }
   };
 
-  // Handle live webhook replay
-  const handleReplayWebhook = async (id: string) => {
-    setReplayingId(id);
-    setReplaySuccess(null);
-    setReplayError(null);
+  // ── Handler: Orphan Payment Remediation
+  const handleRemediateOrphan = async (
+    paymentLogId: string,
+    action: 'LINK_AND_SETTLE' | 'CREDIT_CLIENT',
+    targetInvoiceId?: string,
+    targetClientId?: string,
+  ) => {
+    setInFlightActionId(`orphan-${paymentLogId}-${action}`);
     try {
-      await replayMutation.mutateAsync(id);
-      setReplaySuccess(id);
-      setTimeout(() => setReplaySuccess(null), 4000);
+      const res = await remediateOrphanMutation.mutateAsync({
+        paymentLogId,
+        action,
+        targetInvoiceId,
+        targetClientId,
+      });
+      showFeedback(res.message || 'Payment successfully resolved and reconciled.');
     } catch (err: any) {
-      setReplayError(err?.response?.data?.message || err?.message || 'Webhook re-settlement failed.');
-      setTimeout(() => setReplayError(null), 5000);
+      showFeedback(null, err?.response?.data?.message || 'Orphan remediation failed.');
     } finally {
-      setReplayingId(null);
+      setInFlightActionId(null);
     }
   };
 
-  // Handle live reconciliation
-  const handleReconcile = async () => {
+  // ── Handler: Fleet DNS / SSL Remediation
+  const handleRemediateDnsSsl = async (
+    domain: string,
+    action: 'REFRESH_SSL' | 'REISSUE_SSL',
+    hostingAccountId?: string,
+  ) => {
+    setInFlightActionId(`ssl-${domain}-${action}`);
     try {
-      const report = await reconcileMutation.mutateAsync();
-      setReconcileReport(report);
+      const res = await remediateDnsSslMutation.mutateAsync({
+        domain,
+        action,
+        hostingAccountId,
+      });
+      showFeedback(res.message || `SSL action ${action} completed successfully for ${domain}.`);
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Reconciliation failed.');
+      showFeedback(null, err?.response?.data?.message || `SSL remediation failed for ${domain}.`);
+    } finally {
+      setInFlightActionId(null);
     }
   };
 
-  // Handle safe impersonation
+  // ── Handler: Single Webhook Replay
+  const handleReplaySingleWebhook = async (id: string) => {
+    setInFlightActionId(`wh-single-${id}`);
+    try {
+      const res = await replayMutation.mutateAsync(id);
+      showFeedback(`Webhook payment re-verified. Settle status: ${res?.settled ? 'Settled' : 'Not settled'}`);
+    } catch (err: any) {
+      showFeedback(null, err?.response?.data?.message || 'Webhook re-verification failed.');
+    } finally {
+      setInFlightActionId(null);
+    }
+  };
+
+  // ── Handler: Batch Webhooks Retry
+  const handleRetryWebhooksBatch = async () => {
+    setInFlightActionId('wh-batch');
+    try {
+      const res = await retryBatchMutation.mutateAsync(24);
+      showFeedback(`Batch retry complete: scanned ${res?.scanned || 0}, settled ${res?.settled || 0}, failed ${res?.failed || 0}.`);
+    } catch (err: any) {
+      showFeedback(null, err?.response?.data?.message || 'Batch webhook retry failed.');
+    } finally {
+      setInFlightActionId(null);
+    }
+  };
+
+  // ── Handler: Invoice Sync Remediation
+  const handleRemediateInvoice = async (
+    invoiceId: string,
+    action: 'SYNC_FROM_PAYMENTS' | 'RECALCULATE_FROM_ITEMS' | 'MARK_PAID' | 'MARK_OVERDUE',
+  ) => {
+    setInFlightActionId(`inv-${invoiceId}-${action}`);
+    try {
+      const res = await remediateInvoiceMutation.mutateAsync({ invoiceId, action });
+      showFeedback(res.message || 'Invoice synchronization action completed successfully.');
+    } catch (err: any) {
+      showFeedback(null, err?.response?.data?.message || 'Invoice sync remediation failed.');
+    } finally {
+      setInFlightActionId(null);
+    }
+  };
+
+  // ── Handler: Client Access Remediation
+  const handleRemediateAccess = async (
+    clientId: string,
+    clientName: string,
+    action: 'UNLOCK_ACCOUNT' | 'GENERATE_RESET_LINK' | 'RESTORE_USER',
+  ) => {
+    setInFlightActionId(`access-${clientId}-${action}`);
+    try {
+      const res = await remediateAccessMutation.mutateAsync({ clientId, action });
+      if (action === 'GENERATE_RESET_LINK' && res.resetLink) {
+        setGeneratedMagicLink({
+          clientId,
+          clientName,
+          url: res.resetLink,
+        });
+        showFeedback('Magic reset link minted successfully.');
+      } else {
+        showFeedback(res.message || `Account for ${clientName} restored to ACTIVE standing.`);
+      }
+    } catch (err: any) {
+      showFeedback(null, err?.response?.data?.message || 'Client access remediation failed.');
+    } finally {
+      setInFlightActionId(null);
+    }
+  };
+
+  // ── Handler: Domain State Remediation
+  const handleRemediateDomain = async (
+    hostingAccountId: string,
+    domain: string,
+    action: 'UNSUSPEND' | 'NORMALIZE_STATUS',
+  ) => {
+    setInFlightActionId(`dom-${hostingAccountId}-${action}`);
+    try {
+      const res = await remediateDomainMutation.mutateAsync({ hostingAccountId, action });
+      showFeedback(res.message || `Domain ${domain} unsuspended and restored to ACTIVE.`);
+    } catch (err: any) {
+      showFeedback(null, err?.response?.data?.message || `Failed to unsuspend ${domain}.`);
+    } finally {
+      setInFlightActionId(null);
+    }
+  };
+
+  // ── Handler: Impersonation Minting
   const handleImpersonate = async () => {
     if (!impersonateClient) return;
     setImpersonationError(null);
@@ -115,7 +324,51 @@ export default function AdminTroubleshootingPage() {
     }
   };
 
+  // ── Handler: Proactive Anomaly Remediation (M3 / R3)
+  const handleRemediateProactive = async (anomaly: ProactiveAnomaly) => {
+    const actionKey = `proactive-${anomaly.id}`;
+    setInFlightActionId(actionKey);
+    try {
+      const res = await remediateProactiveMutation.mutateAsync({
+        anomalyId: anomaly.id,
+        rule: anomaly.rule,
+        remediationAction: anomaly.remediationAction,
+        remediationPayload: anomaly.remediationPayload,
+      });
+      showFeedback(res.message || `Remediation executed for ${anomaly.title}`);
+      await proactiveScanQuery.refetch();
+    } catch (err: any) {
+      showFeedback(null, err?.response?.data?.message || 'Proactive remediation failed.');
+    } finally {
+      setInFlightActionId(null);
+    }
+  };
+
+  const getProactiveActionLabel = (action: string) => {
+    switch (action) {
+      case 'REFRESH_SSL':
+        return 'Renew / Refresh SSL';
+      case 'REISSUE_SSL':
+        return "Reissue Let's Encrypt SSL";
+      case 'RETRY_WEBHOOK_BURST':
+        return 'Retry Webhook Burst (1h)';
+      case 'AUTO_APPLY_PAYMENT':
+        return 'Auto-Apply & Settle Payment';
+      case 'EXTEND_AND_ACTIVATE_QUOTE':
+        return 'Extend Quote & Provision Project';
+      default:
+        return action.replace(/_/g, ' ');
+    }
+  };
+
   const health = clusterHealthQuery.data;
+  const overview = overviewQuery.data;
+  const orphanCount = orphanQuery.data?.count ?? overview?.orphanPaymentsCount ?? 0;
+  const dnsRiskCount = dnsFleetQuery.data?.issuesCount ?? overview?.dnsSslIssuesCount ?? 0;
+  const webhookBurst = webhookFailuresQuery.data?.burstDetected ?? overview?.burstAnomalyDetected ?? false;
+  const unsyncedCount = unsyncedInvoicesQuery.data?.totalUnsynced ?? 0;
+  const accessCount = clientAccessQuery.data?.totalLocked ?? overview?.lockedAccountsCount ?? 0;
+  const suspendedDomainCount = suspendedDomainsQuery.data?.totalSuspended ?? overview?.suspendedDomainsCount ?? 0;
 
   return (
     <div className="space-y-6">
@@ -123,362 +376,1322 @@ export default function AdminTroubleshootingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-black text-slate-900">Admin Troubleshooting & Diagnostics Suite</h2>
+            <h2 className="text-lg font-black text-slate-900">Admin Troubleshooting &amp; Operations Workstation</h2>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
               OPERATIONS DESK
             </span>
           </div>
           <p className="text-xs text-slate-500">
-            Real-time infrastructure health, gateway webhook inspection, live DNS resolver, and transaction reconciliation
+            One-click diagnostics and transactional remediation suite for infrastructure, gateways, billing, and tenant access
           </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {proactiveScanQuery.data?.scannedAt && (
+            <span className="text-[11px] text-slate-500 font-medium hidden sm:inline mr-1">
+              Last scanned: <span className="font-semibold text-slate-700">{new Date(proactiveScanQuery.data.scannedAt).toLocaleTimeString()}</span>
+            </span>
+          )}
+
+          <button
+            onClick={async () => {
+              await proactiveScanQuery.refetch();
+              showFeedback('Proactive health scan completed.');
+            }}
+            disabled={proactiveScanQuery.isFetching}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${proactiveScanQuery.isFetching ? 'animate-spin' : ''}`} />
+            <span>{proactiveScanQuery.isFetching ? 'Scanning Platform…' : 'Run Proactive Health Scan'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              proactiveScanQuery.refetch();
+              clusterHealthQuery.refetch();
+              overviewQuery.refetch();
+              orphanQuery.refetch();
+              dnsFleetQuery.refetch();
+              webhookFailuresQuery.refetch();
+              unsyncedInvoicesQuery.refetch();
+              clientAccessQuery.refetch();
+              suspendedDomainsQuery.refetch();
+              showFeedback('Refreshed diagnostic telemetry across all systems.');
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh All</span>
+          </button>
         </div>
       </div>
 
-      {/* ── Diagnostics Navigation Tabs ──────────────────────────────────────── */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-        {[
-          { id: 'health', label: '1. Service & Cluster Health', icon: Activity },
-          { id: 'dns', label: '2. Live DNS & SSL Resolver', icon: Globe },
-          { id: 'webhooks', label: '3. Webhook Stream & Replay', icon: Radio },
-          { id: 'reconciliation', label: '4. Invoice & Orphan Reconciler', icon: RefreshCw },
-          { id: 'impersonation', label: '5. Client View-As Sandbox', icon: UserCheck },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTool(tab.id as any)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
-              activeTool === tab.id
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <tab.icon className="w-3.5 h-3.5" />
-            <span>{tab.label}</span>
+      {/* ── Real-Time Anomaly & Feedback Banners ───────────────────────────────── */}
+      {feedbackSuccess && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-center justify-between animate-in slide-in-from-top-1">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-medium">{feedbackSuccess}</span>
+          </div>
+          <button onClick={() => setFeedbackSuccess(null)} className="text-emerald-700 hover:text-emerald-950 font-bold">
+            Dismiss
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* ── TOOL 1: SERVICE & CLUSTER HEALTH ─────────────────────────────────── */}
-      {activeTool === 'health' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-500">NestJS Core API</span>
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              </div>
-              <div className="text-xl font-black text-slate-900">HEALTHY</div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                Uptime: {health?.uptimeSeconds ? `${Math.floor(health.uptimeSeconds / 60)}m` : 'Live'} · {health?.environment?.nodeEnv || 'Production'}
-              </div>
+      {feedbackError && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs flex items-center justify-between animate-in slide-in-from-top-1">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span className="font-medium">{feedbackError}</span>
+          </div>
+          <button onClick={() => setFeedbackError(null)} className="text-rose-700 hover:text-rose-950 font-bold">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {webhookBurst && (
+        <div className="p-4 bg-gradient-to-r from-rose-500 to-rose-600 text-white rounded-2xl shadow-md flex items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <AlertTriangle className="w-5 h-5 text-white" />
             </div>
-
-            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-500">PostgreSQL (Neon)</span>
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              </div>
-              <div className="text-xl font-black text-slate-900">
-                {health?.database?.latencyMs != null ? `${health.database.latencyMs}ms` : 'CONNECTED'}
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                Clients: {health?.database?.activeClients ?? '…'} · Invoices: {health?.database?.totalInvoices ?? '…'}
-              </div>
+            <div>
+              <h4 className="font-bold text-xs uppercase tracking-wide">
+                Proactive Alert: Payment Gateway Webhook Burst Spike Detected
+              </h4>
+              <p className="text-[11px] text-rose-100 mt-0.5">
+                3 or more payment gateway webhooks failed within the last 15 minutes. Check gateway credentials or rerun batch verification.
+              </p>
             </div>
+          </div>
+          <button
+            onClick={() => {
+              setActiveTool('webhooks');
+              handleRetryWebhooksBatch();
+            }}
+            disabled={inFlightActionId === 'wh-batch'}
+            className="px-3.5 py-1.5 bg-white text-rose-700 hover:bg-rose-50 text-xs font-bold rounded-xl shadow-sm shrink-0 transition-colors"
+          >
+            {inFlightActionId === 'wh-batch' ? 'Retrying…' : 'Batch Retry All Failed (24h)'}
+          </button>
+        </div>
+      )}
 
-            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-500">Payment Rails</span>
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              </div>
-              <div className="text-xl font-black text-slate-900">
-                {health?.environment?.paystackConfigured ? 'READY' : 'STANDBY'}
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                M-Pesa: {health?.environment?.darajaConfigured ? 'Active' : 'Key Set'} · Paystack: Active
-              </div>
+      {/* ── Proactive Intelligence Radar & Anomaly Action Deck (M3 / R3) ────── */}
+      {proactiveScanQuery.isLoading && !proactiveScanQuery.data && (
+        <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center justify-between animate-pulse">
+          <div className="flex items-center gap-2.5">
+            <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin" />
+            <span className="text-xs font-semibold text-slate-700">
+              Running automated proactive health scans across SSL, webhooks, payments, and quotes…
+            </span>
+          </div>
+        </div>
+      )}
+
+      {proactiveScanQuery.data && proactiveScanQuery.data.anomalies.length === 0 && (
+        <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-700 shrink-0">
+              <ShieldCheck className="w-4 h-4" />
             </div>
+            <div>
+              <span className="text-xs font-bold text-emerald-900">
+                Proactive Intelligence Radar Clean: 0 Operational Anomalies Detected
+              </span>
+              <p className="text-[11px] text-emerald-700">
+                All 4 proactive monitors clean: SSL fleet healthy (&gt;7 days), payment webhooks stable, payments applied, and quotes synchronized.
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-0.5 text-[10px] font-black bg-emerald-200 text-emerald-900 rounded-full shrink-0">
+            RADAR CLEAN
+          </span>
+        </div>
+      )}
 
-            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-500">Node Heap Memory</span>
-                <Cpu className="w-4 h-4 text-blue-500" />
-              </div>
-              <div className="text-xl font-black text-slate-900">
-                {health?.memory?.heapUsedMb ? `${health.memory.heapUsedMb} MB` : '124 MB'}
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                RSS: {health?.memory?.rssMb ?? '280'} MB · Total: {health?.memory?.heapTotalMb ?? '180'} MB
-              </div>
+      {proactiveScanQuery.data && proactiveScanQuery.data.anomalies.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white uppercase tracking-wider">
+                {proactiveScanQuery.data.anomalies.length} Flagged Anomaly{proactiveScanQuery.data.anomalies.length > 1 ? 'ies' : ''}
+              </span>
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                Actionable Proactive Intelligence Alerts
+              </h3>
+            </div>
+            <div className="flex items-center gap-2 text-[11px]">
+              {proactiveScanQuery.data.summary.critical > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold border border-rose-200">
+                  {proactiveScanQuery.data.summary.critical} Critical
+                </span>
+              )}
+              {proactiveScanQuery.data.summary.warning > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
+                  {proactiveScanQuery.data.summary.warning} Warning
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-slate-600" />
-                Live Cluster Telemetry & Telemetry Feed
-              </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {proactiveScanQuery.data.anomalies.map((anomaly) => {
+              const isCritical = anomaly.severity === 'CRITICAL';
+              const isWarning = anomaly.severity === 'WARNING';
+              const inFlight = inFlightActionId === `proactive-${anomaly.id}`;
+
+              return (
+                <div
+                  key={anomaly.id}
+                  className={`p-4 rounded-2xl border transition-all ${
+                    isCritical
+                      ? 'bg-rose-50/70 border-rose-300 shadow-sm'
+                      : isWarning
+                      ? 'bg-amber-50/70 border-amber-300 shadow-sm'
+                      : 'bg-slate-50 border-slate-200 shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                          isCritical
+                            ? 'bg-rose-100 text-rose-700'
+                            : isWarning
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {anomaly.rule === 'SSL_EXPIRING_7D' && <Globe className="w-4 h-4" />}
+                        {anomaly.rule === 'WEBHOOK_BURST' && <Radio className="w-4 h-4" />}
+                        {anomaly.rule === 'UNAPPLIED_PAYMENT' && <DollarSign className="w-4 h-4" />}
+                        {anomaly.rule === 'EXPIRED_QUOTE_DEPOSIT' && <FileText className="w-4 h-4" />}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                              isCritical
+                                ? 'bg-rose-600 text-white'
+                                : isWarning
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-slate-500 text-white'
+                            }`}
+                          >
+                            {anomaly.severity}
+                          </span>
+                          <span className="text-[10px] font-mono uppercase text-slate-500">
+                            {anomaly.rule.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 leading-tight">
+                          {anomaly.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">
+                          {anomaly.description}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] text-slate-500 font-mono">
+                          {anomaly.metadata.domain && (
+                            <span className="bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                              domain: {anomaly.metadata.domain}
+                            </span>
+                          )}
+                          {anomaly.metadata.daysLeft !== undefined && anomaly.metadata.daysLeft !== null && (
+                            <span className="bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                              days left: {anomaly.metadata.daysLeft}
+                            </span>
+                          )}
+                          {anomaly.metadata.failureCount && (
+                            <span className="bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                              failures: {anomaly.metadata.failureCount} / 60m
+                            </span>
+                          )}
+                          {anomaly.metadata.amount && anomaly.metadata.currency && (
+                            <span className="bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                              {anomaly.metadata.currency} {anomaly.metadata.amount}
+                            </span>
+                          )}
+                          {anomaly.metadata.proposalCode && (
+                            <span className="bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                              quote: {anomaly.metadata.proposalCode}
+                            </span>
+                          )}
+                          {anomaly.metadata.clientEmail && (
+                            <span className="bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                              client: {anomaly.metadata.clientEmail}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemediateProactive(anomaly)}
+                      disabled={inFlight}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 shrink-0 ${
+                        isCritical
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50'
+                          : 'bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50'
+                      }`}
+                    >
+                      {inFlight ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Remediating…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>{getProactiveActionLabel(anomaly.remediationAction)}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Proactive Intelligence Summary Cards Deck ─────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* Card 1: Orphan Payments */}
+        <button
+          onClick={() => setActiveTool('orphans')}
+          className={`p-3.5 rounded-2xl border text-left transition-all ${
+            orphanCount > 0
+              ? 'bg-rose-50/80 border-rose-200 hover:bg-rose-100/80'
+              : 'bg-white border-slate-200/80 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400">
+            <DollarSign className={`w-4 h-4 ${orphanCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+            {orphanCount > 0 ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">
+                {orphanCount} RISK
+              </span>
+            ) : (
+              <span className="text-[10px] text-emerald-600 font-bold">CLEAN</span>
+            )}
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-2">{orphanCount}</div>
+          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">Orphan Payments</div>
+          <div className="text-[9px] text-slate-400 mt-0.5">Unsettled / unlinked</div>
+        </button>
+
+        {/* Card 2: DNS & SSL Risks */}
+        <button
+          onClick={() => setActiveTool('dns')}
+          className={`p-3.5 rounded-2xl border text-left transition-all ${
+            dnsRiskCount > 0
+              ? 'bg-amber-50/80 border-amber-200 hover:bg-amber-100/80'
+              : 'bg-white border-slate-200/80 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400">
+            <Globe className={`w-4 h-4 ${dnsRiskCount > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
+            {dnsRiskCount > 0 ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-600 text-white">
+                {dnsRiskCount} RISK
+              </span>
+            ) : (
+              <span className="text-[10px] text-emerald-600 font-bold">HEALTHY</span>
+            )}
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-2">{dnsRiskCount}</div>
+          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">SSL / DNS Risks</div>
+          <div className="text-[9px] text-slate-400 mt-0.5">Expiring ≤ 7d / IP desync</div>
+        </button>
+
+        {/* Card 3: Webhook Failures */}
+        <button
+          onClick={() => setActiveTool('webhooks')}
+          className={`p-3.5 rounded-2xl border text-left transition-all ${
+            webhookBurst
+              ? 'bg-rose-50/80 border-rose-200 hover:bg-rose-100/80'
+              : 'bg-white border-slate-200/80 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400">
+            <Radio className={`w-4 h-4 ${webhookBurst ? 'text-rose-600' : 'text-slate-400'}`} />
+            {webhookBurst ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">BURST</span>
+            ) : (
+              <span className="text-[10px] text-emerald-600 font-bold">NORMAL</span>
+            )}
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-2">
+            {webhookFailuresQuery.data?.totalFailed ?? 0}
+          </div>
+          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">Failed Webhooks</div>
+          <div className="text-[9px] text-slate-400 mt-0.5">Needs gateway retry</div>
+        </button>
+
+        {/* Card 4: Unsynced Invoices */}
+        <button
+          onClick={() => setActiveTool('invoices')}
+          className={`p-3.5 rounded-2xl border text-left transition-all ${
+            unsyncedCount > 0
+              ? 'bg-blue-50/80 border-blue-200 hover:bg-blue-100/80'
+              : 'bg-white border-slate-200/80 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400">
+            <FileText className={`w-4 h-4 ${unsyncedCount > 0 ? 'text-blue-600' : 'text-slate-400'}`} />
+            {unsyncedCount > 0 ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white">
+                {unsyncedCount} DESYNC
+              </span>
+            ) : (
+              <span className="text-[10px] text-emerald-600 font-bold">SYNCED</span>
+            )}
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-2">{unsyncedCount}</div>
+          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">Unsynced Invoices</div>
+          <div className="text-[9px] text-slate-400 mt-0.5">Math &amp; status drift</div>
+        </button>
+
+        {/* Card 5: Locked Accounts */}
+        <button
+          onClick={() => setActiveTool('access')}
+          className={`p-3.5 rounded-2xl border text-left transition-all ${
+            accessCount > 0
+              ? 'bg-slate-100 border-slate-300 hover:bg-slate-200'
+              : 'bg-white border-slate-200/80 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400">
+            <Lock className={`w-4 h-4 ${accessCount > 0 ? 'text-slate-900' : 'text-slate-400'}`} />
+            {accessCount > 0 ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-white">
+                {accessCount} LOCKED
+              </span>
+            ) : (
+              <span className="text-[10px] text-emerald-600 font-bold">OPEN</span>
+            )}
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-2">{accessCount}</div>
+          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">Locked Accounts</div>
+          <div className="text-[9px] text-slate-400 mt-0.5">Suspended or unclaimed</div>
+        </button>
+
+        {/* Card 6: Suspended Domains */}
+        <button
+          onClick={() => setActiveTool('domains')}
+          className={`p-3.5 rounded-2xl border text-left transition-all ${
+            suspendedDomainCount > 0
+              ? 'bg-rose-50/80 border-rose-200 hover:bg-rose-100/80'
+              : 'bg-white border-slate-200/80 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400">
+            <Server className={`w-4 h-4 ${suspendedDomainCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+            {suspendedDomainCount > 0 ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">
+                {suspendedDomainCount} STOPPED
+              </span>
+            ) : (
+              <span className="text-[10px] text-emerald-600 font-bold">ACTIVE</span>
+            )}
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-2">{suspendedDomainCount}</div>
+          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">Suspended Domains</div>
+          <div className="text-[9px] text-slate-400 mt-0.5">Inconsistent or stuck</div>
+        </button>
+      </div>
+
+      {/* ── 8 Operational Tabs Navigation ────────────────────────────────────── */}
+      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto">
+        {[
+          { id: 'health', label: '1. Service & Cluster Health', icon: Activity },
+          { id: 'orphans', label: '2. Orphan Payments', icon: DollarSign, badge: orphanCount },
+          { id: 'dns', label: '3. Fleet DNS & SSL', icon: Globe, badge: dnsRiskCount },
+          { id: 'webhooks', label: '4. Webhooks & Retries', icon: Radio, badge: webhookFailuresQuery.data?.totalFailed },
+          { id: 'invoices', label: '5. Invoices & Reconciliation', icon: RefreshCw, badge: unsyncedCount },
+          { id: 'access', label: '6. Client Access & Lockouts', icon: Key, badge: accessCount },
+          { id: 'domains', label: '7. Suspended Domains', icon: Server, badge: suspendedDomainCount },
+          { id: 'impersonation', label: '8. Client Sandbox', icon: UserCheck },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTool === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTool(tab.id as any)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
+                isActive
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/60'
+              }`}
+            >
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+              <span>{tab.label}</span>
+              {typeof tab.badge === 'number' && tab.badge > 0 && (
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isActive ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800'
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Generated Magic Token Copy Modal ─────────────────────────────────── */}
+      {generatedMagicLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-[#2563EB]" />
+                <h3 className="font-bold text-sm text-slate-900">One-Time Magic Access Link Minted</h3>
+              </div>
               <button
-                onClick={() => clusterHealthQuery.refetch()}
-                disabled={clusterHealthQuery.isFetching}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+                onClick={() => setGeneratedMagicLink(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
               >
-                <RefreshCw className={`w-3 h-3 ${clusterHealthQuery.isFetching ? 'animate-spin' : ''}`} />
-                <span>Refresh Feed</span>
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              A 24-hour single-use magic login link has been generated for{' '}
+              <strong>{generatedMagicLink.clientName}</strong>. Provide this to the client contact to allow immediate passwordless entry.
+            </p>
+            <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+              <input
+                type="text"
+                readOnly
+                value={generatedMagicLink.url}
+                className="flex-1 bg-white px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono select-all"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(generatedMagicLink.url);
+                  setCopiedLink(true);
+                  setTimeout(() => setCopiedLink(false), 2000);
+                }}
+                className="px-3 py-1.5 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-sm shrink-0"
+              >
+                {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setGeneratedMagicLink(null)}
+                className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {/* TAB 1: SERVICE & CLUSTER HEALTH                                         */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {activeTool === 'health' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+              <div className="flex items-center gap-2 text-slate-400 mb-2">
+                <Cpu className="w-4 h-4 text-[#2563EB]" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">NestJS Core Runtime</span>
+              </div>
+              <div className="text-2xl font-black text-slate-900">
+                {health?.status === 'ok' ? 'Online' : 'Degraded'}
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                Uptime: {health?.uptimeSeconds ? `${Math.floor(health.uptimeSeconds / 3600)}h ${Math.floor((health.uptimeSeconds % 3600) / 60)}m` : '—'}
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+              <div className="flex items-center gap-2 text-slate-400 mb-2">
+                <Activity className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">PostgreSQL DB Latency</span>
+              </div>
+              <div className="text-2xl font-black text-slate-900">
+                {health?.database?.latencyMs ?? '—'} <span className="text-xs font-normal text-slate-400">ms</span>
+              </div>
+              <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Prisma Client Healthy</span>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+              <div className="flex items-center gap-2 text-slate-400 mb-2">
+                <Radio className="w-4 h-4 text-amber-500" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Payment Rails</span>
+              </div>
+              <div className="space-y-1 mt-1 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">Paystack Gateway:</span>
+                  <span className={`font-bold ${health?.environment?.paystackConfigured ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {health?.environment?.paystackConfigured ? 'READY' : 'STANDBY'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">M-PESA Daraja:</span>
+                  <span className={`font-bold ${health?.environment?.darajaConfigured ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {health?.environment?.darajaConfigured ? 'READY' : 'STANDBY'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+              <div className="flex items-center gap-2 text-slate-400 mb-2">
+                <Terminal className="w-4 h-4 text-purple-500" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Node Heap Memory</span>
+              </div>
+              <div className="text-2xl font-black text-slate-900">
+                {health?.memory?.heapUsedMb ?? '—'} <span className="text-xs font-normal text-slate-400">MB</span>
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                Allocated Heap: {health?.memory?.heapTotalMb ?? '—'} MB
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {/* TAB 2: ORPHAN & UNAPPLIED PAYMENTS                                      */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {activeTool === 'orphans' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden space-y-4 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Orphan &amp; Unapplied Payment Resolver</h3>
+              <p className="text-xs text-slate-400">
+                Transactions with missing invoice relations, orphan webhook errors, or unapplied successful payments
+              </p>
+            </div>
+            <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg text-xs font-bold shrink-0">
+              {orphanQuery.data?.count || 0} Orphan Transactions Found
+            </span>
+          </div>
+
+          {orphanQuery.isLoading ? (
+            <div className="p-8 text-center text-xs text-slate-400">Scanning payment logs for orphan transactions…</div>
+          ) : (orphanQuery.data?.items ?? []).length === 0 ? (
+            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-100 text-slate-400 text-xs">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <div className="font-bold text-slate-700">All Payments Reconciled Cleanly</div>
+              <div>No orphan or unapplied payment records detected across Paystack and Daraja rails.</div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Gateway</th>
+                    <th className="py-2.5 px-3">Amount</th>
+                    <th className="py-2.5 px-3">Reference</th>
+                    <th className="py-2.5 px-3">Error / Reason</th>
+                    <th className="py-2.5 px-3">Detected Candidate</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(orphanQuery.data?.items ?? []).map((item: any) => {
+                    const isLinking = inFlightActionId === `orphan-${item.id}-LINK_AND_SETTLE`;
+                    const isCrediting = inFlightActionId === `orphan-${item.id}-CREDIT_CLIENT`;
+
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-3 text-slate-500 whitespace-nowrap">{formatDate(item.createdAt)}</td>
+                        <td className="py-3 px-3">
+                          <span className="font-semibold text-slate-700">{item.provider}</span>
+                          <span className="text-[10px] text-slate-400 block">{item.method}</span>
+                        </td>
+                        <td className="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
+                          {item.currency} {item.amount.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-[11px] text-slate-600">{item.providerRef}</td>
+                        <td className="py-3 px-3 max-w-xs text-rose-600 font-medium text-[11px]">
+                          {item.errorMessage || 'Successful payment unlinked to invoice'}
+                        </td>
+                        <td className="py-3 px-3">
+                          {item.candidateClient ? (
+                            <div>
+                              <div className="font-semibold text-slate-800">{item.candidateClient.businessName}</div>
+                              {item.candidateInvoice && (
+                                <div className="text-[10px] text-slate-500">
+                                  Candidate Inv: {item.candidateInvoice.invoiceNumber} (
+                                  {item.currency} {Number(item.candidateInvoice.amount).toFixed(2)})
+                                </div>
+                              )}
+                              <span
+                                className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-bold mt-0.5 ${
+                                  item.matchConfidence === 'HIGH'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {item.matchConfidence} MATCH CONFIDENCE
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[10px] italic">No candidate match found</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap space-x-1.5">
+                          {item.candidateInvoice && (
+                            <button
+                              onClick={() =>
+                                handleRemediateOrphan(
+                                  item.id,
+                                  'LINK_AND_SETTLE',
+                                  item.candidateInvoice.id,
+                                )
+                              }
+                              disabled={isLinking || isCrediting}
+                              className="px-2.5 py-1.5 bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
+                            >
+                              {isLinking ? 'Linking…' : 'Link & Settle'}
+                            </button>
+                          )}
+                          {item.candidateClient && (
+                            <button
+                              onClick={() =>
+                                handleRemediateOrphan(
+                                  item.id,
+                                  'CREDIT_CLIENT',
+                                  undefined,
+                                  item.candidateClient.id,
+                                )
+                              }
+                              disabled={isLinking || isCrediting}
+                              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50"
+                            >
+                              {isCrediting ? 'Crediting…' : 'Credit Client'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {/* TAB 3: FLEET DNS & SSL RESOLVER                                         */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {activeTool === 'dns' && (
+        <div className="space-y-6">
+          {/* Sub-panel 1: Single Domain Resolver */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Interactive Single Domain Inspector</h3>
+              <p className="text-xs text-slate-400">
+                Inspect public DNS records, Cloudflare edge proxying, and live TLS peer certificates for any domain
+              </p>
+            </div>
+
+            <div className="flex gap-2 max-w-lg">
+              <input
+                type="text"
+                value={dnsDomain}
+                onChange={(e) => setDnsDomain(e.target.value)}
+                placeholder="e.g. acaciahealthcare.co.ke"
+                className="flex-1 px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
+              />
+              <button
+                onClick={handleCheckDns}
+                disabled={resolveDnsMutation.isPending}
+                className="px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>{resolveDnsMutation.isPending ? 'Resolving…' : 'Resolve DNS & SSL'}</span>
               </button>
             </div>
 
-            <div className="p-4 bg-slate-950 rounded-xl font-mono text-xs text-emerald-400 overflow-x-auto leading-relaxed max-h-96">
-              <pre>{JSON.stringify(health || { status: 'loading' }, null, 2)}</pre>
-            </div>
-          </div>
-        </div>
-      )}
+            {dnsError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{dnsError}</span>
+              </div>
+            )}
 
-      {/* ── TOOL 2: LIVE DNS & SSL RESOLVER ──────────────────────────────────── */}
-      {activeTool === 'dns' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6">
-          <div>
-            <h3 className="font-bold text-slate-900 text-sm mb-1">Live Edge DNS & SSL Inspector</h3>
-            <p className="text-xs text-slate-400">
-              Query live public DNS A, CNAME, MX, and TXT records, inspect SSL certificate issuer, expiry, and Cloudflare Edge proxy
-            </p>
-          </div>
-
-          <div className="flex gap-2 max-w-lg">
-            <input
-              type="text"
-              value={dnsDomain}
-              onChange={e => setDnsDomain(e.target.value)}
-              placeholder="e.g. clientdomain.co.ke"
-              className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
-            />
-            <button
-              onClick={handleCheckDns}
-              disabled={resolveDnsMutation.isPending}
-              className="px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <Search className="w-3.5 h-3.5" />
-              <span>{resolveDnsMutation.isPending ? 'Resolving…' : 'Inspect Domain'}</span>
-            </button>
-          </div>
-
-          {dnsError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{dnsError}</span>
-            </div>
-          )}
-
-          {dnsResults && (
-            <div className="space-y-4 pt-2 border-t border-slate-100 animate-in fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <div className={`p-3 border rounded-xl ${dnsResults.sslValid ? 'bg-emerald-50/80 border-emerald-100' : 'bg-rose-50/80 border-rose-100'}`}>
-                  <div className={`font-bold flex items-center gap-1.5 ${dnsResults.sslValid ? 'text-emerald-800' : 'text-rose-800'}`}>
-                    <CheckCircle2 className={`w-4 h-4 ${dnsResults.sslValid ? 'text-emerald-600' : 'text-rose-600'}`} />
-                    {dnsResults.sslValid ? 'SSL Certificate Valid' : 'SSL Invalid / Expired'}
+            {dnsResults && (
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">Apex IP:</span>
+                    <span className="font-mono font-bold text-slate-800">{dnsResults.ip}</span>
                   </div>
-                  <div className="text-slate-600 mt-1">Issuer: {dnsResults.sslIssuer}</div>
-                  <div className="text-slate-500 text-[11px]">Valid until: {dnsResults.sslExpires} ({dnsResults.sslDaysLeft ?? 0}d left)</div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">Cloudflare Edge:</span>
+                    <span className={`font-bold ${dnsResults.cloudflareProxied ? 'text-emerald-600' : 'text-slate-500'}`}>
+                      {dnsResults.cloudflareProxied ? 'Proxied (Active)' : 'Direct DNS'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">SSL Certificate:</span>
+                    <span className={`font-bold ${dnsResults.sslValid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {dnsResults.sslValid ? 'Valid & Trusted' : 'Invalid / Expired'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">Issuer / Days Left:</span>
+                    <span className="font-medium text-slate-700">
+                      {dnsResults.sslIssuer} ({dnsResults.sslDaysLeft ?? '—'} days)
+                    </span>
+                  </div>
                 </div>
 
-                <div className="p-3 bg-blue-50/80 border border-blue-100 rounded-xl">
-                  <div className="text-blue-800 font-bold flex items-center gap-1.5">
-                    <Globe className="w-4 h-4 text-blue-600" />
-                    {dnsResults.cloudflareProxied ? 'Cloudflare Edge Active' : 'Direct Server IP'}
-                  </div>
-                  <div className="text-slate-600 mt-1">Apex IP: {dnsResults.ip}</div>
-                  <div className="text-slate-500 text-[11px]">DDoS Protection: {dnsResults.cloudflareProxied ? 'Armed' : 'Standard'}</div>
-                </div>
-
-                <div className="p-3 bg-purple-50/80 border border-purple-100 rounded-xl">
-                  <div className="text-purple-800 font-bold flex items-center gap-1.5">
-                    <Radio className="w-4 h-4 text-purple-600" />
-                    DNS Records Resolved
-                  </div>
-                  <div className="text-slate-600 mt-1">Total Records: {dnsResults.records?.length ?? 0}</div>
-                  <div className="text-slate-500 text-[11px]">Query: Authoritative Resolver</div>
+                <div className="text-[11px] font-mono text-slate-600 bg-white p-3 rounded-lg border border-slate-200/60 max-h-40 overflow-y-auto">
+                  {(dnsResults.records || []).map((r: any, idx: number) => (
+                    <div key={idx}>
+                      <span className="text-blue-600 font-bold">{r.type.padEnd(6)}</span> {r.target}
+                    </div>
+                  ))}
                 </div>
               </div>
+            )}
+          </div>
 
+          {/* Sub-panel 2: Fleet Health Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Platform Fleet DNS &amp; SSL Resolver</h3>
+                <p className="text-xs text-slate-400">
+                  Continuous scan across all registered client hosting domains, detecting expiration and IP drift
+                </p>
+              </div>
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold">
+                {dnsFleetQuery.data?.totalScanned || 0} Domains Scanned
+              </span>
+            </div>
+
+            {dnsFleetQuery.isLoading ? (
+              <div className="p-8 text-center text-xs text-slate-400">Scanning fleet hosting accounts…</div>
+            ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-100 text-xs">
-                  <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500 text-left">
-                    <tr>
-                      <th className="py-2.5 px-3">Record Type</th>
-                      <th className="py-2.5 px-3">Host / Name</th>
-                      <th className="py-2.5 px-3">Resolved Target</th>
-                      <th className="py-2.5 px-3">TTL</th>
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-2.5 px-3">Domain</th>
+                      <th className="py-2.5 px-3">Client Organization</th>
+                      <th className="py-2.5 px-3">Resolved IP</th>
+                      <th className="py-2.5 px-3">SSL Issuer</th>
+                      <th className="py-2.5 px-3">Days Left</th>
+                      <th className="py-2.5 px-3">Anomaly Status</th>
+                      <th className="py-2.5 px-3 text-right">One-Click Remediation</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                    {dnsResults.records?.map((r: any, i: number) => (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 font-bold text-[#2563EB]">{r.type}</td>
-                        <td className="py-2 px-3 text-slate-700">{r.name}</td>
-                        <td className="py-2 px-3 text-slate-900 break-all">{r.target}</td>
-                        <td className="py-2 px-3 text-slate-400">{r.ttl || '300'}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-slate-100">
+                    {(dnsFleetQuery.data?.domains ?? []).map((d: any) => {
+                      const isRefreshing = inFlightActionId === `ssl-${d.domain}-REFRESH_SSL`;
+                      const isReissuing = inFlightActionId === `ssl-${d.domain}-REISSUE_SSL`;
+
+                      return (
+                        <tr key={d.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-3 font-semibold text-slate-900">{d.domain}</td>
+                          <td className="py-3 px-3 text-slate-600">{d.client}</td>
+                          <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
+                            {d.resolvedIp}
+                            {d.isCloudflare && (
+                              <span className="ml-1 text-[9px] font-bold text-amber-700 bg-amber-100 px-1 py-0.2 rounded">
+                                CF
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 text-[11px]">{d.sslIssuer}</td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`font-bold ${
+                                d.sslDaysLeft !== null && d.sslDaysLeft <= 7
+                                  ? 'text-rose-600'
+                                  : d.sslDaysLeft !== null && d.sslDaysLeft <= 30
+                                  ? 'text-amber-600'
+                                  : 'text-emerald-600'
+                              }`}
+                            >
+                              {d.sslDaysLeft !== null ? `${d.sslDaysLeft}d` : 'Unknown'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                d.anomaly === 'HEALTHY'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : d.anomaly === 'SSL_EXPIRING_7D'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : d.anomaly === 'SSL_EXPIRED'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-purple-100 text-purple-800'
+                              }`}
+                            >
+                              {d.anomaly}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right whitespace-nowrap space-x-1.5">
+                            <button
+                              onClick={() => handleRemediateDnsSsl(d.domain, 'REFRESH_SSL', d.id)}
+                              disabled={isRefreshing || isReissuing}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {isRefreshing ? 'Refreshing…' : 'Refresh SSL'}
+                            </button>
+                            <button
+                              onClick={() => handleRemediateDnsSsl(d.domain, 'REISSUE_SSL', d.id)}
+                              disabled={isRefreshing || isReissuing}
+                              className="px-2.5 py-1 bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm"
+                            >
+                              {isReissuing ? 'Reissuing…' : 'Reissue SSL'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── TOOL 3: WEBHOOK INSPECTOR & REPLAY ────────────────────────────────── */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {/* TAB 4: WEBHOOK STREAM & BURSTS                                          */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
       {activeTool === 'webhooks' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Payment Gateway Webhook Stream</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Payment Gateway Webhook Stream &amp; Retry Desk</h3>
               <p className="text-xs text-slate-400">
-                Inspect raw Paystack and Daraja events, verified transaction references, and re-settle payments
+                Monitor Paystack &amp; M-PESA Daraja events, inspect failure reasons, and replay dropped checkouts
               </p>
             </div>
-            <button
-              onClick={() => webhookLogsQuery.refetch()}
-              disabled={webhookLogsQuery.isFetching}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${webhookLogsQuery.isFetching ? 'animate-spin' : ''}`} />
-              <span>Refresh Stream</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-semibold">
+                <button
+                  onClick={() => setWebhookFilter('failures')}
+                  className={`px-3 py-1 rounded-lg transition-all ${
+                    webhookFilter === 'failures' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  Failures &amp; Stale Only ({webhookFailuresQuery.data?.totalFailed || 0})
+                </button>
+                <button
+                  onClick={() => setWebhookFilter('all')}
+                  className={`px-3 py-1 rounded-lg transition-all ${
+                    webhookFilter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  Full Stream
+                </button>
+              </div>
+
+              <button
+                onClick={handleRetryWebhooksBatch}
+                disabled={inFlightActionId === 'wh-batch'}
+                className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{inFlightActionId === 'wh-batch' ? 'Retrying…' : 'Batch Retry All Failed (24h)'}</span>
+              </button>
+            </div>
           </div>
 
-          {replayError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{replayError}</span>
-            </div>
-          )}
-
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100 text-xs">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase text-slate-500 text-left">
-                <tr>
-                  <th className="py-2.5 px-3">Date</th>
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-2.5 px-3">Timestamp</th>
                   <th className="py-2.5 px-3">Gateway</th>
-                  <th className="py-2.5 px-3">Client</th>
                   <th className="py-2.5 px-3">Amount</th>
                   <th className="py-2.5 px-3">Reference</th>
-                  <th className="py-2.5 px-3">Status</th>
-                  <th className="py-2.5 px-3 text-right">Action</th>
+                  <th className="py-2.5 px-3">Client / Invoice</th>
+                  <th className="py-2.5 px-3">Status / Category</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(webhookLogsQuery.data ?? []).length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
-                      No payment events recorded in database yet.
-                    </td>
-                  </tr>
-                ) : (
-                  (webhookLogsQuery.data ?? []).map((wh: any) => (
-                    <tr key={wh.id} className="hover:bg-slate-50/60">
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{formatDate(wh.createdAt)}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900">{wh.gateway}</td>
-                      <td className="py-2.5 px-3 font-medium text-slate-900">{wh.client}</td>
-                      <td className="py-2.5 px-3 font-black text-slate-800">
-                        {wh.currency} {wh.amount.toLocaleString()}
+                {(webhookFilter === 'failures'
+                  ? webhookFailuresQuery.data?.items ?? []
+                  : webhookStreamQuery.data ?? []
+                ).map((log: any) => {
+                  const isRetrying = inFlightActionId === `wh-single-${log.id}`;
+                  return (
+                    <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap">{formatDate(log.createdAt)}</td>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{log.gateway}</td>
+                      <td className="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
+                        {log.currency} {Number(log.amount).toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500 truncate max-w-[140px]">{wh.reference}</td>
-                      <td className="py-2.5 px-3">
+                      <td className="py-3 px-3 font-mono text-[11px] text-slate-600">{log.reference}</td>
+                      <td className="py-3 px-3">
+                        <span className="font-semibold text-slate-800">{log.client}</span>
+                        {log.invoiceNumber && (
+                          <span className="text-[10px] text-slate-400 block font-mono">
+                            Inv #{log.invoiceNumber}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            wh.status === 'SUCCESS'
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            log.status === 'SUCCESS'
                               ? 'bg-emerald-100 text-emerald-800'
-                              : wh.status === 'PENDING'
+                              : log.status === 'PENDING'
                               ? 'bg-amber-100 text-amber-800'
                               : 'bg-rose-100 text-rose-800'
                           }`}
                         >
-                          {wh.status}
+                          {log.status}
                         </span>
+                        {log.errorMessage && (
+                          <span className="text-[10px] text-slate-500 block truncate max-w-xs mt-0.5">
+                            {log.errorMessage}
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2.5 px-3 text-right">
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
                         <button
-                          onClick={() => handleReplayWebhook(wh.id)}
-                          disabled={replayingId === wh.id}
-                          className="px-2.5 py-1 text-xs font-semibold text-[#2563EB] hover:bg-blue-50 border border-blue-200 rounded-lg inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                          onClick={() => handleReplaySingleWebhook(log.id)}
+                          disabled={isRetrying}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold rounded-lg shadow-sm disabled:opacity-50 transition-all"
                         >
-                          {replayingId === wh.id ? (
-                            <RefreshCw className="w-3 h-3 animate-spin" />
-                          ) : replaySuccess === wh.id ? (
-                            <Check className="w-3 h-3 text-emerald-600" />
-                          ) : (
-                            <RotateCcw className="w-3 h-3" />
-                          )}
-                          <span>{replaySuccess === wh.id ? 'Replayed!' : 'Re-verify'}</span>
+                          {isRetrying ? 'Re-verifying…' : 'Re-verify & Settle'}
                         </button>
                       </td>
                     </tr>
-                  ))
-                )}
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* ── TOOL 4: TRANSACTION & ORPHAN RECONCILER ──────────────────────────── */}
-      {activeTool === 'reconciliation' && (
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {/* TAB 5: INVOICES & RECONCILIATION                                        */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {activeTool === 'invoices' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Database & Gateway Integrity Reconciler</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Invoice Total &amp; Status Synchronization Desk</h3>
               <p className="text-xs text-slate-400">
-                Polls Paystack and Daraja for unsettled pending payments and reconciles local subscriptions
+                Identify invoices where line items sum differs from recorded total, or where successful payments exist without PAID status
               </p>
             </div>
             <button
-              onClick={handleReconcile}
+              onClick={async () => {
+                try {
+                  const rep = await reconcileMutation.mutateAsync();
+                  showFeedback(`Gateway reconciliation scan complete: scanned ${rep?.scanned || 0}, settled ${rep?.settled || 0}.`);
+                } catch (err: any) {
+                  showFeedback(null, err?.message || 'Reconciliation failed.');
+                }
+              }}
               disabled={reconcileMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors disabled:opacity-50"
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${reconcileMutation.isPending ? 'animate-spin' : ''}`} />
-              <span>{reconcileMutation.isPending ? 'Reconciling…' : 'Run Live Reconciliation'}</span>
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>{reconcileMutation.isPending ? 'Scanning Gateways…' : 'Run Live Gateway Reconciliation'}</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
-              <div className="text-2xl font-black text-emerald-600">
-                {reconcileReport ? reconcileReport.settled : '0'}
-              </div>
-              <div className="text-slate-500 font-medium mt-0.5">Recently Settled</div>
-              <div className="text-[10px] text-slate-400 mt-1">Pending payments activated on-demand</div>
+          {unsyncedInvoicesQuery.isLoading ? (
+            <div className="p-8 text-center text-xs text-slate-400">Evaluating invoices for mathematical discrepancies…</div>
+          ) : (unsyncedInvoicesQuery.data?.items ?? []).length === 0 ? (
+            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-100 text-slate-400 text-xs">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <div className="font-bold text-slate-700">All Invoice Totals and Statuses Match</div>
+              <div>Zero line item mathematical discrepancies or payment status drifts detected.</div>
             </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-2.5 px-3">Invoice #</th>
+                    <th className="py-2.5 px-3">Client</th>
+                    <th className="py-2.5 px-3">Recorded Total</th>
+                    <th className="py-2.5 px-3">Line Items Sum</th>
+                    <th className="py-2.5 px-3">Applied Payments</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3">Discrepancy Details</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(unsyncedInvoicesQuery.data?.items ?? []).map((inv: any) => {
+                    const isSyncing = inFlightActionId === `inv-${inv.id}-SYNC_FROM_PAYMENTS`;
+                    const isRecalc = inFlightActionId === `inv-${inv.id}-RECALCULATE_FROM_ITEMS`;
 
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
-              <div className="text-2xl font-black text-slate-900">
-                {reconcileReport ? reconcileReport.scanned : health?.database?.pendingPayments ?? 0}
-              </div>
-              <div className="text-slate-500 font-medium mt-0.5">Unsettled In Flight</div>
-              <div className="text-[10px] text-slate-400 mt-1">Stale checkout attempts being monitored</div>
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-3 font-mono font-bold text-slate-800">{inv.invoiceNumber}</td>
+                        <td className="py-3 px-3 text-slate-700 font-semibold">{inv.client}</td>
+                        <td className="py-3 px-3 font-bold text-slate-900 whitespace-nowrap">
+                          {inv.currency} {inv.recordedAmount.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 whitespace-nowrap">
+                          {inv.currency} {inv.sumLineItems.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-3 font-semibold text-emerald-600 whitespace-nowrap">
+                          {inv.currency} {inv.sumPayments.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-[11px] text-amber-700 font-medium max-w-xs">
+                          {inv.discrepancyDetails}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap space-x-1.5">
+                          {inv.discrepancy === 'STATUS_DESYNC_PAID_AS_UNPAID' && (
+                            <button
+                              onClick={() => handleRemediateInvoice(inv.id, 'SYNC_FROM_PAYMENTS')}
+                              disabled={isSyncing}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
+                            >
+                              {isSyncing ? 'Syncing…' : 'Sync to PAID'}
+                            </button>
+                          )}
+                          {inv.discrepancy === 'LINE_ITEM_MISMATCH' && (
+                            <button
+                              onClick={() => handleRemediateInvoice(inv.id, 'RECALCULATE_FROM_ITEMS')}
+                              disabled={isRecalc}
+                              className="px-2.5 py-1 bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
+                            >
+                              {isRecalc ? 'Recalculating…' : 'Recalculate Total'}
+                            </button>
+                          )}
+                          {inv.discrepancy === 'OVERDUE_DRIFT' && (
+                            <button
+                              onClick={() => handleRemediateInvoice(inv.id, 'MARK_OVERDUE')}
+                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all"
+                            >
+                              Mark Overdue
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
-              <div className="text-2xl font-black text-blue-600">
-                {reconcileReport ? reconcileReport.failed : '0'}
-              </div>
-              <div className="text-slate-500 font-medium mt-0.5">Marked Failed / Cancelled</div>
-              <div className="text-[10px] text-slate-400 mt-1">Expired STK prompts / abandoned checkouts</div>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* ── TOOL 5: CLIENT IMPERSONATION / VIEW-AS SANDBOX ───────────────────── */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {/* TAB 6: CLIENT ACCESS & LOCKOUT DESK                                     */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {activeTool === 'access' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Client Access &amp; Lockout Desk</h3>
+              <p className="text-xs text-slate-400">
+                Surfaces suspended client accounts, soft-deleted user records, or accounts missing passwords
+              </p>
+            </div>
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold shrink-0">
+              {clientAccessQuery.data?.totalLocked || 0} Accounts Require Attention
+            </span>
+          </div>
+
+          {clientAccessQuery.isLoading ? (
+            <div className="p-8 text-center text-xs text-slate-400">Scanning client accounts and auth status…</div>
+          ) : (clientAccessQuery.data?.items ?? []).length === 0 ? (
+            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-100 text-slate-400 text-xs">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <div className="font-bold text-slate-700">All Client Accounts in Good Standing</div>
+              <div>No administrative suspensions or soft-deleted client users detected.</div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-2.5 px-3">Organization</th>
+                    <th className="py-2.5 px-3">Contact</th>
+                    <th className="py-2.5 px-3">Email Address</th>
+                    <th className="py-2.5 px-3">Lockout Reason</th>
+                    <th className="py-2.5 px-3">Password Status</th>
+                    <th className="py-2.5 px-3 text-right">One-Click Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(clientAccessQuery.data?.items ?? []).map((acc: any) => {
+                    const isUnlocking = inFlightActionId === `access-${acc.clientId}-UNLOCK_ACCOUNT`;
+                    const isGenerating = inFlightActionId === `access-${acc.clientId}-GENERATE_RESET_LINK`;
+
+                    return (
+                      <tr key={acc.clientId} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-3 font-semibold text-slate-900">{acc.businessName}</td>
+                        <td className="py-3 px-3 text-slate-600">{acc.contactName || '—'}</td>
+                        <td className="py-3 px-3 font-mono text-[11px] text-slate-600">{acc.email}</td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              acc.lockoutReason === 'CLIENT_SUSPENDED'
+                                ? 'bg-amber-100 text-amber-800'
+                                : acc.lockoutReason === 'USER_SOFT_DELETED'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}
+                          >
+                            {acc.lockoutReason}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 text-[11px]">
+                          {acc.hasPassword ? 'Password Set' : 'Unclaimed / Passwordless'}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap space-x-1.5">
+                          <button
+                            onClick={() => handleRemediateAccess(acc.clientId, acc.businessName, 'UNLOCK_ACCOUNT')}
+                            disabled={isUnlocking}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
+                          >
+                            {isUnlocking ? 'Unlocking…' : 'Unlock Account'}
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleRemediateAccess(acc.clientId, acc.businessName, 'GENERATE_RESET_LINK')
+                            }
+                            disabled={isGenerating}
+                            className="px-2.5 py-1 bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
+                          >
+                            {isGenerating ? 'Generating…' : 'Generate Magic Link'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {/* TAB 7: SUSPENDED DOMAINS DESK                                           */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {activeTool === 'domains' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Suspended &amp; Stuck Domain States</h3>
+              <p className="text-xs text-slate-400">
+                Identifies domains suspended inconsistently (client has zero overdue invoices) or stuck in provisioning
+              </p>
+            </div>
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold shrink-0">
+              {suspendedDomainsQuery.data?.totalSuspended || 0} Domains Flagged
+            </span>
+          </div>
+
+          {suspendedDomainsQuery.isLoading ? (
+            <div className="p-8 text-center text-xs text-slate-400">Scanning hosting records and billing standing…</div>
+          ) : (suspendedDomainsQuery.data?.items ?? []).length === 0 ? (
+            <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-100 text-slate-400 text-xs">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <div className="font-bold text-slate-700">All Client Workloads Active</div>
+              <div>Zero inconsistent domain suspensions or stuck container deployments detected.</div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-2.5 px-3">Domain</th>
+                    <th className="py-2.5 px-3">Server Node</th>
+                    <th className="py-2.5 px-3">Client Organization</th>
+                    <th className="py-2.5 px-3">Overdue Invoices</th>
+                    <th className="py-2.5 px-3">Classification</th>
+                    <th className="py-2.5 px-3 text-right">One-Click Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(suspendedDomainsQuery.data?.items ?? []).map((dom: any) => {
+                    const isUnsuspending = inFlightActionId === `dom-${dom.id}-UNSUSPEND`;
+
+                    return (
+                      <tr key={dom.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-3 font-semibold text-slate-900">{dom.domain}</td>
+                        <td className="py-3 px-3 text-slate-500 text-[11px]">{dom.server}</td>
+                        <td className="py-3 px-3 text-slate-700 font-semibold">{dom.client}</td>
+                        <td className="py-3 px-3">
+                          {dom.overdueInvoicesCount === 0 ? (
+                            <span className="font-bold text-emerald-600 text-[11px]">0 (Paid Up)</span>
+                          ) : (
+                            <span className="font-bold text-rose-600 text-[11px]">
+                              {dom.overdueInvoicesCount} Overdue
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              dom.suspensionType === 'INCONSISTENT_SUSPENSION'
+                                ? 'bg-rose-100 text-rose-800'
+                                : dom.suspensionType === 'STUCK_PROVISIONING'
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {dom.suspensionType === 'INCONSISTENT_SUSPENSION'
+                              ? 'INCONSISTENT (Client Paid)'
+                              : dom.suspensionType}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => handleRemediateDomain(dom.id, dom.domain, 'UNSUSPEND')}
+                            disabled={isUnsuspending}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
+                          >
+                            {isUnsuspending ? 'Unsuspending…' : 'Unsuspend Domain'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────── */}
+      {/* TAB 8: CLIENT IMPERSONATION / VIEW-AS SANDBOX                           */}
+      {/* ─────────────────────────────────────────────────────────────────────── */}
       {activeTool === 'impersonation' && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
           <div>
             <h3 className="font-bold text-slate-900 text-sm">Safe Client Impersonation (&quot;View As Client&quot;)</h3>
             <p className="text-xs text-slate-400">
-              Troubleshoot client dashboard issues in a scoped session without requesting client passwords
+              Troubleshoot client dashboard issues in a scoped sandbox session without requesting client credentials
             </p>
           </div>
 
@@ -495,11 +1708,11 @@ export default function AdminTroubleshootingPage() {
           <div className="flex gap-2 max-w-md">
             <select
               value={impersonateClient}
-              onChange={e => setImpersonateClient(e.target.value)}
+              onChange={(e) => setImpersonateClient(e.target.value)}
               className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
             >
               <option value="">-- Select Client Organization --</option>
-              {(clientsQuery.data?.items ?? []).map(c => (
+              {(clientsQuery.data?.items ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.businessName} ({c.contactName || c.email})
                 </option>
@@ -533,11 +1746,12 @@ export default function AdminTroubleshootingPage() {
               <button
                 type="button"
                 onClick={() => {
-                  window.open('/portal', '_blank');
+                  const url = `/portal?sandbox_token=${encodeURIComponent(impersonationSession.token)}`;
+                  window.open(url, '_blank', 'noopener,noreferrer');
                 }}
-                className="px-3.5 py-1.5 bg-[#2563EB] text-white text-xs font-bold rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-1"
+                className="px-3.5 py-1.5 bg-[#2563EB] text-white text-xs font-bold rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-1.5 transition-colors"
               >
-                <span>Open Client Portal</span>
+                <span>Open Client Portal Sandbox</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -545,5 +1759,13 @@ export default function AdminTroubleshootingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminTroubleshootingPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-500 font-medium">Loading troubleshooting workstation…</div>}>
+      <AdminTroubleshootingContent />
+    </Suspense>
   );
 }

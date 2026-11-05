@@ -7,12 +7,11 @@ import {
   Plus,
   ExternalLink,
   X,
-  AlertCircle,
 } from 'lucide-react';
 import { useAdminClients, useAdminHosting } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatDate } from '@/lib/format';
-import { adminApi } from '@/lib/api';
+import { ManualClientCreateModal } from '@/components/admin/ManualClientCreateModal';
 
 interface ClientRow {
   id: string;
@@ -33,15 +32,6 @@ export default function AdminClientsPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Form State
-  const [businessName, setBusinessName] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [planTier, setPlanTier] = useState('STARTER');
 
   const clientsQuery = useAdminClients();
   const hostingQuery = useAdminHosting();
@@ -80,32 +70,6 @@ export default function AdminClientsPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const handleAddClient = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setErrorMsg(null);
-    try {
-      await adminApi.createClient({
-        businessName,
-        contactName,
-        email,
-        phone,
-        planTier,
-      } as any);
-      setShowAddModal(false);
-      setBusinessName('');
-      setContactName('');
-      setEmail('');
-      setPhone('');
-      setPlanTier('STARTER');
-      clientsQuery.refetch();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create client. Please try again.';
-      setErrorMsg((err as { response?: { data?: { message?: string } } })?.response?.data?.message || msg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -122,7 +86,7 @@ export default function AdminClientsPage() {
             className="flex items-center gap-2 px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Client</span>
+            <span>Add Client Manually</span>
           </button>
         </div>
       </div>
@@ -317,109 +281,14 @@ export default function AdminClientsPage() {
         </div>
       )}
 
-      {/* ── Add Client Modal ─────────────────────────────────────────────────── */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">Add New Client Account</h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {errorMsg && (
-              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleAddClient} className="py-4 space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Business Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={businessName}
-                  onChange={e => setBusinessName(e.target.value)}
-                  placeholder="e.g. Acacia Healthcare Ltd"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Contact Person *</label>
-                <input
-                  type="text"
-                  required
-                  value={contactName}
-                  onChange={e => setContactName(e.target.value)}
-                  placeholder="e.g. Dr. Sarah Kamau"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="sarah@acaciahealthcare.co.ke"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  placeholder="+254 712 345 678"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Assigned Plan Tier</label>
-                <select
-                  value={planTier}
-                  onChange={e => setPlanTier(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
-                >
-                  <option value="STARTER">Starter Tier</option>
-                  <option value="GROWTH">Growth Tier</option>
-                  <option value="BUSINESS">Business Tier</option>
-                  <option value="ENTERPRISE">Enterprise Tier</option>
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 font-semibold bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl disabled:opacity-50"
-                >
-                  {submitting ? 'Creating…' : 'Create Client'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* ── Synced Manual Client Account Provisioning Modal ─────────────────── */}
+      <ManualClientCreateModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={() => {
+          clientsQuery.refetch();
+        }}
+      />
     </div>
   );
 }

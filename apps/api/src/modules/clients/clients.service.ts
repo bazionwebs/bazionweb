@@ -1,9 +1,12 @@
 import {
-  Injectable, NotFoundException, ForbiddenException, ConflictException,
+  Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { ManualProvisionClientDto } from './dto/manual-provision-client.dto';
 
 const CLIENT_INCLUDE = {
   plan: true,
@@ -18,7 +21,10 @@ const CLIENT_INCLUDE = {
 
 @Injectable()
 export class ClientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async create(dto: CreateClientDto) {
     const existing = await this.prisma.client.findFirst({ where: { email: dto.email } });
@@ -212,5 +218,314 @@ export class ClientsService {
     });
 
     return { data: { deleted: true, id } };
+  }
+
+  /**
+   * Admin: Atomically provision client account, user auth record, initial project,
+   * active subscription, and a 72-hour cryptographic claim token.
+   */
+  async manualProvision(dto: ManualProvisionClientDto, staffUser?: any) {
+    const cleanEmail = dto.email.trim().toLowerCase();
+
+    const [existingClient, existingUser] = await Promise.all([
+      this.prisma.client.findFirst({ where: { email: cleanEmail } }),
+      this.prisma.user.findUnique({ where: { email: cleanEmail } }),
+    ]);
+
+    if (existingClient || existingUser) {
+      throw new ConflictException('A user or client account with this email address already exists');
+    }
+
+    // Resolve plan: either specific planId, planTier, or default first active plan
+    let plan = null;
+    if (dto.planId) {
+      plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } }).catch(() => null);
+    }
+    if (!plan && dto.planTier) {
+      plan = await this.prisma.plan.findFirst({
+        where: { tier: dto.planTier as any, isActive: true },
+      }).catch(() => null);
+    }
+    if (!plan) {
+      plan = await this.prisma.plan.findFirst({
+        where: { isActive: true },
+        orderBy: { priceMonthly: 'asc' },
+      });
+    }
+    if (!plan) {
+      throw new BadRequestException('No active service plan available for client assignment');
+    }
+
+    const nameParts = dto.contactName.trim().split(/\s+/);
+    const firstName = nameParts[0] || null;
+    const lastName = nameParts.slice(1).join(' ') || null;
+
+    // Cryptographic 72-hour single-use claim token
+    const rawClaimToken = `claim_${randomBytes(32).toString('base64url')}`;
+    const tokenHash = createHash('sha256').update(rawClaimToken).digest('hex');
+    const claimExpiresAt = new Date(Date.now() + 72 * 3600_000); // 72 hours
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Create client User account (unclaimed, passwordHash null)
+      const user = await tx.user.create({
+        data: {
+          email: cleanEmail,
+          role: 'CLIENT',
+          passwordHash: null,
+          firstName,
+          lastName,
+          phone: dto.phone || null,
+          keycloakId: `manual-${Date.now()}`,
+        },
+      });
+
+      // 2. Create Client organization record
+      const client = await tx.client.create({
+        data: {
+          userId: user.id,
+          businessName: dto.businessName.trim(),
+          contactName: dto.contactName.trim(),
+          email: cleanEmail,
+          phone: dto.phone || null,
+          country: dto.country || dto.marketCode || 'KE',
+          planId: plan.id,
+          status: 'ACTIVE',
+        },
+        include: CLIENT_INCLUDE,
+      });
+
+      // 3. Create initial Project workspace
+      const initialProjectName =
+        dto.projectTitle?.trim() || `${dto.businessName.trim()} Launch Project`;
+      const project = await tx.project.create({
+        data: {
+          clientId: client.id,
+          name: initialProjectName,
+          description: `Initial workspace project provisioned via administrative onboarding.`,
+          status: 'PLANNING',
+          completionPct: 0,
+        },
+      });
+
+      // 4. Create active initial subscription
+      const subscription = await tx.subscription.create({
+        data: {
+          clientId: client.id,
+          planId: plan.id,
+          billingCycle: 'MONTHLY',
+          status: 'ACTIVE',
+          provider: 'INTASEND',
+          startDate: new Date(),
+          renewalDate: new Date(Date.now() + 30 * 86_400_000),
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+          notes: 'Manually provisioned by administrator',
+        },
+      });
+
+      // 5. Store hashed claim token in RefreshToken table
+      await tx.refreshToken.create({
+        data: {
+          tokenHash,
+          userId: user.id,
+          expiresAt: claimExpiresAt,
+        },
+      });
+
+      // 6. Log audit event
+      await tx.auditLog.create({
+        data: {
+          userId: staffUser?.id || null,
+          action: 'client.manual_provision',
+          resourceType: 'Client',
+          resourceId: client.id,
+          newValue: {
+            businessName: client.businessName,
+            email: client.email,
+            plan: plan.name,
+            projectId: project.id,
+            subscriptionId: subscription.id,
+            provisionedBy: staffUser?.email || staffUser?.id || 'admin',
+          },
+        },
+      });
+
+      return { client, user, project };
+    });
+
+    const webBaseUrl =
+      this.config.get<string>('NEXT_PUBLIC_APP_URL') ||
+      this.config.get<string>('APP_URL') ||
+      'https://bazionweb.com';
+    const claimUrl = `${webBaseUrl.replace(/\/$/, '')}/portal/claim?token=${rawClaimToken}&email=${encodeURIComponent(cleanEmail)}`;
+
+    return {
+      client: result.client,
+      user: result.user,
+      project: result.project,
+      invitationToken: rawClaimToken,
+      claimUrl,
+      expiresIn: 72 * 3600,
+    };
+  }
+
+  /**
+   * Admin: Generate a fresh 72-hour claim token for an unclaimed client account.
+   */
+  async resendInvite(id: string, staffUser?: any) {
+    const client = await this.prisma.client.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+    if (!client || client.deletedAt) throw new NotFoundException('Client not found');
+    if (!client.user) throw new NotFoundException('Client has no linked user account');
+
+    if (client.user.passwordHash) {
+      throw new BadRequestException('Client account has already claimed credentials and set a password');
+    }
+
+    // Revoke prior active claim tokens for this user
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: client.user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    // Mint fresh 72-hour token
+    const rawClaimToken = `claim_${randomBytes(32).toString('base64url')}`;
+    const tokenHash = createHash('sha256').update(rawClaimToken).digest('hex');
+    const claimExpiresAt = new Date(Date.now() + 72 * 3600_000);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash,
+        userId: client.user.id,
+        expiresAt: claimExpiresAt,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: staffUser?.id || null,
+        action: 'client.resend_invite',
+        resourceType: 'Client',
+        resourceId: client.id,
+        newValue: { targetEmail: client.email, reissuedBy: staffUser?.email || staffUser?.id },
+      },
+    }).catch(() => undefined);
+
+    const webBaseUrl =
+      this.config.get<string>('NEXT_PUBLIC_APP_URL') ||
+      this.config.get<string>('APP_URL') ||
+      'https://bazionweb.com';
+    const claimUrl = `${webBaseUrl.replace(/\/$/, '')}/portal/claim?token=${rawClaimToken}&email=${encodeURIComponent(client.email)}`;
+
+    return {
+      success: true,
+      invitationToken: rawClaimToken,
+      claimUrl,
+      expiresIn: 72 * 3600,
+    };
+  }
+
+  /**
+   * Admin: Synchronize and repair onboarding state for a client workspace
+   * (ensures linked user, initial project, active subscription, and active client standing).
+   */
+  async syncOnboarding(id: string, staffUser?: any) {
+    const client = await this.prisma.client.findUnique({
+      where: { id },
+      include: {
+        user: true,
+        projects: { where: { deletedAt: null } },
+        subscriptions: { where: { status: 'ACTIVE' } },
+        plan: true,
+      },
+    });
+    if (!client || client.deletedAt) throw new NotFoundException('Client not found');
+
+    const repairedItems: string[] = [];
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Repair client status
+      if (client.status !== 'ACTIVE') {
+        await tx.client.update({
+          where: { id: client.id },
+          data: { status: 'ACTIVE' },
+        });
+        repairedItems.push(`Client status normalized from ${client.status} to ACTIVE`);
+      }
+
+      // 2. Repair missing User
+      let userId = client.userId;
+      if (!client.user) {
+        const parts = client.contactName.split(/\s+/);
+        const newUser = await tx.user.create({
+          data: {
+            email: client.email,
+            role: 'CLIENT',
+            firstName: parts[0] || null,
+            lastName: parts.slice(1).join(' ') || null,
+            phone: client.phone,
+            keycloakId: `sync-${Date.now()}`,
+          },
+        });
+        await tx.client.update({
+          where: { id: client.id },
+          data: { userId: newUser.id },
+        });
+        userId = newUser.id;
+        repairedItems.push('Recreated missing linked User auth identity');
+      }
+
+      // 3. Repair missing initial Project
+      if (client.projects.length === 0) {
+        await tx.project.create({
+          data: {
+            clientId: client.id,
+            name: `${client.businessName} Launch Project`,
+            description: 'Workspace project auto-synchronized during operational sync.',
+            status: 'PLANNING',
+          },
+        });
+        repairedItems.push('Provisioned initial Launch Project');
+      }
+
+      // 4. Repair missing active Subscription
+      if (client.subscriptions.length === 0) {
+        const plan = client.plan || (await tx.plan.findFirst({ where: { isActive: true } }));
+        if (plan) {
+          await tx.subscription.create({
+            data: {
+              clientId: client.id,
+              planId: plan.id,
+              status: 'ACTIVE',
+              billingCycle: 'MONTHLY',
+              startDate: new Date(),
+              renewalDate: new Date(Date.now() + 30 * 86_400_000),
+              currentPeriodStart: new Date(),
+              currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+            },
+          });
+          repairedItems.push('Provisioned missing active Subscription');
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: staffUser?.id || null,
+          action: 'client.sync_onboarding',
+          resourceType: 'Client',
+          resourceId: client.id,
+          newValue: { repairedItems, syncedBy: staffUser?.email || staffUser?.id },
+        },
+      });
+    });
+
+    return {
+      success: true,
+      clientId: client.id,
+      repairedItems: repairedItems.length > 0 ? repairedItems : ['Workspace state was already synchronized'],
+      status: 'ACTIVE',
+    };
   }
 }

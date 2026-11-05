@@ -6,6 +6,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ClientsService } from './clients.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { ManualProvisionClientDto } from './dto/manual-provision-client.dto';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
 
@@ -22,6 +23,30 @@ export class ClientsController {
   @ApiOperation({ summary: 'Create client (admin)' })
   create(@Body() dto: CreateClientDto) {
     return this.svc.create(dto);
+  }
+
+  /** Admin: atomically provision client organization, user account, initial project & claim token */
+  @Post('manual-provision')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Manually provision client account with atomic workspace sync and claim link' })
+  manualProvision(@Body() dto: ManualProvisionClientDto, @Request() req: any) {
+    return this.svc.manualProvision(dto, req.user);
+  }
+
+  /** Admin: re-issue activation claim link for an unclaimed client */
+  @Post(':id/resend-invite')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Re-generate activation claim link for client account' })
+  resendInvite(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+    return this.svc.resendInvite(id, req.user);
+  }
+
+  /** Admin: repair and sync client workspace onboarding state */
+  @Post(':id/sync-onboarding')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Synchronize and repair client onboarding state' })
+  syncOnboarding(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+    return this.svc.syncOnboarding(id, req.user);
   }
 
   /** Admin: list all clients with pagination + filters */

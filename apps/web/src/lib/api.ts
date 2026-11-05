@@ -236,6 +236,91 @@ export const adminApi = {
 
   impersonateClient: (clientId: string) =>
     api.post('/admin/diagnostics/impersonate', { clientId }).then(r => r.data),
+
+  // ─── Manual Client Account Provisioning ──────────────────────────────────
+  manualProvisionClient: (data: {
+    businessName: string;
+    contactName: string;
+    email: string;
+    phone?: string;
+    planId?: string;
+    planTier?: string;
+    marketCode?: string;
+    currency?: string;
+    projectTitle?: string;
+    country?: string;
+  }) => api.post('/clients/manual-provision', data).then(r => r.data),
+
+  resendClientInvite: (id: string) =>
+    api.post(`/clients/${id}/resend-invite`).then(r => r.data),
+
+  syncClientOnboarding: (id: string) =>
+    api.post(`/clients/${id}/sync-onboarding`).then(r => r.data),
+
+  // ─── One-Click Diagnostic & Remediation Workstation ───────────────────────
+  getTroubleshootingOverview: () =>
+    api.get('/admin/diagnostics/suite/overview').then(r => r.data),
+
+  getOrphanPayments: () =>
+    api.get('/admin/diagnostics/orphan-payments').then(r => r.data),
+
+  remediateOrphanPayment: (data: {
+    paymentLogId: string;
+    targetInvoiceId?: string;
+    targetClientId?: string;
+    action: 'LINK_AND_SETTLE' | 'CREDIT_CLIENT';
+  }) => api.post('/admin/diagnostics/remediate/orphan-payment', data).then(r => r.data),
+
+  getDnsSslFleet: () =>
+    api.get('/admin/diagnostics/dns-ssl/fleet').then(r => r.data),
+
+  remediateDnsSsl: (data: {
+    domain: string;
+    hostingAccountId?: string;
+    action: 'REFRESH_SSL' | 'REISSUE_SSL';
+  }) => api.post('/admin/diagnostics/remediate/dns-ssl', data).then(r => r.data),
+
+  getWebhookFailures: (limit = 50) =>
+    api.get('/admin/diagnostics/webhooks/failures', { params: { limit } }).then(r => r.data),
+
+  retryWebhooksBatch: (windowHours = 24) =>
+    api.post('/admin/diagnostics/remediate/webhooks/retry-all', { windowHours }).then(r => r.data),
+
+  getUnsyncedInvoices: () =>
+    api.get('/admin/diagnostics/invoices/unsynced').then(r => r.data),
+
+  remediateInvoiceSync: (data: {
+    invoiceId: string;
+    action: 'SYNC_FROM_PAYMENTS' | 'RECALCULATE_FROM_ITEMS' | 'MARK_PAID' | 'MARK_OVERDUE';
+  }) => api.post('/admin/diagnostics/remediate/invoice-sync', data).then(r => r.data),
+
+  getClientAccessIssues: () =>
+    api.get('/admin/diagnostics/clients/access-issues').then(r => r.data),
+
+  remediateClientAccess: (data: {
+    clientId: string;
+    action: 'UNLOCK_ACCOUNT' | 'GENERATE_RESET_LINK' | 'RESTORE_USER';
+  }) => api.post('/admin/diagnostics/remediate/client-access', data).then(r => r.data),
+
+  getSuspendedDomains: () =>
+    api.get('/admin/diagnostics/domains/suspended').then(r => r.data),
+
+  remediateDomainState: (data: {
+    hostingAccountId: string;
+    action: 'UNSUSPEND' | 'NORMALIZE_STATUS';
+  }) => api.post('/admin/diagnostics/remediate/domain-state', data).then(r => r.data),
+
+  // ─── Proactive Intelligence & Anomaly Remediation ─────────────────────────
+  getProactiveScan: () =>
+    api.get('/admin/diagnostics/proactive-scan').then(r => r.data),
+
+  remediateProactiveAnomaly: (data: {
+    anomalyId?: string;
+    rule?: string;
+    remediationAction: string;
+    remediationPayload?: Record<string, any>;
+  }) => api.post('/admin/diagnostics/proactive-scan/remediate', data).then(r => r.data),
 };
 
 export default api;
+

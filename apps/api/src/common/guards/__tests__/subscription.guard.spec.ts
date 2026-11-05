@@ -84,6 +84,27 @@ describe('SubscriptionGuard', () => {
     );
   });
 
+  it('allows an impersonated client even with TRIAL or no subscriptions', async () => {
+    const ctx = createContext({
+      id: 'guest-1',
+      roles: ['CLIENT'],
+      impersonatedBy: 'admin@bazionweb.com',
+      isSandbox: true,
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(prisma.client.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('allows a sandbox client session when isSandbox is true', async () => {
+    const ctx = createContext({
+      id: 'client-sandbox-1',
+      roles: ['CLIENT'],
+      isSandbox: true,
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(prisma.client.findUnique).not.toHaveBeenCalled();
+  });
+
   it('denies a user with no matching client record', async () => {
     prisma.client.findUnique.mockResolvedValue(null);
 

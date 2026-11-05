@@ -116,6 +116,10 @@ export class JwtAuthGuard implements CanActivate {
       lastName: decoded.family_name,
       roles: decoded.realm_access?.roles ?? [],
       keycloakId: undefined,
+      clientId: decoded.clientId,
+      clientBusinessName: decoded.clientBusinessName,
+      impersonatedBy: decoded.impersonatedBy,
+      isSandbox: Boolean(decoded.isSandbox || decoded.impersonatedBy),
     };
   }
 

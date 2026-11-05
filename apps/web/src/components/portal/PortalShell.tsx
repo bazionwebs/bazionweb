@@ -11,6 +11,8 @@ import {
   Ticket,
   FileText,
   ShieldCheck,
+  ShieldAlert,
+  Clock,
   Menu,
   X,
   LogOut,
@@ -58,12 +60,39 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const user = useAuthStore(s => s.user);
+  const expiresAt = useAuthStore(s => s.expiresAt);
+  const isSandboxStore = useAuthStore(s => s.isSandbox);
+  const sandboxMeta = useAuthStore(s => s.sandboxMeta);
   const clearSession = useAuthStore(s => s.clearSession);
 
   const { data: liveClient } = useClientProfile();
   const { data: liveTickets = [] } = useClientTickets();
   const { data: projects = [] } = useClientProjects();
   const { data: invoices = [] } = useClientInvoices();
+
+  const [isSandboxActiveSession, setIsSandboxActiveSession] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsSandboxActiveSession(window.sessionStorage.getItem('bazionweb_sandbox_active') === 'true');
+    }
+  }, []);
+
+  const isSandbox = Boolean(
+    isSandboxStore ||
+    user?.isSandbox ||
+    user?.impersonatedBy ||
+    isSandboxActiveSession
+  );
+
+  useEffect(() => {
+    if (!isSandbox) return;
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isSandbox]);
 
   useEffect(() => {
     if (!userMenuOpen) return;
@@ -145,6 +174,32 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     await authApi.logout().catch(() => undefined);
     clearSession();
     router.replace('/portal/login');
+  };
+
+  const sandboxClientName = liveClient?.businessName || sandboxMeta?.clientBusinessName || clientName;
+  const sandboxClientEmail = liveClient?.email || user?.email || 'N/A';
+  const sandboxClientId = liveClient?.id || sandboxMeta?.clientId || 'N/A';
+  const auditorEmail = user?.impersonatedBy || sandboxMeta?.impersonatedBy || 'Staff Auditor';
+
+  const remainingMs = Math.max(0, (expiresAt || (now + 15 * 60 * 1000)) - now);
+  const remainingMins = Math.floor(remainingMs / 60000);
+  const remainingSecs = Math.floor((remainingMs % 60000) / 1000);
+  const countdownText =
+    remainingMs <= 0
+      ? 'Session Expired'
+      : `${remainingMins}m ${remainingSecs < 10 ? '0' : ''}${remainingSecs}s`;
+
+  const handleExitSandbox = () => {
+    if (typeof window !== 'undefined') {
+      clearSession();
+      window.sessionStorage.removeItem('bazionweb_sandbox_active');
+      window.sessionStorage.removeItem('bazionweb_sandbox_token');
+      window.sessionStorage.removeItem('bazionweb-auth');
+      window.close();
+      setTimeout(() => {
+        window.location.href = '/admin/troubleshooting';
+      }, 150);
+    }
   };
 
   const activeNavItem =
@@ -284,6 +339,43 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
       {/* ── Main Viewport ────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Audited Sandbox Banner */}
+        {isSandbox && (
+          <div
+            role="alert"
+            aria-label="View-As Sandbox Active"
+            className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-semibold flex flex-wrap items-center justify-between gap-2 shadow-md shrink-0 border-b border-amber-600 z-30"
+          >
+            <div className="flex items-center flex-wrap gap-2 sm:gap-3">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-950 text-amber-400 font-bold text-[10px] tracking-wide uppercase shadow-sm">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                VIEW-AS SANDBOX (AUDITED SESSION)
+              </span>
+              <span className="text-slate-950 font-medium">
+                Client: <strong className="font-bold">{sandboxClientName}</strong> ({sandboxClientEmail} · <span className="font-mono text-[11px]">ID: {sandboxClientId}</span>)
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-400/80 text-slate-950 text-[11px] font-semibold border border-amber-600/40">
+                Audited by: <strong className="font-bold">{auditorEmail}</strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-1 text-[11px] font-mono text-slate-950 font-bold">
+                <Clock className="w-3.5 h-3.5 text-slate-900" />
+                <span>Expires: {countdownText}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleExitSandbox}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-950 hover:bg-slate-900 text-white rounded-lg text-xs font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <LogOut className="w-3 h-3 text-rose-400" />
+                <span>Exit Sandbox</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Top Header */}
         <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0 sticky top-0 z-20 print:hidden">
           <div className="flex items-center gap-3">

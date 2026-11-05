@@ -29,7 +29,8 @@ export class SubscriptionGuard implements CanActivate {
     if (!user) return false;
 
     const isStaff = STAFF_ROLES.some(role => user.roles?.includes(role));
-    if (isStaff) return true;
+    const isImpersonated = Boolean(user.impersonatedBy || user.isSandbox);
+    if (isStaff || isImpersonated) return true;
 
     const now = new Date();
     const client = await this.prisma.client.findUnique({

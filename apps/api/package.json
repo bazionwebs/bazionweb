@@ -14,7 +14,8 @@
     "lint": "eslint src --ext .ts",
     "prisma:generate": "npx --yes prisma generate --schema=prisma/schema.prisma",
     "prisma:seed": "prisma db seed --schema=prisma/schema.prisma",
-    "prisma:migrate": "npx --yes prisma migrate deploy --schema=prisma/schema.prisma"
+    "prisma:migrate": "npx --yes prisma migrate deploy --schema=prisma/schema.prisma",
+    "verify:feature14": "ts-node scripts/verify-troubleshooting-proactive.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.0",

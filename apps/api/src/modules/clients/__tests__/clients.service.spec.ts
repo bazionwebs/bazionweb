@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ClientsService } from '../clients.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 
@@ -47,6 +48,10 @@ describe('ClientsService', () => {
       providers: [
         ClientsService,
         { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('https://bazionweb.com') },
+        },
       ],
     }).compile();
     service = module.get<ClientsService>(ClientsService);

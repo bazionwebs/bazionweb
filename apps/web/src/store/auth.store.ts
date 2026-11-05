@@ -12,6 +12,8 @@ export interface AuthUser {
   phone?: string;
   website?: string;
   subscriptionStatus?: 'ACTIVE' | 'PENDING' | 'NONE';
+  impersonatedBy?: string;
+  isSandbox?: boolean;
 }
 
 function decodeJwtPayload(token: string | null): Record<string, any> | null {
@@ -64,7 +66,94 @@ export function normalizeSessionUser(
       user?.subscriptionStatus ||
       (decoded?.subscriptionStatus as AuthUser['subscriptionStatus']) ||
       undefined,
+    impersonatedBy: user?.impersonatedBy || decoded?.impersonatedBy || undefined,
+    isSandbox: user?.isSandbox ?? Boolean(decoded?.isSandbox || decoded?.impersonatedBy),
   };
+}
+
+export function isSandboxActive(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.sessionStorage.getItem('bazionweb_sandbox_active') === 'true';
+}
+
+export const isSandboxTab = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.sessionStorage.getItem('bazionweb_sandbox_active') === 'true' ||
+    window.sessionStorage.getItem('bazionweb_is_sandbox_tab') === 'true'
+  );
+};
+
+function processUrlSandboxToken() {
+  if (typeof window === 'undefined') return;
+  try {
+    const search = window.location.search;
+    if (!search || !search.includes('sandbox_token=')) return;
+    const params = new URLSearchParams(search);
+    const sandboxToken = params.get('sandbox_token');
+    if (!sandboxToken) return;
+
+    const decoded = decodeJwtPayload(sandboxToken);
+    if (!decoded) return;
+
+    const expMs =
+      typeof decoded.exp === 'number'
+        ? decoded.exp * 1000
+        : Date.now() + 15 * 60 * 1000;
+    if (Date.now() >= expMs) return;
+
+    const user = normalizeSessionUser(
+      {
+        id: decoded.sub,
+        email: decoded.email,
+        firstName: decoded.given_name,
+        lastName: decoded.family_name,
+        roles: decoded.realm_access?.roles || ['CLIENT'],
+        subscriptionStatus: decoded.subscriptionStatus,
+        impersonatedBy: decoded.impersonatedBy,
+        isSandbox: true,
+      },
+      sandboxToken,
+    );
+
+    const sandboxState = {
+      state: {
+        user,
+        accessToken: sandboxToken,
+        refreshToken: null,
+        expiresAt: expMs,
+        pendingPlan: null,
+        isSandbox: true,
+        sandboxMeta: {
+          clientId: decoded.clientId || '',
+          clientBusinessName: decoded.clientBusinessName || '',
+          impersonatedBy: decoded.impersonatedBy || '',
+        },
+      },
+      version: 0,
+    };
+
+    window.sessionStorage.setItem('bazionweb_is_sandbox_tab', 'true');
+    window.sessionStorage.setItem('bazionweb_sandbox_active', 'true');
+    window.sessionStorage.setItem('bazionweb_sandbox_token', sandboxToken);
+    window.sessionStorage.setItem('bazionweb-auth', JSON.stringify(sandboxState));
+
+    // Purge sandbox_token from URL bar without causing page reload
+    params.delete('sandbox_token');
+    const remaining = params.toString();
+    const cleanUrl =
+      window.location.pathname +
+      (remaining ? `?${remaining}` : '') +
+      window.location.hash;
+    window.history.replaceState({}, '', cleanUrl);
+  } catch {
+    // Ignore URL parsing or storage errors
+  }
+}
+
+// Execute immediately on client evaluation
+if (typeof window !== 'undefined') {
+  processUrlSandboxToken();
 }
 
 interface AuthState {
@@ -74,6 +163,12 @@ interface AuthState {
   refreshToken: string | null;
   expiresAt: number | null;   // Unix ms
   pendingPlan: string | null; // plan slug selected during registration
+  isSandbox?: boolean;
+  sandboxMeta?: {
+    clientId?: string;
+    clientBusinessName?: string;
+    impersonatedBy?: string;
+  } | null;
 
   // Actions
   setHasHydrated: (state: boolean) => void;
@@ -115,7 +210,21 @@ export const useAuthStore = create<AuthState>()(
       },
 
       clearSession: () => {
-        set({ user: null, accessToken: null, refreshToken: null, expiresAt: null, pendingPlan: null });
+        const inSandbox = isSandboxTab();
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          expiresAt: null,
+          pendingPlan: null,
+          isSandbox: false,
+          sandboxMeta: null,
+        });
+        if (typeof window !== 'undefined' && inSandbox) {
+          window.sessionStorage.removeItem('bazionweb_sandbox_active');
+          window.sessionStorage.removeItem('bazionweb_sandbox_token');
+          window.sessionStorage.removeItem('bazionweb-auth');
+        }
       },
 
       setPendingPlan: (planSlug) => {
@@ -161,6 +270,29 @@ export const useAuthStore = create<AuthState>()(
         return {
           getItem: (name: string): string | null => {
             try {
+              processUrlSandboxToken();
+              if (
+                typeof window !== 'undefined' &&
+                (window.sessionStorage.getItem('bazionweb_sandbox_active') === 'true' ||
+                  window.sessionStorage.getItem('bazionweb_is_sandbox_tab') === 'true')
+              ) {
+                window.sessionStorage.setItem('bazionweb_is_sandbox_tab', 'true');
+              }
+
+              if (isSandboxTab()) {
+                const fromSession = window.sessionStorage.getItem(name);
+                if (!fromSession) return null;
+                const parsed = JSON.parse(fromSession);
+                const expiresAt = parsed?.state?.expiresAt;
+                if (typeof expiresAt === 'number' && Date.now() >= expiresAt) {
+                  window.sessionStorage.removeItem(name);
+                  window.sessionStorage.removeItem('bazionweb_sandbox_active');
+                  window.sessionStorage.removeItem('bazionweb_sandbox_token');
+                  return null;
+                }
+                return fromSession;
+              }
+
               const fromSession = window.sessionStorage.getItem(name);
               const fromLocal = window.localStorage.getItem(name);
               const raw = fromSession ?? fromLocal;
@@ -190,6 +322,10 @@ export const useAuthStore = create<AuthState>()(
           },
           setItem: (name: string, value: string): void => {
             try {
+              if (isSandboxTab()) {
+                window.sessionStorage.setItem(name, value);
+                return;
+              }
               window.sessionStorage.setItem(name, value);
               window.localStorage.setItem(name, value);
             } catch {
@@ -198,6 +334,10 @@ export const useAuthStore = create<AuthState>()(
           },
           removeItem: (name: string): void => {
             try {
+              if (isSandboxTab()) {
+                window.sessionStorage.removeItem(name);
+                return;
+              }
               window.sessionStorage.removeItem(name);
               window.localStorage.removeItem(name);
             } catch {
@@ -212,6 +352,8 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         expiresAt:    state.expiresAt,
         pendingPlan:  state.pendingPlan,
+        isSandbox:    state.isSandbox,
+        sandboxMeta:  state.sandboxMeta,
       }),
     },
   ),
@@ -226,6 +368,10 @@ if (typeof window !== 'undefined') {
   });
   // Synchronize auth state across browser tabs (e.g. magic-link verification or logout in another tab)
   window.addEventListener('storage', (event: StorageEvent) => {
+    // Isolated sandbox tab: do not let localStorage events overwrite client session
+    if (isSandboxTab()) {
+      return;
+    }
     if (event.key !== 'bazionweb-auth') return;
     if (!event.newValue) {
       useAuthStore.setState({
@@ -234,6 +380,8 @@ if (typeof window !== 'undefined') {
         refreshToken: null,
         expiresAt: null,
         pendingPlan: null,
+        isSandbox: false,
+        sandboxMeta: null,
       });
       return;
     }
@@ -246,6 +394,8 @@ if (typeof window !== 'undefined') {
           refreshToken: parsed.state.refreshToken ?? null,
           expiresAt: parsed.state.expiresAt ?? null,
           pendingPlan: parsed.state.pendingPlan ?? null,
+          isSandbox: false,
+          sandboxMeta: null,
         });
       }
     } catch {

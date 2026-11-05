@@ -1,118 +1,121 @@
-# Project: BazionWeb Client Journey & Security Enhancements
+# Project: BazionWeb Admin Troubleshooting Suite & Client View-As Sandbox Hardening
 
 ## Architecture
 - **Monorepo Architecture**:
-  - `apps/web`: Next.js 14 App Router, React 18, Tailwind CSS, Lucide icons, Zustand state stores, TanStack React Query.
-  - `apps/api`: NestJS, Prisma ORM, PostgreSQL, Passport JWT, Node crypto, Paystack SDK, Safaricom Daraja SDK.
-- **Client Journey Data Flow**:
-  1. **Stage 1 (Package Selection)**: Visitor reviews packages on `/pricing`, `/services`, `/store`, selects package/add-ons -> navigates to `/quote?package=X` or `/checkout?plan=X`.
-  2. **Stage 2 (Proposal Flow)**: Visitor customizes scope on `/quote`, enters details -> `POST /api/quote` -> creates locked `Proposal` record in PostgreSQL -> returns `proposalCode` -> renders executive `ProposalPresentationView` -> provides "Accept Proposal" CTA -> creates 50% deposit invoice in PostgreSQL.
-  3. **Stage 3 (Invoicing)**: Client views deposit invoice or recurring statement on `/portal/invoices` or proposal acceptance view -> itemized lines, VAT/tax breakdown, in-app statement modal, downloadable PDF.
-  4. **Stage 4 (Checkout & Payment)**: Client pays via M-Pesa STK push or Card checkout -> validated redirect to Paystack hosted checkout or polling of STK push status -> webhook verifies signature and settles payment -> creates `PaymentLog`, marks `Invoice` PAID, activates subscription, auto-provisions project roadmap.
-  5. **Stage 5 (Client Onboarding & Dashboard)**: Post-payment transition -> claim account / set password -> lands on `/portal` -> interactive `ClientOnboardingChecklist` guides business profile, domain connection, encrypted vault keys, roadmap review -> marks `Client.onboardedAt = new Date()`.
+  - `apps/web`: Next.js 14 App Router, React 18, Tailwind CSS, Lucide icons, Zustand state stores (`auth.store.ts`), TanStack React Query (`useAdminData.ts`), Axios client (`lib/api.ts`).
+  - `apps/api`: NestJS, Prisma ORM, PostgreSQL, Passport JWT, Node crypto, Node dns/tls, Paystack SDK, Safaricom Daraja SDK, Dokploy Provider.
+- **Client View-As Sandbox Data Flow**:
+  1. **Admin Launch**: Admin navigates to `/admin/troubleshooting?tab=impersonation` (or `/admin/troubleshooting?impersonate=${clientId}`). Selects client -> clicks "Mint Scoped Session" -> `adminApi.impersonateClient(clientId)`.
+  2. **Impersonation JWT Generation**: Backend `AdminDiagnosticsService.impersonateClient` signs 15-minute token with `sub: client.user.id`, `clientId: client.id`, `clientBusinessName: client.businessName`, `realm_access.roles: ['CLIENT']`, `impersonatedBy: staffUser.email`, `isSandbox: true`. Logs to `AuditLog`.
+  3. **Tab-Isolated Handover**: Admin clicks "Open Client Portal Sandbox" -> `window.open('/portal?sandbox_token=' + encodeURIComponent(token), '_blank', 'noopener,noreferrer')`.
+  4. **Isolated Storage**: Portal tab loads -> `auth.store.ts` extracts `sandbox_token`, sets `sessionStorage.setItem('bazionweb_sandbox_active', 'true')`, saves token to `sessionStorage` only, purges `sandbox_token` from URL bar via `window.history.replaceState`. Bypasses `localStorage` completely and suppresses cross-tab `storage` events. Admin tab's `localStorage` remains completely untouched.
+  5. **Live Client Data Rendering**: Portal requests send `Authorization: Bearer <sandbox_token>`. Endpoints query `where: { userId: client.user.id }` and render real projects, invoices, milestones, hosting, and tickets.
+  6. **Sandbox Banner & Exit**: `PortalShell` renders prominent audited Sandbox banner with client identity, staff auditor email, session countdown, and "Exit Sandbox" button that clears `sessionStorage` and closes the tab.
+- **Admin Troubleshooting & One-Click Remediation Flow**:
+  1. Diagnostic checks in `AdminDiagnosticsService` evaluate 6 operational issue domains: orphan payments, DNS/SSL misconfigurations, failed webhooks, unsynced invoice totals, client credential lockouts, suspended domain states.
+  2. One-click transactional remediation endpoints execute resolution without manual DB intervention, record `AuditLog` entries, and return immediate structured UI feedback.
+- **Proactive Intelligence Flow**:
+  1. Page-load scan and on-demand "Run Proactive Health Scan" trigger `GET /admin/diagnostics/proactive-scan`.
+  2. Evaluates 4 proactive anomaly rules: SSL expiry <= 7 days, failed webhook bursts (>= 3 in 60 min), unapplied payments, pending deposits with expired quotes.
+  3. Surfaces actionable anomaly cards with direct one-click remediation shortcuts in the dashboard.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Macro Journey Progress Indicator | Universal 5-step progress header across public & portal screens (Package Selection -> Proposal -> Invoicing -> Payment -> Onboarding) | M1 | Survey 1 |
-| 2 | Pricing Tab Deep-Link Sync | Initialize `PricingView` activeTab from `?tab=` query parameter and reflect tab changes in URL | M1 | Survey 1 |
-| 3 | Store Currency Localization Fix | Replace hardcoded KES strings in `StoreView.tsx` with dynamic market currency resolution | M1 | Survey 1 |
-| 4 | Quote Service Parameter Mapping | Map `/quote?service=ecommerce` and other service slugs to proper calculator defaults | M1 | Survey 1 |
-| 5 | Public Proposal Read API | Implement `GET /api/v1/invoices/proposals/:code` in NestJS `billing.controller.ts` & `billing.service.ts` | M1 | Survey 1 |
-| 6 | Next.js Quote GET Handler | Implement `GET /api/quote?code=...` in Next.js App Router route handler to query proposal | M1 | Survey 1 |
-| 7 | Proposal Presentation View | Executive-grade commercial proposal document on `/quote?proposal=...` with scope, line items, 50/50 terms, roadmap, and print/PDF | M1 | Survey 1 |
-| 8 | Open Redirect Sanitization | Wrap checkout redirects in `SubscriptionCheckout.tsx` and `quote/page.tsx` with `isTrustedCheckoutUrl()` | M2 | Survey 2 |
-| 9 | Checkout Currency Fix | Replace hardcoded `'KES'` in `SubscriptionCheckout.tsx:288, 318` with active market currency | M2 | Survey 2 |
-| 10 | Invoice PDF Download Route | Implement `@Get(':id/pdf/download')` route in NestJS `billing.controller.ts` to stream/serve invoice PDF | M2 | Survey 2 |
-| 11 | Itemized Invoice Breakdown & Tax Lines | Itemize KRA VAT (16%) and line-item details on invoice display and settlement statements | M2 | Survey 2 |
-| 12 | Checkout Phone Validation | Add client-side regex check for Kenyan mobile numbers (`^(?:254\|\+254\|0)?(7\|1)\d{8}$`) | M2 | Survey 2 |
-| 13 | App Router Error Boundaries | Add Next.js `error.tsx` error boundaries on `/checkout` and `/portal/invoices` | M2 | Survey 2 |
-| 14 | Interactive Onboarding Checklist | Interactive `ClientOnboardingChecklist` component on `/portal` for clients without `onboardedAt` | M2 | Survey 3 |
-| 15 | Client Onboarded Timestamp Persistence | Backend endpoint `POST /api/v1/clients/me/onboard` to persist `Client.onboardedAt = new Date()` | M2 | Survey 3 |
-| 16 | Streamlined Post-Payment Claim | Auto-dispatch or streamline claim link on `/checkout/verify` to eliminate double-click friction | M2 | Survey 3 |
-| 17 | Multi-Tab Session Persistence | Enhance session store persistence to prevent session loss on email link clicks in new tabs | M2 | Survey 3 |
-| 18 | Opaque-Box E2E Testing Suite | Comprehensive test suite covering Tiers 1-4 across all 5 stages in mock/sandbox environment | M3 / E2E | Survey 1, 2, 3 |
+| 1 | Sandbox Tab Isolation & Token Handover | Pass `?sandbox_token=...` on portal launch; isolate storage to `sessionStorage` only when sandbox is active; bypass `localStorage` writes and suppress cross-tab `storage` events in `auth.store.ts`; purge token from URL | M1 | R1 / Survey 1 |
+| 2 | Sandbox Live Client Data & Guard Bypass | Enrich impersonation JWT with `clientId`, `clientBusinessName`, `isSandbox`, and `impersonatedBy`; update backend `JwtAuthGuard` and `SubscriptionGuard` and frontend `AuthGuard` to honor staff impersonator bypass for pending/trial clients | M1 | R1 / Survey 1 |
+| 3 | Audited Sandbox Banner & Exit Action | Implement high-contrast audited Sandbox banner in `PortalShell` with client identity, auditor identity, session countdown, and Exit Sandbox action that clears `sessionStorage` and closes tab | M1 | R1 / Survey 1 |
+| 4 | Admin Troubleshooting Client Deep-Link | Read `?impersonate=${clientId}` on `/admin/troubleshooting` to auto-switch to impersonation tab and pre-select target client | M1 | R1 / Survey 1 |
+| 5 | Orphan & Unapplied Payments Diagnostic & Remediation | Query orphan/unapplied payments; implement `POST /admin/diagnostics/remediate-orphan` with `LINK_AND_SETTLE` and `CREDIT_CLIENT` transactional remediation | M2 | R2 / Survey 2 |
+| 6 | Fleet DNS & SSL Misconfiguration Diagnostic & Remediation | Scan `HostingAccount` domains with DNS lookups and TLS socket handshake; implement `POST /admin/diagnostics/remediate-dns-ssl` with `REFRESH_SSL` and `REISSUE_SSL` | M2 | R2 / Survey 2 |
+| 7 | Failed Webhook Retries Diagnostic & Batch Remediation | Query failed/stale `PaymentLog` entries; implement `POST /admin/diagnostics/webhooks/retry-batch` and enhanced single replay with structured status feedback | M2 | R2 / Survey 2 |
+| 8 | Unsynced Invoice Totals Diagnostic & Remediation | Query invoices with line-item discrepancies or payment-status mismatches; implement `POST /admin/diagnostics/remediate-invoice-sync` with `SYNC_FROM_PAYMENTS` and `RECALCULATE_FROM_ITEMS` | M2 | R2 / Survey 2 |
+| 9 | Client Credential & Access Lockouts Diagnostic & Remediation | Query suspended clients and deactivated/passwordless users; implement `POST /admin/diagnostics/remediate-client-access` with `UNLOCK_ACCOUNT` and `GENERATE_RESET_LINK` | M2 | R2 / Survey 2 |
+| 10 | Suspended Domain States Diagnostic & Remediation | Query inconsistent suspended domains; implement `POST /admin/diagnostics/remediate-domain-state` with `UNSUSPEND` and `NORMALIZE_STATUS` | M2 | R2 / Survey 2 |
+| 11 | Admin Troubleshooting Workstation UI | Refactor `apps/web/src/app/admin/troubleshooting/page.tsx` with dedicated diagnostic tabs, live issue tables, instant one-click remediation buttons, loading spinners, and React Query cache invalidation | M2 | R2 / Survey 2 |
+| 12 | Proactive Diagnostic Scanner Backend | Implement `GET /admin/diagnostics/proactive-scan` detecting SSL expiry <= 7 days, webhook bursts (>=3 failures in 60 min), unapplied payments, and pending deposits with expired quotes | M3 | R3 / Survey 3 |
+| 13 | Proactive Anomaly Detection UI & Remediation Shortcuts | Integrate automatic scan on page load and on-demand "Run Proactive Health Scan" button in Admin Troubleshooting dashboard; render actionable anomaly cards with direct one-click fix triggers | M3 | R3 / Survey 3 |
+| 14 | Automated Verification Suite & Standalone Test Runner | Automated tests in `apps/api` (`diagnostics.spec.ts`) and `apps/web`, plus standalone verification runner script `scripts/verify-troubleshooting-proactive.ts` covering sandbox isolation, all 6 troubleshooting tools, and all 4 proactive rules | M4 | AC / Survey 3 |
+| 15 | Secure Manual Client Account Provisioning Backend | Atomic `Client` + `User` creation, invitation/claim token generation, welcome email trigger, initial project & milestone init, and audit logging via `POST /api/v1/admin/clients/provision-manual` | M2 | User Follow-up |
+| 16 | Admin Manual Client Account Creation Modal UI | Modal in `apps/web/src/app/admin/clients` for entering client details (name, email, business, phone, tier, market/currency) with immediate claim link display and copy trigger | M2 | User Follow-up |
+| 17 | Troubleshooting Manual Account Sync & Remediation | Diagnostic check and one-click tools to resend claim activation link, sync onboarding steps, and verify linked user record state | M2 | User Follow-up |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Package Selection & Executive Proposal Flow | Features 1, 2, 3, 4, 5, 6, 7 (Step progress, tab sync, store currency, GET proposal API, Proposal presentation view, quote-flow.ts, proposal-cache.ts) | None | DONE |
-| M2 | Invoicing Transparency, Payment Security & Client Onboarding Flow | Features 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 (Open redirect defense, currency fix, PDF download route, tax line itemization, phone validation, error boundaries, onboarding checklist, onboardedAt API, streamlined claim, multi-tab session persistence) | M1 | DONE |
-| M3 | Final Milestone: E2E Test Suite Validation & Verification | Feature 18: Pass 100% of E2E tests (Tiers 1-4), adversarial coverage hardening, verify mock/sandbox payment safety, verify clean build & lint | M1, M2, E2E Track | DONE |
-
-## Streamlined Gate Protocol (Approved Process Directive)
-To accelerate execution while guaranteeing quality:
-1. **Milestones Merged**: Milestone 2 and Milestone 3 are unified into a single combined milestone (Features 8–17) with one implementation → gate cycle.
-2. **Exploration Overhead**: At most 1 exploratory agent per cycle (`explorer_m2_onboarding` for M2+M3; 0 for M3 where covered).
-3. **Gate Review**: 2 verifiers total per cycle (1 Reviewer `teamwork_reviewer` + 1 Forensic Auditor `teamwork_auditor`) instead of 5.
-4. **Hard Quality Gates (Unchanged)**:
-   - TypeScript: 0 errors (`npm --workspace=@bazionweb/web run tsc`, `npm --workspace=@bazionweb/api run tsc`).
-   - Next.js 14 Build: Clean compilation and static prerendering of all 75+ routes (`npm --workspace=@bazionweb/web run build`).
-   - ESLint: Clean pass across monorepo (`npm run lint`).
-   - Automated Tests: 100% of 95 opaque-box E2E tests pass.
-   - Financial Security: Strict sandbox/mock isolation (Daraja Sandbox, Paystack Test Mode); zero live financial charges.
-   - Secret Leaks: Zero client-side credentials or exposed private keys.
+| M1 | Client View-As Sandbox Tab Isolation & Live Client Data | Features 1, 2, 3, 4 (`auth.store.ts`, `PortalShell.tsx`, `diagnostics.service.ts`, `jwt-auth.guard.ts`, `subscription.guard.ts`, `AuthGuard.tsx`, `troubleshooting/page.tsx`) | None | DONE |
+| M2 | Comprehensive Admin Troubleshooting Suite, Remediation & Synced Manual Client Provisioning | Features 5, 6, 7, 8, 9, 10, 11, 15, 16, 17 (`diagnostics.service.ts`, `diagnostics.controller.ts`, `diagnostics.dto.ts`, `clients.service.ts`, `clients.controller.ts`, `useAdminData.ts`, `api.ts`, `troubleshooting/page.tsx`, `ManualClientCreateModal.tsx`) | M1 | DONE |
+| M3 | Proactive Intelligence & Anomaly Remediation | Features 12, 13 (Proactive scan service methods, `proactive-scan` endpoint, page-load trigger, anomaly cards with one-click fix buttons) | M2 | DONE |
+| M4 | Final Validation Milestone: Automated Verification & Forensic Certification | Feature 14 (Automated Jest test suites, standalone verification script, Next.js build, TypeScript compilation, forensic audit verification) | M1, M2, M3 | DONE |
 
 ## Interface Contracts
-### Public Proposal Read API (`apps/api` -> `apps/web`)
-- **Route**: `GET /api/v1/invoices/proposals/:code`
-- **Access**: `@Public()`, throttled (30 req / min)
+### Impersonation Scoped Token Contract
+- **Payload**:
+  ```typescript
+  {
+    sub: string;               // client.user.id
+    email: string;             // client.user.email
+    given_name: string;
+    family_name: string;
+    clientId: string;          // client.id
+    clientBusinessName: string;
+    realm_access: { roles: ['CLIENT'] };
+    subscriptionStatus: string;
+    impersonatedBy: string;    // staffUser.email
+    isSandbox: true;
+  }
+  ```
+
+### Proactive Scan API Contract
+- **Route**: `GET /api/v1/admin/diagnostics/proactive-scan`
+- **Access**: `@Roles('ADMIN', 'SUPER_ADMIN')`
 - **Response**:
   ```typescript
   {
     success: true,
-    data: {
-      proposalCode: string;
-      currency: string;
-      currencySymbol: string;
-      totalAmount: number;
-      depositAmount: number;
-      finalAmount: number;
-      status: 'LOCKED' | 'ACCEPTED' | 'EXPIRED';
-      clientName: string;
-      clientCompany: string;
-      clientEmail: string;
-      marketCode: 'KE' | 'GLOBAL';
-      lineItems: Array<{ title: string; subtitle?: string; price: number; quantity?: number }>;
-      expiresAt: string;
-      createdAt: string;
-    }
+    scannedAt: string,
+    summary: {
+      totalAnomalies: number,
+      critical: number,
+      warning: number,
+      info: number
+    },
+    anomalies: Array<{
+      id: string,
+      rule: 'SSL_EXPIRING_7D' | 'WEBHOOK_BURST' | 'UNAPPLIED_PAYMENT' | 'EXPIRED_QUOTE_DEPOSIT',
+      severity: 'CRITICAL' | 'WARNING' | 'INFO',
+      title: string,
+      description: string,
+      resourceId: string,
+      metadata: Record<string, any>,
+      remediationAction: string,
+      remediationPayload: Record<string, any>
+    }>
   }
   ```
-- **Error**: `404 Not Found` if proposalCode not found or invalid format.
 
-### Client Onboarding Completion API (`apps/api` -> `apps/web`)
-- **Route**: `POST /api/v1/clients/me/onboard`
-- **Access**: `@UseGuards(JwtAuthGuard)`, Client role
-- **Request Body**: `{ completedSteps?: string[] }`
-- **Response**: `{ success: true, onboardedAt: string }`
-
-### Safe Checkout Redirection Contract
-- `isTrustedCheckoutUrl(url: string): boolean`
-  - Validates protocol is `https:`
-  - Validates hostname belongs to `paystack.com`, `checkout.paystack.com`, or local configured proxy.
+### Troubleshooting Remediation Endpoint Contracts
+- `POST /api/v1/admin/diagnostics/remediate-orphan`: `{ paymentLogId: string, targetInvoiceId?: string, targetClientId?: string, action: 'LINK_AND_SETTLE' | 'CREDIT_CLIENT' }`
+- `POST /api/v1/admin/diagnostics/remediate-dns-ssl`: `{ domain: string, hostingAccountId?: string, action: 'REFRESH_SSL' | 'REISSUE_SSL' }`
+- `POST /api/v1/admin/diagnostics/webhooks/retry-batch`: `{ windowHours?: number }`
+- `POST /api/v1/admin/diagnostics/remediate-invoice-sync`: `{ invoiceId: string, action: 'SYNC_FROM_PAYMENTS' | 'RECALCULATE_FROM_ITEMS' }`
+- `POST /api/v1/admin/diagnostics/remediate-client-access`: `{ clientId: string, action: 'UNLOCK_ACCOUNT' | 'GENERATE_RESET_LINK' }`
+- `POST /api/v1/admin/diagnostics/remediate-domain-state`: `{ hostingAccountId: string, action: 'UNSUSPEND' | 'NORMALIZE_STATUS' }`
 
 ## Code Layout
-- Public Stage 1 & 2:
-  - `apps/web/src/components/navigation/ClientJourneyProgress.tsx`
-  - `apps/web/src/components/pricing/PricingView.tsx`
-  - `apps/web/src/components/store/StoreView.tsx`
-  - `apps/web/src/app/(public)/quote/page.tsx`
-  - `apps/web/src/components/quote/ProposalPresentationView.tsx`
-  - `apps/web/src/app/api/quote/route.ts`
-  - `apps/api/src/modules/billing/billing.controller.ts`
-  - `apps/api/src/modules/billing/billing.service.ts`
-- Public & Portal Stage 3 & 4:
-  - `apps/web/src/components/billing/SubscriptionCheckout.tsx`
-  - `apps/web/src/app/portal/invoices/InvoicesClient.tsx`
-  - `apps/web/src/app/(public)/checkout/error.tsx`
-  - `apps/web/src/app/portal/invoices/error.tsx`
-- Portal Stage 5:
-  - `apps/web/src/components/portal/ClientOnboardingChecklist.tsx`
-  - `apps/web/src/app/portal/page.tsx`
-  - `apps/api/src/modules/clients/clients.controller.ts`
-  - `apps/api/src/modules/clients/clients.service.ts`
-  - `apps/web/src/store/auth.store.ts`
-- E2E Tests:
-  - `apps/web/__tests__/e2e/client-journey.spec.ts`
-  - `apps/api/src/modules/billing/__tests__/client-journey.e2e.spec.ts`
+- Frontend:
+  - `apps/web/src/store/auth.store.ts`: Sandbox tab isolation, sessionStorage persistence, cross-tab event suppression.
+  - `apps/web/src/components/portal/PortalShell.tsx`: Audited Sandbox banner with countdown and Exit action.
+  - `apps/web/src/components/auth/AuthGuard.tsx`: Sandbox impersonation guard bypass.
+  - `apps/web/src/app/admin/troubleshooting/page.tsx`: Full troubleshooting suite UI, sandbox launcher, proactive scanner deck.
+  - `apps/web/src/hooks/useAdminData.ts`: React Query hooks for diagnostics, proactive scans, and remediation mutations.
+  - `apps/web/src/lib/api.ts`: Axios client endpoints for admin diagnostics and remediation.
+- Backend:
+  - `apps/api/src/modules/diagnostics/diagnostics.controller.ts`: Endpoints for diagnostics, proactive scans, and remediation.
+  - `apps/api/src/modules/diagnostics/diagnostics.service.ts`: Diagnostic detection methods, transactional remediation logic, proactive rules scanner.
+  - `apps/api/src/modules/diagnostics/dto/diagnostics.dto.ts`: Validation DTOs for remediation actions.
+  - `apps/api/src/common/guards/jwt-auth.guard.ts`: Decodes `clientId`, `isSandbox`, and `impersonatedBy`.
+  - `apps/api/src/common/guards/subscription.guard.ts`: Allows `isSandbox` / `impersonatedBy` sessions to view client workspaces.
+- Tests & Verification:
+  - `apps/api/src/modules/diagnostics/diagnostics.spec.ts`: Unit/integration tests for troubleshooting and proactive rules.
+  - `scripts/verify-troubleshooting-proactive.ts`: Standalone end-to-end verification script.

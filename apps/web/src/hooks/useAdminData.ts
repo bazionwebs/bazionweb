@@ -272,3 +272,253 @@ export function useImpersonateClient() {
     mutationFn: (clientId: string) => adminApi.impersonateClient(clientId).then(r => r.data ?? r),
   });
 }
+
+// ── Troubleshooting Workstation Hooks ─────────────────────────────────────────
+
+export function useTroubleshootingOverview() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'overview'],
+    queryFn: () => adminApi.getTroubleshootingOverview().then(r => r.data ?? r),
+    enabled: !!token,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useOrphanPayments() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'orphans'],
+    queryFn: () => adminApi.getOrphanPayments().then(r => r.data ?? r),
+    enabled: !!token,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useRemediateOrphanPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof adminApi.remediateOrphanPayment>[0]) =>
+      adminApi.remediateOrphanPayment(data).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'orphans'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+export function useDnsSslFleet() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'dns-ssl'],
+    queryFn: () => adminApi.getDnsSslFleet().then(r => r.data ?? r),
+    enabled: !!token,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useRemediateDnsSsl() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof adminApi.remediateDnsSsl>[0]) =>
+      adminApi.remediateDnsSsl(data).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'dns-ssl'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'hosting'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+export function useWebhookFailures(limit = 50) {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'webhook-failures', limit],
+    queryFn: () => adminApi.getWebhookFailures(limit).then(r => r.data ?? r),
+    enabled: !!token,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useRetryWebhooksBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (windowHours?: number) =>
+      adminApi.retryWebhooksBatch(windowHours).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'webhooks'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'webhook-failures'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+export function useUnsyncedInvoices() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'invoices-unsynced'],
+    queryFn: () => adminApi.getUnsyncedInvoices().then(r => r.data ?? r),
+    enabled: !!token,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useRemediateInvoiceSync() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof adminApi.remediateInvoiceSync>[0]) =>
+      adminApi.remediateInvoiceSync(data).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'invoices-unsynced'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+export function useClientAccessIssues() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'client-access'],
+    queryFn: () => adminApi.getClientAccessIssues().then(r => r.data ?? r),
+    enabled: !!token,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useRemediateClientAccess() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof adminApi.remediateClientAccess>[0]) =>
+      adminApi.remediateClientAccess(data).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'client-access'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+export function useSuspendedDomains() {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'diagnostics', 'domains-suspended'],
+    queryFn: () => adminApi.getSuspendedDomains().then(r => r.data ?? r),
+    enabled: !!token,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useRemediateDomainState() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof adminApi.remediateDomainState>[0]) =>
+      adminApi.remediateDomainState(data).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'domains-suspended'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'hosting'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+// ── Manual Client Account Provisioning Hooks ──────────────────────────────────
+
+export function useManualProvisionClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof adminApi.manualProvisionClient>[0]) =>
+      adminApi.manualProvisionClient(data).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'client-access'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+export function useResendClientInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.resendClientInvite(id).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'client-access'] });
+    },
+  });
+}
+
+export function useSyncClientOnboarding() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.syncClientOnboarding(id).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'client-access'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics', 'overview'] });
+    },
+  });
+}
+
+// ── Proactive Intelligence & Anomaly Remediation (M3 / R3) ──────────────────
+
+export interface ProactiveAnomaly {
+  id: string;
+  rule: 'SSL_EXPIRING_7D' | 'WEBHOOK_BURST' | 'UNAPPLIED_PAYMENT' | 'EXPIRED_QUOTE_DEPOSIT' | string;
+  severity: 'CRITICAL' | 'WARNING' | 'INFO';
+  title: string;
+  description: string;
+  resourceId: string;
+  metadata: Record<string, any>;
+  remediationAction: string;
+  remediationPayload: Record<string, any>;
+}
+
+export interface ProactiveScanReport {
+  success: boolean;
+  status: 'HEALTHY' | 'ANOMALIES_DETECTED';
+  scannedAt: string;
+  summary: {
+    totalAnomalies: number;
+    critical: number;
+    warning: number;
+    info: number;
+  };
+  counts: {
+    sslExpiring: number;
+    webhookBursts: number;
+    unappliedPayments: number;
+    expiredQuoteDeposits: number;
+  };
+  anomalies: ProactiveAnomaly[];
+}
+
+export function useProactiveHealthScan() {
+  const token = useToken();
+  return useQuery<ProactiveScanReport>({
+    queryKey: ['admin', 'diagnostics', 'proactive-scan'],
+    queryFn: () => adminApi.getProactiveScan().then(r => r.data ?? r),
+    enabled: !!token,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useRemediateProactiveAnomaly() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof adminApi.remediateProactiveAnomaly>[0]) =>
+      adminApi.remediateProactiveAnomaly(data).then(r => r.data ?? r),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'diagnostics'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'hosting'] });
+    },
+  });
+}
+
+

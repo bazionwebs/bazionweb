@@ -82,9 +82,12 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       const isAdminRole = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some(r => hasRole(r));
       const onOnboarding = normalizedPath === '/portal/onboarding' || normalizedPath.startsWith('/portal/onboarding/');
       const sessionUser = useAuthStore.getState().user;
+      const isSandboxSession =
+        Boolean(sessionUser?.isSandbox || sessionUser?.impersonatedBy) ||
+        (typeof window !== 'undefined' && window.sessionStorage.getItem('bazionweb_sandbox_active') === 'true');
       let subStatus = sessionUser?.subscriptionStatus;
 
-      if (!isAdminRole) {
+      if (!isAdminRole && !isSandboxSession) {
         const liveToken = useAuthStore.getState().accessToken;
         if (liveToken) {
           try {
@@ -128,7 +131,7 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
     return () => {
       active = false;
     };
-  }, [pathname, hasHydrated, refreshToken, user?.subscriptionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathname, hasHydrated, refreshToken, user?.subscriptionStatus, user?.isSandbox, user?.impersonatedBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isOnboarding = pathname === '/portal/onboarding' || pathname.startsWith('/portal/onboarding/');
 

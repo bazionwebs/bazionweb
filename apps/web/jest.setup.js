@@ -1,4 +1,8 @@
-import '@testing-library/jest-dom';
+try {
+  require('@testing-library/jest-dom');
+} catch {
+  // @testing-library/jest-dom optional fallback
+}
 
 jest.mock('next/navigation', () => {
   const actual = jest.requireActual('next/navigation');
