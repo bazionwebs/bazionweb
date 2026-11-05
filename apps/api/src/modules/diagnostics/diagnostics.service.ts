@@ -1114,9 +1114,10 @@ export class AdminDiagnosticsService {
       }
 
       const webBaseUrl = (
+        this.config.get<string>('FRONTEND_URL') ||
         this.config.get<string>('NEXT_PUBLIC_APP_URL') ||
         this.config.get<string>('APP_URL') ||
-        'https://bazionweb.com'
+        (process.env.NODE_ENV === 'production' ? 'https://bazionweb.com' : 'http://localhost:3000')
       ).replace(/\/$/, '');
 
       const isUnclaimed = !client.user.passwordHash;

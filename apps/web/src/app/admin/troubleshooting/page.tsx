@@ -285,13 +285,23 @@ function AdminTroubleshootingContent() {
         const targetEmail = res.recipientEmail || fallbackEmail;
         const isClaim = res.resetLink.includes('/claim');
 
+        let effectiveUrl = res.resetLink;
+        if (typeof window !== 'undefined' && res.resetLink) {
+          try {
+            const parsed = new URL(res.resetLink);
+            effectiveUrl = `${window.location.origin}${parsed.pathname}${parsed.search}`;
+          } catch {
+            // Keep original
+          }
+        }
+
         // Automatically dispatch email via Next.js mailer
         let emailDispatched = false;
         if (targetEmail) {
           try {
             const dispatchRes = await adminApi.dispatchAdminLinkEmail({
               to: targetEmail,
-              url: res.resetLink,
+              url: effectiveUrl,
               clientName,
               type: isClaim ? 'claim' : 'magic',
             });
@@ -304,7 +314,7 @@ function AdminTroubleshootingContent() {
         setGeneratedMagicLink({
           clientId,
           clientName,
-          url: res.resetLink,
+          url: effectiveUrl,
           email: targetEmail,
           emailDispatched,
           isClaim,

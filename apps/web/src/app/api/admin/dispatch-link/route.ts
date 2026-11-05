@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sendClaimLinkEmail, sendMagicLinkEmail } from '@/lib/email';
+import { getTrustedSiteOrigin } from '@/lib/site-origin';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,16 +19,26 @@ export async function POST(req: Request) {
     const cleanEmail = to.trim().toLowerCase();
     const isClaim = type === 'claim' || url.includes('/claim');
 
+    // Ensure the dispatched email link matches the current active environment's origin
+    const origin = getTrustedSiteOrigin();
+    let normalizedUrl = url;
+    try {
+      const parsed = new URL(url);
+      normalizedUrl = `${origin}${parsed.pathname}${parsed.search}`;
+    } catch {
+      normalizedUrl = url;
+    }
+
     let sendResult;
     if (isClaim) {
       sendResult = await sendClaimLinkEmail({
         to: cleanEmail,
-        claimLinkUrl: url,
+        claimLinkUrl: normalizedUrl,
       });
     } else {
       sendResult = await sendMagicLinkEmail({
         to: cleanEmail,
-        magicLinkUrl: url,
+        magicLinkUrl: normalizedUrl,
       });
     }
 

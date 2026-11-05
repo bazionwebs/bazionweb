@@ -75,18 +75,28 @@ export function ManualClientCreateModal({
         projectTitle: projectTitle.trim() || undefined,
       });
 
-      if (res?.claimUrl) {
+      let effectiveClaimUrl = res?.claimUrl;
+      if (effectiveClaimUrl && typeof window !== 'undefined') {
+        try {
+          const parsed = new URL(effectiveClaimUrl);
+          effectiveClaimUrl = `${window.location.origin}${parsed.pathname}${parsed.search}`;
+        } catch {
+          // Keep original
+        }
+      }
+
+      if (effectiveClaimUrl) {
         adminApi
           .dispatchAdminLinkEmail({
             to: cleanEmail,
-            url: res.claimUrl,
+            url: effectiveClaimUrl,
             clientName: businessName.trim(),
             type: 'claim',
           })
           .catch(err => console.warn('[ManualProvision] Auto-email dispatch warning:', err));
       }
 
-      setProvisionResult(res);
+      setProvisionResult(res ? { ...res, claimUrl: effectiveClaimUrl } : res);
       if (onSuccess) onSuccess();
     } catch (err: any) {
       setErrorMsg(

@@ -18,10 +18,22 @@ function ClaimContent() {
   const urlToken = searchParams.get('token') || '';
   const urlEmail = searchParams.get('email') || '';
 
-  // Keep claimToken in state so stripping ?token=... from the URL bar via
-  // window.history.replaceState does not clear the active token in Next.js App Router.
-  const [claimToken, setClaimToken] = useState(() => urlToken);
-  const [email, setEmail] = useState(() => urlEmail);
+  // Keep claimToken in state and sessionStorage so refreshing or remounting
+  // never wipes out the active claim token.
+  const [claimToken, setClaimToken] = useState(() => {
+    if (urlToken) return urlToken;
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('bazionweb_active_claim_token') || '';
+    }
+    return '';
+  });
+  const [email, setEmail] = useState(() => {
+    if (urlEmail) return urlEmail;
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('bazionweb_active_claim_email') || '';
+    }
+    return '';
+  });
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
@@ -43,21 +55,21 @@ function ClaimContent() {
   useEffect(() => {
     if (urlToken) {
       setClaimToken(urlToken);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('bazionweb_active_claim_token', urlToken);
+        if (urlEmail) sessionStorage.setItem('bazionweb_active_claim_email', urlEmail);
+      }
     }
-  }, [urlToken]);
+  }, [urlToken, urlEmail]);
 
   useEffect(() => {
     if (urlEmail && !email) {
       setEmail(urlEmail);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('bazionweb_active_claim_email', urlEmail);
+      }
     }
   }, [urlEmail, email]);
-
-  useEffect(() => {
-    if (urlToken && typeof window !== 'undefined') {
-      const cleanQuery = urlEmail ? `?email=${encodeURIComponent(urlEmail)}` : '';
-      window.history.replaceState({}, '', `${window.location.pathname}${cleanQuery}`);
-    }
-  }, [urlToken, urlEmail]);
 
   // If the user is already signed in with a valid session for this email and is not
   // consuming a new claim token, take them straight to their portal dashboard.
@@ -194,6 +206,11 @@ function ClaimContent() {
         } catch {
           // Session storage failures shouldn't block the redirect.
         }
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('bazionweb_active_claim_token');
+          sessionStorage.removeItem('bazionweb_active_claim_email');
+          window.history.replaceState({}, '', window.location.pathname);
+        }
         setDone(true);
         router.replace('/portal');
         return;
@@ -231,11 +248,11 @@ function ClaimContent() {
     <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100 text-slate-900">
       <div className="text-center mb-6">
         <h1 className="text-2xl font-extrabold text-[#0F172A]">
-          {claimToken ? 'Set Your Password' : 'Claim Your Account'}
+          {claimToken ? 'Set Your Account Password' : 'Claim Your Account'}
         </h1>
         <p className="text-xs text-slate-500 mt-2 leading-relaxed">
           {claimToken
-            ? 'Your payment is confirmed. Set a password to open your workspace.'
+            ? 'Your account is active. Choose a secure password below to open your client portal workspace.'
             : 'Enter the billing email you used at checkout. We will send a one-time link to set your password.'}
         </p>
       </div>
@@ -337,18 +354,24 @@ function ClaimContent() {
       ) : (
         <form onSubmit={handleClaim} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1.5">Billing Email</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-600 uppercase">Billing Email</label>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Verified Recipient
+              </span>
+            </div>
             <input
               type="email"
               value={email}
+              readOnly={Boolean(urlEmail || (typeof window !== 'undefined' && sessionStorage.getItem('bazionweb_active_claim_email')))}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
               autoComplete="email"
               required
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#2563EB] transition-colors"
+              className="w-full bg-slate-100/80 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 font-medium focus:outline-none"
             />
             <p className="text-[11px] text-slate-400 mt-1.5">
-              This must match the address that received the claim link.
+              Claim token is cryptographically bound to this address.
             </p>
           </div>
 

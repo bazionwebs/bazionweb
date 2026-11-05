@@ -353,11 +353,13 @@ export class ClientsService {
       return { client, user, project };
     });
 
-    const webBaseUrl =
+    const webBaseUrl = (
+      this.config.get<string>('FRONTEND_URL') ||
       this.config.get<string>('NEXT_PUBLIC_APP_URL') ||
       this.config.get<string>('APP_URL') ||
-      'https://bazionweb.com';
-    const claimUrl = `${webBaseUrl.replace(/\/$/, '')}/portal/claim?token=${rawClaimToken}&email=${encodeURIComponent(cleanEmail)}`;
+      (process.env.NODE_ENV === 'production' ? 'https://bazionweb.com' : 'http://localhost:3000')
+    ).replace(/\/$/, '');
+    const claimUrl = `${webBaseUrl}/portal/claim?token=${rawClaimToken}&email=${encodeURIComponent(cleanEmail)}`;
 
     return {
       client: result.client,
@@ -413,11 +415,13 @@ export class ClientsService {
       },
     }).catch(() => undefined);
 
-    const webBaseUrl =
+    const webBaseUrl = (
+      this.config.get<string>('FRONTEND_URL') ||
       this.config.get<string>('NEXT_PUBLIC_APP_URL') ||
       this.config.get<string>('APP_URL') ||
-      'https://bazionweb.com';
-    const claimUrl = `${webBaseUrl.replace(/\/$/, '')}/portal/claim?token=${rawClaimToken}&email=${encodeURIComponent(client.email)}`;
+      (process.env.NODE_ENV === 'production' ? 'https://bazionweb.com' : 'http://localhost:3000')
+    ).replace(/\/$/, '');
+    const claimUrl = `${webBaseUrl}/portal/claim?token=${rawClaimToken}&email=${encodeURIComponent(client.email)}`;
 
     return {
       success: true,

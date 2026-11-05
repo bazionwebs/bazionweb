@@ -388,12 +388,14 @@ export class AuthService {
       },
     });
 
+    const hasActiveStatus = client?.status === 'ACTIVE';
     const hasActiveSub = client?.subscriptions?.some(s => s.status === 'ACTIVE') ?? false;
+    const hasPaidInvoice = (client?.invoices?.length ?? 0) > 0;
     const recentPaidInvoice =
       !!client?.invoices?.[0]?.paidAt &&
       Date.now() - client.invoices[0].paidAt.getTime() < 90 * 86_400_000;
 
-    return { client, paid: !!client && (hasActiveSub || recentPaidInvoice) };
+    return { client, paid: !!client && (hasActiveStatus || hasActiveSub || hasPaidInvoice || recentPaidInvoice) };
   }
 
   /**
