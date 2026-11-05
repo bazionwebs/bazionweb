@@ -8,21 +8,18 @@ import {
   ShoppingCart,
   Check,
   Plus,
-  Server,
-  Wrench,
-  Puzzle,
   Globe,
   ArrowRight,
   Loader2,
+  ChevronDown,
 } from 'lucide-react';
 import { WhatsAppLink } from '@/components/ui/WhatsAppChat';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { usePlans, PLAN_MARKETING } from '@/lib/plans';
-import { useCartStore } from '@/lib/cart';
+import { useCartStore, type CartItem } from '@/lib/cart';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
-import { StoreCategoryNav, type StoreCategoryItem } from './StoreCategoryNav';
-import { useStoreScrollspy } from './useStoreScrollspy';
+import StoreOrderSummary from './StoreOrderSummary';
 
 const PLAN_HEADER_STYLES: Record<string, string> = {
   starter: 'bg-slate-800 text-white',
@@ -34,6 +31,9 @@ const PLAN_HEADER_STYLES: Record<string, string> = {
   'care-professional': 'bg-purple-700 text-white',
   'care-enterprise': 'bg-amber-700 text-white',
 };
+
+/** Bundle tiers already carry managed hosting — no separate host-* line required. */
+const BUNDLE_PLAN_SLUGS = new Set(['starter', 'growth', 'business', 'enterprise']);
 
 interface CatalogPrice {
   id: string;
@@ -151,8 +151,6 @@ const fallbackMarketing = (productId: string) => ({
   features: [] as string[],
 });
 
-const STORE_SECTION_IDS = ['plans', 'hosting', 'addons', 'websites'];
-
 const formatMoney = (amount: number, symbol: string) =>
   `${symbol}${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
@@ -162,6 +160,14 @@ export default function StoreView() {
   const isKenya = marketCode === 'KE';
   const { plans, loading: plansLoading } = usePlans();
   const [addedKey, setAddedKey] = useState<string | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    plans: true,
+    hosting: true,
+    addons: true,
+    websites: true,
+  });
+  const toggleSection = (id: string) =>
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const catalog = useQuery<CatalogResponse>({
     queryKey: ['store-catalog', marketCode],
@@ -175,8 +181,18 @@ export default function StoreView() {
   });
 
   const add = useCartStore((s) => s.add);
+  const setQty = useCartStore((s) => s.setQty);
+  const removeItem = useCartStore((s) => s.remove);
   const items = useCartStore((s) => s.items);
   const inCart = (key: string) => items.some((i) => i.key === key);
+
+  // Cart stack requirements: every client must end up with a care plan and hosting (a bundle
+  // tier already carries hosting; care-only tiers need an explicit host-* line).
+  const cartPlanItem = items.find((i) => i.kind === 'PLAN');
+  const careSatisfied = Boolean(cartPlanItem);
+  const bundlePlanIncludesHosting = Boolean(cartPlanItem && BUNDLE_PLAN_SLUGS.has(cartPlanItem.id));
+  const hostingInCart = items.some((i) => i.kind === 'CATALOG' && i.id.startsWith('host-'));
+  const hostingSatisfied = bundlePlanIncludesHosting || hostingInCart;
 
   const defaultCurrency = marketDef?.currency ?? (isKenya ? 'KES' : 'USD');
   const defaultSymbol = marketDef?.currencySymbol ?? (isKenya ? 'KES ' : '$');
@@ -184,10 +200,11 @@ export default function StoreView() {
   const activeCurrency = catalog.data?.market.currencyCode ?? defaultCurrency;
 
   const isDataReady = !plansLoading && !catalog.isLoading;
-  const { activeSection, scrollToSection } = useStoreScrollspy(STORE_SECTION_IDS, {
-    isDataReady,
-    headerOffset: 176,
-  });
+
+  const scrollToSectionId = (id: string) => {
+    if (setOpenSections) setOpenSections((prev) => ({ ...prev, [id]: true }));
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleAdd = (item: Parameters<typeof add>[0], key: string) => {
     add(item);
@@ -216,7 +233,7 @@ export default function StoreView() {
         currency: planCurrency,
       });
       setAddedKey(`PLAN:${plan.slug}:MONTHLY`);
-      scrollToSection('plans');
+      scrollToSectionId('plans');
     } else {
       const price = (catalog.data?.prices ?? []).find((p) => p.productId === addParam);
       if (price) {
@@ -231,12 +248,13 @@ export default function StoreView() {
           currency: activeCurrency,
         });
         setAddedKey(`CATALOG:${price.productId}:${price.billingPeriod ?? 'one-time'}`);
-        scrollToSection(price.productId.startsWith('host-') ? 'hosting' : 'addons');
+        scrollToSectionId(price.productId.startsWith('host-') ? 'hosting' : 'addons');
       }
     }
     // Clean the param so a refresh doesn't re-trigger the add.
     router.replace('/store', { scroll: false });
-  }, [addParam, plans, plansLoading, catalog.data, catalog.isLoading, add, router, scrollToSection, isKenya, activeCurrency]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addParam, plans, plansLoading, catalog.data, catalog.isLoading, add, router, isKenya, activeCurrency]);
 
   const hostingItems = useMemo(
     () => (catalog.data?.prices ?? []).filter((p) => p.productId.startsWith('host-')),
@@ -247,44 +265,18 @@ export default function StoreView() {
     [catalog.data],
   );
 
-  const categoryItems = useMemo<StoreCategoryItem[]>(() => {
-    const plansCount = (plans ?? []).filter((p) => PLAN_MARKETING[p.slug]).length;
-    return [
-      {
-        id: 'plans',
-        label: 'Care Plans',
-        icon: Wrench,
-        count: plansCount > 0 ? plansCount : undefined,
-        href: '#plans',
-      },
-      {
-        id: 'hosting',
-        label: 'Hosting',
-        icon: Server,
-        count: hostingItems.length > 0 ? hostingItems.length : undefined,
-        href: '#hosting',
-      },
-      {
-        id: 'addons',
-        label: 'Add-ons',
-        icon: Puzzle,
-        count: addonItems.length > 0 ? addonItems.length : undefined,
-        href: '#addons',
-      },
-      {
-        id: 'websites',
-        label: 'Website Builds',
-        icon: Globe,
-        badge: 'Custom',
-        href: '#websites',
-      },
-    ];
-  }, [plans, hostingItems.length, addonItems.length]);
-
+  const sectionCounts: Record<string, number | null> = useMemo(
+    () => ({
+      plans: (plans ?? []).filter((p) => PLAN_MARKETING[p.slug]).length,
+      hosting: hostingItems.length,
+      addons: addonItems.length,
+    }),
+    [plans, hostingItems.length, addonItems.length],
+  );
 
   return (
     <main className="bg-slate-50/50 min-h-screen">
-      {/* Hero — streamlined header banner */}
+      {/* Hero — journey progress + streamlined header banner */}
       <section className="bg-[#0F172A] pt-28 pb-10 md:pb-12 text-white">
         <div className="container-default max-w-7xl mx-auto px-4">
           <div className="mb-6 max-w-5xl">
@@ -298,243 +290,326 @@ export default function StoreView() {
           </h1>
           <p className="text-sm md:text-base text-slate-300 max-w-2xl leading-relaxed">
             Pick a care plan, add hosting and extras, and check out once with M-Pesa or card.
-            Every price is pulled live from our commercial schedule — no stale numbers.
+            The live summary keeps your running total always in view — no dead adds, no surprise totals.
           </p>
         </div>
       </section>
 
-      {/* Sticky Category Sub-Navigation Bar */}
-      <StoreCategoryNav
-        categories={categoryItems}
-        activeId={activeSection}
-        onSelectCategory={scrollToSection}
-        cartCount={items.reduce((n, i) => n + i.qty, 0)}
-      />
-
-      {/* Main Full-Width Product Catalog */}
+      {/* Two-column stack builder: collapsible packages (left) + frozen summary (right) */}
       <div className="container-default max-w-7xl mx-auto px-4 py-10 pb-28">
-        <div className="space-y-16">
-          {/* Care plans — the subscription anchor */}
-          <section id="plans" aria-labelledby="plans-heading" className="scroll-mt-44">
-            <h2 id="plans-heading" className="text-2xl font-extrabold text-slate-900 mb-2">
-              Managed Care Plans
-            </h2>
-            <p className="text-sm text-slate-500 mb-6">
-              The subscription that keeps your site updated, backed up, and secure. One per order.
-            </p>
-            {plansLoading ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading plans…
-              </div>
-            ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {(plans ?? []).filter((p) => PLAN_MARKETING[p.slug]).map((plan) => {
-                    const marketing = PLAN_MARKETING[plan.slug];
-                    const key = `PLAN:${plan.slug}:MONTHLY`;
-                    const headerStyle = PLAN_HEADER_STYLES[plan.slug] ?? 'bg-slate-800 text-white';
-                    const displayName = plan.name || plan.slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                    return (
-                      <article
-                        key={plan.id}
-                        className={`rounded-2xl border overflow-hidden bg-white shadow-sm flex flex-col transition-shadow hover:shadow-md ${
-                          plan.tier === 'RECOMMENDED' ? 'border-[#2563EB] ring-1 ring-[#2563EB]/30' : 'border-slate-200'
-                        }`}
-                      >
-                        <div className={`px-5 py-4 flex items-center justify-between ${headerStyle}`}>
-                          <h3 className="text-white font-extrabold text-lg tracking-tight">{displayName}</h3>
-                          {plan.tier === 'RECOMMENDED' || plan.slug === 'growth' || plan.slug === 'care-business' ? (
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/20 text-white">
-                              Popular
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="p-5 flex flex-col flex-1">
-                          <p className="text-xs text-slate-500 mb-4">{marketing?.description ?? ''}</p>
-                          <ul className="space-y-2 mb-5 flex-1">
-                            {(marketing?.features ?? []).slice(0, 5).map((f) => (
-                              <li key={f} className="flex items-start gap-2 text-xs text-slate-600">
-                                <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" /> {f}
-                              </li>
-                            ))}
-                          </ul>
-                          <div className="flex items-end justify-between mb-4">
-                            <div>
-                              <span className="text-2xl font-extrabold text-slate-900">
-                                {formatMoney(isKenya ? plan.priceMonthlyKes : plan.priceMonthly, symbol)}
-                              </span>
-                              <span className="text-xs text-slate-500"> /month</span>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const planPrice = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
-                              const planCurrency = isKenya ? 'KES' : activeCurrency;
-                              handleAdd(
-                                {
-                                  kind: 'PLAN',
-                                  id: plan.slug,
-                                  name: plan.name,
-                                  cycle: 'MONTHLY',
-                                  qty: 1,
-                                  unitPrice: planPrice,
-                                  currency: planCurrency,
-                                },
-                                key,
-                              );
-                            }}
-                            className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
-                              addedKey === key || inCart(key)
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-[#2563EB] text-white hover:bg-blue-700'
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          {/* Frozen shopping summary — always visible via sticky rail */}
+          <aside className="order-first lg:order-2 lg:w-[360px] shrink-0">
+            <div className="lg:sticky lg:top-24">
+              <StoreOrderSummary
+                items={items as CartItem[]}
+                careSatisfied={careSatisfied}
+                hostingSatisfied={hostingSatisfied}
+                bundlePlanIncludesHosting={bundlePlanIncludesHosting}
+                onQty={setQty}
+                onRemove={removeItem}
+                onCheckout={() => router.push('/checkout?cart=1')}
+              />
+              {!isDataReady && (
+                <p className="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Syncing live prices…
+                </p>
+              )}
+            </div>
+          </aside>
+
+          {/* Collapsible package selector */}
+          <div className="order-last lg:order-1 flex-1 min-w-0 max-w-3xl space-y-5">
+            {/* Care plans — the subscription anchor */}
+            <section id="plans" aria-labelledby="plans-heading" className="scroll-mt-44 rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <button
+                type="button"
+                aria-expanded={openSections['plans']}
+                aria-controls="plans-panel"
+                onClick={() => toggleSection('plans')}
+                className="w-full flex items-center justify-between gap-3 px-6 py-4 hover:bg-slate-50 transition-colors"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="text-md font-extrabold text-slate-900 text-left">Managed Care Plans</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-teal-50 text-teal-700 border border-teal-200/70 px-2 py-0.5">
+                    Required
+                  </span>
+                  {typeof sectionCounts.plans === 'number' && sectionCounts.plans > 0 && (
+                    <span className="text-[11px] font-extrabold rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">
+                      {sectionCounts.plans}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${openSections['plans'] ? '' : '-rotate-90'}`} />
+              </button>
+              <div id="plans-panel" hidden={!openSections['plans']}>
+                <div className="px-6 pb-6 border-t border-slate-100 pt-4">
+                  <p className="text-sm text-slate-500 mb-6">
+                    The subscription that keeps your site updated, backed up, and secure. One per order.
+                  </p>
+                  {plansLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin" /> Loading plans…
+                    </div>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
+                      {(plans ?? []).filter((p) => PLAN_MARKETING[p.slug]).map((plan) => {
+                        const marketing = PLAN_MARKETING[plan.slug];
+                        const key = `PLAN:${plan.slug}:MONTHLY`;
+                        const headerStyle = PLAN_HEADER_STYLES[plan.slug] ?? 'bg-slate-800 text-white';
+                        const displayName = plan.name || plan.slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                        return (
+                          <article
+                            key={plan.id}
+                            className={`rounded-2xl border overflow-hidden bg-white shadow-sm flex flex-col transition-shadow hover:shadow-md ${
+                              plan.tier === 'RECOMMENDED' ? 'border-[#2563EB] ring-1 ring-[#2563EB]/30' : 'border-slate-200'
                             }`}
                           >
-                            {addedKey === key || inCart(key) ? (
-                              <>
-                                <Check className="h-4 w-4" /> In Cart
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="h-4 w-4" /> Add to Cart
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
+                            <div className={`px-5 py-4 flex items-center justify-between ${headerStyle}`}>
+                              <h3 className="text-white font-extrabold text-lg tracking-tight">{displayName}</h3>
+                              {plan.tier === 'RECOMMENDED' || plan.slug === 'growth' || plan.slug === 'care-business' ? (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/20 text-white">
+                                  Popular
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="p-5 flex flex-col flex-1">
+                              <p className="text-xs text-slate-500 mb-4">{marketing?.description ?? ''}</p>
+                              <ul className="space-y-2 mb-5 flex-1">
+                                {(marketing?.features ?? []).slice(0, 5).map((f) => (
+                                  <li key={f} className="flex items-start gap-2 text-xs text-slate-600">
+                                    <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" /> {f}
+                                  </li>
+                                ))}
+                              </ul>
+                              <div className="flex items-end justify-between mb-4">
+                                <div>
+                                  <span className="text-2xl font-extrabold text-slate-900">
+                                    {formatMoney(isKenya ? plan.priceMonthlyKes : plan.priceMonthly, symbol)}
+                                  </span>
+                                  <span className="text-xs text-slate-500"> /month</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const planPrice = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
+                                  const planCurrency = isKenya ? 'KES' : activeCurrency;
+                                  handleAdd(
+                                    {
+                                      kind: 'PLAN',
+                                      id: plan.slug,
+                                      name: plan.name,
+                                      cycle: 'MONTHLY',
+                                      qty: 1,
+                                      unitPrice: planPrice,
+                                      currency: planCurrency,
+                                    },
+                                    key,
+                                  );
+                                }}
+                                className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
+                                  addedKey === key || inCart(key)
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-[#2563EB] text-white hover:bg-blue-700'
+                                }`}
+                              >
+                                {addedKey === key || inCart(key) ? (
+                                  <>
+                                    <Check className="h-4 w-4" /> In Cart
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="h-4 w-4" /> Add to Cart
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </section>
 
             {/* Hosting */}
-            <section id="hosting" aria-labelledby="hosting-heading" className="scroll-mt-44">
-              <h2 id="hosting-heading" className="text-2xl font-extrabold text-slate-900 mb-2">Hosting</h2>
-              <p className="text-sm text-slate-500 mb-6">Annual hosting billed with your first invoice — no separate signup.</p>
-              {catalog.isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin" /> Loading catalog…
+            <section id="hosting" aria-labelledby="hosting-heading" className="scroll-mt-44 rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <button
+                type="button"
+                aria-expanded={openSections['hosting']}
+                aria-controls="hosting-panel"
+                onClick={() => toggleSection('hosting')}
+                className="w-full flex items-center justify-between gap-3 px-6 py-4 hover:bg-slate-50 transition-colors"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="text-md font-extrabold text-slate-900 text-left">Managed Hosting</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-teal-50 text-teal-700 border border-teal-200/70 px-2 py-0.5">
+                    Required with care-only tiers
+                  </span>
+                  {hostingItems.length > 0 && (
+                    <span className="text-[11px] font-extrabold rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">
+                      {hostingItems.length}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${openSections['hosting'] ? '' : '-rotate-90'}`} />
+              </button>
+              <div id="hosting-panel" hidden={!openSections['hosting']}>
+                <div className="px-6 pb-6 border-t border-slate-100 pt-4">
+                  <p className="text-sm text-slate-500 mb-6">
+                    Annual hosting billed with your first invoice — no separate signup.
+                  </p>
+                  {catalog.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin" /> Loading catalog…
+                    </div>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {hostingItems.map((item) => {
+                        const marketing = PRODUCT_MARKETING[item.productId] ?? fallbackMarketing(item.productId);
+                        const key = `CATALOG:${item.productId}:${item.billingPeriod ?? 'one-time'}`;
+                        return (
+                          <article key={item.id} className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm flex flex-col hover:shadow-md transition-shadow">
+                            <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-4">
+                              <h3 className="text-white font-bold text-lg">{marketing.name}</h3>
+                            </div>
+                            <div className="p-5 flex flex-col flex-1">
+                              <p className="text-xs text-slate-500 mb-4">{marketing?.description ?? ''}</p>
+                              <ul className="space-y-2 mb-5 flex-1">
+                                {(marketing?.features ?? []).map((f) => (
+                                  <li key={f} className="flex items-start gap-2 text-xs text-slate-600">
+                                    <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" /> {f}
+                                  </li>
+                                ))}
+                              </ul>
+                              <div className="mb-4">
+                                <span className="text-2xl font-extrabold text-slate-900">{formatMoney(item.amount, symbol)}</span>
+                                <span className="text-xs text-slate-500"> /{item.billingPeriod ?? 'one-time'}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleAdd(
+                                    {
+                                      kind: 'CATALOG',
+                                      id: item.productId,
+                                      name: marketing.name,
+                                      cycle: item.billingPeriod ?? 'one-time',
+                                      qty: 1,
+                                      unitPrice: item.amount,
+                                      currency: activeCurrency,
+                                    },
+                                    key,
+                                  )
+                                }
+                                className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
+                                  addedKey === key || inCart(key)
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-800 text-white hover:bg-slate-900'
+                                }`}
+                              >
+                                {addedKey === key || inCart(key) ? (
+                                  <>
+                                    <Check className="h-4 w-4" /> In Cart
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="h-4 w-4" /> Add to Cart
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {hostingItems.map((item) => {
-                    const marketing = PRODUCT_MARKETING[item.productId] ?? fallbackMarketing(item.productId);
-                    const key = `CATALOG:${item.productId}:${item.billingPeriod ?? 'one-time'}`;
-                    return (
-                      <article key={item.id} className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm flex flex-col hover:shadow-md transition-shadow">
-                        <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-4">
-                          <h3 className="text-white font-bold text-lg">{marketing.name}</h3>
-                        </div>
-                        <div className="p-5 flex flex-col flex-1">
-                          <p className="text-xs text-slate-500 mb-4">{marketing?.description ?? ''}</p>
-                          <ul className="space-y-2 mb-5 flex-1">
-                            {(marketing?.features ?? []).map((f) => (
-                              <li key={f} className="flex items-start gap-2 text-xs text-slate-600">
-                                <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" /> {f}
-                              </li>
-                            ))}
-                          </ul>
-                          <div className="mb-4">
-                            <span className="text-2xl font-extrabold text-slate-900">{formatMoney(item.amount, symbol)}</span>
-                            <span className="text-xs text-slate-500"> /{item.billingPeriod ?? 'one-time'}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleAdd(
-                                {
-                                  kind: 'CATALOG',
-                                  id: item.productId,
-                                  name: marketing.name,
-                                  cycle: item.billingPeriod ?? 'one-time',
-                                  qty: 1,
-                                  unitPrice: item.amount,
-                                  currency: activeCurrency,
-                                },
-                                key,
-                              )
-                            }
-                            className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
-                              addedKey === key || inCart(key)
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-800 text-white hover:bg-slate-900'
-                            }`}
-                          >
-                            {addedKey === key || inCart(key) ? (
-                              <>
-                                <Check className="h-4 w-4" /> In Cart
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="h-4 w-4" /> Add to Cart
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
+              </div>
             </section>
 
             {/* Add-ons */}
-            <section id="addons" aria-labelledby="addons-heading" className="scroll-mt-44">
-              <h2 id="addons-heading" className="text-2xl font-extrabold text-slate-900 mb-2">Add-ons</h2>
-              <p className="text-sm text-slate-500 mb-6">Bolt extras onto any plan — billed once with your first invoice.</p>
-              {catalog.isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin" /> Loading catalog…
+            <section id="addons" aria-labelledby="addons-heading" className="scroll-mt-44 rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <button
+                type="button"
+                aria-expanded={openSections['addons']}
+                aria-controls="addons-panel"
+                onClick={() => toggleSection('addons')}
+                className="w-full flex items-center justify-between gap-3 px-6 py-4 hover:bg-slate-50 transition-colors"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="text-md font-extrabold text-slate-900 text-left">Add-ons</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5">
+                    Optional
+                  </span>
+                  {addonItems.length > 0 && (
+                    <span className="text-[11px] font-extrabold rounded-full bg-slate-100 text-slate-600 px-2 py-0.5">
+                      {addonItems.length}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${openSections['addons'] ? '' : '-rotate-90'}`} />
+              </button>
+              <div id="addons-panel" hidden={!openSections['addons']}>
+                <div className="px-6 pb-6 border-t border-slate-100 pt-4">
+                  <p className="text-sm text-slate-500 mb-6">Bolt extras onto any plan — billed once with your first invoice.</p>
+                  {catalog.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin" /> Loading catalog…
+                    </div>
+                  ) : addonItems.length === 0 ? (
+                    <p className="text-sm text-slate-500 py-6">No add-ons published in the current price book.</p>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                      {addonItems.map((item) => {
+                        const marketing = PRODUCT_MARKETING[item.productId] ?? fallbackMarketing(item.productId);
+                        const key = `CATALOG:${item.productId}:${item.billingPeriod ?? 'one-time'}`;
+                        return (
+                          <article key={item.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 flex flex-col hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between mb-3">
+                              <h3 className="font-bold text-slate-900">{marketing.name}</h3>
+                              <span className="text-xs font-semibold text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
+                                {item.billingPeriod ?? 'one-time'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mb-4 flex-1">{marketing?.description ?? ''}</p>
+                            <div className="flex items-center justify-between">
+                              <span className="text-lg font-extrabold text-slate-900">{formatMoney(item.amount, symbol)}</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleAdd(
+                                    {
+                                      kind: 'CATALOG',
+                                      id: item.productId,
+                                      name: marketing.name,
+                                      cycle: item.billingPeriod ?? 'one-time',
+                                      qty: 1,
+                                      unitPrice: item.amount,
+                                      currency: activeCurrency,
+                                    },
+                                    key,
+                                  )
+                                }
+                                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
+                                  addedKey === key || inCart(key)
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-800 text-white hover:bg-slate-900'
+                                }`}
+                              >
+                                {addedKey === key || inCart(key) ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                                {addedKey === key || inCart(key) ? 'Added' : 'Add'}
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              ) : addonItems.length === 0 ? (
-                <p className="text-sm text-slate-500 py-6">No add-ons published in the current price book.</p>
-              ) : (
-                <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {addonItems.map((item) => {
-                    const marketing = PRODUCT_MARKETING[item.productId] ?? fallbackMarketing(item.productId);
-                    const key = `CATALOG:${item.productId}:${item.billingPeriod ?? 'one-time'}`;
-                    return (
-                      <article key={item.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 flex flex-col hover:shadow-md transition-shadow">
-                        <div className="flex items-start justify-between mb-3">
-                          <h3 className="font-bold text-slate-900">{marketing.name}</h3>
-                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
-                            {item.billingPeriod ?? 'one-time'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mb-4 flex-1">{marketing?.description ?? ''}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-lg font-extrabold text-slate-900">{formatMoney(item.amount, symbol)}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleAdd(
-                                {
-                                  kind: 'CATALOG',
-                                  id: item.productId,
-                                  name: marketing.name,
-                                  cycle: item.billingPeriod ?? 'one-time',
-                                  qty: 1,
-                                  unitPrice: item.amount,
-                                  currency: activeCurrency,
-                                },
-                                key,
-                              )
-                            }
-                            className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
-                              addedKey === key || inCart(key)
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-800 text-white hover:bg-slate-900'
-                            }`}
-                          >
-                            {addedKey === key || inCart(key) ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                            {addedKey === key || inCart(key) ? 'Added' : 'Add'}
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
+              </div>
             </section>
 
             {/* Contextual WhatsApp Support Banner */}
@@ -587,6 +662,7 @@ export default function StoreView() {
                 </div>
               </div>
             </section>
+          </div>
         </div>
       </div>
     </main>

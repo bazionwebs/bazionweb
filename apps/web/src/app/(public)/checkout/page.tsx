@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import type { Metadata } from 'next';
 import SubscriptionCheckout from '@/components/billing/SubscriptionCheckout';
+import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 import { ShieldCheck, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -50,8 +51,13 @@ export default async function CheckoutPage({
           </div>
         </div>
 
-        {/* Section Header */}
-        <div className="text-center max-w-2xl mx-auto mb-10">
+        {/* Section Header — synced journey: auto-infers Step 4 (Secure Settlement) */}
+        <div className="text-center max-w-2xl mx-auto mb-8">
+          <Suspense fallback={null}>
+            <div className="min-w-0">
+              <ClientJourneyProgress variant="dark" />
+            </div>
+          </Suspense>
           <span className="text-xs font-bold uppercase tracking-widest text-[#14B8A6]">Billing & Activation</span>
           <h1 className="text-3xl md:text-4xl font-extrabold text-white mt-1">Complete Your Subscription</h1>
           <p className="text-sm text-slate-400 mt-2">

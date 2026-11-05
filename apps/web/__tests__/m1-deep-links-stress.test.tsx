@@ -618,4 +618,57 @@ describe('Milestone 1 Empirical Challenger: Deep-Links & Presentation Stress Har
       expect(result.totalYearOne).toBe(278350);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VECTOR 8: Store Stack Requirements & Frozen Order Summary
+  // ═══════════════════════════════════════════════════════════════════════════
+  describe('Vector 8: Store Stack Requirements & Frozen Order Summary', () => {
+    it('requires a care plan AND hosting before checkout: empty/one-legged stacks disable the CTA', async () => {
+      mockMarketCode = 'KE';
+      mockMarket = 'kenya';
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: {
+            market: { code: 'KE', currencyCode: 'KES', currencySymbol: 'KSh', vatRate: 0.16 },
+            prices: [
+              { id: 'p1', productId: 'host-business', amount: 8500, billingPeriod: 'annual' },
+            ],
+          },
+        }),
+      });
+
+      renderWithQueryClient(<StoreView />);
+      await waitFor(() => {
+        expect(screen.getAllByText(/Care Business Plan/i).length).toBeGreaterThan(0);
+      });
+
+      const summary = screen.getByTestId('store-order-summary');
+      const cta = screen.getByTestId('store-checkout-cta');
+
+      // Nothing selected yet — both requirements highlighted, CTA locked.
+      expect(cta).toBeDisabled();
+      expect(screen.getByTestId('requirement-care').textContent).toMatch(/Choose a care plan — required/);
+      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/Add hosting — required/);
+
+      // A care plan alone is still an incomplete stack.
+      fireEvent.click(screen.getAllByRole('button', { name: /Add to Cart/i })[0]);
+      expect(cta).toBeDisabled();
+      expect(summary.textContent).toMatch(/Care Business Plan/i);
+      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/Add hosting — required/);
+
+      // Hosting completes the stack and unlocks checkout.
+      const genericButtons = screen.getAllByRole('button', { name: /Add to Cart/i });
+      fireEvent.click(genericButtons[genericButtons.length - 1]);
+      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/Hosting configured/);
+      expect(cta).toBeEnabled();
+      expect(summary.textContent).toMatch(/KES 18,500/); // 10,000 care + 8,500 host
+
+      // Removing the hosting line re-locks the stack.
+      fireEvent.click(screen.getByRole('button', { name: /Remove Host Business/i }));
+      expect(cta).toBeDisabled();
+      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/Add hosting — required/);
+    });
+  });
 });

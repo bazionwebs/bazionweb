@@ -52,6 +52,9 @@ export interface WiseBankAccount {
   };
 }
 
+/** Bundle tiers already carry managed hosting; care-only tiers require an explicit host-* line. */
+const BUNDLE_PLAN_SLUGS = new Set(['starter', 'growth', 'business', 'enterprise']);
+
 export default function SubscriptionCheckout({
   initialPlanSlug = 'growth',
   initialCycle = 'MONTHLY',
@@ -96,6 +99,7 @@ export default function SubscriptionCheckout({
   // add-ons) are sent as identity-only lines and priced server-side.
   const cartItems = useCartStore((s) => s.items);
   const clearCart = useCartStore((s) => s.clear);
+  const cartPlanItem = cartMode ? cartItems.find((i) => i.kind === 'PLAN') : undefined;
   const catalogCartItems = cartMode ? cartItems.filter((i) => i.kind === 'CATALOG') : [];
   const cartExtras = catalogCartItems.map((i) => ({ productId: i.id, qty: i.qty }));
 
@@ -140,9 +144,34 @@ export default function SubscriptionCheckout({
     setSelectedPlanSlug(bySlug[DEFAULT_PLAN_SLUG] ? DEFAULT_PLAN_SLUG : plans[0].slug);
   }, [plans, bySlug, selectedPlanSlug]);
 
+  // Cart mode: the subscription plan must be the one the client picked in the
+  // store — otherwise a client who adds Care Essential gets silently billed for
+  // the default Growth tier and the "total" skips their chosen subscription.
+  useEffect(() => {
+    if (!cartMode || !cartPlanItem || plansLoading) return;
+    if (bySlug[cartPlanItem.id] && selectedPlanSlug !== cartPlanItem.id) {
+      setSelectedPlanSlug(cartPlanItem.id);
+    }
+    if (
+      (cartPlanItem.cycle === 'MONTHLY' || cartPlanItem.cycle === 'ANNUAL') &&
+      billingCycle !== cartPlanItem.cycle
+    ) {
+      setBillingCycle(cartPlanItem.cycle as 'MONTHLY' | 'ANNUAL');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartMode, cartPlanItem?.id, cartPlanItem?.cycle, plansLoading, bySlug]);
+
   const currentPlan = bySlug[selectedPlanSlug] ?? bySlug[DEFAULT_PLAN_SLUG] ?? plans[0];
   const marketing = currentPlan ? planMarketing(currentPlan.slug) : null;
   const annualDiscountPct = currentPlan?.annualDiscountPct ?? 0;
+
+  // Mandatory stack (cart mode): the care plan is the subscription anchor and
+  // hosting must exist — either included in a bundle tier or bought as a
+  // host-* line. Pay rails stay locked until the stack is complete.
+  const hostingIncludedInPlan = BUNDLE_PLAN_SLUGS.has(currentPlan?.slug ?? '');
+  const hostingInCart = catalogCartItems.some((i) => i.id.startsWith('host-'));
+  const hostingMissing = cartMode && !hostingInCart && !hostingIncludedInPlan;
+  const paymentBlocked = hostingMissing;
 
   if (plansLoading) {
     return (
@@ -568,7 +597,7 @@ export default function SubscriptionCheckout({
           {/* Total Breakdown */}
           <div className="mt-6 pt-4 border-t border-slate-800 flex justify-between items-baseline">
             <span className="text-sm text-slate-400 font-medium">Subtotal Due</span>
-            <div className="text-right">
+            <div data-testid="checkout-total" className="text-right">
               {isKe ? (
                 <div className="text-2xl font-black text-white">
                   KES {currentPriceKes.toLocaleString()}
@@ -581,6 +610,86 @@ export default function SubscriptionCheckout({
             </div>
           </div>
         </div>
+
+        {/* Cart-mode stack requirements: care plan choice + hosted infrastructure */}
+        {cartMode && (
+          <div
+            data-testid="checkout-stack-checklist"
+            className={`rounded-2xl border p-5 text-sm ${
+              hostingMissing
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+            }`}
+          >
+            <span className="text-xs font-bold uppercase tracking-widest">Your stack</span>
+            <ul className="mt-3 space-y-2 text-xs">
+              <li data-testid="stack-care-row" className="flex items-start gap-2">
+                {cartPlanItem ? (
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-400" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" />
+                )}
+                <span className="text-slate-200">
+                  {cartPlanItem ? (
+                    <>
+                      Care plan chosen: <strong>{cartPlanItem.name}</strong>{' '}
+                      <span className="text-slate-400">({cartPlanItem.cycle === 'ANNUAL' ? 'yearly' : 'monthly'})</span>
+                    </>
+                  ) : (
+                    <>Confirm your care plan tier in the selector above — a care baseline (Starter) or any paid tier is required.</>
+                  )}
+                </span>
+              </li>
+              <li data-testid="stack-hosting-row" className="flex items-start gap-2">
+                {hostingMissing ? (
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-400" />
+                )}
+                <span className="text-slate-200">
+                  {hostingMissing ? (
+                    <>
+                      Hosting missing — every deployed site must be hosted with us.{' '}
+                      <Link href="/store#hosting" className="font-bold underline text-amber-300 hover:text-amber-200">
+                        Browse hosting
+                      </Link>{' '}
+                      or switch to a bundle tier that includes hosting.
+                    </>
+                  ) : hostingIncludedInPlan ? (
+                    <>Hosting included in {currentPlan.name}. No separate host line needed.</>
+                  ) : (
+                    <>
+                      Hosting configured:{' '}
+                      <strong>
+                        {hostingInCart
+                          ? catalogCartItems
+                              .filter((i) => i.id.startsWith('host-'))
+                              .map((i) => i.name)
+                              .join(', ')
+                          : ''}
+                      </strong>
+                    </>
+                  )}
+                </span>
+              </li>
+            </ul>
+            {hostingMissing && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (bySlug['starter']) {
+                    setSelectedPlanSlug('starter');
+                    setBillingCycle('MONTHLY');
+                  }
+                }}
+                disabled={!bySlug['starter']}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-500/20 transition-colors disabled:opacity-40"
+              >
+                Switch to Starter (hosting included)
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Security Badge */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-3 text-xs text-slate-400">
@@ -740,7 +849,8 @@ export default function SubscriptionCheckout({
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || paymentBlocked}
+                title={paymentBlocked ? 'Add hosting to complete your stack before paying' : undefined}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 text-sm"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Send mobile-money prompt <ArrowRight className="w-4 h-4" /></>}
@@ -823,7 +933,8 @@ export default function SubscriptionCheckout({
               <button
                 type="button"
                 onClick={handleCardPay}
-                disabled={loading}
+                disabled={loading || paymentBlocked}
+                title={paymentBlocked ? 'Add hosting to complete your stack before paying' : undefined}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-950/50 text-sm"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Proceed to Card Gateway <ArrowRight className="w-4 h-4" /></>}
@@ -880,7 +991,8 @@ export default function SubscriptionCheckout({
 
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || paymentBlocked}
+                    title={paymentBlocked ? 'Add hosting to complete your stack before requesting an invoice' : undefined}
                     className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-purple-950/50 text-sm"
                   >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Generate B2B Invoice & Virtual Wire Account <ArrowRight className="w-4 h-4" /></>}
