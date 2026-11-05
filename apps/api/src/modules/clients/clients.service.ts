@@ -423,6 +423,8 @@ export class ClientsService {
       success: true,
       invitationToken: rawClaimToken,
       claimUrl,
+      recipientEmail: client.email,
+      contactName: client.contactName || client.businessName,
       expiresIn: 72 * 3600,
     };
   }

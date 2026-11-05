@@ -320,6 +320,20 @@ export const adminApi = {
     remediationAction: string;
     remediationPayload?: Record<string, any>;
   }) => api.post('/admin/diagnostics/proactive-scan/remediate', data).then(r => r.data),
+
+  dispatchAdminLinkEmail: async (data: {
+    to: string;
+    url: string;
+    clientName?: string;
+    type?: 'claim' | 'magic';
+  }) => {
+    const res = await fetch('/api/admin/dispatch-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
 };
 
 export default api;

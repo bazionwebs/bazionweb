@@ -1161,6 +1161,9 @@ export class AdminDiagnosticsService {
         token: rawToken,
         resetLink,
         claimUrl: resetLink,
+        recipientEmail: client.user.email,
+        contactName: client.contactName || client.businessName,
+        isUnclaimed,
         expiresIn: 86400,
         message: isUnclaimed
           ? `Account claim link generated successfully for ${client.user.email}`

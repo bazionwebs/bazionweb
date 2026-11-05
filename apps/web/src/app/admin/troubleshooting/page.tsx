@@ -57,6 +57,7 @@ import {
   type ProactiveAnomaly,
 } from '@/hooks/useAdminData';
 import { formatDate } from '@/lib/format';
+import { adminApi } from '@/lib/api';
 
 type TroubleshootingTab =
   | 'health'
@@ -118,8 +119,13 @@ function AdminTroubleshootingContent() {
     clientId: string;
     clientName: string;
     url: string;
+    email?: string;
+    emailDispatched?: boolean;
+    isClaim?: boolean;
   } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [emailResentSuccess, setEmailResentSuccess] = useState(false);
 
   // ── Impersonation State
   const [impersonateClient, setImpersonateClient] = useState('');
@@ -270,17 +276,45 @@ function AdminTroubleshootingContent() {
     clientId: string,
     clientName: string,
     action: 'UNLOCK_ACCOUNT' | 'GENERATE_RESET_LINK' | 'RESTORE_USER',
+    fallbackEmail?: string,
   ) => {
     setInFlightActionId(`access-${clientId}-${action}`);
     try {
       const res = await remediateAccessMutation.mutateAsync({ clientId, action });
       if (action === 'GENERATE_RESET_LINK' && res.resetLink) {
+        const targetEmail = res.recipientEmail || fallbackEmail;
+        const isClaim = res.resetLink.includes('/claim');
+
+        // Automatically dispatch email via Next.js mailer
+        let emailDispatched = false;
+        if (targetEmail) {
+          try {
+            const dispatchRes = await adminApi.dispatchAdminLinkEmail({
+              to: targetEmail,
+              url: res.resetLink,
+              clientName,
+              type: isClaim ? 'claim' : 'magic',
+            });
+            emailDispatched = dispatchRes?.delivered ?? true;
+          } catch (dispatchErr) {
+            console.warn('[Troubleshooting] Auto-email dispatch warning:', dispatchErr);
+          }
+        }
+
         setGeneratedMagicLink({
           clientId,
           clientName,
           url: res.resetLink,
+          email: targetEmail,
+          emailDispatched,
+          isClaim,
         });
-        showFeedback('Magic reset link minted successfully.');
+
+        showFeedback(
+          targetEmail
+            ? `${isClaim ? 'Activation claim link' : 'Magic login link'} generated and automatically emailed to ${targetEmail}!`
+            : 'Access link generated successfully.',
+        );
       } else {
         showFeedback(res.message || `Account for ${clientName} restored to ACTIVE standing.`);
       }
@@ -904,16 +938,56 @@ function AdminTroubleshootingContent() {
                 ✕
               </button>
             </div>
+            {/* Automatic Email Notification Pill */}
+            {generatedMagicLink.email && (
+              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200/80 rounded-xl text-emerald-950 text-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-bold">Sent Automatically via Email:</span>
+                    <span className="ml-1 text-emerald-800">
+                      Dispatched to <strong>{generatedMagicLink.email}</strong>
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={isResendingEmail}
+                  onClick={async () => {
+                    if (!generatedMagicLink.email) return;
+                    setIsResendingEmail(true);
+                    try {
+                      await adminApi.dispatchAdminLinkEmail({
+                        to: generatedMagicLink.email,
+                        url: generatedMagicLink.url,
+                        clientName: generatedMagicLink.clientName,
+                        type: generatedMagicLink.isClaim ? 'claim' : 'magic',
+                      });
+                      setEmailResentSuccess(true);
+                      setTimeout(() => setEmailResentSuccess(false), 3000);
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setIsResendingEmail(false);
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold shadow-2xs transition-colors shrink-0 disabled:opacity-50"
+                >
+                  {isResendingEmail ? 'Sending…' : emailResentSuccess ? 'Sent!' : 'Resend Email'}
+                </button>
+              </div>
+            )}
+
             <p className="text-xs text-slate-500">
               {generatedMagicLink.url.includes('/claim') ? (
                 <>
-                  A single-use account claim link has been generated for{' '}
-                  <strong>{generatedMagicLink.clientName}</strong>. Send this to the client contact so they can set their password and activate their portal workspace.
+                  A single-use account claim link has been generated and dispatched to{' '}
+                  <strong>{generatedMagicLink.email || generatedMagicLink.clientName}</strong>. You can also copy it directly below.
                 </>
               ) : (
                 <>
-                  A 24-hour single-use magic login link has been generated for{' '}
-                  <strong>{generatedMagicLink.clientName}</strong>. Provide this to the client contact to allow immediate passwordless entry.
+                  A single-use magic login link has been generated and dispatched to{' '}
+                  <strong>{generatedMagicLink.email || generatedMagicLink.clientName}</strong>. You can also copy it directly below.
                 </>
               )}
             </p>
@@ -1659,16 +1733,16 @@ function AdminTroubleshootingContent() {
                           )}
                           <button
                             onClick={() =>
-                              handleRemediateAccess(acc.clientId, acc.businessName, 'GENERATE_RESET_LINK')
+                              handleRemediateAccess(acc.clientId, acc.businessName, 'GENERATE_RESET_LINK', acc.email)
                             }
                             disabled={isGenerating}
                             className="px-2.5 py-1 bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
                           >
                             {isGenerating
-                              ? 'Generating…'
+                              ? 'Sending…'
                               : acc.hasPassword
-                              ? 'Generate Magic Link'
-                              : 'Generate Claim Link'}
+                              ? 'Send Magic Link'
+                              : 'Send Claim Link'}
                           </button>
                         </td>
                       </tr>

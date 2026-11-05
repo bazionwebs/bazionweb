@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useManualProvisionClient } from '@/hooks/useAdminData';
+import { adminApi } from '@/lib/api';
 
 interface ManualClientCreateModalProps {
   isOpen: boolean;
@@ -62,16 +63,28 @@ export function ManualClientCreateModal({
     }
 
     try {
+      const cleanEmail = email.trim().toLowerCase();
       const res = await provisionMutation.mutateAsync({
         businessName: businessName.trim(),
         contactName: contactName.trim(),
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         phone: phone.trim() || undefined,
         planTier,
         marketCode,
         currency,
         projectTitle: projectTitle.trim() || undefined,
       });
+
+      if (res?.claimUrl) {
+        adminApi
+          .dispatchAdminLinkEmail({
+            to: cleanEmail,
+            url: res.claimUrl,
+            clientName: businessName.trim(),
+            type: 'claim',
+          })
+          .catch(err => console.warn('[ManualProvision] Auto-email dispatch warning:', err));
+      }
 
       setProvisionResult(res);
       if (onSuccess) onSuccess();
@@ -154,8 +167,7 @@ export function ManualClientCreateModal({
                   </h4>
                   <p className="text-[11px] text-emerald-800 mt-0.5">
                     Workspace synchronized for{' '}
-                    <strong>{provisionResult.client?.businessName || businessName}</strong>. An initial
-                    Launch Project and active subscription standing were created.
+                    <strong>{provisionResult.client?.businessName || businessName}</strong>. An activation claim email has been automatically sent to <strong>{email}</strong>.
                   </p>
                 </div>
               </div>
