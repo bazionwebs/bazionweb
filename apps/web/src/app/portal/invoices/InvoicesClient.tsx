@@ -244,8 +244,18 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
       </div>
     </div>
 
-    <div style="margin-top:36px;padding-top:20px;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b;line-height:1.6;">
-      Generated electronically by BazionWeb Client Portal. Keep this statement for your accounting records.
+    <div style="margin-top:32px;padding:16px 20px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:#0f172a;">
+          System-Generated Official Statement &bull; Valid Without Physical Signature
+        </div>
+        <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.5;">
+          Generated electronically by Bazion Technologies Limited (Automated SSOT Billing Engine). Pursuant to the Kenya Information and Communications Act (Electronic Transactions), this computer-generated document is legally valid and binding without a wet-ink signature or physical company seal.
+        </div>
+      </div>
+      <div style="font-family:monospace;font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;padding:6px 10px;border-radius:8px;white-space:nowrap;">
+        AUTH: ${escapeHtml(inv.invoiceNumber)}
+      </div>
     </div>
   </div>
 

@@ -60,12 +60,13 @@ export function ProposalPresentationView({
 }: ProposalPresentationViewProps) {
   // Quote-to-close action center states
   const [acceptStage, setAcceptStage] = useState<'idle' | 'confirm' | 'accepted'>(
-    proposal.status === 'ACCEPTED' || proposal.depositInvoice ? 'accepted' : 'idle'
+    proposal.depositInvoice ? 'accepted' : 'idle'
   );
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState('');
 
   const [deposit, setDeposit] = useState<{
+    id?: string;
     invoiceNumber: string;
     amount: number;
     currency: string;
@@ -73,6 +74,7 @@ export function ProposalPresentationView({
   } | null>(
     proposal.depositInvoice
       ? {
+          id: proposal.depositInvoice.id,
           invoiceNumber: proposal.depositInvoice.invoiceNumber,
           amount: proposal.depositInvoice.amount,
           currency: proposal.depositInvoice.currency,
@@ -99,31 +101,49 @@ export function ProposalPresentationView({
   const diffDays = Math.max(0, Math.ceil((expiresTime - now) / (1000 * 60 * 60 * 24)));
   const isExpired = proposal.status === 'EXPIRED' || expiresTime < now;
 
+  async function fetchProposalEndpoint(path: string, body: Record<string, unknown>): Promise<Response> {
+    const url = proposalApi(path);
+    const init: RequestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+    try {
+      const res = await fetch(url, init);
+      if (res && res.status >= 500) {
+        await new Promise((r) => setTimeout(r, 400));
+        const retryRes = await fetch(url, init).catch(() => null);
+        if (retryRes) return retryRes;
+      }
+      return res;
+    } catch (err) {
+      await new Promise((r) => setTimeout(r, 400));
+      return fetch(url, init);
+    }
+  }
+
   async function handleAcceptProposal() {
     setAccepting(true);
     setAcceptError('');
     try {
       const nameParts = (initialContact?.name || proposal.clientName || 'Valued Client').trim().split(/\s+/);
-      const response = await fetch(proposalApi('/accept'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: proposal.proposalCode,
-          email: (initialContact?.email || proposal.clientEmail).trim().toLowerCase(),
-          firstName: nameParts[0] || undefined,
-          lastName: nameParts.slice(1).join(' ') || undefined,
-          businessName: (initialContact?.company || proposal.clientCompany || '').trim() || undefined,
-        }),
+      const response = await fetchProposalEndpoint('/accept', {
+        code: proposal.proposalCode,
+        email: (initialContact?.email || proposal.clientEmail).trim().toLowerCase(),
+        firstName: nameParts[0] || undefined,
+        lastName: nameParts.slice(1).join(' ') || undefined,
+        businessName: (initialContact?.company || proposal.clientCompany || '').trim() || undefined,
       });
       const envelope = await response.json().catch(() => ({}));
       const data = unwrapApiPayload(envelope) as {
-        invoice?: { invoiceNumber: string; amount: number; currency: string };
+        invoice?: { id?: string; invoiceNumber: string; amount: number; currency: string };
         depositPercent?: number;
       };
       if (!response.ok || !data.invoice) {
         throw new Error(apiErrorMessage(envelope, 'We could not accept the proposal. Please try again.'));
       }
       setDeposit({
+        id: data.invoice.id,
         invoiceNumber: data.invoice.invoiceNumber,
         amount: data.invoice.amount,
         currency: data.invoice.currency,
@@ -141,10 +161,8 @@ export function ProposalPresentationView({
     setPayBusy('card');
     setPayError('');
     try {
-      const response = await fetch(proposalApi('/pay/card'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: (initialContact?.email || proposal.clientEmail).trim().toLowerCase() }),
+      const response = await fetchProposalEndpoint('/pay/card', {
+        email: (initialContact?.email || proposal.clientEmail).trim().toLowerCase(),
       });
       const envelope = await response.json().catch(() => ({}));
       const data = unwrapApiPayload(envelope) as { checkoutUrl?: string };
@@ -677,7 +695,7 @@ export function ProposalPresentationView({
                         Invoice {deposit.invoiceNumber} is fully settled. Create your client portal password to access your project roadmap and track milestone deliverables.
                       </p>
                       <Link
-                        href={`/portal/claim?email=${encodeURIComponent(proposal.clientEmail.trim().toLowerCase())}`}
+                        href={`/portal/claim?email=${encodeURIComponent(proposal.clientEmail.trim().toLowerCase())}&autostart=1`}
                         className="btn-primary mt-4 inline-flex justify-center px-6 py-3 text-sm font-bold shadow-lg shadow-blue-500/20"
                       >
                         Set Up My Client Portal Hub
@@ -691,7 +709,20 @@ export function ProposalPresentationView({
                           <p className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                             Deposit Invoice Created
                           </p>
-                          <span className="font-mono text-sm font-extrabold text-[#2563EB]">{deposit.invoiceNumber}</span>
+                          <div className="flex flex-wrap items-center gap-2.5 mt-0.5">
+                            <span className="font-mono text-sm font-extrabold text-[#2563EB]">{deposit.invoiceNumber}</span>
+                            {deposit.id && (
+                              <a
+                                href={`${resolveApiV1Base()}/invoices/${encodeURIComponent(deposit.id)}/pdf/download?proposalCode=${encodeURIComponent(proposal.proposalCode)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-[#2563EB] hover:bg-blue-50 transition-colors"
+                              >
+                                <Printer className="size-3" aria-hidden="true" />
+                                Download Invoice PDF
+                              </a>
+                            )}
+                          </div>
                         </div>
                         <div className="text-right">
                           <span className="text-[11px] text-slate-500 block">Amount Payable</span>
@@ -794,30 +825,98 @@ export function ProposalPresentationView({
               ) : null}
             </section>
 
-            {/* ─── Hard-Copy Print Signature Block (Print Mode Only) ─── */}
-            <div className="hidden print:block mt-12 pt-8 border-t-2 border-slate-800 break-inside-avoid">
-              <div className="grid grid-cols-2 gap-12 text-xs">
-                <div>
-                  <div className="font-bold text-slate-900 mb-1">Accepted &amp; Authorized on Behalf of Client:</div>
-                  <div className="mt-8 border-b border-slate-400 pb-1">Signature: _____________________________________</div>
-                  <div className="mt-4">Full Name: {proposal.clientName}</div>
-                  <div className="mt-2">Title / Designation: ___________________________________</div>
-                  <div className="mt-2">Date: ________________________</div>
+            {/* ─── System-Generated Document Authentication & Electronic Execution Block ─── */}
+            <section
+              aria-labelledby="digital-auth-heading"
+              className="mt-10 pt-8 border-t-2 border-slate-200 print:mt-8 print:pt-6 print:border-slate-800 break-inside-avoid"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-[#2563EB]" aria-hidden="true" />
+                  <h2 id="digital-auth-heading" className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+                    Electronic Document Authentication &amp; Execution Record
+                  </h2>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-300 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                  <Lock className="size-3 text-teal-600" aria-hidden="true" />
+                  System-Generated Document &bull; Valid Without Physical Signature
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:grid-cols-2 print:gap-6 text-xs">
+                {/* Client Electronic Authorization Record */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 print:bg-white print:border-slate-300">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Accepted &amp; Authorized on Behalf of Client
+                  </div>
+                  <div className="space-y-1.5 text-slate-700">
+                    <div>
+                      <span className="text-slate-500">Authorized Recipient: </span>
+                      <strong className="text-slate-900">
+                        {`Recipient: ${proposal.clientName}${proposal.clientCompany ? ` · ${proposal.clientCompany}` : ''}`}
+                      </strong>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-slate-500">Verified Billing Email: </span>
+                      <span className="font-mono text-[11px]">{`Email: ${proposal.clientEmail}`}</span>
+                    </div>
+                    <div className="pt-1.5 border-t border-slate-200/80">
+                      <span className="text-slate-500">Execution Status: </span>
+                      <strong className="text-slate-900">
+                        {acceptStage === 'accepted' || proposal.status === 'ACCEPTED' ? (
+                          <span className="text-emerald-700">
+                            {`ELECTRONICALLY ACCEPTED${deposit?.invoiceNumber ? ` (${deposit.invoiceNumber})` : ''}`}
+                          </span>
+                        ) : (
+                          <span className="text-[#2563EB]">
+                            DIGITAL CLICKWRAP / DEPOSIT SETTLEMENT
+                          </span>
+                        )}
+                      </strong>
+                    </div>
+                  </div>
+                  <p className="mt-2.5 text-[10px] text-slate-500 leading-relaxed">
+                    Online confirmation via the Proposal Action Center or settlement of the 50% Kickoff Deposit constitutes legally binding electronic acceptance.
+                  </p>
                 </div>
 
-                <div>
-                  <div className="font-bold text-slate-900 mb-1">Accepted on Behalf of Bazion Technologies Ltd:</div>
-                  <div className="mt-8 border-b border-slate-400 pb-1">Signature: _____________________________________</div>
-                  <div className="mt-4">Full Name: Commercial Solutions Directorate</div>
-                  <div className="mt-2">Title: Authorized Signatory</div>
-                  <div className="mt-2">Date: ________________________</div>
+                {/* Issuer Digital Seal (Bazion Technologies Limited) */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 print:bg-white print:border-slate-300">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Issued &amp; Authenticated by Bazion Technologies Ltd
+                  </div>
+                  <dl className="space-y-1.5">
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-slate-500">Issuing Authority:</dt>
+                      <dd className="font-bold text-slate-900 text-right">Commercial Solutions Directorate</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-slate-500">Authorization Type:</dt>
+                      <dd className="font-semibold text-slate-800 text-right">Authorized Signatory (SSOT Engine)</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-slate-500">System Verification Seal:</dt>
+                      <dd className="font-mono text-[11px] font-bold text-slate-900 text-right">
+                        AUTH-{proposal.proposalCode}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-2 pt-1.5 border-t border-slate-200/80">
+                      <dt className="text-slate-500">Issuance Timestamp:</dt>
+                      <dd className="font-mono text-[11px] text-slate-700 text-right">
+                        {new Date(proposal.createdAt).toISOString().slice(0, 10)} UTC
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-2.5 text-[10px] text-slate-500 leading-relaxed">
+                    Digitally sealed by BazionWeb Automated Commercial Infrastructure. Valid and binding without wet-ink signature or physical stamp.
+                  </p>
                 </div>
               </div>
 
-              <div className="mt-8 text-center text-[10px] text-slate-500">
-                Bazion Technologies Limited &bull; Registered in Kenya &bull; Riverside Square, Nairobi &bull; billing@bazionweb.com
+              <div className="mt-4 rounded-xl bg-slate-100/80 border border-slate-200 px-4 py-3 text-[10px] text-slate-600 leading-relaxed text-center print:bg-slate-50">
+                <strong>Statutory Electronic Validity Notice:</strong> This is a computer-generated commercial document issued electronically by <strong>Bazion Technologies Limited</strong> (Registered in Kenya &bull; Riverside Square, Nairobi &bull; billing@bazionweb.com). Pursuant to the Kenya Information and Communications Act (Electronic Transactions) and international commercial standards, this document requires no physical signature to be legally valid and enforceable.
               </div>
-            </div>
+            </section>
 
           </div>
         </article>

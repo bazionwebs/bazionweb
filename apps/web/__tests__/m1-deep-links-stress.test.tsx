@@ -645,7 +645,15 @@ describe('Milestone 1 Empirical Challenger: Deep-Links & Presentation Stress Har
       });
 
       const summary = screen.getByTestId('store-order-summary');
+      const rail = screen.getByTestId('store-summary-rail');
+      const stickyBox = screen.getByTestId('store-summary-sticky');
       const cta = screen.getByTestId('store-checkout-cta');
+
+      // Frozen rail contract: parent flex row must NOT use items-start (which collapses <aside>
+      // and prevents the inner sticky container from sticking on scroll).
+      expect(rail.parentElement?.className).not.toMatch(/items-start/);
+      expect(stickyBox.className).toMatch(/sticky/);
+      expect(stickyBox.className).toMatch(/top-24/);
 
       // Nothing selected yet — both requirements highlighted, CTA locked.
       expect(cta).toBeDisabled();

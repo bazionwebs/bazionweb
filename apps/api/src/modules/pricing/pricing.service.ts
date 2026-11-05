@@ -499,13 +499,13 @@ export class PricingService {
       const proposalCode = `BZ-${market.code}-${now.getFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
       const lineItems = [
         { kind: 'package', productId: packageKey, name: this.formatProductName(packageKey), amount: basePackageAmount, billingPeriod: 'one-time' },
-        ...(extraPagesCount > 0 ? [{ kind: 'extra-pages', productId: extraPageKey, quantity: extraPagesCount, amount: extraPagesAmount, billingPeriod: 'one-time' }] : []),
+        ...(extraPagesCount > 0 ? [{ kind: 'extra-pages', productId: extraPageKey, name: `${extraPagesCount} Additional Custom Pages`, quantity: extraPagesCount, amount: extraPagesAmount, billingPeriod: 'one-time' }] : []),
         ...itemizedAddOns.map(item => ({ kind: 'add-on', ...item, billingPeriod: 'one-time' })),
-        ...(rushAmount > 0 ? [{ kind: 'rush-delivery', amount: rushAmount, billingPeriod: 'one-time' }] : []),
-        ...(discountAmount > 0 ? [{ kind: 'discount', amount: -discountAmount, code: appliedCoupon }] : []),
-        { kind: 'tax', amount: taxAmount, rate: taxRate, included: isInclusive },
-        ...(careKey ? [{ kind: 'recurring', productId: careKey, amount: careAmount, billingPeriod: 'month' }] : []),
-        ...(hostingKey ? [{ kind: 'recurring', productId: hostingKey, amount: hostingAmount, billingPeriod: 'year' }] : []),
+        ...(rushAmount > 0 ? [{ kind: 'rush-delivery', name: 'Priority Rush Delivery (+35%)', amount: rushAmount, billingPeriod: 'one-time' }] : []),
+        ...(discountAmount > 0 ? [{ kind: 'discount', name: discountDescription || 'Promotional Discount', amount: -discountAmount, code: appliedCoupon }] : []),
+        { kind: 'tax', name: taxRule ? taxRule.name : 'Standard VAT', amount: taxAmount, rate: taxRate, included: isInclusive },
+        ...(careKey ? [{ kind: 'recurring', productId: careKey, name: this.formatProductName(careKey), amount: careAmount, billingPeriod: 'month' }] : []),
+        ...(hostingKey ? [{ kind: 'recurring', productId: hostingKey, name: this.formatProductName(hostingKey), amount: hostingAmount, billingPeriod: 'year' }] : []),
       ];
 
       const [proposal, lead] = await this.prisma.$transaction([

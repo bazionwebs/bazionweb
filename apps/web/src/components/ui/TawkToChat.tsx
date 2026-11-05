@@ -133,7 +133,7 @@ function TawkRouteTracker() {
         current_path: fullUrl,
         current_title: appliedTitle,
       });
-      safeAddEvent('route_change', {
+      safeAddEvent('route-change', {
         path: fullUrl,
         title: appliedTitle,
       });

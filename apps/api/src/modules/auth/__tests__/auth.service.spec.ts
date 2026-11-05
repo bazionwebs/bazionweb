@@ -366,6 +366,11 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     expect(hash).toMatch(/^scrypt\$16384\$8\$1\$/);
     expect(result.user.email).toBe('guest@example.com');
     expect(result.user.subscriptionStatus).toBe('ACTIVE');
+    expect(result.data.user).toEqual(expect.objectContaining({
+      email: 'guest@example.com',
+      roles: ['CLIENT'],
+      subscriptionStatus: 'ACTIVE',
+    }));
     expect(result.data.accessToken).toBeTruthy();
 
     expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(

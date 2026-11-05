@@ -29,6 +29,7 @@ export interface ProposalViewModel {
   recurringAnnualHosting?: { title: string; amount: number } | null;
   totalYearOne?: number | null;
   depositInvoice?: {
+    id?: string;
     invoiceNumber: string;
     amount: number;
     currency: string;
@@ -224,6 +225,7 @@ export function normalizeProposalPayload(
       recurringAnnualHosting,
       totalYearOne,
       depositInvoice: data.depositInvoice || (data.invoice ? {
+        id: data.invoice.id,
         invoiceNumber: data.invoice.invoiceNumber,
         amount: Number(data.invoice.amount),
         currency: data.invoice.currency || currency,
@@ -247,13 +249,18 @@ export function normalizeProposalPayload(
       const price = Number(item.price ?? item.amount ?? 0);
       const title = String(item.title || item.name || 'Line Item');
       const subtitle = item.subtitle ? String(item.subtitle) : undefined;
-      const kind = item.kind || 'package';
+      const kind = item.kind || (items.length === 0 ? 'package' : 'add-on');
       const billingPeriod = item.billingPeriod || 'one-time';
 
-      if (kind === 'recurring' || billingPeriod === 'month') {
-        recurringMonthlyCare = { title, amount: price };
-      } else if (billingPeriod === 'year') {
+      // Skip zero-amount tax/metadata rows from legacy proposal records
+      if ((title === 'Project Item' || title === 'Line Item') && price === 0 && !item.subtitle) {
+        continue;
+      }
+
+      if (billingPeriod === 'year' || subtitle === 'yearly recurring') {
         recurringAnnualHosting = { title, amount: price };
+      } else if (kind === 'recurring' || billingPeriod === 'month' || subtitle === 'monthly recurring') {
+        recurringMonthlyCare = { title, amount: price };
       } else if (kind !== 'tax' && kind !== 'discount') {
         items.push({
           title,
@@ -290,6 +297,7 @@ export function normalizeProposalPayload(
     recurringAnnualHosting,
     totalYearOne,
     depositInvoice: data.depositInvoice || (data.invoice ? {
+      id: data.invoice.id,
       invoiceNumber: data.invoice.invoiceNumber,
       amount: Number(data.invoice.amount),
       currency: data.invoice.currency || currency,

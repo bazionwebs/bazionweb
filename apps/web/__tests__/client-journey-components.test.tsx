@@ -204,6 +204,15 @@ describe('Milestone 1 Frontend Components & Journey Flows', () => {
       expect(screen.getByText(/30-Day Defect Warranty/i)).toBeInTheDocument();
       expect(screen.getByText(/Guaranteed Fixed Pricing/i)).toBeInTheDocument();
     });
+
+    it('renders system-generated digital authentication block without wet-ink signature lines', () => {
+      render(<ProposalPresentationView proposal={mockProposal} />);
+
+      expect(screen.getByText(/Electronic Document Authentication & Execution Record/i)).toBeInTheDocument();
+      expect(screen.getByText(/Valid Without Physical Signature/i)).toBeInTheDocument();
+      expect(screen.getByText(/AUTH-BZ-KE-2026-TESTPROPOSAL/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Signature:\s*_+/i)).not.toBeInTheDocument();
+    });
   });
 
   describe('SubscriptionCheckout Cart & Currency Consistency', () => {

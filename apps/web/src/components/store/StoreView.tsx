@@ -297,10 +297,16 @@ export default function StoreView() {
 
       {/* Two-column stack builder: collapsible packages (left) + frozen summary (right) */}
       <div className="container-default max-w-7xl mx-auto px-4 py-10 pb-28">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-          {/* Frozen shopping summary — always visible via sticky rail */}
-          <aside className="order-first lg:order-2 lg:w-[360px] shrink-0">
-            <div className="lg:sticky lg:top-24">
+        <div className="flex flex-col gap-8 md:flex-row">
+          {/* Frozen shopping summary — <aside> stretches to full row height so sticky child stays pinned on scroll */}
+          <aside
+            data-testid="store-summary-rail"
+            className="order-first md:order-2 md:w-[320px] lg:w-[360px] shrink-0"
+          >
+            <div
+              data-testid="store-summary-sticky"
+              className="md:sticky md:top-24 z-30 md:max-h-[calc(100vh-7rem)] md:overflow-y-auto"
+            >
               <StoreOrderSummary
                 items={items as CartItem[]}
                 careSatisfied={careSatisfied}
@@ -319,7 +325,7 @@ export default function StoreView() {
           </aside>
 
           {/* Collapsible package selector */}
-          <div className="order-last lg:order-1 flex-1 min-w-0 max-w-3xl space-y-5">
+          <div className="order-last md:order-1 flex-1 min-w-0 max-w-3xl space-y-5">
             {/* Care plans — the subscription anchor */}
             <section id="plans" aria-labelledby="plans-heading" className="scroll-mt-44 rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <button

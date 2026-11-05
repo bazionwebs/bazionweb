@@ -8,15 +8,20 @@ import {
 } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import { resolveApiV1Base } from '@/lib/api-base';
+import { useAuthStore } from '@/store/auth.store';
 
 const API_BASE = resolveApiV1Base();
 
 function ClaimContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const claimToken = searchParams.get('token') || '';
+  const urlToken = searchParams.get('token') || '';
+  const urlEmail = searchParams.get('email') || '';
 
-  const [email, setEmail] = useState(searchParams.get('email') || '');
+  // Keep claimToken in state so stripping ?token=... from the URL bar via
+  // window.history.replaceState does not clear the active token in Next.js App Router.
+  const [claimToken, setClaimToken] = useState(() => urlToken);
+  const [email, setEmail] = useState(() => urlEmail);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
@@ -31,17 +36,42 @@ function ClaimContent() {
   const autoRequestedRef = useRef(false);
   const autostart = searchParams.get('autostart') === '1' || searchParams.get('claim') === '1';
 
-  useEffect(() => {
-    if (claimToken && typeof window !== 'undefined') {
-      window.history.replaceState(
-        {},
-        '',
-        window.location.pathname + (email ? `?email=${encodeURIComponent(email)}` : '')
-      );
-    }
-  }, [claimToken, email]);
+  const storeHydrated = useAuthStore(s => s._hasHydrated);
+  const sessionUser = useAuthStore(s => s.user);
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
 
-  const dispatchClaimLink = useCallback(async (targetEmail: string) => {
+  useEffect(() => {
+    if (urlToken) {
+      setClaimToken(urlToken);
+    }
+  }, [urlToken]);
+
+  useEffect(() => {
+    if (urlEmail && !email) {
+      setEmail(urlEmail);
+    }
+  }, [urlEmail, email]);
+
+  useEffect(() => {
+    if (urlToken && typeof window !== 'undefined') {
+      const cleanQuery = urlEmail ? `?email=${encodeURIComponent(urlEmail)}` : '';
+      window.history.replaceState({}, '', `${window.location.pathname}${cleanQuery}`);
+    }
+  }, [urlToken, urlEmail]);
+
+  // If the user is already signed in with a valid session for this email and is not
+  // consuming a new claim token, take them straight to their portal dashboard.
+  useEffect(() => {
+    if (!storeHydrated || urlToken || claimToken) return;
+    if (isAuthenticated() && sessionUser) {
+      const target = email.trim().toLowerCase();
+      if (!target || sessionUser.email?.toLowerCase() === target) {
+        router.replace('/portal');
+      }
+    }
+  }, [storeHydrated, urlToken, claimToken, isAuthenticated, sessionUser, email, router]);
+
+  const dispatchClaimLink = useCallback(async (targetEmail: string, autoOpenInDev = false) => {
     setError('');
     setDevPreviewUrl('');
     setDevNotice('');
@@ -68,6 +98,18 @@ function ClaimContent() {
 
       if (typeof data.devPreviewUrl === 'string' && data.devPreviewUrl) {
         setDevPreviewUrl(data.devPreviewUrl);
+        if (autoOpenInDev && typeof window !== 'undefined') {
+          try {
+            const parsed = new URL(data.devPreviewUrl, window.location.origin);
+            const extractedToken = parsed.searchParams.get('token') || '';
+            if (extractedToken.startsWith('claim_')) {
+              setClaimToken(extractedToken);
+              return;
+            }
+          } catch {
+            // Fall through to showing the inbox/dev preview screen
+          }
+        }
       }
       if (typeof data.devNotice === 'string' && data.devNotice) {
         setDevNotice(data.devNotice);
@@ -85,15 +127,15 @@ function ClaimContent() {
 
   // Streamlined post-payment claim: auto-dispatch when arriving from /checkout/verify with ?email=...&autostart=1
   useEffect(() => {
-    if (!claimToken && autostart && email && !autoRequestedRef.current) {
+    if (!claimToken && !urlToken && autostart && email && !autoRequestedRef.current) {
       autoRequestedRef.current = true;
-      void dispatchClaimLink(email);
+      void dispatchClaimLink(email, true);
     }
-  }, [claimToken, autostart, email, dispatchClaimLink]);
+  }, [claimToken, urlToken, autostart, email, dispatchClaimLink]);
 
   async function handleRequestLink(e: React.FormEvent) {
     e.preventDefault();
-    await dispatchClaimLink(email);
+    await dispatchClaimLink(email, false);
   }
 
   async function handleClaim(e: React.FormEvent) {
@@ -128,15 +170,26 @@ function ClaimContent() {
       });
       const body = await res.json().catch(() => ({}));
       const payload = body?.data ?? body;
+      const rawUser = payload?.user ?? body?.user;
 
       if (res.ok && payload?.accessToken) {
         try {
-          const { useAuthStore } = await import('@/store/auth.store');
           useAuthStore.getState().setSession(
-            payload.user,
+            {
+              id: rawUser?.id || '',
+              email: rawUser?.email || email.trim().toLowerCase(),
+              firstName: rawUser?.firstName ?? firstName.trim(),
+              lastName: rawUser?.lastName ?? lastName.trim(),
+              roles:
+                Array.isArray(rawUser?.roles) && rawUser.roles.length > 0
+                  ? rawUser.roles
+                  : ['CLIENT'],
+              keycloakId: rawUser?.keycloakId || rawUser?.id || '',
+              subscriptionStatus: rawUser?.subscriptionStatus || 'ACTIVE',
+            },
             payload.accessToken,
             payload.refreshToken,
-            payload.expiresIn,
+            Number(payload.expiresIn) || 900,
           );
         } catch {
           // Session storage failures shouldn't block the redirect.
@@ -206,6 +259,18 @@ function ClaimContent() {
               </p>
               <a
                 href={devPreviewUrl}
+                onClick={(e) => {
+                  try {
+                    const parsed = new URL(devPreviewUrl, window.location.origin);
+                    const extractedToken = parsed.searchParams.get('token') || '';
+                    if (extractedToken.startsWith('claim_')) {
+                      e.preventDefault();
+                      setClaimToken(extractedToken);
+                    }
+                  } catch {
+                    // Allow normal link navigation
+                  }
+                }}
                 className="btn-primary w-full py-2.5 justify-center text-xs font-bold inline-flex items-center gap-1.5"
               >
                 <Lock className="w-3.5 h-3.5" />
@@ -216,10 +281,18 @@ function ClaimContent() {
           <div className="flex flex-col gap-2">
             <button
               type="button"
-              onClick={() => { setRequestSent(false); setError(''); }}
-              className="btn-primary w-full py-3 justify-center text-xs font-bold"
+              disabled={requesting}
+              onClick={() => void dispatchClaimLink(email, false)}
+              className="btn-primary w-full py-3 justify-center text-xs font-bold disabled:opacity-60"
             >
-              Send Another Link
+              {requesting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send Another Link'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setRequestSent(false); setError(''); }}
+              className="text-xs text-slate-400 hover:text-slate-600 py-1"
+            >
+              Use a different email
             </button>
             <Link href="/portal/login" className="text-xs text-slate-500 hover:text-slate-700 py-1">
               Already set up? Sign in
@@ -333,8 +406,30 @@ function ClaimContent() {
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>
                 {error}
-                {(error.toLowerCase().includes('expired') || error.toLowerCase().includes('invalid')) && (
-                  <> <Link href="/portal/claim" className="font-bold underline">Request a new link</Link></>
+                {(error.toLowerCase().includes('expired') || error.toLowerCase().includes('invalid') || error.toLowerCase().includes('already been used')) && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClaimToken('');
+                        setRequestSent(false);
+                        setError('');
+                        router.replace('/portal/claim');
+                      }}
+                      className="font-bold underline"
+                    >
+                      Request a new link
+                    </button>
+                  </>
+                )}
+                {(error.toLowerCase().includes('already has an account') || error.toLowerCase().includes('sign in instead')) && (
+                  <>
+                    {' '}
+                    <Link href="/portal/login" className="font-bold underline">
+                      Sign in here
+                    </Link>
+                  </>
                 )}
               </span>
             </div>
@@ -355,7 +450,12 @@ function ClaimContent() {
 
           <button
             type="button"
-            onClick={() => router.replace('/portal/claim')}
+            onClick={() => {
+              setClaimToken('');
+              setRequestSent(false);
+              setError('');
+              router.replace('/portal/claim');
+            }}
             className="w-full flex items-center justify-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-600 pt-1"
           >
             <ArrowLeft className="w-3 h-3" /> Use a different email

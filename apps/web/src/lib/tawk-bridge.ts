@@ -84,8 +84,19 @@ export function safeAddEvent(eventName: string, metadata?: Record<string, unknow
     const addEvent = window.Tawk_API?.addEvent;
     if (!addEvent) return;
     try {
-      addEvent(eventName, metadata, (error?: Error) => {
-        if (error) console.warn('[Tawk] addEvent skipped by socket:', error?.message || error);
+      addEvent(eventName, metadata, (error?: Error | string) => {
+        if (!error) return;
+        const errText = typeof error === 'string' ? error : error?.message || String(error);
+        // Tawk.to's live socket rejects underscores with INVALID_EVENT_NAME; retry once with hyphens
+        const fallbackName = eventName.replace(/_/g, '-').replace(/[^a-zA-Z0-9 -]/g, '').trim();
+        if (errText.includes('INVALID_EVENT_NAME') && fallbackName && fallbackName !== eventName) {
+          try {
+            addEvent(fallbackName, metadata, () => {});
+            return;
+          } catch {
+            // Ignore retry failure
+          }
+        }
       });
     } catch (error) {
       console.warn('[Tawk] addEvent threw:', error);

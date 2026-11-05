@@ -23,7 +23,9 @@ const API_BASE = resolveApiV1Base();
 function MagicVerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
+  const urlToken = searchParams.get('token') || '';
+  const [token] = useState(() => urlToken);
+  const verifiedRef = React.useRef(false);
   const setSession = useAuthStore(s => s.setSession);
 
   const [loading, setLoading] = useState(true);
@@ -32,11 +34,17 @@ function MagicVerifyContent() {
   const [email, setEmail] = useState('');
 
   useEffect(() => {
-    if (!token) {
-      setLoading(false);
-      setError('No authentication token found in link.');
+    const activeToken = token || urlToken;
+    if (!activeToken) {
+      if (!verifiedRef.current) {
+        setLoading(false);
+        setError('No authentication token found in link.');
+      }
       return;
     }
+
+    if (verifiedRef.current) return;
+    verifiedRef.current = true;
 
     // Clean token from browser history and URL bar to prevent Referer / shoulder-surfing leakage
     if (typeof window !== 'undefined') {
@@ -50,10 +58,11 @@ function MagicVerifyContent() {
         const res = await fetch(`${API_BASE}/auth/magic-link/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token: activeToken }),
         });
         const body = await res.json().catch(() => ({}));
         const payload = body?.data ?? body;
+        const rawUser = payload?.user ?? body?.user;
 
         if (!res.ok || !payload?.accessToken) {
           throw new Error(body.message || 'This sign-in link is invalid or has expired.');
@@ -61,20 +70,20 @@ function MagicVerifyContent() {
 
         if (cancelled) return;
 
-        setEmail(payload.user?.email || 'your account');
+        setEmail(rawUser?.email || 'your account');
         setSession(
           {
-            id: payload.user?.id,
-            email: payload.user?.email || '',
-            firstName: payload.user?.firstName || '',
-            lastName: payload.user?.lastName || '',
-            roles: payload.user?.roles || ['CLIENT'],
-            keycloakId: payload.user?.keycloakId || '',
-            subscriptionStatus: payload.user?.subscriptionStatus,
+            id: rawUser?.id || '',
+            email: rawUser?.email || '',
+            firstName: rawUser?.firstName || '',
+            lastName: rawUser?.lastName || '',
+            roles: Array.isArray(rawUser?.roles) && rawUser.roles.length > 0 ? rawUser.roles : ['CLIENT'],
+            keycloakId: rawUser?.keycloakId || rawUser?.id || '',
+            subscriptionStatus: rawUser?.subscriptionStatus,
           } as AuthUser,
           payload.accessToken,
           payload.refreshToken,
-          payload.expiresIn,
+          Number(payload.expiresIn) || 900,
         );
         setSuccess(true);
 
@@ -92,7 +101,7 @@ function MagicVerifyContent() {
     })();
 
     return () => { cancelled = true; };
-  }, [token, setSession, router]);
+  }, [token, urlToken, setSession, router]);
 
   return (
     <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100 text-slate-900 text-center">

@@ -770,7 +770,7 @@ export default function SubscriptionCheckout({
                     <p className="mt-1 text-xs text-slate-300">Invoice {paymentAttempt.invoiceNumber} is paid. Continue to your workspace.</p>
                   </div>
                   <Link
-                    href={token ? '/portal' : `/portal/claim?email=${encodeURIComponent(email.trim().toLowerCase())}`}
+                    href={token ? '/portal' : `/portal/claim?email=${encodeURIComponent(email.trim().toLowerCase())}&autostart=1`}
                     className="btn-primary justify-center px-4 py-2.5 text-xs"
                   >
                     {token ? 'Open dashboard' : 'Set up dashboard access'} <ArrowRight className="size-4" />

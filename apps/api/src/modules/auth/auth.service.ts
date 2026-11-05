@@ -94,7 +94,12 @@ interface KeycloakTokenResponse {
 }
 
 type TokenPair = {
-  data: { accessToken: string; refreshToken: string; expiresIn: number };
+  data: {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+    user?: Record<string, unknown>;
+  };
 };
 
 @Injectable()
@@ -501,17 +506,21 @@ export class AuthService {
     });
 
     const tokens = await this.issueTokenPair({ ...existing, firstName, lastName });
+    const userPayload = {
+      id: existing.id,
+      email,
+      firstName,
+      lastName,
+      roles: expandRoles(existing.role),
+      keycloakId: existing.keycloakId,
+      subscriptionStatus: 'ACTIVE',
+    };
     return {
-      ...tokens,
-      user: {
-        id: existing.id,
-        email,
-        firstName,
-        lastName,
-        roles: expandRoles(existing.role),
-        keycloakId: existing.keycloakId,
-        subscriptionStatus: 'ACTIVE',
+      data: {
+        ...tokens.data,
+        user: userPayload,
       },
+      user: userPayload,
     };
   }
 
@@ -607,17 +616,22 @@ export class AuthService {
     });
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => undefined);
 
+    const userPayload = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      roles: expandRoles(user.role),
+      keycloakId: user.keycloakId,
+      subscriptionStatus: subStatus ?? 'PENDING',
+    };
+
     return {
-      ...tokens,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        roles: expandRoles(user.role),
-        keycloakId: user.keycloakId,
-        subscriptionStatus: subStatus ?? 'PENDING',
+      data: {
+        ...tokens.data,
+        user: userPayload,
       },
+      user: userPayload,
     };
   }
 

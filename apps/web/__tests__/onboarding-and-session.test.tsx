@@ -110,4 +110,36 @@ describe('Stage 5: Client Onboarding Checklist & Multi-Tab Session Persistence',
     useAuthStore.getState().clearSession();
     expect(useAuthStore.getState().isAuthenticated()).toBe(false);
   });
+
+  it('recovers user identity and CLIENT role from JWT payload when user object is omitted on setSession', () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: 'user-jwt-99',
+        email: 'bazion001@gmail.com',
+        given_name: 'Abazion',
+        family_name: 'Client',
+        realm_access: { roles: ['CLIENT'] },
+        subscriptionStatus: 'ACTIVE',
+      }),
+    ).toString('base64url');
+    const fakeJwt = `${header}.${payload}.sig`;
+
+    // Simulate a caller passing undefined user (e.g. legacy envelope unwrapping)
+    useAuthStore.getState().setSession(undefined as any, fakeJwt, 'rt-99', 900);
+
+    const state = useAuthStore.getState();
+    expect(state.isAuthenticated()).toBe(true);
+    expect(state.hasRole('CLIENT')).toBe(true);
+    expect(state.user).toEqual(
+      expect.objectContaining({
+        id: 'user-jwt-99',
+        email: 'bazion001@gmail.com',
+        firstName: 'Abazion',
+        lastName: 'Client',
+        roles: ['CLIENT'],
+        subscriptionStatus: 'ACTIVE',
+      }),
+    );
+  });
 });

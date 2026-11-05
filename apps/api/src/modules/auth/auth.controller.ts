@@ -151,7 +151,7 @@ export class AuthController {
   @Post('claim-link')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Request a one-time account-claim link' })
   async requestClaimLink(
     @Body() dto: MagicLinkRequestDto,
@@ -172,7 +172,7 @@ export class AuthController {
   @Post('claim-account')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Claim an account created by a completed payment' })
   async claimAccount(@Body() dto: ClaimAccountDto) {
     return this.authService.claimAccount(dto);
@@ -186,7 +186,7 @@ export class AuthController {
   @Post('magic-link')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Request a one-time sign-in link token' })
   async requestMagicLink(
     @Body() dto: MagicLinkRequestDto,

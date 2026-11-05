@@ -65,7 +65,7 @@ describe('TawkToChat Component & Title Synchronization', () => {
         );
 
         expect(window.Tawk_API?.addEvent).toHaveBeenCalledWith(
-          'route_change',
+          'route-change',
           expect.objectContaining({
             path: '/pricing',
             title: expect.stringContaining('Pricing'),

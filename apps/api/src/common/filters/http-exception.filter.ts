@@ -45,6 +45,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
         status = HttpStatus.NOT_FOUND;
         message = 'Resource not found';
         error = 'NotFound';
+      } else if (code === 'P1001' || code === 'P1002' || code === 'P1008' || code === 'P1017' || code === 'P2024') {
+        status = HttpStatus.SERVICE_UNAVAILABLE;
+        message = 'Database connection temporarily interrupted. Please try again in a moment.';
+        error = 'ServiceUnavailable';
       }
     }
 

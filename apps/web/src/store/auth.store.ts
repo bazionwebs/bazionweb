@@ -14,6 +14,59 @@ export interface AuthUser {
   subscriptionStatus?: 'ACTIVE' | 'PENDING' | 'NONE';
 }
 
+function decodeJwtPayload(token: string | null): Record<string, any> | null {
+  if (!token) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const json =
+      typeof atob === 'function'
+        ? atob(base64)
+        : Buffer.from(base64, 'base64').toString('utf8');
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeSessionUser(
+  user: Partial<AuthUser> | null | undefined,
+  accessToken: string | null,
+): AuthUser | null {
+  const decoded = decodeJwtPayload(accessToken);
+  if (!user && !decoded) return null;
+
+  const jwtRoles: string[] = Array.isArray(decoded?.realm_access?.roles)
+    ? decoded.realm_access.roles
+    : [];
+  const rawRoles = Array.isArray(user?.roles)
+    ? user.roles
+    : typeof (user as any)?.role === 'string'
+      ? [(user as any).role]
+      : [];
+  const roles = rawRoles.length > 0 ? rawRoles : jwtRoles.length > 0 ? jwtRoles : ['CLIENT'];
+
+  return {
+    id: user?.id || decoded?.sub || '',
+    email: user?.email || decoded?.email || '',
+    firstName: user?.firstName ?? decoded?.given_name ?? '',
+    lastName: user?.lastName ?? decoded?.family_name ?? '',
+    roles,
+    keycloakId: user?.keycloakId || decoded?.sub || user?.id || '',
+    ...(user?.company ? { company: user.company } : {}),
+    ...(user?.phone ? { phone: user.phone } : {}),
+    ...(user?.website ? { website: user.website } : {}),
+    subscriptionStatus:
+      user?.subscriptionStatus ||
+      (decoded?.subscriptionStatus as AuthUser['subscriptionStatus']) ||
+      undefined,
+  };
+}
+
 interface AuthState {
   _hasHydrated: boolean;
   user: AuthUser | null;
@@ -48,11 +101,16 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setSession: (user, accessToken, refreshToken, expiresIn) => {
+        const safeExpiresIn =
+          typeof expiresIn === 'number' && Number.isFinite(expiresIn) && expiresIn > 0
+            ? expiresIn
+            : 900;
+        const normalizedUser = normalizeSessionUser(user, accessToken);
         set({
-          user,
+          user: normalizedUser,
           accessToken,
           refreshToken,
-          expiresAt: Date.now() + expiresIn * 1000,
+          expiresAt: Date.now() + safeExpiresIn * 1000,
         });
       },
 
@@ -65,7 +123,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setSubscriptionStatus: (status) => {
-        const current = get().user;
+        const current = get().user ?? normalizeSessionUser(null, get().accessToken);
         if (current) {
           set({ user: { ...current, subscriptionStatus: status } });
         }
@@ -77,8 +135,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       hasRole: (role: string) => {
-        const { user } = get();
-        return user?.roles?.includes(role) ?? false;
+        const { user, accessToken } = get();
+        if (user?.roles?.includes(role)) return true;
+        const fallback = normalizeSessionUser(user, accessToken);
+        return fallback?.roles?.includes(role) ?? false;
       },
 
       isTokenExpired: () => {
@@ -112,6 +172,13 @@ export const useAuthStore = create<AuthState>()(
                 window.sessionStorage.removeItem(name);
                 window.localStorage.removeItem(name);
                 return null;
+              }
+              if (parsed?.state?.accessToken && (!parsed?.state?.user || !Array.isArray(parsed?.state?.user?.roles))) {
+                parsed.state.user = normalizeSessionUser(parsed.state.user, parsed.state.accessToken);
+                const repaired = JSON.stringify(parsed);
+                window.sessionStorage.setItem(name, repaired);
+                window.localStorage.setItem(name, repaired);
+                return repaired;
               }
               if (!fromSession && fromLocal) {
                 window.sessionStorage.setItem(name, fromLocal);

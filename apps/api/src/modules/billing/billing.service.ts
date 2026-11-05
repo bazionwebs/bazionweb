@@ -688,9 +688,13 @@ export class BillingService {
     businessName: string;
     phone?: string;
     planId: string;
+    allowExistingAccount?: boolean;
   }) {
     let guestUser = await this.prisma.user.findUnique({ where: { email: opts.email } });
-    if (guestUser?.passwordHash || (guestUser?.keycloakId && !guestUser.keycloakId.startsWith('pending-'))) {
+    const isClaimedAccount = Boolean(
+      guestUser?.passwordHash || (guestUser?.keycloakId && !guestUser.keycloakId.startsWith('pending-')),
+    );
+    if (isClaimedAccount && !opts.allowExistingAccount) {
       throw new ConflictException({
         statusCode: 409,
         code: 'ACCOUNT_EXISTS',
@@ -698,31 +702,52 @@ export class BillingService {
       });
     }
     if (!guestUser) {
-      guestUser = await this.prisma.user.create({
-        data: {
-          email: opts.email,
-          role: 'CLIENT',
-          firstName: opts.firstName,
-          lastName: opts.lastName,
-          phone: opts.phone,
-        },
-      });
+      try {
+        guestUser = await this.prisma.user.create({
+          data: {
+            email: opts.email,
+            role: 'CLIENT',
+            firstName: opts.firstName,
+            lastName: opts.lastName,
+            phone: opts.phone,
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          guestUser = await this.prisma.user.findUnique({ where: { email: opts.email } });
+        }
+        if (!guestUser) throw err;
+      }
     }
 
     let guest = await this.prisma.client.findUnique({ where: { userId: guestUser.id } });
+    if (!guest && typeof this.prisma.client.findFirst === 'function') {
+      guest = await this.prisma.client.findFirst({ where: { email: opts.email } });
+    }
     if (!guest) {
-      guest = await this.prisma.client.create({
-        data: {
-          userId: guestUser.id,
-          businessName: opts.businessName,
-          contactName: `${opts.firstName} ${opts.lastName}`.trim(),
-          email: opts.email,
-          phone: opts.phone,
-          planId: opts.planId,
-          status: 'TRIAL',
-        },
-      });
-    } else {
+      try {
+        guest = await this.prisma.client.create({
+          data: {
+            userId: guestUser.id,
+            businessName: opts.businessName,
+            contactName: `${opts.firstName} ${opts.lastName}`.trim(),
+            email: opts.email,
+            phone: opts.phone,
+            planId: opts.planId,
+            status: 'TRIAL',
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          guest =
+            (await this.prisma.client.findUnique({ where: { userId: guestUser.id } })) ??
+            (typeof this.prisma.client.findFirst === 'function'
+              ? await this.prisma.client.findFirst({ where: { email: opts.email } })
+              : null);
+        }
+        if (!guest) throw err;
+      }
+    } else if (!isClaimedAccount) {
       // Keep the latest plan intent if the guest switched plans between visits.
       if (guest.planId !== opts.planId || guest.businessName !== opts.businessName) {
         guest = await this.prisma.client.update({
@@ -1174,9 +1199,26 @@ export class BillingService {
     }
 
     const lineItems = rawItems
-      .filter((item: any) => Boolean(item) && typeof item === 'object')
+      .filter((item: any) => {
+        if (!Boolean(item) || typeof item !== 'object') return false;
+        // Omit non-billable tax metadata rows stored in proposal JSON
+        if (item.kind === 'tax' && (item.included || !Number(item.price ?? item.amount ?? 0))) {
+          return false;
+        }
+        return true;
+      })
       .map((item: any) => {
-        const title = String(item.title || item.name || item.description || item.productId || 'Project Item');
+        const fallbackByKind =
+          item.kind === 'extra-pages'
+            ? 'Additional Custom Pages'
+            : item.kind === 'rush-delivery'
+              ? 'Priority Rush Delivery (+35%)'
+              : item.kind === 'discount'
+                ? `Promotional Discount${item.code ? ` (${item.code})` : ''}`
+                : undefined;
+        const title = String(
+          item.title || item.name || item.description || fallbackByKind || item.productId || 'Project Item',
+        );
         const price = Number(item.price ?? item.amount ?? 0);
         const quantity = item.quantity !== undefined && Number.isFinite(Number(item.quantity))
           ? Number(item.quantity)
@@ -1187,6 +1229,8 @@ export class BillingService {
           ...(subtitle ? { subtitle } : {}),
           price: Number.isFinite(price) ? price : 0,
           ...(quantity !== undefined ? { quantity } : {}),
+          ...(item.kind ? { kind: String(item.kind) } : {}),
+          ...(item.billingPeriod ? { billingPeriod: String(item.billingPeriod) } : {}),
         };
       });
 
@@ -1291,6 +1335,7 @@ export class BillingService {
       businessName: dto.businessName?.trim() || proposal.clientCompany?.trim() || `${firstName}'s Project`,
       phone: dto.phone,
       planId: fallbackPlan.id,
+      allowExistingAccount: true,
     });
 
     const depositPercent = this.proposalDepositPercent();

@@ -251,15 +251,32 @@ export class InvoicePdfGenerator {
     contentLines.push(`(${esc(fmt(data.breakdown.balanceDue))}) Tj`);
     contentLines.push('ET');
 
-    // Footer compliance note
+    // Digital Authentication & System-Generated Compliance Block
+    contentLines.push('q');
+    contentLines.push('0.96 0.97 0.99 rg');
+    contentLines.push('40 38 515 62 re f');
+    contentLines.push('0.85 0.88 0.92 RG 0.75 w');
+    contentLines.push('40 38 515 62 re S');
+    contentLines.push('Q');
+
     contentLines.push('BT');
-    contentLines.push('/F1 7 Tf');
-    contentLines.push('0.5 0.55 0.6 rg');
-    contentLines.push('40 50 Td');
+    contentLines.push('/F2 7.5 Tf');
+    contentLines.push('0.1 0.15 0.25 rg');
+    contentLines.push('50 86 Td');
     contentLines.push(
-      `(${esc('This statement was generated electronically by Bazion Technologies Limited.')}) Tj`,
+      `(${esc(`SYSTEM-GENERATED DOCUMENT — VALID WITHOUT PHYSICAL SIGNATURE  |  AUTH REF: ${data.invoiceNumber}`)}) Tj`,
     );
-    contentLines.push('0 -10 Td');
+    contentLines.push('/F1 7 Tf');
+    contentLines.push('0.35 0.4 0.48 rg');
+    contentLines.push('0 -13 Td');
+    contentLines.push(
+      `(${esc('This statement was generated electronically by Bazion Technologies Limited (Automated SSOT Billing Engine).')}) Tj`,
+    );
+    contentLines.push('0 -11 Td');
+    contentLines.push(
+      `(${esc('Pursuant to the Kenya Information and Communications Act (Electronic Transactions), this digital document is legally valid without a wet-ink signature.')}) Tj`,
+    );
+    contentLines.push('0 -11 Td');
     contentLines.push(
       `(${esc('For questions regarding this statement, contact billing@bazionweb.com or visit https://bazionweb.com/portal/invoices.')}) Tj`,
     );
