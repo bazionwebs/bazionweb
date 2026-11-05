@@ -1,3 +1,9 @@
+import {
+  renderDocumentLetterheadHtml,
+  renderSecurityVerificationSectionHtml,
+  getAntiFraudWatermarkCss,
+} from '@/lib/document-branding';
+
 export interface ReceiptData {
   reference: string;
   status: string;
@@ -50,31 +56,6 @@ function formatCurrency(amount: number, currency: string): string {
   return `${escapeHtml(cur)} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function formatDate(dateStr?: string): string {
-  if (!dateStr) {
-    return new Date().toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZoneName: 'short',
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
 function formatChannel(channel?: string): string {
   if (!channel) return 'Electronic Payment';
   const c = channel.toLowerCase();
@@ -93,12 +74,32 @@ export function generateReceiptHtml(data: ReceiptData): string {
   };
 
   const formattedAmount = formatCurrency(data.amount, data.currency);
-  const formattedDate = formatDate(data.paidAt);
   const channelDisplay = formatChannel(data.channel);
   const customerEmail = data.customer?.email || 'billing-customer@bazionweb.com';
   const customerPhone = data.metadata?.phone || data.customer?.phone || 'On file';
   const customerName = [data.customer?.first_name, data.customer?.last_name].filter(Boolean).join(' ') || customerEmail.split('@')[0];
   const receiptNumber = `REC-${data.reference.toUpperCase()}`;
+
+  const letterheadHtml = renderDocumentLetterheadHtml({
+    docType: 'PAYMENT RECEIPT',
+    docNumber: receiptNumber,
+    statusTone: 'emerald',
+    statusBadgeText: 'PAYMENT CONFIRMED',
+    issueDate: data.paidAt,
+    settledDate: data.paidAt,
+    gatewayRef: data.reference,
+  });
+
+  const securitySectionHtml = renderSecurityVerificationSectionHtml({
+    docNumber: receiptNumber,
+    docType: 'PAYMENT RECEIPT',
+    totalAmount: data.amount,
+    currency: data.currency,
+    recipientEmail: customerEmail,
+    issueDate: data.paidAt,
+    status: 'PAID',
+    isPaid: true,
+  });
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -110,6 +111,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
+    ${getAntiFraudWatermarkCss()}
     * {
       box-sizing: border-box;
       margin: 0;
@@ -523,30 +525,10 @@ export function generateReceiptHtml(data: ReceiptData): string {
 
   <!-- Main Paper Receipt -->
   <div class="receipt-card">
+    <div class="security-watermark-overlay">OFFICIAL RECEIPT · PAID</div>
     
-    <!-- Header -->
-    <div class="header">
-      <div class="company-info">
-        <h1>Bazion<span class="highlight">Web</span></h1>
-        <div class="meta">
-          <strong>Bazion Technologies Limited</strong><br>
-          Digital Infrastructure & Managed Web Engineering<br>
-          Riverside Square, Riverside Drive, Nairobi, Kenya<br>
-          PIN: P051982344X &bull; Tel: +254 721 287 053 &bull; billing@bazionweb.com &bull; www.bazionweb.com
-        </div>
-      </div>
-      <div class="receipt-meta">
-        <div class="badge-paid">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          Payment Confirmed
-        </div>
-        <div class="ref-title">Receipt Reference</div>
-        <div class="ref-number">${escapeHtml(receiptNumber)}</div>
-        <div class="date-text">${escapeHtml(formattedDate)}</div>
-      </div>
-    </div>
+    <!-- Executive Corporate Letterhead -->
+    ${letterheadHtml}
 
     <!-- Customer & Payment Grid -->
     <div class="info-grid">
@@ -609,23 +591,8 @@ export function generateReceiptHtml(data: ReceiptData): string {
       </div>
     </div>
 
-    <!-- Security Stamp -->
-    <div class="stamp-section">
-      <div class="stamp-left">
-        <div class="stamp-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-          </svg>
-        </div>
-        <div class="stamp-text">
-          <strong>Official Electronic Receipt</strong>
-          <span>Authorized digital invoice processed via Paystack. Legally compliant receipt for corporate records.</span>
-        </div>
-      </div>
-      <div class="stamp-ref">
-        AUTH: ${escapeHtml(data.reference)}
-      </div>
-    </div>
+    <!-- Security, E-Stamp & Anti-Fake Verification Center -->
+    ${securitySectionHtml}
 
     <!-- Footer -->
     <div class="receipt-footer">

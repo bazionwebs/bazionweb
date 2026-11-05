@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
   ShieldCheck,
@@ -19,11 +19,18 @@ import {
   Building2,
   User,
   Globe,
+  QrCode,
 } from 'lucide-react';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { buildWhatsAppLink, trackWhatsAppOpen } from '@/lib/contact';
 import { isTrustedCheckoutUrl, normalizeKenyanPhoneNumber } from '@/lib/utils';
 import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
+import {
+  generateDocumentChecksum,
+  generateQrCodeSvg,
+  renderDigitalStampSvg,
+  BAZION_CORPORATE_DETAILS,
+} from '@/lib/document-branding';
 
 
 import type { ProposalItem, ProposalViewModel } from '@/lib/quote-flow';
@@ -101,6 +108,33 @@ export function ProposalPresentationView({
   const diffDays = Math.max(0, Math.ceil((expiresTime - now) / (1000 * 60 * 60 * 24)));
   const isExpired = proposal.status === 'EXPIRED' || expiresTime < now;
 
+  // Anti-Fake Security & Authenticity Credentials
+  const checksum = useMemo(() => {
+    return generateDocumentChecksum({
+      docNumber: proposal.proposalCode,
+      amount: proposal.totalAmount,
+      currency: proposal.currency,
+      recipientEmail: proposal.clientEmail,
+      issueDate: proposal.createdAt,
+    });
+  }, [proposal.proposalCode, proposal.totalAmount, proposal.currency, proposal.clientEmail, proposal.createdAt]);
+
+  const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?verify=${encodeURIComponent(proposal.proposalCode)}&checksum=${encodeURIComponent(checksum.slice(8, 20))}`;
+
+  const qrCodeSvg = useMemo(() => {
+    return generateQrCodeSvg(verifyUrl, { size: 104, margin: 2, darkColor: '#0F172A' });
+  }, [verifyUrl]);
+
+  const digitalStampSvg = useMemo(() => {
+    const isAccepted = acceptStage === 'accepted' || proposal.status === 'ACCEPTED';
+    return renderDigitalStampSvg({
+      docNumber: proposal.proposalCode,
+      status: isAccepted ? 'PAID' : 'AUTHENTICATED',
+      tone: isAccepted ? 'emerald' : 'blue',
+      size: 132,
+    });
+  }, [proposal.proposalCode, acceptStage, proposal.status]);
+
   async function fetchProposalEndpoint(path: string, body: Record<string, unknown>): Promise<Response> {
     const url = proposalApi(path);
     const init: RequestInit = {
@@ -116,7 +150,7 @@ export function ProposalPresentationView({
         if (retryRes) return retryRes;
       }
       return res;
-    } catch (err) {
+    } catch {
       await new Promise((r) => setTimeout(r, 400));
       return fetch(url, init);
     }
@@ -825,96 +859,113 @@ export function ProposalPresentationView({
               ) : null}
             </section>
 
-            {/* ─── System-Generated Document Authentication & Electronic Execution Block ─── */}
+            {/* ─── System-Generated Document Authentication & Anti-Fake Execution Center ─── */}
             <section
               aria-labelledby="digital-auth-heading"
-              className="mt-10 pt-8 border-t-2 border-slate-200 print:mt-8 print:pt-6 print:border-slate-800 break-inside-avoid"
+              className="mt-10 pt-8 border-t-2 border-slate-900 print:mt-8 print:pt-6 print:border-slate-800 break-inside-avoid"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              {/* Security Microprint Ribbon */}
+              <div className="rounded-lg bg-slate-900 text-slate-300 font-mono text-[9px] uppercase tracking-widest px-3 py-1.5 text-center mb-6">
+                ••• BAZION TECHNOLOGIES LIMITED ••• OFFICIAL SYSTEM-GENERATED RECORD ••• TAMPER-EVIDENT ELECTRONIC AUTHENTICATION ••• ISO 14533 ALIGNED •••
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-[#2563EB]" aria-hidden="true" />
                   <h2 id="digital-auth-heading" className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
-                    Electronic Document Authentication &amp; Execution Record
+                    Official Document Authentication &amp; Electronic Seal
                   </h2>
                 </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-300 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                  <Lock className="size-3 text-teal-600" aria-hidden="true" />
-                  System-Generated Document &bull; Valid Without Physical Signature
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                  <Lock className="size-3 text-emerald-600" aria-hidden="true" />
+                  System-Generated &bull; Valid Without Physical Signature
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:grid-cols-2 print:gap-6 text-xs">
-                {/* Client Electronic Authorization Record */}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 print:bg-white print:border-slate-300">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Accepted &amp; Authorized on Behalf of Client
-                  </div>
-                  <div className="space-y-1.5 text-slate-700">
-                    <div>
-                      <span className="text-slate-500">Authorized Recipient: </span>
-                      <strong className="text-slate-900">
-                        {`Recipient: ${proposal.clientName}${proposal.clientCompany ? ` · ${proposal.clientCompany}` : ''}`}
-                      </strong>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:grid-cols-3 print:gap-4 text-xs mb-6">
+                {/* 1. Scannable Verification QR Code */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex flex-col justify-between print:bg-white print:border-slate-300">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+                      <QrCode className="size-3 text-slate-600" aria-hidden="true" />
+                      Scan to Verify Authenticity
                     </div>
-                    <div className="truncate">
-                      <span className="text-slate-500">Verified Billing Email: </span>
-                      <span className="font-mono text-[11px]">{`Email: ${proposal.clientEmail}`}</span>
-                    </div>
-                    <div className="pt-1.5 border-t border-slate-200/80">
-                      <span className="text-slate-500">Execution Status: </span>
-                      <strong className="text-slate-900">
-                        {acceptStage === 'accepted' || proposal.status === 'ACCEPTED' ? (
-                          <span className="text-emerald-700">
-                            {`ELECTRONICALLY ACCEPTED${deposit?.invoiceNumber ? ` (${deposit.invoiceNumber})` : ''}`}
-                          </span>
-                        ) : (
-                          <span className="text-[#2563EB]">
-                            DIGITAL CLICKWRAP / DEPOSIT SETTLEMENT
-                          </span>
-                        )}
-                      </strong>
+                    <div className="flex justify-center my-1">
+                      <div
+                        className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs inline-block"
+                        dangerouslySetInnerHTML={{ __html: qrCodeSvg }}
+                      />
                     </div>
                   </div>
-                  <p className="mt-2.5 text-[10px] text-slate-500 leading-relaxed">
-                    Online confirmation via the Proposal Action Center or settlement of the 50% Kickoff Deposit constitutes legally binding electronic acceptance.
-                  </p>
+                  <div className="text-center mt-3">
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Scan via smartphone to verify record integrity on the BazionWeb registry.
+                    </p>
+                    <a
+                      href={verifyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-1 text-[10px] font-bold text-blue-600 hover:underline break-all"
+                    >
+                      Verify online &rarr;
+                    </a>
+                  </div>
                 </div>
 
-                {/* Issuer Digital Seal (Bazion Technologies Limited) */}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 print:bg-white print:border-slate-300">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Issued &amp; Authenticated by Bazion Technologies Ltd
+                {/* 2. Client & Issuer Electronic Authorization Audit */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex flex-col justify-between print:bg-white print:border-slate-300">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                      Electronic Authorization Audit
+                    </div>
+                    <div className="space-y-1.5 text-slate-700">
+                      <div>
+                        <span className="text-slate-500">Authorized Recipient: </span>
+                        <strong className="text-slate-900 block truncate">
+                          {proposal.clientName}{proposal.clientCompany ? ` · ${proposal.clientCompany}` : ''}
+                        </strong>
+                      </div>
+                      <div className="truncate">
+                        <span className="text-slate-500">Verified Billing Email: </span>
+                        <span className="font-mono text-[11px] block truncate">{proposal.clientEmail}</span>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-200/80">
+                        <span className="text-slate-500">Issuing Entity: </span>
+                        <strong className="text-slate-900 block">
+                          Bazion Technologies Limited
+                        </strong>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          PIN: {BAZION_CORPORATE_DETAILS.taxPin} · Reg: {BAZION_CORPORATE_DETAILS.regNumber}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <dl className="space-y-1.5">
-                    <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500">Issuing Authority:</dt>
-                      <dd className="font-bold text-slate-900 text-right">Commercial Solutions Directorate</dd>
+
+                  <div className="mt-3 pt-2 border-t border-slate-200/80">
+                    <span className="text-[10px] text-slate-500 font-semibold block mb-1">Cryptographic Fingerprint:</span>
+                    <div className="font-mono text-[9.5px] font-bold text-blue-700 bg-blue-50/80 border border-blue-200 px-2 py-1 rounded-md break-all">
+                      {checksum}
                     </div>
-                    <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500">Authorization Type:</dt>
-                      <dd className="font-semibold text-slate-800 text-right">Authorized Signatory (SSOT Engine)</dd>
-                    </div>
-                    <div className="flex justify-between gap-2">
-                      <dt className="text-slate-500">System Verification Seal:</dt>
-                      <dd className="font-mono text-[11px] font-bold text-slate-900 text-right">
-                        AUTH-{proposal.proposalCode}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between gap-2 pt-1.5 border-t border-slate-200/80">
-                      <dt className="text-slate-500">Issuance Timestamp:</dt>
-                      <dd className="font-mono text-[11px] text-slate-700 text-right">
-                        {new Date(proposal.createdAt).toISOString().slice(0, 10)} UTC
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className="mt-2.5 text-[10px] text-slate-500 leading-relaxed">
-                    Digitally sealed by BazionWeb Automated Commercial Infrastructure. Valid and binding without wet-ink signature or physical stamp.
-                  </p>
+                  </div>
+                </div>
+
+                {/* 3. Official Corporate Digital E-Stamp */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex flex-col items-center justify-center text-center print:bg-white print:border-slate-300">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 w-full text-left">
+                    Official Corporate Digital Seal
+                  </div>
+                  <div
+                    className="my-auto py-2"
+                    dangerouslySetInnerHTML={{ __html: digitalStampSvg }}
+                  />
+                  <div className="text-[10px] text-slate-500 font-mono mt-1">
+                    SSOT Engine Ref: AUTH-{proposal.proposalCode}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl bg-slate-100/80 border border-slate-200 px-4 py-3 text-[10px] text-slate-600 leading-relaxed text-center print:bg-slate-50">
-                <strong>Statutory Electronic Validity Notice:</strong> This is a computer-generated commercial document issued electronically by <strong>Bazion Technologies Limited</strong> (Registered in Kenya &bull; Riverside Square, Nairobi &bull; billing@bazionweb.com). Pursuant to the Kenya Information and Communications Act (Electronic Transactions) and international commercial standards, this document requires no physical signature to be legally valid and enforceable.
+              <div className="rounded-xl bg-slate-100/90 border border-slate-200 px-4 py-3 text-[10px] text-slate-600 leading-relaxed text-center print:bg-slate-50">
+                <strong>Statutory Electronic Validity Notice:</strong> Pursuant to the <strong>Kenya Information and Communications Act (Cap 411A, Electronic Transactions)</strong> and the <strong>UNCITRAL Model Law on Electronic Commerce</strong>, this system-generated commercial statement is legally authentic, valid, and enforceable without a physical wet-ink signature or manual rubber seal.
               </div>
             </section>
 

@@ -52,6 +52,58 @@ export interface SendEmailResult {
   message?: string;
 }
 
+/**
+ * Shared executive email branding components (Client compatible, Table-based)
+ */
+function renderEmailHeaderHtml(badge: string, subtitle = 'Managed Website Lifecycle & Enterprise Infrastructure'): string {
+  return `<!-- Corporate Letterhead Header -->
+  <div style="border-bottom: 2px solid #334155; padding-bottom: 20px; margin-bottom: 24px; text-align: center;">
+    <div style="height: 3px; background: linear-gradient(90deg, #0F172A 0%, #2563EB 60%, #10B981 100%); border-radius: 2px; margin-bottom: 18px;"></div>
+    <div style="font-size: 26px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.02em;">
+      Bazion<span style="color: #2563EB;">Web</span>
+    </div>
+    <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px;">
+      Bazion Technologies Limited &bull; ${escapeHtml(subtitle)}
+    </div>
+    <div style="margin-top: 10px;">
+      <span style="display: inline-block; padding: 4px 14px; background: rgba(37, 99, 235, 0.15); border: 1px solid rgba(37, 99, 235, 0.35); color: #60A5FA; border-radius: 9999px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;">
+        ${escapeHtml(badge)}
+      </span>
+    </div>
+  </div>`;
+}
+
+function renderEmailSecuritySealHtml(docRef?: string): string {
+  return `<!-- Corporate E-Stamp & Digital Seal Block -->
+  <div style="margin-top: 26px; background: #0F172A; border: 1px solid #334155; border-radius: 12px; padding: 14px 16px; text-align: left;">
+    <div style="display: table; width: 100%;">
+      <div style="display: table-cell; vertical-align: middle; width: 40px;">
+        <div style="width: 34px; height: 34px; border-radius: 50%; border: 2px dashed #2563EB; background: #1E293B; color: #34D399; text-align: center; line-height: 32px; font-size: 15px; font-weight: 900;">
+          ✓
+        </div>
+      </div>
+      <div style="display: table-cell; vertical-align: middle; padding-left: 12px;">
+        <div style="font-size: 10.5px; font-weight: 800; color: #F8FAFC; letter-spacing: 0.04em;">
+          ★ BAZION TECHNOLOGIES LIMITED ★ OFFICIAL SYSTEM-GENERATED RECORD
+        </div>
+        <div style="font-size: 9.5px; color: #94A3B8; margin-top: 2px; line-height: 1.4;">
+          Authenticated via SSOT Engine. ${docRef ? `Ref: <span style="font-family: monospace; color: #38BDF8;">${escapeHtml(docRef)}</span> &bull; ` : ''}Pursuant to Kenya KICA Cap 411A, legally valid without wet signature.
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderEmailCorporateFooterHtml(): string {
+  const year = new Date().getFullYear();
+  return `<!-- Corporate Single Source of Truth Footer -->
+  <div style="font-size: 11px; color: #64748B; text-align: center; line-height: 1.6; margin-top: 24px;">
+    &copy; ${year} Bazion Technologies Limited &bull; Riverside Square, Nairobi, Kenya.<br>
+    <strong>KRA PIN:</strong> P052198745M &bull; <strong>Reg:</strong> PVT-XZ1988B<br>
+    billing@bazionweb.com &bull; support@bazionweb.com &bull; +254 721 287 053 &bull; www.bazionweb.com
+  </div>`;
+}
+
 export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -68,38 +120,13 @@ export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail:
       padding: 32px 16px;
     }
     .container {
-      max-width: 540px;
+      max-width: 560px;
       margin: 0 auto;
       background: #1E293B;
       border: 1px solid #334155;
       border-radius: 16px;
-      padding: 40px 32px;
-    }
-    .brand {
-      text-align: center;
-      margin-bottom: 28px;
-    }
-    .brand-title {
-      font-size: 24px;
-      font-weight: 800;
-      color: #FFFFFF;
-      letter-spacing: -0.02em;
-    }
-    .brand-title span {
-      color: #2563EB;
-    }
-    .badge {
-      display: inline-block;
-      padding: 4px 12px;
-      background: rgba(37, 99, 235, 0.15);
-      border: 1px solid rgba(37, 99, 235, 0.3);
-      color: #60A5FA;
-      border-radius: 9999px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-top: 8px;
+      padding: 36px 32px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
     h2 {
       font-size: 20px;
@@ -117,7 +144,7 @@ export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail:
     }
     .btn-container {
       text-align: center;
-      margin: 32px 0;
+      margin: 28px 0;
     }
     .btn {
       display: inline-block;
@@ -139,7 +166,7 @@ export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail:
       text-align: center;
       line-height: 1.5;
       border-top: 1px solid #334155;
-      padding-top: 24px;
+      padding-top: 20px;
       margin-top: 24px;
     }
     .url-fallback {
@@ -149,20 +176,12 @@ export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail:
       margin-top: 8px;
       display: block;
     }
-    .footer {
-      text-align: center;
-      margin-top: 24px;
-      font-size: 11px;
-      color: #64748B;
-    }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="brand">
-      <div class="brand-title">Bazion<span>Web</span></div>
-      <div class="badge">Client Operating Space</div>
-    </div>
+    ${renderEmailHeaderHtml('Client Operating Space')}
+
     <h2>Sign in to your client hub</h2>
     <p>
       We received a request to sign in to BazionWeb for <strong>${escapeHtml(recipientEmail)}</strong>.
@@ -175,11 +194,10 @@ export function generateMagicLinkEmailHtml(magicLinkUrl: string, recipientEmail:
       This link is valid for <strong>15 minutes</strong> and can only be used once. If you did not request this login link, you can safely ignore this email.
       <span class="url-fallback">${escapeHtml(magicLinkUrl)}</span>
     </div>
+
+    ${renderEmailSecuritySealHtml('AUTH-MAGIC-LINK')}
   </div>
-  <div class="footer">
-    &copy; ${new Date().getFullYear()} Bazion Technologies Limited. Riverside Square, Nairobi, Kenya.<br>
-    billing@bazionweb.com &bull; www.bazionweb.com
-  </div>
+  ${renderEmailCorporateFooterHtml()}
 </body>
 </html>`;
 }
@@ -193,23 +211,24 @@ export function generateClaimLinkEmailHtml(claimLinkUrl: string, recipientEmail:
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0B0F17;color:#F8FAFC;margin:0;padding:32px 16px;">
-  <div style="max-width:540px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:40px 32px;">
-    <div style="text-align:center;margin-bottom:28px;">
-      <div style="font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">Bazion<span style="color:#2563EB;">Web</span></div>
-      <div style="display:inline-block;padding:4px 12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#34D399;border-radius:9999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;">Payment confirmed</div>
-    </div>
+  <div style="max-width:560px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:36px 32px;box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+    ${renderEmailHeaderHtml('Payment Confirmed · Activation')}
+
     <h2 style="font-size:20px;font-weight:700;color:#FFFFFF;margin:0 0 12px;text-align:center;">Claim your client hub</h2>
     <p style="font-size:14px;color:#94A3B8;line-height:1.6;margin:0 0 24px;text-align:center;">
       Your payment is confirmed for <strong>${escapeHtml(recipientEmail)}</strong>. Open the secure link below to set your password and activate the workspace.
     </p>
-    <div style="text-align:center;margin:32px 0;">
+    <div style="text-align:center;margin:28px 0;">
       <a href="${escapeHtml(claimLinkUrl)}" style="display:inline-block;background:linear-gradient(135deg,#2563EB 0%,#1D4ED8 100%);color:#FFFFFF;font-weight:700;font-size:14px;padding:14px 32px;border-radius:12px;text-decoration:none;box-shadow:0 4px 14px rgba(37,99,235,0.4);" target="_blank">Claim My Account &rarr;</a>
     </div>
-    <div style="font-size:12px;color:#64748B;text-align:center;line-height:1.5;border-top:1px solid #334155;padding-top:24px;margin-top:24px;">
+    <div style="font-size:12px;color:#64748B;text-align:center;line-height:1.5;border-top:1px solid #334155;padding-top:20px;margin-top:24px;">
       This link is valid for <strong>15 minutes</strong> and can only be used once. We will never ask for your password by email. If you did not make this payment, you can ignore this message or contact billing@bazionweb.com.
       <span style="word-break:break-all;color:#38BDF8;font-size:11px;margin-top:8px;display:block;">${escapeHtml(claimLinkUrl)}</span>
     </div>
+
+    ${renderEmailSecuritySealHtml('AUTH-ACCOUNT-CLAIM')}
   </div>
+  ${renderEmailCorporateFooterHtml()}
 </body>
 </html>`;
 }
@@ -224,11 +243,9 @@ export function generateContactNotificationEmailHtml(options: ContactInquiryOpti
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0B0F17;color:#F8FAFC;margin:0;padding:32px 16px;">
-  <div style="max-width:580px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:36px 32px;">
-    <div style="text-align:center;margin-bottom:24px;">
-      <div style="font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">Bazion<span style="color:#2563EB;">Web</span></div>
-      <div style="display:inline-block;padding:4px 12px;background:rgba(37,99,235,0.15);border:1px solid rgba(37,99,235,0.3);color:#60A5FA;border-radius:9999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;">New Lead Ingestion</div>
-    </div>
+  <div style="max-width:580px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:36px 32px;box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+    ${renderEmailHeaderHtml('New Lead Ingestion')}
+
     <h2 style="font-size:20px;font-weight:700;color:#FFFFFF;margin:0 0 16px;text-align:center;">New Contact Inquiry Received</h2>
     <p style="font-size:14px;color:#94A3B8;line-height:1.6;margin:0 0 24px;text-align:center;">
       A prospective client submitted a lead inquiry via BazionWeb. Below are the inquiry details:
@@ -272,10 +289,10 @@ export function generateContactNotificationEmailHtml(options: ContactInquiryOpti
     <div style="text-align:center;margin:24px 0;">
       <a href="mailto:${escapeHtml(clientEmail)}?subject=Re:%20BazionWeb%20Inquiry%20-%20${encodeURIComponent(serviceInterest || 'Website Development')}" style="display:inline-block;background:linear-gradient(135deg,#2563EB 0%,#1D4ED8 100%);color:#FFFFFF;font-weight:700;font-size:14px;padding:12px 28px;border-radius:10px;text-decoration:none;" target="_blank">Reply to Client Directly &rarr;</a>
     </div>
-    <div style="font-size:11px;color:#64748B;text-align:center;border-top:1px solid #334155;padding-top:16px;">
-      Inquiry logged by BazionWeb Ingestion Gateway &bull; ${new Date().toUTCString()}
-    </div>
+
+    ${renderEmailSecuritySealHtml(leadId || 'INQ-LEAD')}
   </div>
+  ${renderEmailCorporateFooterHtml()}
 </body>
 </html>`;
 }
@@ -290,11 +307,9 @@ export function generateContactConfirmationEmailHtml(options: ContactInquiryOpti
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0B0F17;color:#F8FAFC;margin:0;padding:32px 16px;">
-  <div style="max-width:540px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:40px 32px;">
-    <div style="text-align:center;margin-bottom:28px;">
-      <div style="font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">Bazion<span style="color:#2563EB;">Web</span></div>
-      <div style="display:inline-block;padding:4px 12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#34D399;border-radius:9999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;">Inquiry received</div>
-    </div>
+  <div style="max-width:560px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:36px 32px;box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+    ${renderEmailHeaderHtml('Inquiry Received')}
+
     <h2 style="font-size:20px;font-weight:700;color:#FFFFFF;margin:0 0 12px;text-align:center;">We Received Your Inquiry</h2>
     <p style="font-size:14px;color:#94A3B8;line-height:1.6;margin:0 0 20px;text-align:center;">
       Hello <strong>${escapeHtml(clientName)}</strong>, thank you for reaching out to BazionWeb regarding <strong>${escapeHtml(serviceInterest || 'your upcoming project')}</strong>.
@@ -312,11 +327,10 @@ export function generateContactConfirmationEmailHtml(options: ContactInquiryOpti
         &bull; <strong>System Status:</strong> <a href="https://status.bazionweb.com" style="color:#38BDF8;text-decoration:none;">status.bazionweb.com</a>
       </div>
     </div>
-    <div style="font-size:11px;color:#64748B;text-align:center;line-height:1.5;">
-      &copy; ${new Date().getFullYear()} Bazion Technologies Limited. Riverside Square, Nairobi, Kenya.<br>
-      hello@bazionweb.com &bull; www.bazionweb.com
-    </div>
+
+    ${renderEmailSecuritySealHtml(leadId || 'CONF-LEAD')}
   </div>
+  ${renderEmailCorporateFooterHtml()}
 </body>
 </html>`;
 }
@@ -344,11 +358,9 @@ export function generateQuoteSummaryEmailHtml(options: QuoteSummaryOptions): str
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0B0F17;color:#F8FAFC;margin:0;padding:32px 16px;">
-  <div style="max-width:580px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:36px 32px;">
-    <div style="text-align:center;margin-bottom:24px;">
-      <div style="font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">Bazion<span style="color:#2563EB;">Web</span></div>
-      <div style="display:inline-block;padding:4px 12px;background:rgba(37,99,235,0.15);border:1px solid rgba(37,99,235,0.3);color:#60A5FA;border-radius:9999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;">Official Project Proposal</div>
-    </div>
+  <div style="max-width:580px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:36px 32px;box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+    ${renderEmailHeaderHtml('Official Project Proposal')}
+
     <h2 style="font-size:20px;font-weight:700;color:#FFFFFF;margin:0 0 12px;text-align:center;">Your Tailored Project Quotation</h2>
     <p style="font-size:14px;color:#94A3B8;line-height:1.6;margin:0 0 24px;text-align:center;">
       Hello <strong>${escapeHtml(clientName)}</strong>, thank you for configuring your project proposal on BazionWeb. Here is your itemized commercial summary:
@@ -395,11 +407,10 @@ export function generateQuoteSummaryEmailHtml(options: QuoteSummaryOptions): str
       This quote is locked for <strong>30 calendar days</strong>. We support instant M-Pesa STK push, credit/debit cards, and corporate bank transfer.<br>
       <span style="word-break:break-all;color:#38BDF8;font-size:11px;margin-top:8px;display:block;">${escapeHtml(directUrl)}</span>
     </div>
-    <div style="font-size:11px;color:#64748B;text-align:center;margin-top:20px;">
-      &copy; ${new Date().getFullYear()} Bazion Technologies Limited. Riverside Square, Nairobi, Kenya.<br>
-      billing@bazionweb.com &bull; www.bazionweb.com
-    </div>
+
+    ${renderEmailSecuritySealHtml(proposalCode)}
   </div>
+  ${renderEmailCorporateFooterHtml()}
 </body>
 </html>`;
 }

@@ -33,6 +33,11 @@ import {
 import { TableSkeletonRows, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatMoney, formatDate, titleCase, providerLabel } from '@/lib/format';
 import { cn, isTrustedCheckoutUrl, toSafeExternalUrl } from '@/lib/utils';
+import {
+  renderDocumentLetterheadHtml,
+  renderSecurityVerificationSectionHtml,
+  getAntiFraudWatermarkCss,
+} from '@/lib/document-branding';
 
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -134,7 +139,6 @@ export function computeInvoiceTaxBreakdown(inv: ApiInvoice) {
 function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
   if (typeof window === 'undefined') return;
   const isPaid = inv.status === 'PAID';
-  const docTitle = isPaid ? 'OFFICIAL PAYMENT RECEIPT' : 'COMMERCIAL INVOICE';
   const paymentLog = inv.paymentLogs?.[0];
   const breakdown = computeInvoiceTaxBreakdown(inv);
   const rawItems = Array.isArray(inv.lineItems) ? inv.lineItems : [];
@@ -158,20 +162,48 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
           <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;color:#0f172a;">${escapeHtml(formatMoney(inv.amount, inv.currency))}</td>
         </tr>`;
 
+  const letterheadHtml = renderDocumentLetterheadHtml({
+    docType: isPaid ? 'PAYMENT RECEIPT' : 'OFFICIAL INVOICE',
+    docNumber: inv.invoiceNumber,
+    statusTone: isPaid ? 'emerald' : inv.status === 'OVERDUE' ? 'amber' : 'blue',
+    statusBadgeText: isPaid ? 'PAID IN FULL' : inv.status,
+    issueDate: inv.createdAt,
+    dueDate: inv.dueDate,
+    settledDate: inv.paidAt,
+    gatewayRef: paymentLog?.providerRef,
+  });
+
+  const securitySectionHtml = renderSecurityVerificationSectionHtml({
+    docNumber: inv.invoiceNumber,
+    docType: isPaid ? 'PAYMENT RECEIPT' : 'OFFICIAL INVOICE',
+    totalAmount: breakdown.total,
+    currency: inv.currency,
+    recipientEmail: client?.email || '',
+    issueDate: inv.createdAt,
+    status: inv.status,
+    isPaid,
+  });
+
+  const watermarkText = isPaid ? 'OFFICIAL RECEIPT · PAID' : 'AUTHENTICATED INVOICE';
+
   const html = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(inv.invoiceNumber)} — BazionWeb</title>
+  <title>${escapeHtml(inv.invoiceNumber)} — Bazion Technologies Limited</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 24px; background: #f8fafc; color: #0f172a; }
-    .sheet { max-width: 760px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 44px; box-shadow: 0 10px 30px rgba(15,23,42,0.05); }
-    .badge { display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
-    .paid { background: #dcfce7; color: #166534; }
-    .due { background: #fef3c7; color: #92400e; }
-    .actions { max-width: 760px; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 10px; }
-    .btn { background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 10px 18px; font-size: 12px; font-weight: 700; cursor: pointer; }
-    @media print { body { background: #fff; padding: 0; } .sheet { border: none; box-shadow: none; padding: 16px; } .actions { display: none; } }
+    ${getAntiFraudWatermarkCss()}
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 24px; background: #0B0F17; color: #0f172a; }
+    .sheet { position: relative; overflow: hidden; max-width: 820px; margin: 0 auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 20px; padding: 44px; box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4); }
+    .actions { max-width: 820px; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 10px; }
+    .btn { background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+    .btn:hover { background: #1d4ed8; }
+    @media print {
+      @page { size: A4 portrait; margin: 12mm 15mm; }
+      body { background: #fff !important; padding: 0 !important; color: #000 !important; }
+      .sheet { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: 100% !important; }
+      .actions { display: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -179,19 +211,11 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
     <button class="btn" onclick="window.print()">Print / Save as PDF</button>
   </div>
   <div class="sheet">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0f172a;padding-bottom:24px;">
-      <div>
-        <div style="font-size:22px;font-weight:900;letter-spacing:-0.02em;">BazionWeb</div>
-        <div style="font-size:12px;color:#64748b;margin-top:4px;">BazionWeb Technologies · Nairobi, Kenya · billing@bazionweb.com</div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:12px;font-weight:800;color:#64748b;letter-spacing:0.08em;">${docTitle}</div>
-        <div style="font-size:18px;font-weight:900;font-family:monospace;margin-top:4px;">${escapeHtml(inv.invoiceNumber)}</div>
-        <div style="margin-top:8px;"><span class="badge ${isPaid ? 'paid' : 'due'}">${escapeHtml(isPaid ? 'PAID IN FULL' : inv.status)}</span></div>
-      </div>
-    </div>
+    <div class="security-watermark-overlay">${watermarkText}</div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:28px;font-size:13px;">
+    ${letterheadHtml}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:28px;font-size:13px;position:relative;z-index:2;">
       <div>
         <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:0.08em;">Billed To</div>
         <div style="font-weight:800;font-size:15px;margin-top:6px;">${escapeHtml(client?.businessName || 'Valued Client')}</div>
@@ -208,7 +232,7 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
       </div>
     </div>
 
-    <table style="width:100%;border-collapse:collapse;margin-top:32px;font-size:13px;">
+    <table style="width:100%;border-collapse:collapse;margin-top:32px;font-size:13px;position:relative;z-index:2;">
       <thead>
         <tr>
           <th style="text-align:left;padding-bottom:10px;border-bottom:2px solid #cbd5e1;font-size:11px;text-transform:uppercase;color:#64748b;">Description</th>
@@ -219,7 +243,7 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
       <tbody>${rowsHtml}</tbody>
     </table>
 
-    <div style="display:flex;justify-content:flex-end;margin-top:24px;">
+    <div style="display:flex;justify-content:flex-end;margin-top:24px;position:relative;z-index:2;">
       <div style="min-width:320px;background:#f8fafc;padding:18px 20px;border-radius:14px;border:1px solid #e2e8f0;">
         ${breakdown.vatAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:#475569;margin-bottom:8px;">
           <span>Subtotal (Net):</span>
@@ -244,18 +268,9 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
       </div>
     </div>
 
-    <div style="margin-top:32px;padding:16px 20px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
-      <div>
-        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:#0f172a;">
-          System-Generated Official Statement &bull; Valid Without Physical Signature
-        </div>
-        <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.5;">
-          Generated electronically by Bazion Technologies Limited (Automated SSOT Billing Engine). Pursuant to the Kenya Information and Communications Act (Electronic Transactions), this computer-generated document is legally valid and binding without a wet-ink signature or physical company seal.
-        </div>
-      </div>
-      <div style="font-family:monospace;font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;padding:6px 10px;border-radius:8px;white-space:nowrap;">
-        AUTH: ${escapeHtml(inv.invoiceNumber)}
-      </div>
+    <!-- Security, E-Stamp & Anti-Fake Verification Center -->
+    <div style="position:relative;z-index:2;">
+      ${securitySectionHtml}
     </div>
   </div>
 
