@@ -1044,9 +1044,18 @@ export class AdminDiagnosticsService {
     });
 
     const items = Array.from(clientMap.values());
+    const suspendedCount = items.filter(
+      (i) =>
+        i.lockoutReason === 'CLIENT_SUSPENDED' ||
+        i.lockoutReason === 'CLIENT_SOFT_DELETED' ||
+        i.lockoutReason === 'USER_SOFT_DELETED',
+    ).length;
+    const unclaimedCount = items.filter((i) => i.lockoutReason === 'PASSWORD_UNSET').length;
 
     return {
       totalLocked: items.length,
+      suspendedCount,
+      unclaimedCount,
       items,
     };
   }
@@ -1062,6 +1071,8 @@ export class AdminDiagnosticsService {
     if (!client) throw new NotFoundException('Client organization not found');
 
     if (dto.action === 'UNLOCK_ACCOUNT' || dto.action === 'RESTORE_USER') {
+      const isAlreadyActive = client.status === 'ACTIVE' && !client.deletedAt && !client.user?.deletedAt;
+
       await this.prisma.$transaction(async (tx) => {
         await tx.client.update({
           where: { id: client.id },
@@ -1091,7 +1102,9 @@ export class AdminDiagnosticsService {
         action: dto.action,
         clientId: client.id,
         status: 'ACTIVE',
-        message: `Account for ${client.businessName} has been unlocked and restored to ACTIVE standing.`,
+        message: isAlreadyActive
+          ? `Account for ${client.businessName} is already in ACTIVE standing. Generate an activation claim link below to allow the client to set their password.`
+          : `Account for ${client.businessName} has been unlocked and restored to ACTIVE standing.`,
       };
     }
 

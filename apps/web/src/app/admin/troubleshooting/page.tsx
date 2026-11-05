@@ -367,7 +367,12 @@ function AdminTroubleshootingContent() {
   const dnsRiskCount = dnsFleetQuery.data?.issuesCount ?? overview?.dnsSslIssuesCount ?? 0;
   const webhookBurst = webhookFailuresQuery.data?.burstDetected ?? overview?.burstAnomalyDetected ?? false;
   const unsyncedCount = unsyncedInvoicesQuery.data?.totalUnsynced ?? 0;
-  const accessCount = clientAccessQuery.data?.totalLocked ?? overview?.lockedAccountsCount ?? 0;
+  const accessItems = clientAccessQuery.data?.items ?? [];
+  const actualLockedCount = accessItems.filter(
+    (i: any) => i.lockoutReason === 'CLIENT_SUSPENDED' || i.lockoutReason === 'CLIENT_SOFT_DELETED' || i.lockoutReason === 'USER_SOFT_DELETED',
+  ).length;
+  const unclaimedCount = accessItems.filter((i: any) => i.lockoutReason === 'PASSWORD_UNSET').length;
+  const accessCount = actualLockedCount;
   const suspendedDomainCount = suspendedDomainsQuery.data?.totalSuspended ?? overview?.suspendedDomainsCount ?? 0;
 
   return (
@@ -756,28 +761,52 @@ function AdminTroubleshootingContent() {
           <div className="text-[9px] text-slate-400 mt-0.5">Math &amp; status drift</div>
         </button>
 
-        {/* Card 5: Locked Accounts */}
+        {/* Card 5: Locked & Unclaimed Accounts */}
         <button
           onClick={() => setActiveTool('access')}
           className={`p-3.5 rounded-2xl border text-left transition-all ${
-            accessCount > 0
-              ? 'bg-slate-100 border-slate-300 hover:bg-slate-200'
+            actualLockedCount > 0
+              ? 'bg-rose-50/80 border-rose-200 hover:bg-rose-100/80'
+              : unclaimedCount > 0
+              ? 'bg-blue-50/80 border-blue-200 hover:bg-blue-100/80'
               : 'bg-white border-slate-200/80 hover:bg-slate-50'
           }`}
         >
           <div className="flex items-center justify-between text-slate-400">
-            <Lock className={`w-4 h-4 ${accessCount > 0 ? 'text-slate-900' : 'text-slate-400'}`} />
-            {accessCount > 0 ? (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-white">
-                {accessCount} LOCKED
+            <Lock
+              className={`w-4 h-4 ${
+                actualLockedCount > 0
+                  ? 'text-rose-600'
+                  : unclaimedCount > 0
+                  ? 'text-[#2563EB]'
+                  : 'text-slate-400'
+              }`}
+            />
+            {actualLockedCount > 0 ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">
+                {actualLockedCount} LOCKED
+              </span>
+            ) : unclaimedCount > 0 ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white">
+                {unclaimedCount} UNCLAIMED
               </span>
             ) : (
-              <span className="text-[10px] text-emerald-600 font-bold">OPEN</span>
+              <span className="text-[10px] text-emerald-600 font-bold">HEALTHY</span>
             )}
           </div>
-          <div className="text-xl font-black text-slate-900 mt-2">{accessCount}</div>
-          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">Locked Accounts</div>
-          <div className="text-[9px] text-slate-400 mt-0.5">Suspended or unclaimed</div>
+          <div className="text-xl font-black text-slate-900 mt-2">
+            {actualLockedCount > 0 ? actualLockedCount : unclaimedCount}
+          </div>
+          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">
+            {actualLockedCount > 0 ? 'Locked Accounts' : unclaimedCount > 0 ? 'Unclaimed Accounts' : 'Client Access'}
+          </div>
+          <div className="text-[9px] text-slate-400 mt-0.5">
+            {actualLockedCount > 0
+              ? `${actualLockedCount} suspended/disabled`
+              : unclaimedCount > 0
+              ? 'Active · Awaiting client password setup'
+              : 'All accounts active & claimed'}
+          </div>
         </button>
 
         {/* Card 6: Suspended Domains */}
@@ -813,7 +842,13 @@ function AdminTroubleshootingContent() {
           { id: 'dns', label: '3. Fleet DNS & SSL', icon: Globe, badge: dnsRiskCount },
           { id: 'webhooks', label: '4. Webhooks & Retries', icon: Radio, badge: webhookFailuresQuery.data?.totalFailed },
           { id: 'invoices', label: '5. Invoices & Reconciliation', icon: RefreshCw, badge: unsyncedCount },
-          { id: 'access', label: '6. Client Access & Lockouts', icon: Key, badge: accessCount },
+          {
+            id: 'access',
+            label: '6. Client Access & Lockouts',
+            icon: Key,
+            badge: actualLockedCount > 0 ? actualLockedCount : unclaimedCount,
+            badgeVariant: actualLockedCount > 0 ? 'rose' : 'blue',
+          },
           { id: 'domains', label: '7. Suspended Domains', icon: Server, badge: suspendedDomainCount },
           { id: 'impersonation', label: '8. Client Sandbox', icon: UserCheck },
         ].map((tab) => {
@@ -834,7 +869,11 @@ function AdminTroubleshootingContent() {
               {typeof tab.badge === 'number' && tab.badge > 0 && (
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    isActive ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800'
+                    isActive
+                      ? 'bg-rose-500 text-white'
+                      : (tab as any).badgeVariant === 'blue'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-rose-100 text-rose-800'
                   }`}
                 >
                   {tab.badge}
@@ -852,7 +891,11 @@ function AdminTroubleshootingContent() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Key className="w-4 h-4 text-[#2563EB]" />
-                <h3 className="font-bold text-sm text-slate-900">One-Time Magic Access Link Minted</h3>
+                <h3 className="font-bold text-sm text-slate-900">
+                  {generatedMagicLink.url.includes('/claim')
+                    ? 'One-Time Activation Claim Link Minted'
+                    : 'One-Time Magic Access Link Minted'}
+                </h3>
               </div>
               <button
                 onClick={() => setGeneratedMagicLink(null)}
@@ -862,8 +905,17 @@ function AdminTroubleshootingContent() {
               </button>
             </div>
             <p className="text-xs text-slate-500">
-              A 24-hour single-use magic login link has been generated for{' '}
-              <strong>{generatedMagicLink.clientName}</strong>. Provide this to the client contact to allow immediate passwordless entry.
+              {generatedMagicLink.url.includes('/claim') ? (
+                <>
+                  A single-use account claim link has been generated for{' '}
+                  <strong>{generatedMagicLink.clientName}</strong>. Send this to the client contact so they can set their password and activate their portal workspace.
+                </>
+              ) : (
+                <>
+                  A 24-hour single-use magic login link has been generated for{' '}
+                  <strong>{generatedMagicLink.clientName}</strong>. Provide this to the client contact to allow immediate passwordless entry.
+                </>
+              )}
             </p>
             <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
               <input
@@ -1508,14 +1560,28 @@ function AdminTroubleshootingContent() {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Client Access &amp; Lockout Desk</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Client Access &amp; Activation Desk</h3>
               <p className="text-xs text-slate-400">
-                Surfaces suspended client accounts, soft-deleted user records, or accounts missing passwords
+                Surfaces suspended client accounts, soft-deleted user records, and active accounts awaiting password activation
               </p>
             </div>
-            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold shrink-0">
-              {clientAccessQuery.data?.totalLocked || 0} Accounts Require Attention
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {actualLockedCount > 0 && (
+                <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg text-xs font-bold">
+                  {actualLockedCount} Suspended
+                </span>
+              )}
+              {unclaimedCount > 0 && (
+                <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-bold">
+                  {unclaimedCount} Unclaimed / Password Pending
+                </span>
+              )}
+              {actualLockedCount === 0 && unclaimedCount === 0 && (
+                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold">
+                  All Accounts Good
+                </span>
+              )}
+            </div>
           </div>
 
           {clientAccessQuery.isLoading ? (
@@ -1534,7 +1600,7 @@ function AdminTroubleshootingContent() {
                     <th className="py-2.5 px-3">Organization</th>
                     <th className="py-2.5 px-3">Contact</th>
                     <th className="py-2.5 px-3">Email Address</th>
-                    <th className="py-2.5 px-3">Lockout Reason</th>
+                    <th className="py-2.5 px-3">Access / Lockout Standing</th>
                     <th className="py-2.5 px-3">Password Status</th>
                     <th className="py-2.5 px-3 text-right">One-Click Actions</th>
                   </tr>
@@ -1543,6 +1609,11 @@ function AdminTroubleshootingContent() {
                   {(clientAccessQuery.data?.items ?? []).map((acc: any) => {
                     const isUnlocking = inFlightActionId === `access-${acc.clientId}-UNLOCK_ACCOUNT`;
                     const isGenerating = inFlightActionId === `access-${acc.clientId}-GENERATE_RESET_LINK`;
+                    const isTrulyLocked =
+                      acc.lockoutReason === 'CLIENT_SUSPENDED' ||
+                      acc.lockoutReason === 'USER_SOFT_DELETED' ||
+                      acc.lockoutReason === 'CLIENT_SOFT_DELETED' ||
+                      acc.clientStatus === 'SUSPENDED';
 
                     return (
                       <tr key={acc.clientId} className="hover:bg-slate-50/80 transition-colors">
@@ -1554,25 +1625,38 @@ function AdminTroubleshootingContent() {
                             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               acc.lockoutReason === 'CLIENT_SUSPENDED'
                                 ? 'bg-amber-100 text-amber-800'
-                                : acc.lockoutReason === 'USER_SOFT_DELETED'
+                                : acc.lockoutReason === 'USER_SOFT_DELETED' || acc.lockoutReason === 'CLIENT_SOFT_DELETED'
                                 ? 'bg-rose-100 text-rose-800'
                                 : 'bg-blue-100 text-blue-800'
                             }`}
                           >
-                            {acc.lockoutReason}
+                            {acc.lockoutReason === 'PASSWORD_UNSET' ? 'AWAITING_CLAIM' : acc.lockoutReason}
                           </span>
+                          {acc.clientStatus === 'ACTIVE' && (
+                            <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">Status: ACTIVE</div>
+                          )}
                         </td>
                         <td className="py-3 px-3 text-slate-600 text-[11px]">
-                          {acc.hasPassword ? 'Password Set' : 'Unclaimed / Passwordless'}
+                          {acc.hasPassword ? (
+                            <span className="text-emerald-700 font-medium">Password Set</span>
+                          ) : (
+                            <span className="text-blue-700 font-medium">Unclaimed / Passwordless</span>
+                          )}
                         </td>
                         <td className="py-3 px-3 text-right whitespace-nowrap space-x-1.5">
-                          <button
-                            onClick={() => handleRemediateAccess(acc.clientId, acc.businessName, 'UNLOCK_ACCOUNT')}
-                            disabled={isUnlocking}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
-                          >
-                            {isUnlocking ? 'Unlocking…' : 'Unlock Account'}
-                          </button>
+                          {isTrulyLocked ? (
+                            <button
+                              onClick={() => handleRemediateAccess(acc.clientId, acc.businessName, 'UNLOCK_ACCOUNT')}
+                              disabled={isUnlocking}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
+                            >
+                              {isUnlocking ? 'Unlocking…' : 'Unlock Account'}
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                              ✓ Unlocked
+                            </span>
+                          )}
                           <button
                             onClick={() =>
                               handleRemediateAccess(acc.clientId, acc.businessName, 'GENERATE_RESET_LINK')
@@ -1580,7 +1664,11 @@ function AdminTroubleshootingContent() {
                             disabled={isGenerating}
                             className="px-2.5 py-1 bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg shadow-sm transition-all disabled:opacity-50"
                           >
-                            {isGenerating ? 'Generating…' : 'Generate Magic Link'}
+                            {isGenerating
+                              ? 'Generating…'
+                              : acc.hasPassword
+                              ? 'Generate Magic Link'
+                              : 'Generate Claim Link'}
                           </button>
                         </td>
                       </tr>
