@@ -137,7 +137,7 @@ function AdminTroubleshootingContent() {
 
   // Deep-linking from query params
   useEffect(() => {
-    const tabParam = searchParams?.get('tab') as TroubleshootingTab | null;
+    const tabParam = (searchParams?.get('tab') || searchParams?.get('tool')) as TroubleshootingTab | null;
     if (
       tabParam &&
       [
@@ -708,7 +708,7 @@ function AdminTroubleshootingContent() {
       )}
 
       {/* ── Proactive Intelligence Summary Cards Deck ─────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         {/* Card 1: Orphan Payments */}
         <button
           onClick={() => setActiveTool('orphans')}
@@ -876,10 +876,30 @@ function AdminTroubleshootingContent() {
           <div className="text-[11px] font-semibold text-slate-600 mt-0.5">Suspended Domains</div>
           <div className="text-[9px] text-slate-400 mt-0.5">Inconsistent or stuck</div>
         </button>
+
+        {/* Card 7: Client Sandbox (View-As) */}
+        <button
+          onClick={() => setActiveTool('impersonation')}
+          className={`p-3.5 rounded-2xl border text-left transition-all ${
+            activeTool === 'impersonation'
+              ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-xs'
+              : 'bg-white border-slate-200/80 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between text-slate-400">
+            <UserCheck className={`w-4 h-4 ${activeTool === 'impersonation' ? 'text-[#2563EB]' : 'text-slate-500'}`} />
+            <span className="text-[10px] text-blue-700 font-bold bg-blue-100/80 px-1.5 py-0.5 rounded border border-blue-200">
+              VIEW-AS
+            </span>
+          </div>
+          <div className="text-xl font-black text-slate-900 mt-2">Sandbox</div>
+          <div className="text-[11px] font-semibold text-slate-600 mt-0.5">Client View-As</div>
+          <div className="text-[9px] text-slate-400 mt-0.5">15m Scoped Session</div>
+        </button>
       </div>
 
-      {/* ── 8 Operational Tabs Navigation ────────────────────────────────────── */}
-      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto">
+      {/* ── 8 Operational Tabs Navigation (Responsive Wrapping: Never Offscreen) ── */}
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-3">
         {[
           { id: 'health', label: '1. Service & Cluster Health', icon: Activity },
           { id: 'orphans', label: '2. Orphan Payments', icon: DollarSign, badge: orphanCount },

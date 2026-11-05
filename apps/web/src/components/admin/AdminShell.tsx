@@ -334,12 +334,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               )}
             </div>
 
-            {/* Portal Link */}
+            {/* Quick Client Sandbox Launcher */}
             <Link
-              href="/portal"
-              className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              href="/admin/troubleshooting?tool=impersonation"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 rounded-xl transition-colors shadow-2xs"
+              title="Launch safe 15-minute scoped Client Sandbox"
             >
-              Client View
+              <Eye className="w-3.5 h-3.5 text-blue-600" />
+              <span>Client Sandbox</span>
             </Link>
           </div>
         </header>

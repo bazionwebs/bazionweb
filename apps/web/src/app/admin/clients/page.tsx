@@ -7,8 +7,28 @@ import {
   Plus,
   ExternalLink,
   X,
+  KeyRound,
+  Lock,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  ShieldCheck,
+  Globe,
+  CreditCard,
+  Server,
+  Code2,
+  Database,
+  AlertCircle,
+  Loader2,
+  UserCheck,
 } from 'lucide-react';
-import { useAdminClients, useAdminHosting } from '@/hooks/useAdminData';
+import {
+  useAdminClients,
+  useAdminHosting,
+  useClientVault,
+  useRevealClientVaultSecret,
+} from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatDate } from '@/lib/format';
 import { ManualClientCreateModal } from '@/components/admin/ManualClientCreateModal';
@@ -25,6 +45,360 @@ interface ClientRow {
   tickets: number;
   mrr: number;
   renewal: string;
+}
+
+function getCategoryMeta(cat: string) {
+  switch (cat) {
+    case 'DOMAIN_REGISTRAR':
+      return { label: 'Domain Registrar', icon: Globe, badge: 'bg-teal-50 text-teal-800 border-teal-200' };
+    case 'PAYMENT_GATEWAY':
+      return { label: 'Payment Gateway (M-Pesa / Card)', icon: CreditCard, badge: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+    case 'API_KEY':
+      return { label: 'Third-Party API Key', icon: Code2, badge: 'bg-blue-50 text-blue-800 border-blue-200' };
+    case 'HOSTING_SSH':
+      return { label: 'Server / SSH / Hosting', icon: Server, badge: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
+    case 'DATABASE':
+      return { label: 'Database URI / Secret', icon: Database, badge: 'bg-purple-50 text-purple-800 border-purple-200' };
+    case 'CMS_ADMIN':
+      return { label: 'CMS / Workspace Admin', icon: KeyRound, badge: 'bg-amber-50 text-amber-800 border-amber-200' };
+    default:
+      return { label: 'Encrypted Credential', icon: Lock, badge: 'bg-slate-100 text-slate-800 border-slate-200' };
+  }
+}
+
+function ClientDetailModal({
+  client,
+  onClose,
+}: {
+  client: ClientRow;
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'vault'>('overview');
+  const [revealedSecrets, setRevealedSecrets] = useState<Record<string, string>>({});
+  const [revealingId, setRevealingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
+
+  const vaultQuery = useClientVault(client.id);
+  const revealMutation = useRevealClientVaultSecret();
+
+  const secrets = vaultQuery.data ?? [];
+
+  const handleReveal = async (secretId: string) => {
+    if (revealedSecrets[secretId]) {
+      setRevealedSecrets(prev => {
+        const next = { ...prev };
+        delete next[secretId];
+        return next;
+      });
+      return;
+    }
+    setRevealingId(secretId);
+    setRevealError(null);
+    try {
+      const res = await revealMutation.mutateAsync(secretId);
+      const plaintext = (res as any)?.value || (res as any)?.data?.value || '';
+      setRevealedSecrets(prev => ({ ...prev, [secretId]: plaintext }));
+
+      setTimeout(() => {
+        setRevealedSecrets(prev => {
+          const next = { ...prev };
+          delete next[secretId];
+          return next;
+        });
+      }, 45000);
+    } catch (err: any) {
+      setRevealError(err?.response?.data?.message || err?.message || 'Failed to decrypt credential.');
+    } finally {
+      setRevealingId(null);
+    }
+  };
+
+  const handleCopy = (secretId: string, val: string) => {
+    navigator.clipboard.writeText(val);
+    setCopiedId(secretId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 overflow-hidden">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-slate-900 text-lg">{client.name}</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 uppercase">
+                {client.status}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5 font-mono">Client ID: {client.id}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tab Selector */}
+        <div className="flex items-center gap-3 border-b border-slate-200 px-6 pt-2 bg-slate-50/50">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-3 py-2.5 text-xs font-bold border-b-2 transition-all ${
+              activeTab === 'overview'
+                ? 'border-[#2563EB] text-[#2563EB]'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Account Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('vault')}
+            className={`px-3 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+              activeTab === 'vault'
+                ? 'border-purple-600 text-purple-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Encrypted Credential Vault</span>
+            {secrets.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-100 text-purple-800">
+                {secrets.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+          {activeTab === 'overview' ? (
+            <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className="text-slate-400 font-medium">Domain</div>
+                  <div className="text-slate-900 font-mono font-bold mt-1 text-sm">{client.domain}</div>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className="text-slate-400 font-medium">Plan Tier</div>
+                  <div className="text-slate-900 font-bold mt-1 text-sm">{client.plan} ({client.tier})</div>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className="text-slate-400 font-medium">Lifecycle Status</div>
+                  <div className="text-slate-900 font-bold mt-1 text-sm">{client.status}</div>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className="text-slate-400 font-medium">Monthly MRR</div>
+                  <div className="text-slate-900 font-bold mt-1 text-sm">${client.mrr}</div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                <div className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">Primary Contact</div>
+                <div className="text-slate-900 font-bold text-sm">{client.contact}</div>
+                <div className="text-slate-600 font-mono">{client.email}</div>
+                <div className="text-slate-400 text-[11px] mt-1">Next Renewal: {client.renewal}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs">
+              {/* Vault Security Banner */}
+              <div className="p-3.5 bg-purple-50/80 border border-purple-200/80 rounded-2xl text-purple-950 text-xs flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Zero-Knowledge Encrypted Vault:</span>
+                  <p className="mt-0.5 text-purple-800 text-[11px] leading-relaxed">
+                    Credentials deposited by this client (domain registrar logins, Cloudflare DNS tokens, M-Pesa Daraja keys) are encrypted at rest with AES-256-GCM. Revealing any credential is authenticated and permanently recorded to the staff AuditLog.
+                  </p>
+                </div>
+              </div>
+
+              {revealError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{revealError}</span>
+                </div>
+              )}
+
+              {vaultQuery.isLoading ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
+                  <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                  <span className="text-xs">Loading encrypted vault items…</span>
+                </div>
+              ) : secrets.length === 0 ? (
+                <div className="py-10 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center mx-auto mb-2.5">
+                    <KeyRound className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-xs text-slate-800">No Credentials in Vault Yet</h4>
+                  <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+                    When {client.name} deposits registrar logins, Cloudflare tokens, or API credentials in their client portal (/portal/vault), they will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {secrets.map((secret) => {
+                    const cat = getCategoryMeta(secret.category);
+                    const Icon = cat.icon;
+                    const isRevealed = Boolean(revealedSecrets[secret.id]);
+                    const plaintext = revealedSecrets[secret.id] || '';
+                    const isRevealing = revealingId === secret.id;
+
+                    return (
+                      <div
+                        key={secret.id}
+                        className="p-4 rounded-2xl border border-slate-200/80 bg-white shadow-2xs space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${cat.badge}`}
+                              >
+                                <Icon className="w-3 h-3" />
+                                <span>{cat.label}</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                Added {formatDate(secret.createdAt)}
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-sm text-slate-900">{secret.label}</h4>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleReveal(secret.id)}
+                            disabled={isRevealing}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs shrink-0 ${
+                              isRevealed
+                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                : 'bg-purple-600 hover:bg-purple-700 text-white'
+                            }`}
+                          >
+                            {isRevealing ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Decrypting…</span>
+                              </>
+                            ) : isRevealed ? (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5" />
+                                <span>Hide Secret</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Reveal (AES-256)</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Username & URL Meta */}
+                        {(secret.username || secret.serviceUrl) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+                            {secret.username && (
+                              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                                <span className="text-slate-400">Username / Email:</span>
+                                <div className="flex items-center gap-1.5 font-mono font-medium text-slate-800">
+                                  <span>{secret.username}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopy(`user-${secret.id}`, secret.username!)}
+                                    className="text-slate-400 hover:text-slate-700"
+                                    title="Copy username"
+                                  >
+                                    {copiedId === `user-${secret.id}` ? (
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                            {secret.serviceUrl && (
+                              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                                <span className="text-slate-400">Portal / Host:</span>
+                                <a
+                                  href={secret.serviceUrl.startsWith('http') ? secret.serviceUrl : `https://${secret.serviceUrl}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline flex items-center gap-1 font-medium truncate max-w-[160px]"
+                                >
+                                  <span className="truncate">{secret.serviceUrl.replace(/^https?:\/\//, '')}</span>
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Secret Plaintext or Masked Hint */}
+                        <div className="p-3 rounded-xl bg-slate-900 text-slate-100 flex items-center justify-between font-mono text-xs">
+                          <div className="truncate mr-2">
+                            {isRevealed ? (
+                              <span className="text-emerald-400 select-all font-semibold">{plaintext}</span>
+                            ) : (
+                              <span className="text-slate-500 tracking-widest">{secret.maskedHint || '••••••••••••••••'}</span>
+                            )}
+                          </div>
+                          {isRevealed && (
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(secret.id, plaintext)}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[11px] font-sans font-bold flex items-center gap-1 shrink-0 transition-colors"
+                            >
+                              {copiedId === secret.id ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span>Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {secret.notes && (
+                          <p className="text-[11px] text-slate-500 italic bg-slate-50 p-2 rounded-xl border border-slate-100">
+                            &quot;{secret.notes}&quot;
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="flex items-center justify-between p-4 px-6 border-t border-slate-100 bg-slate-50/50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors"
+          >
+            Close
+          </button>
+          <Link
+            href={`/admin/troubleshooting?impersonate=${client.id}`}
+            className="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors flex items-center gap-1.5 shadow-sm"
+          >
+            <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+            <span>Launch Client Sandbox →</span>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function AdminClientsPage() {
@@ -219,66 +593,12 @@ export default function AdminClientsPage() {
         )}
       </div>
 
-      {/* ── Client Detail Drawer / Modal ─────────────────────────────────────── */}
+      {/* ── Client Detail Modal (Overview + Encrypted Credential Vault) ─── */}
       {selectedClient && (
-        <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">{selectedClient.name}</h3>
-                <p className="text-xs text-slate-400">Client ID: {selectedClient.id}</p>
-              </div>
-              <button
-                onClick={() => setSelectedClient(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="text-slate-400 font-medium">Domain</div>
-                  <div className="text-slate-900 font-mono font-bold mt-0.5">{selectedClient.domain}</div>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="text-slate-400 font-medium">Plan Tier</div>
-                  <div className="text-slate-900 font-bold mt-0.5">{selectedClient.plan}</div>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="text-slate-400 font-medium">Status</div>
-                  <div className="text-slate-900 font-bold mt-0.5">{selectedClient.status}</div>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="text-slate-400 font-medium">Monthly MRR</div>
-                  <div className="text-slate-900 font-bold mt-0.5">${selectedClient.mrr}</div>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <div className="text-slate-400 font-medium">Contact Details</div>
-                <div className="text-slate-800 font-semibold mt-1">{selectedClient.contact}</div>
-                <div className="text-slate-600">{selectedClient.email}</div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-              <button
-                onClick={() => setSelectedClient(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
-              >
-                Close
-              </button>
-              <Link
-                href={`/admin/troubleshooting?impersonate=${selectedClient.id}`}
-                className="px-4 py-2 text-xs font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800"
-              >
-                Inspect as Client →
-              </Link>
-            </div>
-          </div>
-        </div>
+        <ClientDetailModal
+          client={selectedClient}
+          onClose={() => setSelectedClient(null)}
+        />
       )}
 
       {/* ── Synced Manual Client Account Provisioning Modal ─────────────────── */}

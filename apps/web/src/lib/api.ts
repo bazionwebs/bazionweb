@@ -119,8 +119,8 @@ export const portalApi = {
   addTicketComment: (ticketId: string, body: string) =>
     api.post(`/tickets/${ticketId}/comments`, { body }).then(r => r.data),
 
-  listVaultSecrets: () =>
-    api.get('/vault').then(r => r.data),
+  listVaultSecrets: (clientId?: string) =>
+    api.get('/vault', { params: clientId ? { clientId } : {} }).then(r => r.data),
 
   createVaultSecret: (data: {
     label: string;
@@ -236,6 +236,12 @@ export const adminApi = {
 
   impersonateClient: (clientId: string) =>
     api.post('/admin/diagnostics/impersonate', { clientId }).then(r => r.data),
+
+  getClientVault: (clientId: string) =>
+    api.get('/vault', { params: { clientId } }).then(r => r.data),
+
+  revealVaultSecret: (secretId: string) =>
+    api.post(`/vault/${secretId}/reveal`).then(r => r.data),
 
   // ─── Manual Client Account Provisioning ──────────────────────────────────
   manualProvisionClient: (data: {

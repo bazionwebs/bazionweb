@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
-import type { ApiClient, ApiHostingAccount, ApiTicket } from './usePortalData';
+import type { ApiClient, ApiHostingAccount, ApiTicket, ApiVaultSecret, ApiVaultRevealResult } from './usePortalData';
 
 // ─── Shapes ─────────────────────────────────────────────────────────────────
 
@@ -270,6 +270,26 @@ export function useResolveDns() {
 export function useImpersonateClient() {
   return useMutation({
     mutationFn: (clientId: string) => adminApi.impersonateClient(clientId).then(r => r.data ?? r),
+  });
+}
+
+export function useClientVault(clientId: string | null | undefined) {
+  const token = useToken();
+  return useQuery({
+    queryKey: ['admin', 'client-vault', clientId],
+    queryFn: () => adminApi.getClientVault(clientId!).then(r => ((r.data ?? r) as ApiVaultSecret[]) ?? []),
+    enabled: !!token && !!clientId,
+  });
+}
+
+export function useRevealClientVaultSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (secretId: string) =>
+      adminApi.revealVaultSecret(secretId).then(r => (r.data ?? r) as ApiVaultRevealResult),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'client-vault'] });
+    },
   });
 }
 
