@@ -272,13 +272,19 @@ export class PaymentSettlementService {
     }
 
     const expected = Number(invoice.amount);
+    const fxRate = Number(data.metadata?.exchangeRate);
+    const expectedFxAmount =
+      Number.isFinite(fxRate) && fxRate > 1 ? Math.max(1, Math.round(expected * fxRate)) : NaN;
     const isFxMatch = Boolean(
       (existing &&
         existing.currency === currency &&
+        Number(existing.amount) > 0 &&
         Math.abs(paidAmount - Number(existing.amount)) < 1) ||
       (data.metadata?.fxConverted &&
         data.metadata?.originalCurrency === invoice.currency &&
-        Math.abs(Number(data.metadata?.originalAmount) - expected) < 0.01)
+        Math.abs(Number(data.metadata?.originalAmount) - expected) < 0.01 &&
+        Number.isFinite(expectedFxAmount) &&
+        paidAmount >= expectedFxAmount - 1)
     );
 
     if (!isFxMatch && !this.amountsMatch(paidAmount, expected, currency, invoice.currency)) {
@@ -340,7 +346,7 @@ export class PaymentSettlementService {
           providerRef: reference,
           method,
           amount: Number.isFinite(paidAmount) ? paidAmount : Number(invoice!.amount),
-          currency: invoice!.currency,
+          currency: Number.isFinite(paidAmount) && currency ? currency : invoice!.currency,
           status: PaymentStatus.SUCCESS,
           clientId: invoice!.clientId,
           invoiceId: invoice!.id,

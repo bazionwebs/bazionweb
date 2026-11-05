@@ -99,7 +99,11 @@ export class PaystackService {
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
       const msg = err.response?.data?.message || err.message;
-      this.logger.error(`Paystack initialize failed for ${params.invoiceNumber}: ${msg}`);
+      if (/currency\s+not\s+supported|unsupported\s+currency/i.test(String(msg || ''))) {
+        this.logger.warn(`Paystack currency ${params.currency} unsupported for ${params.invoiceNumber}: ${msg}`);
+      } else {
+        this.logger.error(`Paystack initialize failed for ${params.invoiceNumber}: ${msg}`);
+      }
       throw new HttpException(`Card checkout failed: ${msg}`, HttpStatus.BAD_GATEWAY);
     }
   }

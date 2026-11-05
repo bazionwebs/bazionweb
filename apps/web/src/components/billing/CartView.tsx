@@ -1,12 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Wrench, Server, Puzzle, Info } from 'lucide-react';
-import { useCartStore, cartTotal, type CartItem } from '@/lib/cart';
+import { useCartStore, type CartItem } from '@/lib/cart';
+import { getProductPrice } from '@/lib/priceBooks';
 import { usePlans } from '@/lib/plans';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 
 const kindIcon = (item: CartItem) =>
   item.kind === 'PLAN' ? Wrench : item.cycle === 'one-time' ? Puzzle : Server;
@@ -27,9 +29,37 @@ export default function CartView() {
 
   const plan = items.find((i) => i.kind === 'PLAN');
   const extras = items.filter((i) => i.kind !== 'PLAN');
-  const total = cartTotal(items);
 
-  const isKes = (extras[0]?.currency ?? (marketCode === 'KE' ? 'KES' : 'USD')) === 'KES';
+  const isKes = marketCode
+    ? marketCode === 'KE'
+    : (extras[0]?.currency ?? plan?.currency ?? 'USD') === 'KES';
+  const activeCurrency = isKes ? 'KES' : 'USD';
+
+  const resolveItemTotal = (item: CartItem) => {
+    if ((item.currency || '').toUpperCase() === activeCurrency) {
+      return item.unitPrice * item.qty;
+    }
+    if (item.kind === 'PLAN') {
+      const matched = plans.find((p) => p.slug === item.id);
+      if (matched) {
+        const isAnnual = item.cycle === 'ANNUAL';
+        const price = isKes
+          ? (isAnnual ? matched.priceAnnualKes : matched.priceMonthlyKes)
+          : (isAnnual ? matched.priceAnnual : matched.priceMonthly);
+        if (price > 0) return price * item.qty;
+      }
+    } else {
+      const bookItem = getProductPrice(item.id, isKes ? 'KE' : 'GLOBAL');
+      if (bookItem && bookItem.amount > 0) {
+        return bookItem.amount * item.qty;
+      }
+    }
+    return isKes
+      ? Math.round(item.unitPrice * item.qty * 129.5)
+      : Math.round((item.unitPrice * item.qty) / 129.5);
+  };
+
+  const total = items.reduce((sum, item) => sum + resolveItemTotal(item), 0);
 
   const handleAddEssentialPlan = () => {
     const target = plans.find((p) => p.slug === 'care-essential' || p.slug === 'starter');
@@ -75,6 +105,11 @@ export default function CartView() {
     <main className="bg-white">
       <section className="bg-[#0F172A] pt-32 pb-16 text-white">
         <div className="container-default max-w-7xl mx-auto px-4">
+          <Suspense fallback={null}>
+            <div className="mb-4 max-w-5xl">
+              <ClientJourneyProgress variant="dark" />
+            </div>
+          </Suspense>
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
             <ShoppingCart className="h-4 w-4" /> Shopping Cart
           </span>
@@ -104,8 +139,7 @@ export default function CartView() {
                           </p>
                         </div>
                         <p className="font-extrabold text-slate-900 whitespace-nowrap">
-                          {item.currency === 'KES' ? 'KES ' : item.currency + ' '}
-                          {(item.unitPrice * item.qty).toLocaleString()}
+                          {activeCurrency} {resolveItemTotal(item).toLocaleString()}
                         </p>
                       </div>
                       <div className="mt-3 flex items-center gap-3">
@@ -198,8 +232,7 @@ export default function CartView() {
                   <div className="flex justify-between">
                     <dt className="text-slate-600">{plan.name}</dt>
                     <dd className="font-semibold text-slate-900">
-                      {plan.currency === 'KES' ? 'KES ' : plan.currency + ' '}
-                      {plan.unitPrice.toLocaleString()}
+                      {activeCurrency} {resolveItemTotal(plan).toLocaleString()}
                     </dd>
                   </div>
                 )}
@@ -210,16 +243,14 @@ export default function CartView() {
                       {e.qty > 1 ? ` x${e.qty}` : ''}
                     </dt>
                     <dd className="font-semibold text-slate-900">
-                      {e.currency === 'KES' ? 'KES ' : e.currency + ' '}
-                      {(e.unitPrice * e.qty).toLocaleString()}
+                      {activeCurrency} {resolveItemTotal(e).toLocaleString()}
                     </dd>
                   </div>
                 ))}
                 <div className="border-t border-slate-200 pt-3 mt-3 flex justify-between text-base">
                   <dt className="font-bold text-slate-900">Total due today</dt>
                   <dd className="font-extrabold text-slate-900">
-                    {plan?.currency === 'KES' || extras[0]?.currency === 'KES' ? 'KES ' : ''}
-                    {total.toLocaleString()}
+                    {activeCurrency} {total.toLocaleString()}
                   </dd>
                 </div>
               </dl>

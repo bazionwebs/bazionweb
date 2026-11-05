@@ -569,11 +569,17 @@ export class BillingService {
       checkoutUrl: init.authorizationUrl,
       reference: init.reference,
       invoiceNumber: invoice.invoiceNumber,
+      chargedAmount,
+      chargedCurrency,
+      fxConverted,
+      exchangeRate,
     };
   }
 
   /**
    * Track A2: Paystack card checkout (KES/USD). Server-side pricing only.
+   * Uses initializePaystackWithFxFallback so USD checkouts automatically convert
+   * to KES when the merchant does not yet have a USD settlement account enabled.
    */
   async subscribePaystack(user: any, dto: PaystackSubscriptionDto) {
     const client = await this.resolveClient(user, {
@@ -624,14 +630,15 @@ export class BillingService {
       },
     });
 
-    const init = await this.paystackService.initializeTransaction({
-      email: dto.email || client.email,
-      amount: total,
-      currency: dto.currency,
-      invoiceNumber: invoice.invoiceNumber,
-      callbackUrl: `${frontendUrl}/checkout/verify`,
-      metadata: { planId: plan.id, billingCycle: dto.billingCycle, clientId: client.id },
-    });
+    const { init, chargedAmount, chargedCurrency, fxConverted, exchangeRate } =
+      await this.initializePaystackWithFxFallback({
+        email: dto.email || client.email,
+        amount: total,
+        currency: dto.currency,
+        invoiceNumber: invoice.invoiceNumber,
+        callbackUrl: `${frontendUrl}/checkout/verify`,
+        metadata: { planId: plan.id, billingCycle: dto.billingCycle, clientId: client.id },
+      });
 
     await this.prisma.paymentLog.create({
       data: {
@@ -639,13 +646,19 @@ export class BillingService {
         provider: PaymentProvider.PAYSTACK,
         providerRef: init.reference,
         method: PaymentMethodType.CARD,
-        amount: total,
-        currency: dto.currency,
+        amount: chargedAmount,
+        currency: chargedCurrency,
         status: PaymentStatus.PENDING,
         clientId: client.id,
         invoiceId: invoice.id,
         userId: user.id,
-        rawPayload: init as any,
+        rawPayload: {
+          ...init,
+          fxConverted,
+          originalAmount: total,
+          originalCurrency: dto.currency,
+          exchangeRate,
+        } as any,
       },
     });
 
@@ -656,6 +669,10 @@ export class BillingService {
       checkoutUrl: init.authorizationUrl,
       reference: init.reference,
       invoiceNumber: invoice.invoiceNumber,
+      chargedAmount,
+      chargedCurrency,
+      fxConverted,
+      exchangeRate,
     };
   }
 
@@ -811,14 +828,15 @@ export class BillingService {
       },
     });
 
-    const init = await this.paystackService.initializeTransaction({
-      email,
-      amount: total,
-      currency: dto.currency,
-      invoiceNumber: invoice.invoiceNumber,
-      callbackUrl: `${frontendUrl}/checkout/verify`,
-      metadata: { planId: plan.id, billingCycle: dto.billingCycle, clientId: guest.id, guest: true },
-    });
+    const { init, chargedAmount, chargedCurrency, fxConverted, exchangeRate } =
+      await this.initializePaystackWithFxFallback({
+        email,
+        amount: total,
+        currency: dto.currency,
+        invoiceNumber: invoice.invoiceNumber,
+        callbackUrl: `${frontendUrl}/checkout/verify`,
+        metadata: { planId: plan.id, billingCycle: dto.billingCycle, clientId: guest.id, guest: true },
+      });
 
     await this.prisma.paymentLog.create({
       data: {
@@ -826,13 +844,19 @@ export class BillingService {
         provider: PaymentProvider.PAYSTACK,
         providerRef: init.reference,
         method: PaymentMethodType.CARD,
-        amount: total,
-        currency: dto.currency,
+        amount: chargedAmount,
+        currency: chargedCurrency,
         status: PaymentStatus.PENDING,
         clientId: guest.id,
         invoiceId: invoice.id,
         userId,
-        rawPayload: init as any,
+        rawPayload: {
+          ...init,
+          fxConverted,
+          originalAmount: total,
+          originalCurrency: dto.currency,
+          exchangeRate,
+        } as any,
       },
     });
 
@@ -844,6 +868,10 @@ export class BillingService {
       reference: init.reference,
       invoiceNumber: invoice.invoiceNumber,
       email,
+      chargedAmount,
+      chargedCurrency,
+      fxConverted,
+      exchangeRate,
     };
   }
 
@@ -1333,10 +1361,86 @@ export class BillingService {
   }
 
   /**
-   * Initializes a Paystack card transaction. If the target currency is USD and Paystack
-   * rejects it with "Currency not supported by merchant" (common for Kenya accounts without
-   * international USD multi-currency enabled), this gracefully falls back to charging the
-   * equivalent amount in KES using the active market exchange rate.
+   * Resolves the USD -> KES exchange rate from the Currency table (or env override),
+   * guarding against unseeded 1.0 schema defaults so FX fallback never charges 1:1.
+   */
+  private async resolveUsdToKesRate(): Promise<number> {
+    const envRate = Number(this.config.get<string>('PAYSTACK_USD_KES_RATE', ''));
+    if (Number.isFinite(envRate) && envRate > 1) {
+      return envRate;
+    }
+    try {
+      const kesCurrency = await this.prisma.currency?.findUnique?.({ where: { code: 'KES' } });
+      const dbRate = kesCurrency?.exchangeRateToBase ? Number(kesCurrency.exchangeRateToBase) : NaN;
+      if (Number.isFinite(dbRate) && dbRate > 1) {
+        return dbRate;
+      }
+    } catch {
+      // Fallback to canonical default rate when Currency lookup is unavailable
+    }
+    return 129.5;
+  }
+
+  /**
+   * Converts a USD Paystack initialization request to KES settlement using the
+   * active exchange rate and records the original USD invoice figures in metadata
+   * so webhook / return-URL verification settles the USD invoice accurately.
+   */
+  private async initializePaystackInKesFromUsd(params: {
+    email: string;
+    amount: number;
+    currency: 'KES' | 'USD';
+    invoiceNumber: string;
+    callbackUrl: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    const fxRate = await this.resolveUsdToKesRate();
+    const chargedAmount = Math.max(1, Math.round(params.amount * fxRate));
+    const chargedCurrency = 'KES' as const;
+
+    this.logger.log(
+      `[Paystack] Settling USD ${params.amount} in KES ${chargedAmount} (rate: ${fxRate}) for ${params.invoiceNumber}`,
+    );
+
+    const init = await this.paystackService.initializeTransaction({
+      ...params,
+      amount: chargedAmount,
+      currency: chargedCurrency,
+      metadata: {
+        ...(params.metadata ?? {}),
+        fxConverted: true,
+        originalAmount: params.amount,
+        originalCurrency: 'USD',
+        exchangeRate: fxRate,
+      },
+    });
+
+    return {
+      init,
+      chargedAmount,
+      chargedCurrency,
+      fxConverted: true,
+      exchangeRate: fxRate,
+    };
+  }
+
+  /**
+   * Memoizes when Paystack rejects USD with "Currency not supported by merchant"
+   * in reactive/auto mode so subsequent USD checkouts in this process convert
+   * directly to KES without repeating a failed round-trip.
+   */
+  private usdSettlementUnsupported = false;
+
+  /**
+   * Initializes a Paystack card transaction.
+   *
+   * Dual-mode currency handling for merchants without a USD domiciliary settlement account:
+   * 1. Proactive mode: When `PAYSTACK_SETTLEMENT_CURRENCY=KES` is configured (or after
+   *    an initial USD rejection is memoized), USD card checkouts are converted directly
+   *    to KES without a failed round-trip.
+   * 2. Reactive fallback mode: If Paystack rejects USD with "Currency not supported
+   *    by merchant", automatically converts USD -> KES using the active market
+   *    exchange rate, memoizes the capability, and retries seamlessly.
    */
   private async initializePaystackWithFxFallback(params: {
     email: string;
@@ -1346,6 +1450,17 @@ export class BillingService {
     callbackUrl: string;
     metadata?: Record<string, unknown>;
   }) {
+    const forcedSettlement = (this.config.get<string>('PAYSTACK_SETTLEMENT_CURRENCY', '') || '')
+      .trim()
+      .toUpperCase();
+
+    if (
+      params.currency === 'USD' &&
+      (forcedSettlement === 'KES' || (forcedSettlement !== 'USD' && this.usdSettlementUnsupported))
+    ) {
+      return this.initializePaystackInKesFromUsd(params);
+    }
+
     try {
       const init = await this.paystackService.initializeTransaction(params);
       return {
@@ -1356,43 +1471,20 @@ export class BillingService {
         exchangeRate: 1,
       };
     } catch (err: any) {
-      const errorMessage =
-        err?.message || (typeof err?.getResponse === 'function' ? String(err.getResponse()?.message || err.getResponse()) : '');
+      const responsePayload = typeof err?.getResponse === 'function' ? err.getResponse() : undefined;
+      const errorMessage = [
+        err?.message,
+        typeof responsePayload === 'string' ? responsePayload : (responsePayload as any)?.message,
+        err?.response?.data?.message,
+      ]
+        .filter(Boolean)
+        .join(' ');
 
-      const isCurrencyUnsupported =
-        errorMessage.includes('Currency not supported') ||
-        err?.response?.data?.message?.includes('Currency not supported');
+      const isCurrencyUnsupported = /currency\s+not\s+supported|unsupported\s+currency/i.test(errorMessage);
 
       if (params.currency === 'USD' && isCurrencyUnsupported) {
-        const kesCurrency = await this.prisma.currency.findUnique({ where: { code: 'KES' } }).catch(() => null);
-        const fxRate = kesCurrency?.exchangeRateToBase ? Number(kesCurrency.exchangeRateToBase) : 129.5;
-        const chargedAmount = Math.round(params.amount * fxRate);
-        const chargedCurrency = 'KES' as const;
-
-        this.logger.log(
-          `[Paystack] Currency not supported by merchant; auto-converting USD ${params.amount} -> KES ${chargedAmount} (rate: ${fxRate}) for ${params.invoiceNumber}`,
-        );
-
-        const init = await this.paystackService.initializeTransaction({
-          ...params,
-          amount: chargedAmount,
-          currency: chargedCurrency,
-          metadata: {
-            ...(params.metadata ?? {}),
-            fxConverted: true,
-            originalAmount: params.amount,
-            originalCurrency: 'USD',
-            exchangeRate: fxRate,
-          },
-        });
-
-        return {
-          init,
-          chargedAmount,
-          chargedCurrency,
-          fxConverted: true,
-          exchangeRate: fxRate,
-        };
+        this.usdSettlementUnsupported = true;
+        return this.initializePaystackInKesFromUsd(params);
       }
 
       throw err;

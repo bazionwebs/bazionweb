@@ -18,7 +18,8 @@ import {
 import { resolveApiV1Base } from '@/lib/api-base';
 import { useAuthStore } from '@/store/auth.store';
 import { DEFAULT_PLAN_SLUG, planMarketing, usePlans } from '@/lib/plans';
-import { useCartStore, cartTotal } from '@/lib/cart';
+import { useCartStore } from '@/lib/cart';
+import { getProductPrice } from '@/lib/priceBooks';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { isTrustedCheckoutUrl, normalizeKenyanPhoneNumber } from '@/lib/utils';
 
@@ -95,12 +96,8 @@ export default function SubscriptionCheckout({
   // add-ons) are sent as identity-only lines and priced server-side.
   const cartItems = useCartStore((s) => s.items);
   const clearCart = useCartStore((s) => s.clear);
-  const cartExtras = cartMode
-    ? cartItems
-        .filter((i) => i.kind === 'CATALOG')
-        .map((i) => ({ productId: i.id, qty: i.qty }))
-    : [];
-  const cartExtrasTotal = cartMode ? cartTotal(cartItems.filter((i) => i.kind === 'CATALOG')) : 0;
+  const catalogCartItems = cartMode ? cartItems.filter((i) => i.kind === 'CATALOG') : [];
+  const cartExtras = catalogCartItems.map((i) => ({ productId: i.id, qty: i.qty }));
 
   const paymentStatus = useQuery({
     queryKey: ['checkout-payment-status', paymentAttempt?.trackingId],
@@ -181,9 +178,30 @@ export default function SubscriptionCheckout({
 
   const planPriceKes = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualKes : currentPlan.priceMonthlyKes;
   const planPriceUsd = billingCycle === 'ANNUAL' ? currentPlan.priceAnnual : currentPlan.priceMonthly;
-  const derivedRate = currentPlan.priceMonthly > 0 ? currentPlan.priceMonthlyKes / currentPlan.priceMonthly : 130;
-  const totalDueKes = planPriceKes + (cartMode ? cartExtrasTotal : 0);
-  const totalDueUsd = planPriceUsd + (cartMode && derivedRate > 0 ? Math.round(cartExtrasTotal / derivedRate) : 0);
+  const itemPriceKes = (item: { id?: string; unitPrice: number; qty: number; currency: string }) => {
+    if ((item.currency || '').toUpperCase() === 'KES') {
+      return item.unitPrice * item.qty;
+    }
+    const keBookPrice = item.id ? getProductPrice(item.id, 'KE')?.amount : undefined;
+    if (keBookPrice != null && keBookPrice > 0) {
+      return keBookPrice * item.qty;
+    }
+    return Math.round(item.unitPrice * item.qty * 129.5);
+  };
+  const itemPriceUsd = (item: { id?: string; unitPrice: number; qty: number; currency: string }) => {
+    if ((item.currency || '').toUpperCase() === 'USD') {
+      return item.unitPrice * item.qty;
+    }
+    const globalBookPrice = item.id ? getProductPrice(item.id, 'GLOBAL')?.amount : undefined;
+    if (globalBookPrice != null && globalBookPrice > 0) {
+      return globalBookPrice * item.qty;
+    }
+    return Math.round((item.unitPrice * item.qty) / 129.5);
+  };
+  const cartExtrasTotalKes = catalogCartItems.reduce((sum, i) => sum + itemPriceKes(i), 0);
+  const cartExtrasTotalUsd = catalogCartItems.reduce((sum, i) => sum + itemPriceUsd(i), 0);
+  const totalDueKes = planPriceKes + (cartMode ? cartExtrasTotalKes : 0);
+  const totalDueUsd = planPriceUsd + (cartMode ? cartExtrasTotalUsd : 0);
   const currentPriceKes = totalDueKes;
   const currentPriceUsd = totalDueUsd;
 
@@ -470,7 +488,7 @@ export default function SubscriptionCheckout({
           </div>
 
           {/* Cart lines from /store — extras are priced server-side on the invoice */}
-          {cartMode && cartItems.some((i) => i.kind === 'CATALOG') && (
+          {cartMode && catalogCartItems.length > 0 && (
             <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cart add-ons</span>
@@ -479,23 +497,27 @@ export default function SubscriptionCheckout({
                 </Link>
               </div>
               <ul className="space-y-1.5">
-                {cartItems
-                  .filter((i) => i.kind === 'CATALOG')
-                  .map((i) => (
-                    <li key={i.key} className="flex items-center justify-between text-xs">
-                      <span className="text-slate-300">
-                        {i.name}
-                        {i.qty > 1 ? ` x${i.qty}` : ''}
-                      </span>
-                      <span className="font-semibold text-white">
-                        KES {(i.unitPrice * i.qty).toLocaleString()}
-                      </span>
-                    </li>
-                  ))}
+                {catalogCartItems.map((i) => (
+                  <li key={i.key} className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300">
+                      {i.name}
+                      {i.qty > 1 ? ` x${i.qty}` : ''}
+                    </span>
+                    <span className="font-semibold text-white">
+                      {isKe
+                        ? `KES ${itemPriceKes(i).toLocaleString()}`
+                        : `$${itemPriceUsd(i).toLocaleString()}`}
+                    </span>
+                  </li>
+                ))}
               </ul>
               <div className="mt-3 flex items-center justify-between border-t border-slate-800 pt-2 text-xs">
                 <span className="font-semibold text-slate-300">Add-ons subtotal</span>
-                <span className="font-bold text-white">KES {cartExtrasTotal.toLocaleString()}</span>
+                <span className="font-bold text-white">
+                  {isKe
+                    ? `KES ${cartExtrasTotalKes.toLocaleString()}`
+                    : `$${cartExtrasTotalUsd.toLocaleString()}`}
+                </span>
               </div>
               <p className="mt-2 text-[11px] text-slate-500">
                 Added to your first invoice — final totals confirmed server-side.

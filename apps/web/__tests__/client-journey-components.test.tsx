@@ -1,7 +1,49 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ClientJourneyProgress, { JOURNEY_STEPS } from '@/components/navigation/ClientJourneyProgress';
 import ProposalPresentationView, { ProposalViewModel } from '@/components/quote/ProposalPresentationView';
+import SubscriptionCheckout from '@/components/billing/SubscriptionCheckout';
+import CartView from '@/components/billing/CartView';
+import { useCartStore } from '@/lib/cart';
+
+const mockMarketPreference = jest.fn(() => ({
+  marketCode: 'GLOBAL',
+  market: 'international',
+  marketDef: { code: 'GLOBAL', currency: 'USD', currencySymbol: '$' },
+  isLocked: true,
+}));
+
+jest.mock('../src/hooks/useMarketPreference', () => ({
+  useMarketPreference: () => mockMarketPreference(),
+}));
+
+const mockPlansList = [
+  {
+    id: '55555555-5555-4555-8555-555555555555',
+    slug: 'care-essential',
+    name: 'Care Essential',
+    tier: 'STARTER',
+    priceMonthly: 75,
+    priceAnnual: 810,
+    priceMonthlyKes: 5000,
+    priceAnnualKes: 54000,
+    annualDiscountPct: 10,
+  },
+];
+
+jest.mock('../src/lib/plans', () => {
+  const actual = jest.requireActual('../src/lib/plans');
+  return {
+    ...actual,
+    usePlans: () => ({
+      plans: mockPlansList,
+      bySlug: { 'care-essential': mockPlansList[0] },
+      loading: false,
+      error: null,
+    }),
+  };
+});
 
 // Mock next/navigation
 const mockReplace = jest.fn();
@@ -161,6 +203,142 @@ describe('Milestone 1 Frontend Components & Journey Flows', () => {
       expect(screen.getByText(/100% IP & Code Ownership/i)).toBeInTheDocument();
       expect(screen.getByText(/30-Day Defect Warranty/i)).toBeInTheDocument();
       expect(screen.getByText(/Guaranteed Fixed Pricing/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('SubscriptionCheckout Cart & Currency Consistency', () => {
+    beforeEach(() => {
+      useCartStore.getState().clear();
+    });
+
+    it('renders USD cart add-ons in USD and sums USD totals accurately without dividing by KES FX rate', () => {
+      mockMarketPreference.mockReturnValue({
+        marketCode: 'GLOBAL',
+        market: 'international',
+        marketDef: { code: 'GLOBAL', currency: 'USD', currencySymbol: '$' },
+        isLocked: true,
+      });
+
+      useCartStore.getState().add({
+        kind: 'CATALOG',
+        id: 'host-business',
+        name: 'Host Business',
+        cycle: 'year',
+        qty: 1,
+        unitPrice: 99,
+        currency: 'USD',
+      });
+
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <SubscriptionCheckout initialPlanSlug="care-essential" initialCycle="MONTHLY" cartMode={true} />
+        </QueryClientProvider>,
+      );
+
+      // Should display $99 for Host Business and Add-ons subtotal, never "KES 99"
+      expect(screen.queryByText('KES 99')).not.toBeInTheDocument();
+      expect(screen.getAllByText('$99').length).toBeGreaterThanOrEqual(2);
+
+      // Care Essential ($75) + Host Business ($99) = $174 USD (never $76 USD)
+      expect(screen.queryByText('$76 USD')).not.toBeInTheDocument();
+      expect(screen.getAllByText('$174 USD').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('renders KES cart add-ons in KES when marketCode is KE', () => {
+      mockMarketPreference.mockReturnValue({
+        marketCode: 'KE',
+        market: 'kenya',
+        marketDef: { code: 'KE', currency: 'KES', currencySymbol: 'KSh' },
+        isLocked: true,
+      });
+
+      useCartStore.getState().add({
+        kind: 'CATALOG',
+        id: 'host-business',
+        name: 'Host Business',
+        cycle: 'year',
+        qty: 1,
+        unitPrice: 8500,
+        currency: 'KES',
+      });
+
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <SubscriptionCheckout initialPlanSlug="care-essential" initialCycle="MONTHLY" cartMode={true} />
+        </QueryClientProvider>,
+      );
+
+      expect(screen.getAllByText('KES 8,500').length).toBeGreaterThanOrEqual(2);
+      // Care Essential (KES 5,000) + Host Business (KES 8,500) = KES 13,500
+      expect(screen.getAllByText('KES 13,500').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('resolves KES cart items to canonical USD priceBook price in GLOBAL market instead of dividing by PPP plan ratio', () => {
+      mockMarketPreference.mockReturnValue({
+        marketCode: 'GLOBAL',
+        market: 'international',
+        marketDef: { code: 'GLOBAL', currency: 'USD', currencySymbol: '$' },
+        isLocked: true,
+      });
+
+      // Item was added while user was in KE market (KES 8,500), then user is in GLOBAL market
+      useCartStore.getState().add({
+        kind: 'CATALOG',
+        id: 'host-business',
+        name: 'Host Business',
+        cycle: 'year',
+        qty: 1,
+        unitPrice: 8500,
+        currency: 'KES',
+      });
+
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <SubscriptionCheckout initialPlanSlug="care-essential" initialCycle="MONTHLY" cartMode={true} />
+        </QueryClientProvider>,
+      );
+
+      // Canonical GLOBAL priceBook price for host-business is $99 (not 8500 / (5000/75) = $128)
+      expect(screen.getAllByText('$99').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('$174 USD').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('CartView normalizes mixed-currency items to the active market currency without summing raw KES + USD numbers', () => {
+      mockMarketPreference.mockReturnValue({
+        marketCode: 'GLOBAL',
+        market: 'international',
+        marketDef: { code: 'GLOBAL', currency: 'USD', currencySymbol: '$' },
+        isLocked: true,
+      });
+
+      useCartStore.getState().add({
+        kind: 'PLAN',
+        id: 'care-essential',
+        name: 'Care Essential',
+        cycle: 'MONTHLY',
+        qty: 1,
+        unitPrice: 75,
+        currency: 'USD',
+      });
+      useCartStore.getState().add({
+        kind: 'CATALOG',
+        id: 'host-business',
+        name: 'Host Business',
+        cycle: 'year',
+        qty: 1,
+        unitPrice: 8500,
+        currency: 'KES',
+      });
+
+      render(<CartView />);
+
+      // Host Business should be normalized to USD 99 and total to USD 174 (never 8,575)
+      expect(screen.queryByText(/8,575/)).not.toBeInTheDocument();
+      expect(screen.getAllByText('USD 99').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('USD 174')).toBeInTheDocument();
     });
   });
 });

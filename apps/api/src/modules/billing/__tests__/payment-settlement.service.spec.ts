@@ -222,6 +222,147 @@ describe('PaymentSettlementService.settlePaystackCharge', () => {
     const r = await svc.settlePaystackCharge({ reference: 'ps_ref', amount: 500000, currency: 'KES', channel: 'mobile_money', metadata: { invoiceNumber: 'INV-001' } });
     expect(r.status).toBe('PROCESSED');
   });
+
+  it('settles a USD subscription invoice with cart add-ons paid in KES when linked PENDING paymentLog matches', async () => {
+    const usdInvoice = {
+      ...baseInvoice,
+      id: 'inv-usd-cart',
+      invoiceNumber: 'INV-USD-001',
+      amount: 174,
+      currency: 'USD',
+      lineItems: [
+        checkoutLineItem({
+          description: 'BazionWeb Care Essential (monthly) — card',
+          amount: 75,
+          currency: 'USD',
+          planId: 'plan-care-essential',
+          billingCycle: 'MONTHLY',
+          purpose: 'subscription',
+        }),
+        checkoutLineItem({
+          description: 'Add-on — business x1 (year)',
+          amount: 99,
+          currency: 'USD',
+          productId: 'host-business',
+          qty: 1,
+          purpose: 'subscription',
+        }),
+      ],
+    };
+    const prisma = makePrisma(usdInvoice);
+    prisma.paymentLog.findUnique.mockResolvedValue({
+      id: 'plog-fx-1',
+      status: PaymentStatus.PENDING,
+      amount: 22533, // Math.round(174 * 129.5)
+      currency: 'KES',
+      method: PaymentMethodType.CARD,
+      invoice: usdInvoice,
+    });
+
+    const svc = await build(prisma);
+    const r = await svc.settlePaystackCharge({
+      reference: 'ps_ref_fx_cart',
+      amount: 2253300, // subunits
+      currency: 'KES',
+      channel: 'card',
+      metadata: {
+        invoiceNumber: 'INV-USD-001',
+        planId: 'plan-care-essential',
+        billingCycle: 'MONTHLY',
+        fxConverted: true,
+        originalAmount: 174,
+        originalCurrency: 'USD',
+        exchangeRate: 129.5,
+      },
+    });
+
+    expect(r.status).toBe('PROCESSED');
+    expect(r.invoiceNumber).toBe('INV-USD-001');
+    const tx = prisma._txs()[0];
+    expect(tx.invoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'inv-usd-cart' },
+        data: expect.objectContaining({ status: InvoiceStatus.PAID }),
+      }),
+    );
+    expect(tx.subscription.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clientId: 'client-1',
+          planId: 'plan-care-essential',
+          status: 'ACTIVE',
+          provider: PaymentProvider.PAYSTACK,
+        }),
+      }),
+    );
+  });
+
+  it('settles a USD invoice via fxConverted metadata when no prior paymentLog exists and records KES settlement currency', async () => {
+    const usdInvoice = {
+      ...baseInvoice,
+      id: 'inv-usd-meta',
+      invoiceNumber: 'INV-USD-002',
+      amount: 75,
+      currency: 'USD',
+    };
+    const prisma = makePrisma(usdInvoice);
+    const svc = await build(prisma);
+    const r = await svc.settlePaystackCharge({
+      reference: 'ps_ref_fx_meta',
+      amount: 971300, // 9713 KES = Math.round(75 * 129.5)
+      currency: 'KES',
+      channel: 'card',
+      metadata: {
+        invoiceNumber: 'INV-USD-002',
+        planId: 'plan-growth',
+        billingCycle: 'MONTHLY',
+        fxConverted: true,
+        originalAmount: 75,
+        originalCurrency: 'USD',
+        exchangeRate: 129.5,
+      },
+    });
+
+    expect(r.status).toBe('PROCESSED');
+    const tx = prisma._txs()[0];
+    expect(tx.paymentLog.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          amount: 9713,
+          currency: 'KES',
+          status: PaymentStatus.SUCCESS,
+        }),
+      }),
+    );
+  });
+
+  it('rejects fxConverted metadata settlement with AMOUNT_MISMATCH when paidAmount is below converted expected amount', async () => {
+    const usdInvoice = {
+      ...baseInvoice,
+      id: 'inv-usd-underpaid',
+      invoiceNumber: 'INV-USD-003',
+      amount: 174,
+      currency: 'USD',
+    };
+    const prisma = makePrisma(usdInvoice);
+    const svc = await build(prisma);
+    const r = await svc.settlePaystackCharge({
+      reference: 'ps_ref_fx_underpaid',
+      amount: 100, // Only 1 KES paid instead of 22,533 KES!
+      currency: 'KES',
+      channel: 'card',
+      metadata: {
+        invoiceNumber: 'INV-USD-003',
+        fxConverted: true,
+        originalAmount: 174,
+        originalCurrency: 'USD',
+        exchangeRate: 129.5,
+      },
+    });
+
+    expect(r.status).toBe('AMOUNT_MISMATCH');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
 });
 
 // ── confirmPaystackReference ──────────────────────────────────────────────────

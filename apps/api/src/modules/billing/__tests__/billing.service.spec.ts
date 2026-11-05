@@ -38,6 +38,7 @@ const mockPrisma = {
   paymentLog: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   subscription: { findMany: jest.fn() },
   market: { findFirst: jest.fn().mockResolvedValue(null) },
+  currency: { findUnique: jest.fn() },
   $transaction: jest.fn((cb) => (typeof cb === 'function' ? cb(mockPrisma) : Promise.all(cb))),
 };
 
@@ -97,6 +98,13 @@ describe('BillingService', () => {
     }).compile();
     service = module.get<BillingService>(BillingService);
     jest.clearAllMocks();
+    mockConfigService.get.mockImplementation((key: string, def?: any) => {
+      if (key === 'FRONTEND_URL') return 'https://bazionweb.com';
+      if (key === 'BANK_BENEFICIARY') return 'BazionWeb Technologies Ltd';
+      if (key === 'BANK_ACCOUNT_NUMBER') return 'TEST123';
+      if (key === 'BANK_SWIFT_BIC') return 'TESTBIC';
+      return def;
+    });
   });
 
   // ── generate() ──────────────────────────────────────────────────────────────
@@ -337,6 +345,39 @@ describe('BillingService', () => {
       expect(result.checkoutUrl).toBe('https://checkout.paystack.com/abc');
     });
 
+    it('subscribePaystack automatically falls back to KES when Paystack rejects USD with Currency not supported by merchant', async () => {
+      mockPrisma.client.findUnique.mockResolvedValue({
+        id: 'client-usd-1',
+        email: 'intl@example.com',
+        user: { firstName: 'John', lastName: 'Smith' },
+      });
+      mockPrisma.plan.findUnique.mockResolvedValue(mockPlan);
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-usd-1',
+        invoiceNumber: 'INV-USD-87654321',
+        amount: 99,
+        currency: 'USD',
+      });
+      mockPrisma.currency.findUnique.mockResolvedValue({ code: 'KES', exchangeRateToBase: 129.5 });
+      mockPaystackService.initializeTransaction
+        .mockRejectedValueOnce(new Error('Card checkout failed: Currency not supported by merchant'))
+        .mockResolvedValueOnce({
+          authorizationUrl: 'https://checkout.paystack.com/fx-auth',
+          accessCode: 'acc_fx',
+          reference: 'ref_fx_1',
+        });
+
+      const result = await service.subscribePaystack(
+        { id: 'user-intl', email: 'intl@example.com', firstName: 'John', lastName: 'Smith' },
+        { planId: 'plan-growth', billingCycle: 'MONTHLY' as any, currency: 'USD' },
+      );
+
+      expect(result.checkoutUrl).toBe('https://checkout.paystack.com/fx-auth');
+      expect(result.fxConverted).toBe(true);
+      expect(result.chargedCurrency).toBe('KES');
+      expect(result.chargedAmount).toBe(Math.round(99 * 129.5));
+    });
+
     it('throws BadRequestException if plan is inactive or not found', async () => {
       mockPrisma.client.findUnique.mockResolvedValue({
         id: 'client-uuid-1',
@@ -510,6 +551,123 @@ describe('BillingService', () => {
     it('rejects plans missing a price in the requested currency', async () => {
       mockPrisma.plan.findUnique.mockResolvedValue({ ...seedPrice, priceMonthlyKes: null, priceMonthly: null });
       await expect(service.subscribePaystackGuest(guestDto)).rejects.toThrow(/price not configured/i);
+    });
+
+    it('automatically converts USD -> KES when Paystack rejects USD with Currency not supported by merchant', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue(seedPrice);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 'user-guest-usd', email: guestDto.email });
+      mockPrisma.client.findUnique.mockResolvedValue(null);
+      mockPrisma.client.create.mockResolvedValue({ id: 'client-guest-usd', email: guestDto.email, planId: 'plan-growth' });
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-guest-usd',
+        invoiceNumber: 'INV-USD-0001',
+        amount: 59,
+        currency: 'USD',
+      });
+      mockPrisma.currency.findUnique.mockResolvedValue({ code: 'KES', exchangeRateToBase: 129.5 });
+      mockPrisma.paymentLog.create.mockResolvedValue({ id: 'log-usd-kes' });
+
+      mockPaystackService.initializeTransaction
+        .mockRejectedValueOnce(new Error('Card checkout failed: Currency not supported by merchant'))
+        .mockResolvedValueOnce({
+          authorizationUrl: 'https://checkout.paystack.com/usd-kes-fallback',
+          reference: 'ps_ref_fx_1',
+        });
+
+      const result = await service.subscribePaystackGuest({
+        ...guestDto,
+        currency: 'USD',
+      });
+
+      expect(result.status).toBe('REDIRECT_REQUIRED');
+      expect(result.checkoutUrl).toBe('https://checkout.paystack.com/usd-kes-fallback');
+      expect(result.fxConverted).toBe(true);
+      expect(result.chargedCurrency).toBe('KES');
+      expect(result.chargedAmount).toBe(Math.round(59 * 129.5));
+
+      expect(mockPaystackService.initializeTransaction).toHaveBeenCalledTimes(2);
+      const retryCall = mockPaystackService.initializeTransaction.mock.calls[1][0];
+      expect(retryCall.currency).toBe('KES');
+      expect(retryCall.amount).toBe(Math.round(59 * 129.5));
+      expect(retryCall.metadata).toEqual(
+        expect.objectContaining({
+          fxConverted: true,
+          originalAmount: 59,
+          originalCurrency: 'USD',
+          exchangeRate: 129.5,
+        }),
+      );
+    });
+
+    it('proactively settles USD in KES without a failed round-trip when PAYSTACK_SETTLEMENT_CURRENCY=KES', async () => {
+      mockConfigService.get.mockImplementation((key: string, def?: any) => {
+        if (key === 'PAYSTACK_SETTLEMENT_CURRENCY') return 'KES';
+        if (key === 'FRONTEND_URL') return 'https://bazionweb.com';
+        if (key === 'BANK_BENEFICIARY') return 'BazionWeb Technologies Ltd';
+        if (key === 'BANK_ACCOUNT_NUMBER') return 'TEST123';
+        if (key === 'BANK_SWIFT_BIC') return 'TESTBIC';
+        return def;
+      });
+      mockPrisma.plan.findUnique.mockResolvedValue(seedPrice);
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-guest-1', email: guestDto.email });
+      mockPrisma.client.findUnique.mockResolvedValue({ id: 'client-guest-1', planId: 'plan-growth' });
+      mockPrisma.invoice.create.mockResolvedValue({
+        id: 'inv-guest-proactive',
+        invoiceNumber: 'INV-USD-0002',
+        amount: 59,
+        currency: 'USD',
+      });
+      mockPrisma.currency.findUnique.mockResolvedValue({ code: 'KES', exchangeRateToBase: 1.0 }); // unseeded 1.0 should fall back to 129.5
+      mockPrisma.paymentLog.create.mockResolvedValue({ id: 'log-proactive' });
+      mockPaystackService.initializeTransaction.mockResolvedValueOnce({
+        authorizationUrl: 'https://checkout.paystack.com/proactive-kes',
+        reference: 'ps_ref_proactive',
+      });
+
+      const result = await service.subscribePaystackGuest({
+        ...guestDto,
+        currency: 'USD',
+      });
+
+      expect(mockPaystackService.initializeTransaction).toHaveBeenCalledTimes(1);
+      expect(result.fxConverted).toBe(true);
+      expect(result.chargedCurrency).toBe('KES');
+      expect(result.chargedAmount).toBe(Math.round(59 * 129.5));
+      expect(result.exchangeRate).toBe(129.5);
+    });
+
+    it('memoizes USD settlement rejection in reactive mode so subsequent USD checkouts skip the failed USD round-trip', async () => {
+      mockPrisma.plan.findUnique.mockResolvedValue(seedPrice);
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-guest-1', email: guestDto.email });
+      mockPrisma.client.findUnique.mockResolvedValue({ id: 'client-guest-1', planId: 'plan-growth' });
+      mockPrisma.invoice.create
+        .mockResolvedValueOnce({ id: 'inv-memo-1', invoiceNumber: 'INV-USD-M1', amount: 59, currency: 'USD' })
+        .mockResolvedValueOnce({ id: 'inv-memo-2', invoiceNumber: 'INV-USD-M2', amount: 59, currency: 'USD' });
+      mockPrisma.currency.findUnique.mockResolvedValue({ code: 'KES', exchangeRateToBase: 129.5 });
+      mockPrisma.paymentLog.create.mockResolvedValue({ id: 'log-memo' });
+
+      mockPaystackService.initializeTransaction
+        .mockRejectedValueOnce(new Error('Card checkout failed: Currency not supported by merchant'))
+        .mockResolvedValueOnce({
+          authorizationUrl: 'https://checkout.paystack.com/memo-1',
+          reference: 'ps_ref_memo_1',
+        })
+        .mockResolvedValueOnce({
+          authorizationUrl: 'https://checkout.paystack.com/memo-2',
+          reference: 'ps_ref_memo_2',
+        });
+
+      const first = await service.subscribePaystackGuest({ ...guestDto, currency: 'USD' });
+      expect(first.fxConverted).toBe(true);
+      expect(mockPaystackService.initializeTransaction).toHaveBeenCalledTimes(2); // 1st failed USD + 2nd KES
+
+      const second = await service.subscribePaystackGuest({ ...guestDto, currency: 'USD' });
+      expect(second.fxConverted).toBe(true);
+      expect(second.chargedCurrency).toBe('KES');
+      // Only 1 additional call (directly in KES) because USD rejection was memoized!
+      expect(mockPaystackService.initializeTransaction).toHaveBeenCalledTimes(3);
+      expect(mockPaystackService.initializeTransaction.mock.calls[2][0].currency).toBe('KES');
     });
   });
 

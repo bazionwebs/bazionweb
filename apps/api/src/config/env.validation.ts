@@ -25,6 +25,9 @@ export const envValidationSchema = Joi.object({
   // Paystack — Cards + M-Pesa (KES/USD)
   PAYSTACK_SECRET_KEY: Joi.string().min(8).optional().allow(''),
   PAYSTACK_WEBHOOK_SECRET: Joi.string().min(8).optional().allow(''),
+  // Optional: set PAYSTACK_SETTLEMENT_CURRENCY=KES when merchant has no USD domiciliary account yet
+  PAYSTACK_SETTLEMENT_CURRENCY: Joi.string().valid('KES', 'USD', 'AUTO', 'kes', 'usd', 'auto').optional().allow(''),
+  PAYSTACK_USD_KES_RATE: Joi.number().positive().optional(),
   // Alias: Paystack signs with the secret key itself; webhook secret optional.
   // If PAYSTACK_WEBHOOK_SECRET unset, PAYSTACK_SECRET_KEY is used.
 
