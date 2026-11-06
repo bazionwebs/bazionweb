@@ -78,6 +78,24 @@ class MagicLinkVerifyDto {
   token: string;
 }
 
+class ForgotPasswordDto {
+  @ApiProperty({ example: 'client@example.com' })
+  @IsEmail()
+  email: string;
+}
+
+class ResetPasswordDto {
+  @ApiProperty({ description: 'Single-use reset token from the emailed link' })
+  @IsString()
+  resetToken: string;
+
+  @ApiProperty({ example: 'SecurePass123!', minLength: 8, maxLength: 128 })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  newPassword: string;
+}
+
 class ChangePasswordDto {
   @ApiProperty({ required: false, description: 'Current password (required if a password is already set)' })
   @IsOptional()
@@ -222,6 +240,45 @@ export class AuthController {
   @ApiOperation({ summary: 'Change own password and rotate session tokens' })
   async changePassword(@Request() req: any, @Body() dto: ChangePasswordDto) {
     return this.authService.changeOwnPassword(req.user.id, dto.currentPassword, dto.newPassword);
+  }
+
+  /**
+   * Step 1 of self-service password recovery.
+   * POST /api/v1/auth/forgot-password — raw tokens only reach the mailer BFF
+   * (x-internal-dispatch); anonymous callers get the same empty shape so the
+   * response never reveals whether an account exists.
+   */
+  @Post('forgot-password')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @ApiOperation({ summary: 'Request a one-time password-reset link' })
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+    @Headers('x-internal-dispatch') dispatchSecret?: string,
+  ) {
+    return this.authService.requestPasswordReset(
+      dto.email,
+      this.authService.canDispatchTokens(dispatchSecret),
+    );
+  }
+
+  /**
+   * Step 2 of self-service password recovery: consume the emailed reset
+   * token, set the new password, and revoke every active session.
+   * POST /api/v1/auth/reset-password — the token is single-use.
+   */
+  @Post('reset-password')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reset password using the emailed single-use token' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto);
+    return {
+      success: true,
+      message: 'Password updated. Sign in with your new password.',
+    };
   }
 
   /**

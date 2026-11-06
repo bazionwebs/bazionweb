@@ -12,6 +12,11 @@ export interface SendClaimLinkOptions {
   claimLinkUrl: string;
 }
 
+export interface SendPasswordResetOptions {
+  to: string;
+  resetLinkUrl: string;
+}
+
 export interface ContactInquiryOptions {
   clientName: string;
   clientEmail: string;
@@ -227,6 +232,37 @@ export function generateClaimLinkEmailHtml(claimLinkUrl: string, recipientEmail:
     </div>
 
     ${renderEmailSecuritySealHtml('AUTH-ACCOUNT-CLAIM')}
+  </div>
+  ${renderEmailCorporateFooterHtml()}
+</body>
+</html>`;
+}
+
+export function generatePasswordResetEmailHtml(resetLinkUrl: string, recipientEmail: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Reset your BazionWeb password</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#0B0F17;color:#F8FAFC;margin:0;padding:32px 16px;">
+  <div style="max-width:560px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:36px 32px;box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+    ${renderEmailHeaderHtml('Secure Password Recovery')}
+
+    <h2 style="font-size:20px;font-weight:700;color:#FFFFFF;margin:0 0 12px;text-align:center;">Reset your password</h2>
+    <p style="font-size:14px;color:#94A3B8;line-height:1.6;margin:0 0 24px;text-align:center;">
+      We received a request to reset the password for <strong>${escapeHtml(recipientEmail)}</strong>. Open the secure link below to choose a new one.
+    </p>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${escapeHtml(resetLinkUrl)}" style="display:inline-block;background:linear-gradient(135deg,#2563EB 0%,#1D4ED8 100%);color:#FFFFFF;font-weight:700;font-size:14px;padding:14px 32px;border-radius:12px;text-decoration:none;box-shadow:0 4px 14px rgba(37,99,235,0.4);" target="_blank">Choose a New Password &rarr;</a>
+    </div>
+    <div style="font-size:12px;color:#64748B;text-align:center;line-height:1.5;border-top:1px solid #334155;padding-top:20px;margin-top:24px;">
+      This link is valid for <strong>15 minutes</strong>, can only be used once, and cannot be forwarded for reuse. After a successful reset, every active session will be signed out. If you did not request this, ignore this email &mdash; your password stays unchanged. We will never ask for your password by email.
+      <span style="word-break:break-all;color:#38BDF8;font-size:11px;margin-top:8px;display:block;">${escapeHtml(resetLinkUrl)}</span>
+    </div>
+
+    ${renderEmailSecuritySealHtml('AUTH-PASSWORD-RESET')}
   </div>
   ${renderEmailCorporateFooterHtml()}
 </body>
@@ -526,6 +562,16 @@ export async function sendClaimLinkEmail(options: SendClaimLinkOptions): Promise
     'Claim your BazionWeb account',
     generateClaimLinkEmailHtml(claimLinkUrl, to),
     claimLinkUrl,
+  );
+}
+
+export async function sendPasswordResetEmail(options: SendPasswordResetOptions): Promise<SendEmailResult> {
+  const { to, resetLinkUrl } = options;
+  return sendEmail(
+    to,
+    'Reset your BazionWeb password',
+    generatePasswordResetEmailHtml(resetLinkUrl, to),
+    resetLinkUrl,
   );
 }
 

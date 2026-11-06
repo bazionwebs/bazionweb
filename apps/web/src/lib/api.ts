@@ -89,6 +89,10 @@ export const authApi = {
 
   changePassword: (data: { currentPassword?: string; newPassword: string }) =>
     api.post('/auth/change-password', data).then(r => r.data),
+
+  /** Completes "forgot password" — consumes the emailed single-use reset token. */
+  resetPassword: (data: { resetToken: string; newPassword: string }) =>
+    api.post('/auth/reset-password', data).then(r => r.data),
 };
 
 // ─── Client portal ───────────────────────────────────────────────────────────

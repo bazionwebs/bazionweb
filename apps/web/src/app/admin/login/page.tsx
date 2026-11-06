@@ -139,10 +139,16 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-slate-800/80 text-center">
+          <div className="mt-6 pt-5 border-t border-slate-800/80 text-center space-y-2">
             <p className="text-[11px] text-slate-500 leading-relaxed">
               Protected by hardware-level rate limiting, zero trust policies &amp; audit logging.
             </p>
+            <Link
+              href="/portal/reset-password"
+              className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Forgot your password? Reset it with the email link
+            </Link>
           </div>
         </div>
 

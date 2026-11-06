@@ -149,6 +149,13 @@ describe('AuthService (local provider)', () => {
       });
       await expect(service.refresh('b'.repeat(96))).rejects.toThrow(UnauthorizedException);
     });
+
+    it('rejects purpose-prefixed single-use tokens as refresh tokens', async () => {
+      await expect(service.refresh('magic_sometoken')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refresh('claim_sometoken')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refresh('reset_sometoken')).rejects.toThrow(UnauthorizedException);
+      expect(prisma.refreshToken.findUnique).not.toHaveBeenCalled();
+    });
   });
 
   describe('logout()', () => {
@@ -558,5 +565,181 @@ describe('AuthService.pay-first flows (claim + magic link)', () => {
     const result = await service.login('guest@example.com', 'Password123!');
     const decoded = jwt.verify(result.data.accessToken, JWT_SECRET) as any;
     expect(decoded.subscriptionStatus).toBe('ACTIVE');
+  });
+});
+
+describe('AuthService self-service password reset (forgot/reset)', () => {
+  let service: AuthService;
+  let prisma: {
+    user: { findUnique: jest.Mock; update: jest.Mock };
+    refreshToken: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
+  };
+
+  const claimedUser = {
+    id: 'user-reset-1',
+    email: 'resetable@example.com',
+    firstName: 'Sarah',
+    lastName: 'Kamau',
+    role: 'CLIENT' as const,
+    keycloakId: null,
+    deletedAt: null,
+    passwordHash: 'scrypt$16384$8$1$aa$bb',
+  };
+
+  const unclaimedUser = { ...claimedUser, passwordHash: null };
+
+  const validResetTokenRow = (user: typeof claimedUser) => ({
+    id: 'rt-reset-1',
+    tokenHash: 'hash-of-reset-token',
+    revokedAt: null,
+    expiresAt: new Date(Date.now() + 900_000),
+    user,
+  });
+
+  beforeEach(async () => {
+    prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue(claimedUser),
+        update: jest.fn().mockResolvedValue({ id: 'user-reset-1' }),
+      },
+      refreshToken: {
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'rt-reset-1', ...data })),
+        findUnique: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: ConfigService, useValue: localConfig() },
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    service = module.get<AuthService>(AuthService);
+  });
+
+  describe('requestPasswordReset()', () => {
+    it('mints a single-use reset token for a claimed account (BFF-authorised)', async () => {
+      const { resetToken, expiresIn } = await service.requestPasswordReset('Resetable@example.com', true);
+
+      expect(resetToken).toMatch(/^reset_[A-Za-z0-9_-]{20,}$/);
+      expect(expiresIn).toBe(900);
+      expect(prisma.refreshToken.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: 'user-reset-1', expiresAt: expect.any(Date) }),
+        }),
+      );
+    });
+
+    it('never mints when the dispatch secret is missing (anonymous caller)', async () => {
+      const { resetToken } = await service.requestPasswordReset('resetable@example.com', false);
+      expect(resetToken).toBe('');
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('silently no-ops for unknown, deleted, or unclaimed emails (no enumeration)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      expect((await service.requestPasswordReset('nobody@example.com', true)).resetToken).toBe('');
+
+      prisma.user.findUnique.mockResolvedValue({ ...claimedUser, deletedAt: new Date() });
+      expect((await service.requestPasswordReset('resetable@example.com', true)).resetToken).toBe('');
+
+      prisma.user.findUnique.mockResolvedValue(unclaimedUser);
+      expect((await service.requestPasswordReset('resetable@example.com', true)).resetToken).toBe('');
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('returns an empty token under the Keycloak provider', async () => {
+      const kcModule: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: ConfigService, useValue: keycloakConfig() },
+          { provide: PrismaService, useValue: prisma },
+        ],
+      }).compile();
+      const kcService = kcModule.get<AuthService>(AuthService);
+
+      expect((await kcService.requestPasswordReset('resetable@example.com', true)).resetToken).toBe('');
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resetPassword()', () => {
+    it('consumes the token, sets the new password, and revokes all sessions', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue(validResetTokenRow(claimedUser));
+
+      await service.resetPassword({ resetToken: 'reset_valid-token', newPassword: 'FreshPass123!' });
+
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'rt-reset-1', revokedAt: null }),
+        }),
+      );
+      const hash = prisma.user.update.mock.calls[0][0].data.passwordHash as string;
+      expect(hash).toMatch(/^scrypt\$16384\$8\$1\$/);
+      expect(hash).not.toContain('FreshPass123!');
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 'user-reset-1', revokedAt: null } }),
+      );
+
+      // The stored hash must verify against the new password
+      const { verifyPassword } = jest.requireActual('../auth.service') as typeof import('../auth.service');
+      await expect(verifyPassword('FreshPass123!', hash)).resolves.toBe(true);
+      await expect(verifyPassword('OldPass123!', hash)).resolves.toBe(false);
+    });
+
+    it('rejects non-reset-purpose tokens', async () => {
+      await expect(
+        service.resetPassword({ resetToken: 'magic_valid-token', newPassword: 'FreshPass123!' }),
+      ).rejects.toThrow(/invalid or has expired/);
+      await expect(
+        service.resetPassword({ resetToken: 'claim_valid-token', newPassword: 'FreshPass123!' }),
+      ).rejects.toThrow(/invalid or has expired/);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects unknown, revoked, expired, or already-used tokens', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue(null);
+      await expect(service.resetPassword({ resetToken: 'reset_unknown', newPassword: 'FreshPass123!' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      prisma.refreshToken.findUnique.mockResolvedValue({ ...validResetTokenRow(claimedUser), revokedAt: new Date() });
+      await expect(service.resetPassword({ resetToken: 'reset_revoked', newPassword: 'FreshPass123!' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        ...validResetTokenRow(claimedUser),
+        expiresAt: new Date(Date.now() - 60_000),
+      });
+      await expect(service.resetPassword({ resetToken: 'reset_expired', newPassword: 'FreshPass123!' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses when another request consumed the token first (race-safe)', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue(validResetTokenRow(claimedUser));
+      prisma.refreshToken.updateMany.mockImplementation((args: { where: Record<string, unknown> }) =>
+        args.where.id === 'rt-reset-1' ? Promise.resolve({ count: 0 }) : Promise.resolve({ count: 1 }),
+      );
+
+      await expect(service.resetPassword({ resetToken: 'reset_double-use', newPassword: 'FreshPass123!' })).rejects.toThrow(
+        /already been used/,
+      );
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('sends unclaimed guest identities to the claim flow instead', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue(validResetTokenRow(unclaimedUser));
+
+      await expect(
+        service.resetPassword({ resetToken: 'reset_unclaimed', newPassword: 'FreshPass123!' }),
+      ).rejects.toThrow(/not been activated yet/);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
   });
 });

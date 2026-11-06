@@ -31,9 +31,10 @@ const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const KEY_LEN = 64;
 
-// Token purpose prefixes keep claim and sign-in links from being interchangeable.
+// Token purpose prefixes keep claim, sign-in, and reset links from being interchangeable.
 const MAGIC_TOKEN_PREFIX = 'magic_';
 const CLAIM_TOKEN_PREFIX = 'claim_';
+const RESET_TOKEN_PREFIX = 'reset_';
 
 // Constant-cost dummy scrypt hash to prevent timing-based email enumeration on login.
 const DUMMY_PASSWORD_HASH = `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${'00'.repeat(16)}$${'00'.repeat(KEY_LEN)}`;
@@ -181,7 +182,8 @@ export class AuthService {
     if (
       !refreshToken ||
       refreshToken.startsWith(MAGIC_TOKEN_PREFIX) ||
-      refreshToken.startsWith(CLAIM_TOKEN_PREFIX)
+      refreshToken.startsWith(CLAIM_TOKEN_PREFIX) ||
+      refreshToken.startsWith(RESET_TOKEN_PREFIX)
     ) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -299,6 +301,100 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     return updated;
+  }
+
+  // ── Self-service password reset ("forgot password") ────────────────────────
+  /** Returns true when local password accounts are the active login method. */
+  private canUseLocalReset(): boolean {
+    return this.isLocalProvider();
+  }
+
+  /**
+   * Step 1 of self-service password recovery: mint a single-use reset token
+   * for a claimed (password-bearing) account. Raw tokens are only returned
+   * to the Next.js mailer BFF (x-internal-dispatch), never to anonymous
+   * callers. Unknown emails, soft-deleted users, unclaimed guest identities,
+   * and non-local providers all return the same empty shape (no enumeration).
+   */
+  async requestPasswordReset(email: string, dispatchAuthorized = false): Promise<{ resetToken: string; expiresIn: number }> {
+    if (!dispatchAuthorized || !this.canUseLocalReset()) {
+      return { resetToken: '', expiresIn: 0 };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (!user || user.deletedAt || !user.passwordHash) {
+      return { resetToken: '', expiresIn: 0 };
+    }
+
+    const rawToken = `${RESET_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 15 * 60_000),
+      },
+    });
+    return { resetToken: rawToken, expiresIn: 900 };
+  }
+
+  /**
+   * Step 2 of self-service password recovery: consume the emailed single-use
+   * reset token and set a new password. The token is consumed atomically
+   * (two open tabs cannot both use it) and every active refresh token for the
+   * user is revoked so old sessions die with the password change.
+   */
+  async resetPassword(dto: { resetToken: string; newPassword: string }): Promise<void> {
+    if (!dto.resetToken?.startsWith(RESET_TOKEN_PREFIX)) {
+      throw new UnauthorizedException('This reset link is invalid or has expired.');
+    }
+    if (!this.canUseLocalReset()) {
+      throw new UnauthorizedException('Password reset is handled by the identity provider. Contact support.');
+    }
+
+    const tokenHash = createHash('sha256').update(dto.resetToken).digest('hex');
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (
+      !stored ||
+      stored.revokedAt ||
+      stored.expiresAt.getTime() <= Date.now() ||
+      !stored.user ||
+      stored.user.deletedAt
+    ) {
+      throw new UnauthorizedException('This reset link is invalid or has expired.');
+    }
+
+    // Unclaimed checkout guests must complete the pay-first claim flow instead.
+    if (!stored.user.passwordHash) {
+      throw new ForbiddenException(
+        'This account has not been activated yet. Use the claim link from your payment confirmation.',
+      );
+    }
+
+    // Consume the token atomically so concurrent requests cannot both reset.
+    const consumed = await this.prisma.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null, expiresAt: { gt: new Date() } },
+      data: { revokedAt: new Date() },
+    });
+    if (consumed.count === 0) {
+      throw new UnauthorizedException('This reset link has already been used or expired.');
+    }
+
+    await this.prisma.user.update({
+      where: { id: stored.user.id },
+      data: { passwordHash: await hashPassword(dto.newPassword) },
+    });
+
+    // Invalidate every session — stolen tokens become useless after a reset.
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: stored.user.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    this.logger.log(`Password reset completed for user ${stored.user.id}`);
   }
 
   // ── Token issuance (Keycloak-claim-compatible for the existing frontend) ──

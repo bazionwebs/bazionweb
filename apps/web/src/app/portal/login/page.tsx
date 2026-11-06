@@ -208,13 +208,12 @@ export default function PortalLoginPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label htmlFor="password" className="label text-xs mb-0">Password</label>
-                  <button
-                    type="button"
-                    onClick={() => { setAuthMethod('magic-link'); setMagicLinkSent(false); setError(''); }}
+                  <Link
+                    href="/portal/reset-password"
                     className="text-[11px] text-[#2563EB] hover:underline"
                   >
                     Forgot password?
-                  </button>
+                  </Link>
                 </div>
                 <div className="relative">
                   <input
