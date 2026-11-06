@@ -36,7 +36,23 @@ export class JwtAuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) return true;
+    if (isPublic) {
+      // Optional authentication: populate request.user if Bearer token is provided
+      const request = context.switchToHttp().getRequest();
+      const token = this.extractToken(request);
+      if (token) {
+        try {
+          const decoded = await this.verifyToken(token);
+          (request as any).rawJwtPayload = decoded;
+          request.user = decoded.iss === 'bazionweb'
+            ? this.mapLocalUser(decoded)
+            : this.mapKeycloakUser(decoded);
+        } catch {
+          // Optional bearer token verification error is safely ignored on public endpoints
+        }
+      }
+      return true;
+    }
 
     const request = context.switchToHttp().getRequest();
     const token = this.extractToken(request);

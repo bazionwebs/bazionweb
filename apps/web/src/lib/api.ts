@@ -215,8 +215,18 @@ export const adminApi = {
 
   markInvoicePaid: (id: string) => api.patch(`/invoices/${id}/mark-paid`).then(r => r.data),
 
-  generateInvoice: (data: { clientId: string; subscriptionId?: string; amount: number; notes?: string }) =>
-    api.post('/invoices/generate', data).then(r => r.data),
+  generateInvoice: (data: {
+    clientId: string;
+    subscriptionId?: string;
+    amount: number;
+    currency?: 'USD' | 'KES' | 'EUR' | 'GBP';
+    dueDate?: string;
+    lineItems?: Array<{ description: string; quantity: number; unitPrice: number; amount: number }>;
+    notes?: string;
+  }) => api.post('/invoices/generate', data).then(r => r.data),
+
+  getInvoicePdfLink: (invoiceId: string) =>
+    api.get(`/invoices/${invoiceId}/pdf`).then(r => r.data),
 
   createClient: (data: { businessName: string; contactName: string; email: string; phone?: string; planId?: string }) =>
     api.post('/clients', data).then(r => r.data),

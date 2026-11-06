@@ -425,6 +425,33 @@ export class ProposalDetailsDto {
   invoice?: ProposalLinkedInvoiceDto;
 }
 
+/** Itemized service line item for invoices. */
+export class InvoiceLineItemDto {
+  @ApiProperty({ description: 'Service or line item description', example: 'Launch Website Package' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  description: string;
+
+  @ApiPropertyOptional({ description: 'Quantity (>= 1)', example: 1, default: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  quantity?: number;
+
+  @ApiPropertyOptional({ description: 'Unit price', example: 450 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  unitPrice?: number;
+
+  @ApiPropertyOptional({ description: 'Total line amount', example: 450 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  amount?: number;
+}
+
 /** Manually generate an invoice (admin). */
 export class GenerateInvoiceDto {
   @ApiProperty({ description: 'Target client UUID' })
@@ -447,6 +474,18 @@ export class GenerateInvoiceDto {
   @IsOptional()
   @IsIn(['USD', 'KES', 'EUR', 'GBP'])
   currency?: 'USD' | 'KES' | 'EUR' | 'GBP';
+
+  @ApiPropertyOptional({ description: 'Due date in ISO format' })
+  @IsOptional()
+  @IsString()
+  dueDate?: string;
+
+  @ApiPropertyOptional({ type: [InvoiceLineItemDto], description: 'Itemized service line items' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceLineItemDto)
+  lineItems?: InvoiceLineItemDto[];
 
   @ApiPropertyOptional({ description: 'Invoice notes' })
   @IsOptional()

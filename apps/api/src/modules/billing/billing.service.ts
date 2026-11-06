@@ -1617,9 +1617,18 @@ export class BillingService {
     });
   }
 
-  async generate(dto: { clientId: string; subscriptionId?: string; amount: number; currency?: 'USD' | 'KES' | 'EUR' | 'GBP'; notes?: string }) {
+  async generate(dto: {
+    clientId: string;
+    subscriptionId?: string;
+    amount: number;
+    currency?: 'USD' | 'KES' | 'EUR' | 'GBP';
+    dueDate?: string;
+    lineItems?: Array<{ description: string; quantity?: number; unitPrice?: number; amount?: number }>;
+    notes?: string;
+  }) {
     const currency = dto.currency || 'USD';
     const invoiceNumber = this.newInvoiceNumber('INV-MAN');
+    const dueDate = dto.dueDate ? new Date(dto.dueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -1629,8 +1638,12 @@ export class BillingService {
         amount: dto.amount,
         currency,
         status: InvoiceStatus.SENT,
-        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        dueDate,
+        lineItems: dto.lineItems && dto.lineItems.length > 0 ? (dto.lineItems as any) : null,
         notes: dto.notes,
+      },
+      include: {
+        client: { select: { businessName: true, email: true } },
       },
     });
 
