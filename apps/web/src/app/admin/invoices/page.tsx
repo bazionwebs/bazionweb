@@ -105,6 +105,26 @@ const SERVICE_CATALOG: ServiceCatalogItem[] = [
     period: 'one-time',
     badge: 'Enterprise',
   },
+  {
+    id: 'rate-extra-page',
+    category: 'websites',
+    name: 'Additional Web Page Build',
+    tagline: 'Custom responsive page design, layout, content formatting & technical SEO (per page)',
+    priceKes: 2000,
+    priceUsd: 40,
+    period: 'one-time',
+    badge: '+1 Page Unit',
+  },
+  {
+    id: 'rate-extra-landing-page',
+    category: 'websites',
+    name: 'Standalone Landing Page / Funnel',
+    tagline: 'High-conversion marketing landing page with hero CTA, testimonials & lead capture funnel',
+    priceKes: 15000,
+    priceUsd: 149,
+    period: 'one-time',
+    badge: 'Sales Funnel',
+  },
 
   // ── Managed Care & SLA Retainers ──
   {
@@ -240,6 +260,16 @@ const SERVICE_CATALOG: ServiceCatalogItem[] = [
     priceKes: 25000,
     priceUsd: 249,
     period: 'one-time',
+  },
+  {
+    id: 'rate-copywriting-extra-page',
+    category: 'addons',
+    name: 'Additional Page Copywriting',
+    tagline: 'Conversion-engineered commercial copywriting and content drafting (per page)',
+    priceKes: 5000,
+    priceUsd: 50,
+    period: 'one-time',
+    badge: 'Content',
   },
   {
     id: 'addon-migration',
@@ -401,6 +431,30 @@ export default function AdminInvoicesPage() {
     }
   };
 
+  const handleAddExtraPages = (pagesCount = 1) => {
+    const unitPrice = currency === 'KES' ? 2000 : currency === 'EUR' ? 37 : currency === 'GBP' ? 32 : 40;
+    const existing = cartItems.find((i) => i.serviceId === 'rate-extra-page');
+    if (existing) {
+      setCartItems((prev) =>
+        prev.map((i) =>
+          i.serviceId === 'rate-extra-page'
+            ? { ...i, quantity: i.quantity + pagesCount }
+            : i,
+        ),
+      );
+    } else {
+      const newItem: CartLineItem = {
+        id: `cart-extra-page-${Date.now()}`,
+        serviceId: 'rate-extra-page',
+        description: 'Additional Web Page Build (Design, Layout & SEO)',
+        quantity: pagesCount,
+        unitPrice,
+        period: 'one-time',
+      };
+      setCartItems((prev) => [...prev, newItem]);
+    }
+  };
+
   const handleAddCustomItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customDescription.trim()) return;
@@ -545,7 +599,11 @@ export default function AdminInvoicesPage() {
   };
 
   const filteredCatalog = SERVICE_CATALOG.filter((item) => {
-    const matchesCategory = catalogFilter === 'all' || item.category === catalogFilter;
+    const matchesCategory =
+      catalogFilter === 'all' ||
+      item.category === catalogFilter ||
+      (catalogFilter === 'websites' && (item.id === 'rate-extra-page' || item.id === 'rate-extra-landing-page')) ||
+      (catalogFilter === 'addons' && (item.id === 'rate-extra-page' || item.id === 'rate-copywriting-extra-page'));
     const matchesSearch =
       item.name.toLowerCase().includes(catalogSearch.toLowerCase()) ||
       item.tagline.toLowerCase().includes(catalogSearch.toLowerCase());
@@ -892,6 +950,28 @@ export default function AdminInvoicesPage() {
                               <span>{inCart ? 'Add Another' : 'Add'}</span>
                             </button>
                           </div>
+
+                          {service.id.startsWith('pkg-') && (
+                            <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1.5 border-t border-slate-100">
+                              <span className="truncate">
+                                {service.id === 'pkg-launch'
+                                  ? '5 pages included'
+                                  : service.id === 'pkg-business'
+                                  ? '10 pages included'
+                                  : service.id === 'pkg-ecommerce'
+                                  ? '15 pages included'
+                                  : 'Custom app scope'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleAddExtraPages(1)}
+                                className="text-blue-600 hover:text-blue-800 font-bold hover:underline shrink-0 ml-1 flex items-center gap-0.5"
+                              >
+                                <Plus className="w-2.5 h-2.5" />
+                                <span>Extra Page ({formatMoney(currency === 'KES' ? 2000 : 40, currency)})</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -968,6 +1048,37 @@ export default function AdminInvoicesPage() {
                     <div className="flex items-center justify-between text-xs font-bold text-slate-800">
                       <span>Billed Services Stack ({cartItems.length})</span>
                       <span className="text-[11px] text-slate-400 font-normal">Directly printable to PDF</span>
+                    </div>
+
+                    {/* Quick Extra Pages Addon Banner */}
+                    <div className="p-2.5 bg-blue-50/80 border border-blue-200/90 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span>Add Extra Web Pages</span>
+                        </div>
+                        <div className="text-[11px] text-blue-700">
+                          {formatMoney(currency === 'KES' ? 2000 : 40, currency)} per additional page
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleAddExtraPages(1)}
+                          className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] rounded-lg transition-colors flex items-center gap-0.5 shadow-xs"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>+1 Page</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddExtraPages(5)}
+                          className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] rounded-lg transition-colors flex items-center gap-0.5 shadow-xs"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>+5 Pages</span>
+                        </button>
+                      </div>
                     </div>
 
                     {cartItems.length === 0 ? (
