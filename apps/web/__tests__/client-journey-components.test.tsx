@@ -152,7 +152,9 @@ describe('Milestone 1 Frontend Components & Journey Flows', () => {
       expect(screen.getByText('BZ-KE-2026-TESTPROPOSAL')).toBeInTheDocument();
       expect(screen.getByText('Dr. Mwangi')).toBeInTheDocument();
       expect(screen.getByText('Nairobi Health Clinic')).toBeInTheDocument();
-      expect(screen.getByText('dr.mwangi@nairobihealth.co.ke')).toBeInTheDocument();
+      // The billing email renders in multiple views (mobile header, details
+      // grid, and verified-contact footer) — assert presence, not uniqueness.
+      expect(screen.getAllByText('dr.mwangi@nairobihealth.co.ke').length).toBeGreaterThan(0);
     });
 
     it('displays 50/50 payment split terms and milestone amounts accurately', () => {
