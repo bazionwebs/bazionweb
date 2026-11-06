@@ -287,6 +287,13 @@ export const CUSTOM_SYSTEM_TIERS: CustomSystemTier[] = [
     examples: ['Requirements Document', 'Wireframes & UI Prototypes', 'Database Entity Models', 'API Roadmap & Cost Estimate'],
   },
   {
+    category: 'Standalone Admin Media Hubs & Content Desks (Retrofit)',
+    kenyaStarting: 'From KSh 45,000 – 85,000',
+    intlStarting: 'From $490 – $890',
+    description: 'Bespoke administrative control panels built to connect to your existing website. Empower non-technical staff to upload photos, swap banners, publish documents, and manage content with zero code.',
+    examples: ['Media & Gallery Upload Desks', 'Banner & Campaign Controllers', 'PDF & Document Download Centers', 'Staff & Announcement Desks'],
+  },
+  {
     category: 'Client Portals & API Gateways',       // was: Booking Platforms
     kenyaStarting: 'From KSh 180,000',               // ← canonical: priceBooks.ts custom-tier-1
     intlStarting: 'From $2,200',                     // ← canonical: priceBooks.ts custom-tier-1
@@ -501,6 +508,16 @@ export const ADD_ON_RATE_CARD: AddOnItem[] = [
     description: 'Fully designed and responsive page adhering to your design system.',
     rawKes: 2000,
     rawUsd: 40,
+  },
+  {
+    id: 'addon-admin-dashboard',
+    name: 'Bespoke Client Admin & Media Upload Hub',
+    category: 'feature',
+    kenyaPrice: 'KSh 25,000',
+    intlPrice: '$299',
+    description: 'Branded admin portal to upload project photos, swap banners, publish PDFs, and toggle noticebars.',
+    rawKes: 25000,
+    rawUsd: 299,
   },
   {
     id: 'blog-news',

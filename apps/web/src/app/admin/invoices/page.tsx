@@ -106,6 +106,26 @@ const SERVICE_CATALOG: ServiceCatalogItem[] = [
     badge: 'Enterprise',
   },
   {
+    id: 'service-admin-hub-starter',
+    category: 'websites',
+    name: 'Standalone Admin Media Hub (Retrofit)',
+    tagline: 'Independent Next.js admin control panel for existing websites with R2 media vault & banner editor',
+    priceKes: 45000,
+    priceUsd: 490,
+    period: 'one-time',
+    badge: 'Retrofit Hub',
+  },
+  {
+    id: 'service-admin-hub-corporate',
+    category: 'websites',
+    name: 'Corporate Operations Desk & Multi-User Admin',
+    tagline: 'Multi-user role-based admin workstation with content collections, live preview & audit logs',
+    priceKes: 85000,
+    priceUsd: 890,
+    period: 'one-time',
+    badge: 'Multi-User RBAC',
+  },
+  {
     id: 'rate-extra-page',
     category: 'websites',
     name: 'Additional Web Page Build',
@@ -224,6 +244,16 @@ const SERVICE_CATALOG: ServiceCatalogItem[] = [
     priceKes: 15000,
     priceUsd: 149,
     period: 'one-time',
+  },
+  {
+    id: 'addon-admin-dashboard',
+    category: 'addons',
+    name: 'Bespoke Client Admin & Media Upload Hub',
+    tagline: 'Branded admin portal for owners to upload photos, swap banners, publish PDFs & toggle notices',
+    priceKes: 25000,
+    priceUsd: 299,
+    period: 'one-time',
+    badge: 'Client Autonomy',
   },
   {
     id: 'addon-booking',
@@ -602,7 +632,7 @@ export default function AdminInvoicesPage() {
     const matchesCategory =
       catalogFilter === 'all' ||
       item.category === catalogFilter ||
-      (catalogFilter === 'websites' && (item.id === 'rate-extra-page' || item.id === 'rate-extra-landing-page')) ||
+      (catalogFilter === 'websites' && (item.id === 'rate-extra-page' || item.id === 'rate-extra-landing-page' || item.id === 'addon-admin-dashboard')) ||
       (catalogFilter === 'addons' && (item.id === 'rate-extra-page' || item.id === 'rate-copywriting-extra-page'));
     const matchesSearch =
       item.name.toLowerCase().includes(catalogSearch.toLowerCase()) ||

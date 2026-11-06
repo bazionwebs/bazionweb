@@ -185,6 +185,12 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
     ],
     modularAddons: [
       {
+        name: 'Bespoke Client Admin & Media Upload Hub',
+        priceKenya: 'KSh 25,000',
+        priceIntl: '$299',
+        description: 'Branded admin portal to upload project photos, swap hero banners, publish PDF brochures, and toggle announcement bars without code.',
+      },
+      {
         name: 'Dynamic Blog / News Engine',
         priceKenya: 'KSh 7,500',
         priceIntl: '$120',
@@ -225,6 +231,13 @@ export const SERVICE_FAMILIES_DATA: Record<string, ServiceFamily> = {
         question: 'Do I get access to edit my own text and images?',
         answer:
           'Yes. On all Business, Professional, and Corporate packages, we configure an intuitive admin dashboard and provide a recorded video training session.',
+      },
+      {
+        question: 'Can I add an admin upload dashboard to the Launch Website package?',
+        answer: {
+          KE: 'Yes! You can attach our modular Bespoke Client Admin & Media Upload Hub (KSh 25,000) directly to a Launch Website. This gives you a branded portal to upload project photos, change banners, and share PDF downloads without needing the full Business package.',
+          GLOBAL: 'Yes! You can attach our modular Bespoke Client Admin & Media Upload Hub ($299) directly to a Launch Website. This gives you a branded portal to upload project photos, change banners, and share PDF downloads without needing the full Business package.',
+        },
       },
       {
         question: 'Who owns the domain and website code when finished?',

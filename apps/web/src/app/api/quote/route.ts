@@ -315,6 +315,15 @@ export async function POST(request: NextRequest) {
             amount: cost,
             formatted: formatCurrency(cost, currency),
           });
+        } else if (priceBook.items[addonId]) {
+          const item = priceBook.items[addonId];
+          addOnsCost += item.amount;
+          itemizedAddOns.push({
+            productId: item.productId,
+            name: item.name,
+            amount: item.amount,
+            formatted: formatCurrency(item.amount, currency),
+          });
         }
       }
     }
