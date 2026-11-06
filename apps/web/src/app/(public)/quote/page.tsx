@@ -12,7 +12,6 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import {
   Check,
   ArrowRight,
-  ChevronRight,
   ArrowLeft,
   MessageSquare,
   ShieldCheck,

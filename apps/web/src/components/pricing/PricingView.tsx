@@ -44,7 +44,6 @@ import {
   Cpu,
   Wrench,
   Server,
-  Shield,
   Plus,
   Sparkles,
   Lock,
