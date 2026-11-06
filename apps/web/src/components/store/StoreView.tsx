@@ -580,7 +580,11 @@ export default function StoreView() {
                 activeCurrency={activeCurrency}
                 onQty={setQty}
                 onRemove={removeItem}
-                onCheckout={() => router.push('/checkout?cart=1')}
+                onCheckout={() => {
+                  const planParam = cartPlanItem?.id || 'none';
+                  const cycleParam = cartPlanItem?.cycle || 'MONTHLY';
+                  router.push(`/checkout?plan=${encodeURIComponent(planParam)}&cycle=${encodeURIComponent(cycleParam)}&cart=1`);
+                }}
                 onSelectStep={(stepId) => scrollToSectionId(stepId)}
               />
               {!isDataReady && (

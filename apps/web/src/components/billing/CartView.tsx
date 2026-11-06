@@ -201,25 +201,25 @@ export default function CartView() {
             </div>
 
             {!plan && (
-              <div className="mt-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/70 to-indigo-50/40 p-5">
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-[#2563EB]">
-                      <Wrench className="h-3.5 w-3.5" /> Care Plan Required
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
+                      <Wrench className="h-3.5 w-3.5" /> Step 4 · Optional Care Plan
                     </span>
-                    <h3 className="mt-2 text-base font-bold text-slate-950">
-                      Pair your hosting with managed care
+                    <h3 className="mt-2 text-base font-bold text-slate-900">
+                      Want ongoing maintenance &amp; priority engineering support?
                     </h3>
                     <p className="mt-1 text-xs text-slate-600 max-w-xl">
-                      BazionWeb provides managed infrastructure backed by routine security updates, daily backups, and technical support.
+                      Care plans are completely optional. All packages include our standard post-launch warranty, or you can add monthly care anytime.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleAddEssentialPlan}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 transition-colors whitespace-nowrap shadow-sm"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-100 transition-colors whitespace-nowrap shadow-xs"
                   >
-                    <Plus className="h-4 w-4" /> Add Care Essential ({isKes ? 'KES 5,000' : '$75'}/mo)
+                    <Plus className="h-4 w-4 text-[#2563EB]" /> Add Care Essential ({isKes ? 'KES 5,000' : '$75'}/mo)
                   </button>
                 </div>
               </div>
@@ -228,7 +228,7 @@ export default function CartView() {
 
           {/* Summary */}
           <aside className="lg:w-80 shrink-0">
-            <div className="lg:sticky lg:top-28 rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
+            <div className="lg:sticky lg:top-28 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="font-bold text-slate-900 mb-4">Order summary</h2>
               <dl className="space-y-2 text-sm">
                 {plan && (
@@ -258,42 +258,16 @@ export default function CartView() {
                 </div>
               </dl>
 
-              {!plan && (
-                <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3.5 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold text-amber-900">
-                        Care plan required for checkout
-                      </p>
-                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                        Hosting & add-ons are managed alongside an active website care plan.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddEssentialPlan}
-                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-white border border-amber-300 px-3 py-2 text-xs font-bold text-amber-900 shadow-sm hover:bg-amber-100/70 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-amber-700" />
-                    Add Care Essential ({isKes ? 'KES 5,000' : '$75'}/mo)
-                  </button>
-                  <div className="text-center">
-                    <Link
-                      href="/store#plans"
-                      className="text-[11px] font-semibold text-[#2563EB] hover:underline"
-                    >
-                      Compare all care plans &rarr;
-                    </Link>
-                  </div>
-                </div>
-              )}
-
               <button
                 type="button"
-                disabled={!plan}
-                onClick={() => router.push(`/checkout?plan=${plan!.id}&cycle=${plan!.cycle}&cart=1`)}
+                disabled={items.length === 0}
+                onClick={() =>
+                  router.push(
+                    `/checkout?plan=${encodeURIComponent(plan ? plan.id : 'none')}&cycle=${encodeURIComponent(
+                      plan ? plan.cycle : 'MONTHLY',
+                    )}&cart=1`,
+                  )
+                }
                 className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Proceed to checkout <ArrowRight className="h-4 w-4" />

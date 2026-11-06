@@ -261,6 +261,8 @@ export class PricingService {
 
     // 1. Map the public configurator options to canonical price-book product IDs.
     const packageKeys: Record<string, string> = {
+      existing: 'website-existing',
+      'website-existing': 'website-existing',
       launch: 'website-launch',
       business: 'website-business',
       professional: 'website-professional',
@@ -329,6 +331,9 @@ export class PricingService {
     const priceMap = new Map<string, number>();
     for (const p of dbPrices) {
       priceMap.set(p.productId, Number(p.amount));
+    }
+    if (!priceMap.has('website-existing')) {
+      priceMap.set('website-existing', 0);
     }
 
     // 3. Resolve package price

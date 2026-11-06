@@ -264,24 +264,63 @@ export class BillingService {
   }
 
   /**
+   * Resolves an optional Care Plan selection.
+   * When the client checks out a cart stack without an optional Step 4 Care Plan
+   * (`planId === 'none'` or omitted while `extras` are present), `plan` is null
+   * so no care plan fee is charged, and a fallback plan ID is resolved only to
+   * satisfy the non-nullable `Client.planId` foreign key in Prisma.
+   */
+  private async resolvePlanSelection(
+    planId: string | undefined,
+    extras: CartExtraDto[] | undefined,
+    opts: { requireActive?: boolean; notFoundMessage?: string } = {},
+  ): Promise<{ plan: any | null; clientPlanId: string }> {
+    const requireActive = opts.requireActive ?? true;
+    const notFoundMessage =
+      opts.notFoundMessage ?? 'The selected subscription plan is inactive or does not exist.';
+
+    const isNoCarePlan = !planId || planId === 'none';
+    if (isNoCarePlan) {
+      if (!extras || extras.length === 0) {
+        throw new BadRequestException(notFoundMessage);
+      }
+      const fallbackPlan =
+        typeof (this.prisma.plan as any)?.findFirst === 'function'
+          ? await (this.prisma.plan as any).findFirst({ where: { isActive: true } })
+          : null;
+      return {
+        plan: null,
+        clientPlanId: fallbackPlan?.id || 'plan-starter',
+      };
+    }
+
+    let plan = await this.prisma.plan.findUnique({ where: { id: planId } });
+    if (!plan && typeof (this.prisma.plan as any)?.findFirst === 'function') {
+      plan = await (this.prisma.plan as any).findFirst({ where: { slug: planId } });
+    }
+    if (!plan || (requireActive && !plan.isActive)) {
+      throw new BadRequestException(notFoundMessage);
+    }
+
+    return { plan, clientPlanId: plan.id };
+  }
+
+  /**
    * Track A: M-Pesa STK (KES) — Paystack STK Push.
    */
   async subscribeMpesa(user: any, dto: MpesaSubscriptionDto) {
     if (!dto.mpesaPhoneNumber) {
       throw new BadRequestException('Phone number is required to trigger M-Pesa prompt.');
     }
+    const { plan, clientPlanId } = await this.resolvePlanSelection(dto.planId, dto.extras);
+
     const client = await this.resolveClient(user, {
       businessName: user.firstName ? `${user.firstName}'s Organisation` : 'BazionWeb Client',
       contactName: `${user.firstName || 'Valued'} ${user.lastName || 'Client'}`.trim(),
       email: user.email,
       phone: dto.mpesaPhoneNumber,
-      planId: dto.planId,
+      planId: clientPlanId,
     });
-
-    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    if (!plan || !plan.isActive) {
-      throw new BadRequestException('The selected subscription plan is inactive or does not exist.');
-    }
 
     return this.initMpesaStk({
       client,
@@ -400,23 +439,46 @@ export class BillingService {
     client: { id: string; email: string; user?: { firstName?: string | null; lastName?: string | null } | null };
     userId: string | null;
     phone: string;
-    plan: { id: string; name: string };
+    plan: { id: string; name: string } | null;
     billingCycle: BillingCycle;
     extras?: CartExtraDto[];
   }) {
     const { client, userId, phone, plan, billingCycle } = args;
 
-    const amount = this.planAmount(plan, billingCycle, 'KES');
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new BadRequestException('Plan price is not configured for KES');
+    let amount = 0;
+    if (plan) {
+      amount = this.planAmount(plan, billingCycle, 'KES');
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new BadRequestException('Plan price is not configured for KES');
+      }
     }
 
-    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras('KES', args.extras);
+    const linePurpose = plan ? 'subscription' : 'invoice_payment';
+    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras('KES', args.extras, linePurpose);
     const total = Math.round((amount + extrasTotal) * 100) / 100;
+    if (!Number.isFinite(total) || total <= 0) {
+      throw new BadRequestException('Checkout total must be greater than zero.');
+    }
 
     const invoiceNumber = this.newInvoiceNumber('INV-KE');
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
+
+    const invoiceLineItems = [
+      ...(plan
+        ? [
+            checkoutLineItem({
+              description: `BazionWeb ${plan.name} (${billingCycle}) Maintenance & Infrastructure`,
+              amount,
+              currency: 'KES',
+              planId: plan.id,
+              billingCycle,
+              purpose: 'subscription',
+            }),
+          ]
+        : []),
+      ...extraItems,
+    ];
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -426,17 +488,7 @@ export class BillingService {
         currency: 'KES',
         status: InvoiceStatus.SENT,
         dueDate,
-        lineItems: [
-          checkoutLineItem({
-            description: `BazionWeb ${plan.name} (${billingCycle}) Maintenance & Infrastructure`,
-            amount,
-            currency: 'KES',
-            planId: plan.id,
-            billingCycle,
-            purpose: 'subscription',
-          }),
-          ...extraItems,
-        ],
+        lineItems: invoiceLineItems,
       },
     });
 
@@ -445,8 +497,10 @@ export class BillingService {
       userId,
       phone,
       invoice: { id: invoice.id, invoiceNumber: invoice.invoiceNumber, amount: total, currency: invoice.currency },
-      description: `BazionWeb ${plan.name}`,
-      metadata: { planId: plan.id, billingCycle },
+      description: plan ? `BazionWeb ${plan.name}` : 'BazionWeb Digital Stack',
+      metadata: plan
+        ? { planId: plan.id, billingCycle }
+        : { purpose: 'invoice_payment', billingCycle },
     });
   }
 
@@ -598,31 +652,51 @@ export class BillingService {
    * to KES when the merchant does not yet have a USD settlement account enabled.
    */
   async subscribePaystack(user: any, dto: PaystackSubscriptionDto) {
+    const { plan, clientPlanId } = await this.resolvePlanSelection(dto.planId, dto.extras);
+
     const client = await this.resolveClient(user, {
       businessName: user.firstName ? `${user.firstName}'s Organisation` : 'BazionWeb Client',
       contactName: `${user.firstName || 'Valued'} ${user.lastName || 'Client'}`.trim(),
       email: dto.email || user.email,
       phone: user.phone,
-      planId: dto.planId,
+      planId: clientPlanId,
     });
 
-    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    if (!plan || !plan.isActive) {
-      throw new BadRequestException('The selected subscription plan is inactive or does not exist.');
+    let amount = 0;
+    if (plan) {
+      amount = this.planAmount(plan, dto.billingCycle, dto.currency);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
+      }
     }
 
-    const amount = this.planAmount(plan, dto.billingCycle, dto.currency);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
-    }
-
-    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras(dto.currency, dto.extras);
+    const linePurpose = plan ? 'subscription' : 'invoice_payment';
+    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras(dto.currency, dto.extras, linePurpose);
     const total = Math.round((amount + extrasTotal) * 100) / 100;
+    if (!Number.isFinite(total) || total <= 0) {
+      throw new BadRequestException('Checkout total must be greater than zero.');
+    }
 
     const invoiceNumber = this.newInvoiceNumber(dto.currency === 'KES' ? 'INV-KE' : 'INV-USD');
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
+
+    const invoiceLineItems = [
+      ...(plan
+        ? [
+            checkoutLineItem({
+              description: `BazionWeb ${plan.name} (${dto.billingCycle}) — card`,
+              amount,
+              currency: dto.currency,
+              planId: plan.id,
+              billingCycle: dto.billingCycle,
+              purpose: 'subscription',
+            }),
+          ]
+        : []),
+      ...extraItems,
+    ];
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -632,17 +706,7 @@ export class BillingService {
         currency: dto.currency,
         status: InvoiceStatus.SENT,
         dueDate,
-        lineItems: [
-          checkoutLineItem({
-            description: `BazionWeb ${plan.name} (${dto.billingCycle}) — card`,
-            amount,
-            currency: dto.currency,
-            planId: plan.id,
-            billingCycle: dto.billingCycle,
-            purpose: 'subscription',
-          }),
-          ...extraItems,
-        ],
+        lineItems: invoiceLineItems,
       },
     });
 
@@ -653,7 +717,9 @@ export class BillingService {
         currency: dto.currency,
         invoiceNumber: invoice.invoiceNumber,
         callbackUrl: `${frontendUrl}/checkout/verify`,
-        metadata: { planId: plan.id, billingCycle: dto.billingCycle, clientId: client.id },
+        metadata: plan
+          ? { planId: plan.id, billingCycle: dto.billingCycle, clientId: client.id }
+          : { purpose: 'invoice_payment', billingCycle: dto.billingCycle, clientId: client.id },
       });
 
     await this.prisma.paymentLog.create({
@@ -787,10 +853,7 @@ export class BillingService {
     const firstName = dto.firstName?.trim() || 'Valued';
     const lastName = dto.lastName?.trim() || 'Client';
 
-    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    if (!plan || !plan.isActive) {
-      throw new BadRequestException('The selected subscription plan is inactive or does not exist.');
-    }
+    const { plan, clientPlanId } = await this.resolvePlanSelection(dto.planId, dto.extras);
 
     const { userId, guest } = await this.resolveGuestIdentity({
       email,
@@ -798,7 +861,7 @@ export class BillingService {
       lastName,
       businessName: dto.businessName?.trim() || 'BazionWeb Client',
       phone: dto.mpesaPhoneNumber,
-      planId: plan.id,
+      planId: clientPlanId,
     });
 
     const result = await this.initMpesaStk({
@@ -820,10 +883,7 @@ export class BillingService {
     const email = dto.email.trim().toLowerCase();
     const businessName = dto.businessName?.trim() || 'BazionWeb Client';
 
-    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    if (!plan || !plan.isActive) {
-      throw new BadRequestException('The selected subscription plan is inactive or does not exist.');
-    }
+    const { plan, clientPlanId } = await this.resolvePlanSelection(dto.planId, dto.extras);
 
     const { userId, guest } = await this.resolveGuestIdentity({
       email,
@@ -831,21 +891,44 @@ export class BillingService {
       lastName: dto.lastName.trim(),
       businessName,
       phone: dto.phone,
-      planId: plan.id,
+      planId: clientPlanId,
     });
 
-    const amount = this.planAmount(plan, dto.billingCycle, dto.currency);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
+    let amount = 0;
+    if (plan) {
+      amount = this.planAmount(plan, dto.billingCycle, dto.currency);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
+      }
     }
 
-    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras(dto.currency, dto.extras);
+    const linePurpose = plan ? 'subscription' : 'invoice_payment';
+    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras(dto.currency, dto.extras, linePurpose);
     const total = Math.round((amount + extrasTotal) * 100) / 100;
+    if (!Number.isFinite(total) || total <= 0) {
+      throw new BadRequestException('Checkout total must be greater than zero.');
+    }
 
     const invoiceNumber = this.newInvoiceNumber(dto.currency === 'KES' ? 'INV-KE' : 'INV-USD');
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
+
+    const invoiceLineItems = [
+      ...(plan
+        ? [
+            checkoutLineItem({
+              description: `BazionWeb ${plan.name} (${dto.billingCycle.toLowerCase()}) — card`,
+              amount,
+              currency: dto.currency,
+              planId: plan.id,
+              billingCycle: dto.billingCycle,
+              purpose: 'subscription',
+            }),
+          ]
+        : []),
+      ...extraItems,
+    ];
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -855,17 +938,7 @@ export class BillingService {
         currency: dto.currency,
         status: InvoiceStatus.SENT,
         dueDate,
-        lineItems: [
-          checkoutLineItem({
-            description: `BazionWeb ${plan.name} (${dto.billingCycle.toLowerCase()}) — card`,
-            amount,
-            currency: dto.currency,
-            planId: plan.id,
-            billingCycle: dto.billingCycle,
-            purpose: 'subscription',
-          }),
-          ...extraItems,
-        ],
+        lineItems: invoiceLineItems,
       },
     });
 
@@ -876,7 +949,9 @@ export class BillingService {
         currency: dto.currency,
         invoiceNumber: invoice.invoiceNumber,
         callbackUrl: `${frontendUrl}/checkout/verify`,
-        metadata: { planId: plan.id, billingCycle: dto.billingCycle, clientId: guest.id, guest: true },
+        metadata: plan
+          ? { planId: plan.id, billingCycle: dto.billingCycle, clientId: guest.id, guest: true }
+          : { purpose: 'invoice_payment', billingCycle: dto.billingCycle, clientId: guest.id, guest: true },
       });
 
     await this.prisma.paymentLog.create({
@@ -920,11 +995,16 @@ export class BillingService {
    * Track B: Manual B2B bank-transfer invoice.
    */
   async createBankTransferInvoice(user: any, dto: BankTransferInvoiceDto) {
+    const { clientPlanId } = await this.resolvePlanSelection(dto.planId, dto.extras, {
+      requireActive: false,
+      notFoundMessage: 'Plan not found',
+    });
+
     const client = await this.resolveClient(user, {
       businessName: user.firstName ? `${user.firstName}'s Enterprise` : 'Corporate Client',
       contactName: `${user.firstName || 'Corporate'} ${user.lastName || 'Billing'}`.trim(),
       email: user.email,
-      planId: dto.planId,
+      planId: clientPlanId,
     });
 
     return this.bankTransferInvoiceFor({ clientId: client.id, businessName: client.businessName }, dto);
@@ -938,10 +1018,10 @@ export class BillingService {
   async createBankTransferInvoiceGuest(dto: GuestBankTransferInvoiceDto) {
     const email = dto.email.trim().toLowerCase();
 
-    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    if (!plan) {
-      throw new BadRequestException('Plan not found');
-    }
+    const { clientPlanId } = await this.resolvePlanSelection(dto.planId, dto.extras, {
+      requireActive: false,
+      notFoundMessage: 'Plan not found',
+    });
 
     const { guest } = await this.resolveGuestIdentity({
       email,
@@ -949,7 +1029,7 @@ export class BillingService {
       lastName: dto.lastName?.trim() || 'Client',
       businessName: dto.businessName?.trim() || 'Corporate Client',
       phone: dto.phone,
-      planId: plan.id,
+      planId: clientPlanId,
     });
 
     return this.bankTransferInvoiceFor({ clientId: guest.id, businessName: guest.businessName }, dto);
@@ -958,19 +1038,41 @@ export class BillingService {
   /** Shared B2B invoice core — server-priced, invoice + manual wire details. */
   private async bankTransferInvoiceFor(
     owner: { clientId: string; businessName?: string | null },
-    dto: { planId: string; billingCycle: BillingCycle; currency: 'USD' | 'EUR' | 'GBP' | 'KES'; purchaseOrderNumber?: string },
+    dto: {
+      planId?: string;
+      billingCycle: BillingCycle;
+      currency: 'USD' | 'EUR' | 'GBP' | 'KES';
+      purchaseOrderNumber?: string;
+      extras?: CartExtraDto[];
+    },
   ) {
     const client = { id: owner.clientId, businessName: owner.businessName };
 
-    const plan = await this.prisma.plan.findUnique({ where: { id: dto.planId } });
-    if (!plan) {
-      throw new BadRequestException('Plan not found');
+    const { plan } = await this.resolvePlanSelection(dto.planId, dto.extras, {
+      requireActive: false,
+      notFoundMessage: 'Plan not found',
+    });
+
+    let planCharge = 0;
+    if (plan) {
+      planCharge = this.planAmount(plan, dto.billingCycle, dto.currency);
+      if (!Number.isFinite(planCharge) || planCharge <= 0) {
+        throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
+      }
     }
 
-    const amount = this.planAmount(plan, dto.billingCycle, dto.currency);
+    const extrasCurrency = dto.currency === 'KES' ? 'KES' : 'USD';
+    const linePurpose = plan ? 'subscription' : 'invoice_payment';
+    const { lineItems: extraItems, total: extrasTotal } = await this.priceCartExtras(
+      extrasCurrency,
+      dto.extras,
+      linePurpose,
+    );
+    const amount = Math.round((planCharge + extrasTotal) * 100) / 100;
     if (!Number.isFinite(amount) || amount <= 0) {
-      throw new BadRequestException(`Plan price not configured for ${dto.currency}`);
+      throw new BadRequestException(`Invoice amount not configured for ${dto.currency}`);
     }
+
     const invoiceNumber = this.newInvoiceNumber('B2B-INV');
     const paymentReference = `BW-${(client.businessName || 'CORP').substring(0, 3).toUpperCase()}-${invoiceNumber.slice(-5)}`;
 
@@ -982,6 +1084,22 @@ export class BillingService {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 14); // Net 14-day corporate payment terms
 
+    const invoiceLineItems = [
+      ...(plan
+        ? [
+            checkoutLineItem({
+              description: `Enterprise Lifecycle Management: ${plan.name} (${dto.billingCycle})`,
+              amount: planCharge,
+              currency: dto.currency,
+              planId: plan.id,
+              billingCycle: dto.billingCycle,
+              purpose: 'subscription',
+            }),
+          ]
+        : []),
+      ...extraItems,
+    ];
+
     const result = await this.prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.create({
         data: {
@@ -992,16 +1110,7 @@ export class BillingService {
           status: InvoiceStatus.SENT,
           dueDate,
           notes: dto.purchaseOrderNumber ? `PO Ref: ${dto.purchaseOrderNumber}` : null,
-          lineItems: [
-            checkoutLineItem({
-              description: `Enterprise Lifecycle Management: ${plan.name} (${dto.billingCycle})`,
-              amount,
-              currency: dto.currency,
-              planId: plan.id,
-              billingCycle: dto.billingCycle,
-              purpose: 'subscription',
-            }),
-          ],
+          lineItems: invoiceLineItems,
         },
       });
 
@@ -1065,47 +1174,137 @@ export class BillingService {
   // ─── Cart extras (server-priced catalog add-ons) ───────────────────────────
 
   /**
-   * Price cart add-ons from the active price book for the charge currency.
+   * Authoritative server-side fallback price book for all canonical Step 1 (Website/App & Add-Ons),
+   * Step 2 (Domain), and Step 3 (Managed Hosting) catalog products. Ensures checkout never fails
+   * with "not available in the price book" if a product ID has not yet been seeded into the DB.
+   */
+  private static readonly CANONICAL_CATALOG_PRICES: Record<
+    string,
+    { name: string; KES: number; USD: number; billingPeriod?: string }
+  > = {
+    // Step 1: Websites & E-Commerce Builds
+    'website-existing': { name: 'Existing Website / App Onboarding', KES: 0, USD: 0, billingPeriod: 'one-time' },
+    'website-launch': { name: 'Launch Website Build', KES: 25000, USD: 450, billingPeriod: 'one-time' },
+    'website-business': { name: 'Business Website Build', KES: 90000, USD: 950, billingPeriod: 'one-time' },
+    'website-pro': { name: 'Professional Website Build', KES: 160000, USD: 1750, billingPeriod: 'one-time' },
+    'website-professional': { name: 'Professional Website Build', KES: 160000, USD: 1750, billingPeriod: 'one-time' },
+    'website-corporate': { name: 'Corporate Custom Digital System', KES: 280000, USD: 2800, billingPeriod: 'one-time' },
+    'website-enterprise': { name: 'Corporate Custom Digital System', KES: 280000, USD: 2800, billingPeriod: 'one-time' },
+    'ecommerce-starter': { name: 'E-Commerce Starter Store', KES: 90000, USD: 890, billingPeriod: 'one-time' },
+    'ecommerce-business': { name: 'E-Commerce Business Store', KES: 175000, USD: 1650, billingPeriod: 'one-time' },
+    'ecommerce-pro': { name: 'E-Commerce Enterprise Store', KES: 350000, USD: 3200, billingPeriod: 'one-time' },
+    'ecommerce-enterprise': { name: 'E-Commerce Enterprise Store', KES: 350000, USD: 3200, billingPeriod: 'one-time' },
+
+    // Step 1B: Add-Ons & Rate Card Items
+    'addon-extra-page': { name: 'Extra Designed Page', KES: 3500, USD: 40, billingPeriod: 'one-time' },
+    'rate-extra-page': { name: 'Extra Designed Page', KES: 3500, USD: 40, billingPeriod: 'one-time' },
+    'addon-blog-setup': { name: 'Blog / News Section Setup', KES: 7500, USD: 75, billingPeriod: 'one-time' },
+    'addon-blog-news': { name: 'Blog / News Section Setup', KES: 7500, USD: 75, billingPeriod: 'one-time' },
+    'addon-copywriting': { name: 'Professional Copywriting (per page)', KES: 2500, USD: 30, billingPeriod: 'one-time' },
+    'rate-copywriting-page': { name: 'Professional Copywriting (per page)', KES: 2500, USD: 30, billingPeriod: 'one-time' },
+    'addon-booking': { name: 'Booking / Appointment System', KES: 18000, USD: 180, billingPeriod: 'one-time' },
+    'addon-booking-system': { name: 'Booking / Appointment System', KES: 18000, USD: 180, billingPeriod: 'one-time' },
+    'addon-chat-whatsapp': { name: 'Live Chat & WhatsApp Automation', KES: 6500, USD: 65, billingPeriod: 'one-time' },
+    'addon-mpesa': { name: 'M-Pesa Daraja STK Push Integration', KES: 20000, USD: 200, billingPeriod: 'one-time' },
+    'addon-multi-currency': { name: 'Multi-Currency & Card Gateway', KES: 15000, USD: 150, billingPeriod: 'one-time' },
+    'addon-card-gateway': { name: 'Multi-Currency & Card Gateway', KES: 15000, USD: 150, billingPeriod: 'one-time' },
+    'addon-payment-gateway': { name: 'Payment Gateway Integration', KES: 15000, USD: 150, billingPeriod: 'one-time' },
+    'addon-seo-audit': { name: 'Technical SEO & Speed Optimization', KES: 18000, USD: 180, billingPeriod: 'one-time' },
+    'addon-seo-advanced': { name: 'Technical SEO & Speed Optimization', KES: 18000, USD: 180, billingPeriod: 'one-time' },
+    'addon-analytics': { name: 'Google Analytics 4, Tag Manager & Meta Pixel', KES: 8500, USD: 85, billingPeriod: 'one-time' },
+    'addon-ga4-pixel': { name: 'Google Analytics 4, Tag Manager & Meta Pixel', KES: 8500, USD: 85, billingPeriod: 'one-time' },
+    'addon-logo-brand': { name: 'Logo & Brand Identity Kit', KES: 15000, USD: 150, billingPeriod: 'one-time' },
+    'addon-brand-refresh': { name: 'Logo & Brand Identity Kit', KES: 15000, USD: 150, billingPeriod: 'one-time' },
+    'addon-multilingual': { name: 'Multi-Language Setup', KES: 20000, USD: 200, billingPeriod: 'one-time' },
+    'addon-crm-erp': { name: 'Custom API / CRM / ERP Webhook', KES: 30000, USD: 300, billingPeriod: 'one-time' },
+    'addon-custom-api': { name: 'Custom API / CRM / ERP Webhook', KES: 30000, USD: 300, billingPeriod: 'one-time' },
+    'rate-product-upload-25': { name: 'E-Commerce Product Upload (per 25 items)', KES: 5000, USD: 50, billingPeriod: 'one-time' },
+
+    // Step 2: Domains
+    'domain-existing': { name: 'Connect Existing Domain (DNS & SSL)', KES: 0, USD: 0, billingPeriod: 'one-time' },
+    'domain-co-ke': { name: 'Register .co.ke / .or.ke Domain', KES: 1500, USD: 15, billingPeriod: 'year' },
+    'domain-com': { name: 'Register .com / .net Domain', KES: 2500, USD: 20, billingPeriod: 'year' },
+    'domain-org': { name: 'Register .org / .io / .africa Domain', KES: 3500, USD: 28, billingPeriod: 'year' },
+
+    // Step 3: Managed Hosting
+    'host-essential': { name: 'Host Essential Managed Hosting', KES: 4500, USD: 49, billingPeriod: 'year' },
+    'host-business': { name: 'Host Business Managed Hosting', KES: 8500, USD: 99, billingPeriod: 'year' },
+    'host-pro': { name: 'Host Professional Managed Hosting', KES: 15000, USD: 189, billingPeriod: 'year' },
+    'host-professional': { name: 'Host Professional Managed Hosting', KES: 15000, USD: 189, billingPeriod: 'year' },
+    'host-cloud': { name: 'Managed Cloud Cluster', KES: 30000, USD: 300, billingPeriod: 'month' },
+    'host-cloud-monthly': { name: 'Managed Cloud Cluster (Monthly)', KES: 30000, USD: 300, billingPeriod: 'month' },
+    'host-cloud-quarterly': { name: 'Managed Cloud Cluster (Quarterly)', KES: 85500, USD: 855, billingPeriod: 'quarter' },
+    'host-cloud-semiannual': { name: 'Managed Cloud Cluster (Semi-Annual)', KES: 162000, USD: 1620, billingPeriod: '6-months' },
+    'host-cloud-annual': { name: 'Managed Cloud Cluster (Annual)', KES: 280000, USD: 2800, billingPeriod: 'year' },
+    'host-cloud-biennial': { name: 'Managed Cloud Cluster (2 Years)', KES: 489600, USD: 4896, billingPeriod: '2-years' },
+    'host-cloud-triennial': { name: 'Managed Cloud Cluster (3 Years)', KES: 648000, USD: 6480, billingPeriod: '3-years' },
+  };
+
+  /**
+   * Price cart add-ons from the active price book for the charge currency,
+   * with authoritative fallback to CANONICAL_CATALOG_PRICES when an item is not
+   * yet seeded in the DB Price table.
    * The client only sends product IDs and quantities — amounts, descriptions,
    * and validity always come from the server so totals cannot be tampered with.
    */
-  private async priceCartExtras(currency: 'KES' | 'USD', extras?: CartExtraDto[]) {
+  private async priceCartExtras(
+    currency: 'KES' | 'USD',
+    extras?: CartExtraDto[],
+    purpose: 'subscription' | 'invoice_payment' = 'subscription',
+  ) {
     if (!extras?.length) return { lineItems: [] as ReturnType<typeof checkoutLineItem>[], total: 0 };
 
-    const market = await this.prisma.market.findFirst({
-      where: { currencyCode: currency, active: true },
-      include: { priceBooks: { where: { status: 'active' }, orderBy: { effectiveFrom: 'desc' }, take: 1 } },
-    });
+    const market =
+      typeof this.prisma.market?.findFirst === 'function'
+        ? await this.prisma.market.findFirst({
+            where: { currencyCode: currency, active: true },
+            include: { priceBooks: { where: { status: 'active' }, orderBy: { effectiveFrom: 'desc' }, take: 1 } },
+          })
+        : null;
     const priceBook = market?.priceBooks?.[0];
-    if (!market || !priceBook) {
-      throw new ServiceUnavailableException(`No active price book for ${currency} — remove add-ons or contact support.`);
-    }
 
-    const prices = await this.prisma.price.findMany({
-      where: { priceBookId: priceBook.id, productId: { in: extras.map(e => e.productId) } },
-    });
-    const priceMap = new Map(prices.map(p => [p.productId, p]));
+    const prices =
+      priceBook && typeof (this.prisma as any).price?.findMany === 'function'
+        ? await this.prisma.price.findMany({
+            where: { priceBookId: priceBook.id, productId: { in: extras.map((e) => e.productId) } },
+          })
+        : [];
+    const priceMap = new Map<string, any>(prices.map((p: any) => [p.productId, p]));
 
     const lineItems: ReturnType<typeof checkoutLineItem>[] = [];
     let total = 0;
     for (const extra of extras) {
-      const price = priceMap.get(extra.productId);
-      if (!price) {
+      const dbPrice = priceMap.get(extra.productId);
+      const canonical = BillingService.CANONICAL_CATALOG_PRICES[extra.productId];
+      if (!dbPrice && !canonical) {
+        if (!market || !priceBook) {
+          throw new ServiceUnavailableException(
+            `No active price book for ${currency} — remove add-ons or contact support.`,
+          );
+        }
         throw new BadRequestException(`Add-on "${extra.productId}" is not available in the ${currency} price book.`);
       }
-      const amount = Number(price.amount) * extra.qty;
-      if (!Number.isFinite(amount) || amount <= 0) {
+
+      const unitAmount = dbPrice != null ? Number(dbPrice.amount) : canonical![currency];
+      const amount = unitAmount * extra.qty;
+      if (!Number.isFinite(amount) || amount < 0) {
         throw new BadRequestException(`Add-on "${extra.productId}" has an invalid price.`);
       }
-      const period = price.billingPeriod ? ` (${price.billingPeriod})` : '';
-      lineItems.push(checkoutLineItem({
-        description: `Add-on — ${extra.productId.replace(/^[\w-]+-/, '')} x${extra.qty}${period}`,
-        amount,
-        currency,
-        productId: extra.productId,
-        qty: extra.qty,
-        purpose: 'subscription',
-      }));
+
+      const billingPeriod = dbPrice?.billingPeriod ?? canonical?.billingPeriod;
+      const period = billingPeriod ? ` (${billingPeriod})` : '';
+      const label = canonical?.name ?? `Add-on — ${extra.productId.replace(/^[\w-]+-/, '')}`;
+
+      lineItems.push(
+        checkoutLineItem({
+          description: `${label} x${extra.qty}${period}`,
+          amount,
+          currency,
+          productId: extra.productId,
+          qty: extra.qty,
+          purpose,
+        }),
+      );
       total += amount;
     }
     return { lineItems, total: Math.round(total * 100) / 100 };

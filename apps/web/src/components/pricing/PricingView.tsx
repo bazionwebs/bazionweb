@@ -1642,7 +1642,7 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                   onQty={setCartQty}
                   onRemove={removeFromCart}
                   onCheckout={() => {
-                    const planParam = selectedCare?.id || 'care-essential';
+                    const planParam = selectedCare?.id || 'none';
                     const cycleParam = selectedCare?.cycle || 'MONTHLY';
                     router.push(`/checkout?plan=${encodeURIComponent(planParam)}&cycle=${encodeURIComponent(cycleParam)}&cart=1`);
                   }}

@@ -669,6 +669,46 @@ describe('BillingService', () => {
       expect(mockPaystackService.initializeTransaction).toHaveBeenCalledTimes(3);
       expect(mockPaystackService.initializeTransaction.mock.calls[2][0].currency).toBe('KES');
     });
+
+    it('supports stack-only checkout (planId="none") with domain-com, website-launch, and host-business without forcing a Care Plan', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 'user-stack-1', email: guestDto.email });
+      mockPrisma.client.findUnique.mockResolvedValue(null);
+      mockPrisma.client.create.mockResolvedValue({ id: 'client-stack-1', email: guestDto.email, planId: 'plan-starter' });
+      mockPrisma.invoice.create.mockImplementation(async ({ data }: any) => ({
+        id: 'inv-stack-1',
+        invoiceNumber: data.invoiceNumber,
+        amount: data.amount,
+        currency: data.currency,
+      }));
+      mockPrisma.paymentLog.create.mockResolvedValue({ id: 'log-stack-1' });
+      mockPaystackService.initializeTransaction.mockResolvedValueOnce({
+        authorizationUrl: 'https://checkout.paystack.com/stack-usd',
+        reference: 'ps_ref_stack_1',
+      });
+
+      const result = await service.subscribePaystackGuest({
+        planId: 'none',
+        billingCycle: 'MONTHLY' as any,
+        currency: 'USD',
+        email: 'stack@example.com',
+        firstName: 'Nissim',
+        lastName: 'Asher',
+        extras: [
+          { productId: 'website-launch', qty: 1 },
+          { productId: 'domain-com', qty: 1 },
+          { productId: 'host-business', qty: 1 },
+        ],
+      });
+
+      expect(result.status).toBe('REDIRECT_REQUIRED');
+      // $450 (website-launch) + $20 (domain-com) + $99 (host-business) = $569 USD
+      expect(result.chargedAmount).toBe(569);
+      expect(result.chargedCurrency).toBe('USD');
+      const createdInvoice = mockPrisma.invoice.create.mock.calls[0][0].data;
+      expect(createdInvoice.amount).toBe(569);
+      expect(createdInvoice.lineItems).toHaveLength(3);
+    });
   });
 
   // ── subscribeMpesaGuest() — pay-first M-Pesa checkout ───────────────────────

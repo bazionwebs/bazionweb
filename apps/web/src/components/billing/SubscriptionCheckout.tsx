@@ -81,7 +81,32 @@ export default function SubscriptionCheckout({
   const { marketCode } = useMarketPreference();
   const isKe = marketCode === 'KE';
   const { plans, bySlug, loading: plansLoading, error: plansError } = usePlans();
-  const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(initialPlanSlug);
+  // Cart mode: catalog extras (website, domain, hosting, add-ons) are sent as
+  // identity-only lines and priced server-side. Step 4 (Care Plan) is OPTIONAL.
+  const cartItems = useCartStore((s) => s.items);
+  const clearCart = useCartStore((s) => s.clear);
+  const removeCartItem = useCartStore((s) => s.remove);
+  const cartPlanItem = cartMode ? cartItems.find((i) => i.kind === 'PLAN') : undefined;
+  const catalogCartItems = cartMode ? cartItems.filter((i) => i.kind === 'CATALOG') : [];
+  const cartExtras = catalogCartItems.map((i) => ({ productId: i.id, qty: i.qty }));
+  const hasWebsiteOrDomainInCart = catalogCartItems.some(
+    (i) =>
+      i.id.startsWith('website-') ||
+      i.id.startsWith('ecommerce-') ||
+      i.id.startsWith('domain-'),
+  );
+
+  const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(() => {
+    if (cartMode) {
+      if (cartPlanItem?.id) return cartPlanItem.id;
+      if (!initialPlanSlug || initialPlanSlug === 'none' || hasWebsiteOrDomainInCart) {
+        return 'none';
+      }
+      return initialPlanSlug;
+    }
+    return initialPlanSlug || DEFAULT_PLAN_SLUG;
+  });
+  const [showCareSelector, setShowCareSelector] = useState<boolean>(!cartMode);
   const [activeTab, setActiveTab] = useState<PaymentTab>(isKe ? 'MPESA' : 'CARD');
   const [billingCycle, setBillingCycle] = useState<CheckoutCycle>(() => {
     const raw = String(initialCycle || 'MONTHLY').toUpperCase().replace('-', '_');
@@ -109,14 +134,6 @@ export default function SubscriptionCheckout({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [paymentAttempt, setPaymentAttempt] = useState<{ trackingId: string; invoiceNumber: string } | null>(null);
   const apiBase = resolveApiV1Base();
-
-  // Cart mode: the plan drives the subscription; catalog extras (hosting,
-  // add-ons) are sent as identity-only lines and priced server-side.
-  const cartItems = useCartStore((s) => s.items);
-  const clearCart = useCartStore((s) => s.clear);
-  const cartPlanItem = cartMode ? cartItems.find((i) => i.kind === 'PLAN') : undefined;
-  const catalogCartItems = cartMode ? cartItems.filter((i) => i.kind === 'CATALOG') : [];
-  const cartExtras = catalogCartItems.map((i) => ({ productId: i.id, qty: i.qty }));
 
   const paymentStatus = useQuery({
     queryKey: ['checkout-payment-status', paymentAttempt?.trackingId],
@@ -155,64 +172,71 @@ export default function SubscriptionCheckout({
 
   // Keep the selected slug valid as the server catalog loads or changes.
   useEffect(() => {
+    if (selectedPlanSlug === 'none') return;
     if (!plans.length || bySlug[selectedPlanSlug]) return;
     setSelectedPlanSlug(bySlug[DEFAULT_PLAN_SLUG] ? DEFAULT_PLAN_SLUG : plans[0].slug);
   }, [plans, bySlug, selectedPlanSlug]);
 
-  // Cart mode: the subscription plan must be the one the client picked in the
-  // store — otherwise a client who adds Care Essential gets silently billed for
-  // the default Growth tier and the "total" skips their chosen subscription.
+  // Cart mode: sync with the Care Plan in the cart if present, or 'none' if the
+  // user built their stack without selecting an optional Step 4 Care Plan.
   useEffect(() => {
-    if (!cartMode || !cartPlanItem || plansLoading) return;
-    if (bySlug[cartPlanItem.id] && selectedPlanSlug !== cartPlanItem.id) {
-      setSelectedPlanSlug(cartPlanItem.id);
-    }
-    if (cartPlanItem?.cycle) {
-      const raw = String(cartPlanItem.cycle).toUpperCase().replace('-', '_');
-      const match = BILLING_CYCLES_META.find(
-        (m) => m.enumValue === raw || m.cycle === cartPlanItem.cycle.toLowerCase()
-      );
-      if (match && match.enumValue !== billingCycle) {
-        setBillingCycle(match.enumValue as CheckoutCycle);
+    if (!cartMode || plansLoading) return;
+    if (cartPlanItem) {
+      if (bySlug[cartPlanItem.id] && selectedPlanSlug !== cartPlanItem.id) {
+        setSelectedPlanSlug(cartPlanItem.id);
+      }
+      if (cartPlanItem.cycle) {
+        const raw = String(cartPlanItem.cycle).toUpperCase().replace('-', '_');
+        const match = BILLING_CYCLES_META.find(
+          (m) => m.enumValue === raw || m.cycle === cartPlanItem.cycle.toLowerCase(),
+        );
+        if (match && match.enumValue !== billingCycle) {
+          setBillingCycle(match.enumValue as CheckoutCycle);
+        }
+      }
+    } else if (!initialPlanSlug || initialPlanSlug === 'none' || hasWebsiteOrDomainInCart) {
+      if (selectedPlanSlug !== 'none') {
+        setSelectedPlanSlug('none');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartMode, cartPlanItem?.id, cartPlanItem?.cycle, plansLoading, bySlug]);
+  }, [cartMode, cartPlanItem?.id, cartPlanItem?.cycle, plansLoading, bySlug, hasWebsiteOrDomainInCart]);
 
+  const hasCarePlan = selectedPlanSlug !== 'none';
   const currentPlan = bySlug[selectedPlanSlug] ?? bySlug[DEFAULT_PLAN_SLUG] ?? plans[0];
+  const effectivePlanId = hasCarePlan && currentPlan ? currentPlan.id : 'none';
   const marketing = currentPlan ? planMarketing(currentPlan.slug) : null;
 
-  // Mandatory stack (cart mode): the care plan is the subscription anchor and
-  // hosting must exist — either included in a bundle tier or bought as a
-  // host-* line. Pay rails stay locked until the stack is complete.
-  const hostingIncludedInPlan = BUNDLE_PLAN_SLUGS.has(currentPlan?.slug ?? '');
+  // Mandatory stack (cart mode): hosting must exist — either included in a bundle
+  // tier or bought as a host-* line. Care plans (Step 4) are optional.
+  const hostingIncludedInPlan = hasCarePlan && BUNDLE_PLAN_SLUGS.has(currentPlan?.slug ?? '');
   const hostingInCart = catalogCartItems.some((i) => i.id.startsWith('host-'));
   const hostingMissing = cartMode && !hostingInCart && !hostingIncludedInPlan;
-  const paymentBlocked = hostingMissing;
+  const paymentBlocked = hostingMissing || (!hasCarePlan && catalogCartItems.length === 0);
 
   if (plansLoading) {
     return (
-      <div className="w-full max-w-5xl mx-auto py-24 flex flex-col items-center gap-3 text-slate-400">
+      <div className="w-full max-w-5xl mx-auto py-24 flex flex-col items-center gap-3 text-slate-500 bg-white rounded-2xl border border-slate-200">
         <Loader2 className="w-8 h-8 animate-spin text-[#2563EB]" />
-        <span className="text-sm">Loading live plan catalog…</span>
+        <span className="text-sm font-medium">Loading live checkout catalog…</span>
       </div>
     );
   }
 
-  if (plansError || !currentPlan || !marketing) {
+  if (plansError || (hasCarePlan && (!currentPlan || !marketing))) {
     return (
-      <div className="w-full max-w-lg mx-auto my-16 p-6 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+      <div className="w-full max-w-lg mx-auto my-16 p-6 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm">
         <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
           <div>
             <p className="font-bold">Plans are temporarily unavailable</p>
-            <p className="mt-1 text-xs text-red-200/80">
+            <p className="mt-1 text-xs text-red-700">
               {plansError || 'The plan catalog is empty. Please try again in a moment.'}
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-3 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-xs font-bold hover:bg-red-500/30"
+              className="mt-3 px-4 py-2 rounded-lg bg-white border border-red-300 text-xs font-bold text-red-800 hover:bg-red-100"
             >
               Retry
             </button>
@@ -222,23 +246,27 @@ export default function SubscriptionCheckout({
     );
   }
 
-  const planPriceKes = (() => {
-    const baseMonthly = currentPlan.priceMonthlyKes || currentPlan.priceMonthly * 130;
-    const baseAnnual = currentPlan.priceAnnualKes;
-    return calculatePlanCyclePrice(baseMonthly, billingCycle, {
-      canonicalAnnualAmount: baseAnnual,
-      isKes: true,
-    }).amount;
-  })();
+  const planPriceKes = hasCarePlan && currentPlan
+    ? (() => {
+        const baseMonthly = currentPlan.priceMonthlyKes || currentPlan.priceMonthly * 130;
+        const baseAnnual = currentPlan.priceAnnualKes;
+        return calculatePlanCyclePrice(baseMonthly, billingCycle, {
+          canonicalAnnualAmount: baseAnnual,
+          isKes: true,
+        }).amount;
+      })()
+    : 0;
 
-  const planPriceUsd = (() => {
-    const baseMonthly = currentPlan.priceMonthly;
-    const baseAnnual = currentPlan.priceAnnual;
-    return calculatePlanCyclePrice(baseMonthly, billingCycle, {
-      canonicalAnnualAmount: baseAnnual,
-      isKes: false,
-    }).amount;
-  })();
+  const planPriceUsd = hasCarePlan && currentPlan
+    ? (() => {
+        const baseMonthly = currentPlan.priceMonthly;
+        const baseAnnual = currentPlan.priceAnnual;
+        return calculatePlanCyclePrice(baseMonthly, billingCycle, {
+          canonicalAnnualAmount: baseAnnual,
+          isKes: false,
+        }).amount;
+      })()
+    : 0;
   const itemPriceKes = (item: { id?: string; unitPrice: number; qty: number; currency: string }) => {
     if ((item.currency || '').toUpperCase() === 'KES') {
       return item.unitPrice * item.qty;
@@ -310,7 +338,7 @@ export default function SubscriptionCheckout({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            planId: currentPlan.id,
+            planId: effectivePlanId,
             billingCycle,
             email: cleanEmail,
             mpesaPhoneNumber: normalizedPhone,
@@ -342,7 +370,7 @@ export default function SubscriptionCheckout({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          planId: currentPlan.id,
+          planId: effectivePlanId,
           billingCycle,
           mpesaPhoneNumber: normalizedPhone,
           ...(cartExtras.length ? { extras: cartExtras } : {}),
@@ -380,7 +408,7 @@ export default function SubscriptionCheckout({
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
-            planId: currentPlan.id,
+            planId: effectivePlanId,
             billingCycle,
             currency: isKe ? 'KES' : 'USD',
             ...(email ? { email } : {}),
@@ -410,7 +438,7 @@ export default function SubscriptionCheckout({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planId: currentPlan.id,
+          planId: effectivePlanId,
           billingCycle,
           currency: isKe ? 'KES' : 'USD',
           email: cleanEmail,
@@ -453,11 +481,12 @@ export default function SubscriptionCheckout({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            planId: currentPlan.id,
+            planId: effectivePlanId,
             billingCycle,
             currency,
             email: cleanEmail,
             purchaseOrderNumber: poNumber || undefined,
+            ...(cartExtras.length ? { extras: cartExtras } : {}),
           }),
         });
         const body = await res.json().catch(() => ({}));
@@ -487,10 +516,11 @@ export default function SubscriptionCheckout({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          planId: currentPlan.id,
+          planId: effectivePlanId,
           billingCycle,
           currency,
           purchaseOrderNumber: poNumber || undefined,
+          ...(cartExtras.length ? { extras: cartExtras } : {}),
         }),
       });
 
@@ -511,60 +541,52 @@ export default function SubscriptionCheckout({
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-      {/* Left Column: Order Summary & Plan Selection */}
-      <div className="lg:col-span-5 space-y-6">
-        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-6 text-white shadow-xl">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#14B8A6]">Order Summary</span>
-            <span className="text-xs bg-emerald-500/20 text-emerald-400 font-semibold px-2.5 py-1 rounded-full border border-emerald-500/30">
-              Live Checkout
-            </span>
-          </div>
-
-          {/* Plan Selector */}
-          <div className="mt-4 space-y-2">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Select Tier</label>
-            <div className="grid grid-cols-2 gap-2">
-              {plans.map((p) => (
-                <button
-                  key={p.slug}
-                  type="button"
-                  onClick={() => setSelectedPlanSlug(p.slug)}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    currentPlan.slug === p.slug
-                      ? 'border-[#2563EB] bg-[#2563EB]/15 text-white font-semibold shadow-md'
-                      : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="text-sm font-bold">{p.name}</div>
-                  <div className="text-xs text-slate-400">
-                    {isKe
-                      ? `KES ${(p.priceMonthlyKes ?? 0).toLocaleString()}/mo`
-                      : `$${p.priceMonthly}/mo`}
-                  </div>
-                </button>
-              ))}
+    <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* Left Column: Clean, Light, Straightforward Order Summary */}
+      <div className="lg:col-span-5 space-y-5">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-7 text-slate-900 shadow-sm">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+            <div>
+              <span className="text-xs font-extrabold uppercase tracking-widest text-[#2563EB]">
+                Order Summary
+              </span>
+              <h3 className="text-base font-bold text-slate-900 mt-0.5">
+                Selected Digital Stack
+              </h3>
             </div>
+            {cartMode ? (
+              <Link
+                href="/pricing"
+                className="text-xs font-bold text-[#2563EB] hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Edit Selection
+              </Link>
+            ) : (
+              <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2.5 py-1 rounded-full border border-emerald-200">
+                Live Checkout
+              </span>
+            )}
           </div>
 
-          {/* Cart lines from /store — extras are priced server-side on the invoice */}
+          {/* 1. Cart Stack Items (Website, Domain, Hosting, Add-Ons) */}
           {cartMode && catalogCartItems.length > 0 && (
-            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cart add-ons</span>
-                <Link href="/cart" className="text-[11px] font-semibold text-[#14B8A6] hover:text-teal-300">
+            <div className="mt-5">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Selected Packages &amp; Infrastructure
+                </span>
+                <Link href="/cart" className="text-[11px] font-semibold text-[#2563EB] hover:underline">
                   Edit cart
                 </Link>
               </div>
-              <ul className="space-y-1.5">
+              <ul className="divide-y divide-slate-100 border border-slate-200/80 rounded-xl bg-slate-50/60 px-4 py-1">
                 {catalogCartItems.map((i) => (
-                  <li key={i.key} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-300">
+                  <li key={i.key} className="flex items-center justify-between gap-3 py-2.5 text-xs sm:text-sm">
+                    <span className="text-slate-700 font-medium leading-snug">
                       {i.name}
                       {i.qty > 1 ? ` x${i.qty}` : ''}
                     </span>
-                    <span className="font-semibold text-white">
+                    <span className="font-bold text-slate-900 shrink-0">
                       {isKe
                         ? `KES ${itemPriceKes(i).toLocaleString()}`
                         : `$${itemPriceUsd(i).toLocaleString()}`}
@@ -572,74 +594,185 @@ export default function SubscriptionCheckout({
                   </li>
                 ))}
               </ul>
-              <div className="mt-3 flex items-center justify-between border-t border-slate-800 pt-2 text-xs">
-                <span className="font-semibold text-slate-300">Add-ons subtotal</span>
-                <span className="font-bold text-white">
+              <div className="mt-3 flex items-center justify-between px-1 text-xs text-slate-600">
+                <span className="font-semibold">Stack subtotal</span>
+                <span className="font-bold text-slate-900">
                   {isKe
                     ? `KES ${cartExtrasTotalKes.toLocaleString()}`
                     : `$${cartExtrasTotalUsd.toLocaleString()}`}
                 </span>
               </div>
-              <p className="mt-2 text-[11px] text-slate-500">
-                Added to your first invoice — final totals confirmed server-side.
-              </p>
             </div>
           )}
 
-          {/* Billing Cycle Switcher */}
-          <div className="mt-5 pt-4 border-t border-slate-800">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400 font-medium">Billing Term & Commitment</span>
-                <span className="text-[11px] text-teal-400 font-bold">
-                  {BILLING_CYCLES_META.find(m => m.enumValue === billingCycle)?.label}
-                </span>
+          {/* 2. Care Plan Section — Strictly Optional in Cart Mode */}
+          <div className="mt-5 pt-4 border-t border-slate-200">
+            {!hasCarePlan ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Step 4 · Care Plan (Optional)
+                    </span>
+                    <p className="text-xs font-semibold text-slate-800 mt-0.5">
+                      None selected — Standard post-launch warranty included
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlanSlug(bySlug['care-essential'] ? 'care-essential' : DEFAULT_PLAN_SLUG);
+                      setShowCareSelector(true);
+                    }}
+                    className="text-xs font-bold text-[#2563EB] hover:text-blue-700 bg-white border border-slate-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition-colors shrink-0 shadow-2xs"
+                  >
+                    + Add Care Plan
+                  </button>
+                </div>
               </div>
-              <div className="bg-slate-900 p-1.5 rounded-2xl flex flex-wrap items-center gap-1 border border-slate-800 shadow-inner">
-                {BILLING_CYCLES_META.map((meta) => {
-                  const isSelected = billingCycle === meta.enumValue;
-                  return (
-                    <button
-                      key={meta.enumValue}
-                      type="button"
-                      onClick={() => setBillingCycle(meta.enumValue as CheckoutCycle)}
-                      className={`px-2.5 py-1 text-xs font-bold rounded-xl transition-all flex items-center gap-1 ${
-                        isSelected
-                          ? 'bg-[#2563EB] text-white shadow'
-                          : 'text-slate-400 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <span>{meta.pillLabel}</span>
-                    </button>
-                  );
-                })}
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                      {cartMode ? 'Optional Care Plan Selected' : 'Selected Care Plan'}
+                    </span>
+                    <div className="text-sm font-bold text-slate-900 mt-0.5">
+                      {currentPlan.name}{' '}
+                      <span className="text-xs font-medium text-slate-500">
+                        ({BILLING_CYCLES_META.find((m) => m.enumValue === billingCycle)?.label || 'Monthly'})
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-extrabold text-slate-900">
+                      {isKe
+                        ? `KES ${planPriceKes.toLocaleString()}`
+                        : `$${planPriceUsd.toLocaleString()}`}
+                    </div>
+                    <div className="flex items-center justify-end gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowCareSelector((prev) => !prev)}
+                        className="text-[11px] font-semibold text-[#2563EB] hover:underline"
+                      >
+                        {showCareSelector ? 'Hide options' : 'Change tier'}
+                      </button>
+                      {cartMode && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (cartPlanItem) {
+                              removeCartItem(cartPlanItem.key);
+                            }
+                            setSelectedPlanSlug('none');
+                            setShowCareSelector(false);
+                          }}
+                          className="text-[11px] font-semibold text-rose-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Collapsible Care Plan Tier & Cycle Picker */}
+                {showCareSelector && (
+                  <div className="pt-3 border-t border-slate-100 space-y-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                        Select Care Tier
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {plans.map((p) => (
+                          <button
+                            key={p.slug}
+                            type="button"
+                            onClick={() => setSelectedPlanSlug(p.slug)}
+                            className={`p-2.5 rounded-xl border text-left transition-all ${
+                              currentPlan.slug === p.slug
+                                ? 'border-[#2563EB] bg-blue-50/70 text-slate-900 font-semibold ring-1 ring-[#2563EB]/20'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="text-xs font-bold text-slate-900">{p.name}</div>
+                            <div className="text-[11px] text-slate-500">
+                              {isKe
+                                ? `KES ${(p.priceMonthlyKes ?? 0).toLocaleString()}/mo`
+                                : `$${p.priceMonthly}/mo`}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          Billing Term
+                        </span>
+                        <span className="text-[11px] text-[#2563EB] font-bold">
+                          {BILLING_CYCLES_META.find((m) => m.enumValue === billingCycle)?.label}
+                        </span>
+                      </div>
+                      <div className="bg-slate-100 p-1 rounded-xl flex flex-wrap items-center gap-1 border border-slate-200">
+                        {BILLING_CYCLES_META.map((meta) => {
+                          const isSelected = billingCycle === meta.enumValue;
+                          return (
+                            <button
+                              key={meta.enumValue}
+                              type="button"
+                              onClick={() => setBillingCycle(meta.enumValue as CheckoutCycle)}
+                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                                isSelected
+                                  ? 'bg-[#2563EB] text-white shadow-2xs'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                              }`}
+                            >
+                              {meta.pillLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {marketing && !cartMode && (
+                      <div className="pt-2 space-y-1.5">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          Included Highlights
+                        </span>
+                        <ul className="space-y-1.5 text-xs text-slate-600">
+                          {marketing.features.map((f, idx) => (
+                            <li key={idx} className="flex items-center gap-2">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+            )}
+          </div>
+
+          {/* 3. Total Breakdown */}
+          <div className="mt-6 pt-4 border-t-2 border-slate-900/10 flex justify-between items-baseline">
+            <div>
+              <span className="text-sm font-bold text-slate-900 block">Total Due Today</span>
+              <span className="text-[11px] text-slate-500">
+                100% IP &amp; code ownership · Instant receipt
+              </span>
             </div>
-          </div>
-
-          {/* Included Features */}
-          <div className="mt-5 pt-4 border-t border-slate-800 space-y-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Plan Highlights</span>
-            <ul className="space-y-2 text-xs text-slate-300">
-              {marketing.features.map((f, idx) => (
-                <li key={idx} className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Total Breakdown */}
-          <div className="mt-6 pt-4 border-t border-slate-800 flex justify-between items-baseline">
-            <span className="text-sm text-slate-400 font-medium">Subtotal Due</span>
             <div data-testid="checkout-total" className="text-right">
               {isKe ? (
-                <div className="text-2xl font-black text-white">
+                <div className="text-2xl font-black text-slate-900">
                   KES {currentPriceKes.toLocaleString()}
                 </div>
               ) : (
-                <div className="text-2xl font-black text-white">
+                <div className="text-2xl font-black text-slate-900">
                   ${currentPriceUsd.toLocaleString()} USD
                 </div>
               )}
@@ -647,46 +780,52 @@ export default function SubscriptionCheckout({
           </div>
         </div>
 
-        {/* Cart-mode stack requirements: care plan choice + hosted infrastructure */}
+        {/* Cart-mode stack readiness strip */}
         {cartMode && (
           <div
             data-testid="checkout-stack-checklist"
-            className={`rounded-2xl border p-5 text-sm ${
+            className={`rounded-2xl border p-4 text-xs ${
               hostingMissing
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
-                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                ? 'border-amber-300 bg-amber-50 text-amber-900'
+                : 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
             }`}
           >
-            <span className="text-xs font-bold uppercase tracking-widest">Your stack</span>
-            <ul className="mt-3 space-y-2 text-xs">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider block mb-2">
+              Stack Verification
+            </span>
+            <ul className="space-y-1.5">
               <li data-testid="stack-care-row" className="flex items-start gap-2">
-                {cartPlanItem ? (
-                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-400" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" />
-                )}
-                <span className="text-slate-200">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
+                <span>
                   {cartPlanItem ? (
                     <>
                       Care plan chosen: <strong>{cartPlanItem.name}</strong>{' '}
-                      <span className="text-slate-400">({cartPlanItem.cycle === 'ANNUAL' ? 'yearly' : 'monthly'})</span>
+                      <span className="text-slate-500">
+                        ({cartPlanItem.cycle === 'ANNUAL' ? 'yearly' : 'monthly'})
+                      </span>
+                    </>
+                  ) : hasCarePlan && currentPlan ? (
+                    <>
+                      Care plan chosen: <strong>{currentPlan.name}</strong>
                     </>
                   ) : (
-                    <>Confirm your care plan tier in the selector above — a care baseline (Starter) or any paid tier is required.</>
+                    <>
+                      Care plan (Optional): <strong>None selected</strong> (included warranty applies)
+                    </>
                   )}
                 </span>
               </li>
               <li data-testid="stack-hosting-row" className="flex items-start gap-2">
                 {hostingMissing ? (
-                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" />
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
                 ) : (
-                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
                 )}
-                <span className="text-slate-200">
+                <span>
                   {hostingMissing ? (
                     <>
-                      Hosting missing — every deployed site must be hosted with us.{' '}
-                      <Link href="/store#hosting" className="font-bold underline text-amber-300 hover:text-amber-200">
+                      Hosting missing — every deployed site needs managed hosting.{' '}
+                      <Link href="/store#hosting" className="font-bold underline text-amber-900 hover:text-amber-700">
                         Browse hosting
                       </Link>{' '}
                       or switch to a bundle tier that includes hosting.
@@ -719,7 +858,7 @@ export default function SubscriptionCheckout({
                   }
                 }}
                 disabled={!bySlug['starter']}
-                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-500/20 transition-colors disabled:opacity-40"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors disabled:opacity-40"
               >
                 Switch to Starter (hosting included)
               </button>
@@ -728,85 +867,114 @@ export default function SubscriptionCheckout({
         )}
 
         {/* Security Badge */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-3 text-xs text-slate-400">
-          <Lock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>256-Bit SSL Encrypted Checkout. Backed by Paystack (M-Pesa STK Push + Global Cards).</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 text-xs text-slate-600 shadow-2xs">
+          <Lock className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>256-Bit SSL Encrypted Checkout. Powered by Paystack (M-Pesa STK Push &amp; Global Cards).</span>
         </div>
       </div>
 
-      {/* Right Column: Multi-Rail Payment Gateway Selection */}
+      {/* Right Column: Clean, Light Payment Method Form */}
       <div className="lg:col-span-7 space-y-6">
-        <div className="bg-[#0F172A] border border-slate-800 rounded-2xl p-6 shadow-2xl text-slate-100">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm text-slate-900">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Payment Gateway</span>
-            <h2 className="text-xl font-bold text-white mt-1">Select Payment Method</h2>
+            <span className="text-xs font-extrabold uppercase tracking-wider text-[#2563EB]">
+              Payment Gateway
+            </span>
+            <h2 className="text-xl font-bold text-slate-900 mt-1">Select Payment Method</h2>
           </div>
 
           {/* Tab Rail Buttons */}
           <div className="grid grid-cols-3 gap-3 my-5">
             <button
               type="button"
-              onClick={() => { setActiveTab('MPESA'); setFeedback(null); }}
-              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold transition-all ${
+              onClick={() => {
+                setActiveTab('MPESA');
+                setFeedback(null);
+              }}
+              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
                 activeTab === 'MPESA'
-                  ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300 shadow-lg shadow-emerald-950/40'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+                  ? 'bg-emerald-50 border-emerald-600 text-emerald-900 ring-2 ring-emerald-500/15'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Smartphone className="w-4 h-4" />
+              <Smartphone className="w-4 h-4 text-emerald-600" />
               <span>Mobile Money</span>
-              <span className="text-[10px] font-normal opacity-70">via M-Pesa</span>
+              <span className="text-[10px] font-medium opacity-75">via M-Pesa</span>
             </button>
 
             <button
               type="button"
-              onClick={() => { setActiveTab('CARD'); setFeedback(null); }}
-              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold transition-all ${
+              onClick={() => {
+                setActiveTab('CARD');
+                setFeedback(null);
+              }}
+              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
                 activeTab === 'CARD'
-                  ? 'bg-blue-500/15 border-blue-500 text-blue-300 shadow-lg shadow-blue-950/40'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+                  ? 'bg-blue-50 border-[#2563EB] text-[#1E40AF] ring-2 ring-blue-500/15'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <CreditCard className="w-4 h-4" />
+              <CreditCard className="w-4 h-4 text-[#2563EB]" />
               <span>Credit Card</span>
             </button>
 
             <button
               type="button"
-              onClick={() => { setActiveTab('WISE'); setFeedback(null); }}
-              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-semibold transition-all ${
+              onClick={() => {
+                setActiveTab('WISE');
+                setFeedback(null);
+              }}
+              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
                 activeTab === 'WISE'
-                  ? 'bg-purple-500/15 border-purple-500 text-purple-300 shadow-lg shadow-purple-950/40'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+                  ? 'bg-purple-50 border-purple-600 text-purple-900 ring-2 ring-purple-500/15'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-              <Building2 className="w-4 h-4" />
+              <Building2 className="w-4 h-4 text-purple-600" />
               <span>Corporate Wire</span>
             </button>
           </div>
 
           {/* Feedback message banner */}
           {feedback && (
-            <div className={`mb-5 p-4 rounded-xl flex items-start gap-3 text-xs border ${
-              feedback.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
-              feedback.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
-              'bg-blue-500/10 border-blue-500/30 text-blue-300'
-            }`}>
-              {feedback.type === 'error' ? <AlertCircle className="w-4 h-4 flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
-              <div className="leading-relaxed">{feedback.message}</div>
+            <div
+              className={`mb-5 p-4 rounded-xl flex items-start gap-3 text-xs border ${
+                feedback.type === 'error'
+                  ? 'bg-red-50 border-red-200 text-red-800'
+                  : feedback.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}
+            >
+              {feedback.type === 'error' ? (
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+              )}
+              <div className="leading-relaxed font-medium">{feedback.message}</div>
             </div>
           )}
 
           {paymentAttempt && (
-            <div className="mb-5 rounded-xl border border-slate-700 bg-slate-900/70 p-4" role="status" aria-live="polite">
+            <div
+              className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4"
+              role="status"
+              aria-live="polite"
+            >
               {paymentStatus.data?.status === 'SUCCESS' ? (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-bold text-emerald-300">Payment confirmed</p>
-                    <p className="mt-1 text-xs text-slate-300">Invoice {paymentAttempt.invoiceNumber} is paid. Continue to your workspace.</p>
+                    <p className="text-sm font-bold text-emerald-800">Payment confirmed</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Invoice {paymentAttempt.invoiceNumber} is paid. Continue to your workspace.
+                    </p>
                   </div>
                   <Link
-                    href={token ? '/portal' : `/portal/claim?email=${encodeURIComponent(email.trim().toLowerCase())}&autostart=1`}
+                    href={
+                      token
+                        ? '/portal'
+                        : `/portal/claim?email=${encodeURIComponent(email.trim().toLowerCase())}&autostart=1`
+                    }
                     className="btn-primary justify-center px-4 py-2.5 text-xs"
                   >
                     {token ? 'Open dashboard' : 'Set up dashboard access'} <ArrowRight className="size-4" />
@@ -815,16 +983,25 @@ export default function SubscriptionCheckout({
               ) : paymentStatus.data?.status === 'FAILED' ? (
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-bold text-rose-300">Payment was not completed</p>
-                    <p className="mt-1 text-xs text-slate-400">You can safely retry the M-Pesa prompt.</p>
+                    <p className="text-sm font-bold text-rose-700">Payment was not completed</p>
+                    <p className="mt-1 text-xs text-slate-600">You can safely retry the M-Pesa prompt.</p>
                   </div>
-                  <button type="button" onClick={() => { setPaymentAttempt(null); setFeedback(null); }} className="text-xs font-bold text-white underline">Try again</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentAttempt(null);
+                      setFeedback(null);
+                    }}
+                    className="text-xs font-bold text-slate-900 underline"
+                  >
+                    Try again
+                  </button>
                 </div>
               ) : (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-bold text-white">Waiting for M-Pesa confirmation</p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="text-sm font-bold text-slate-900">Waiting for M-Pesa confirmation</p>
+                    <p className="mt-1 text-xs text-slate-600">
                       {paymentStatus.isError
                         ? 'We could not refresh automatically. Do not pay again while checking this request.'
                         : 'Keep this page open; we are checking automatically. Do not submit another payment.'}
@@ -834,7 +1011,7 @@ export default function SubscriptionCheckout({
                     type="button"
                     onClick={() => void paymentStatus.refetch()}
                     disabled={paymentStatus.isFetching}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
                   >
                     {paymentStatus.isFetching && <Loader2 className="size-3.5 animate-spin" />}
                     Check status
@@ -847,13 +1024,17 @@ export default function SubscriptionCheckout({
           {/* Tab 1: Mobile Money (M-Pesa Express) */}
           {activeTab === 'MPESA' && (
             <form onSubmit={handleMpesaPay} className="space-y-4">
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400 text-xs font-medium">Payable via mobile money (M-Pesa)</span>
-                <span className="text-xl font-bold text-emerald-400 font-mono">KES {currentPriceKes.toLocaleString()}</span>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center">
+                <span className="text-slate-600 text-xs font-semibold">
+                  Payable via mobile money (M-Pesa)
+                </span>
+                <span className="text-xl font-extrabold text-emerald-700 font-mono">
+                  KES {currentPriceKes.toLocaleString()}
+                </span>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                   Billing Email
                 </label>
                 <input
@@ -861,10 +1042,10 @@ export default function SubscriptionCheckout({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="billing@yourcompany.com"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors mb-3"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/15 transition-colors mb-3"
                 />
 
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                   Mobile-money phone number
                 </label>
                 <input
@@ -875,21 +1056,26 @@ export default function SubscriptionCheckout({
                   pattern="^(?:254|\+254|0)?(7|1)[0-9]{8}$"
                   title="Enter a valid Kenyan mobile number (e.g. 0712 345 678, 0110 123 456, or +254 7XX XXX XXX)"
                   required
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/15 transition-colors"
                 />
-                <span className="text-[11px] text-slate-500 mt-1 block">
+                <span className="text-[11px] text-slate-500 mt-1.5 block">
                   Format: 07XX XXX XXX or 01XX XXX XXX (Safaricom / Airtel M-Pesa). You will receive an STK Push PIN prompt.
                 </span>
-
               </div>
 
               <button
                 type="submit"
                 disabled={loading || paymentBlocked}
                 title={paymentBlocked ? 'Add hosting to complete your stack before paying' : undefined}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 text-sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm text-sm"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Send mobile-money prompt <ArrowRight className="w-4 h-4" /></>}
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    Send mobile-money prompt <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </form>
           )}
@@ -897,9 +1083,11 @@ export default function SubscriptionCheckout({
           {/* Tab 2: Credit / Debit Card (Paystack) */}
           {activeTab === 'CARD' && (
             <div className="space-y-4">
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400 text-xs font-medium">Card charge ({isKe ? 'billed in KES' : 'billed in USD'})</span>
-                <span className="text-xl font-bold text-white font-mono">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center">
+                <span className="text-slate-600 text-xs font-semibold">
+                  Card charge ({isKe ? 'billed in KES' : 'billed in USD'})
+                </span>
+                <span className="text-xl font-extrabold text-slate-900 font-mono">
                   {isKe
                     ? `KES ${currentPriceKes.toLocaleString()}`
                     : `$${currentPriceUsd.toLocaleString()} USD`}
@@ -907,7 +1095,7 @@ export default function SubscriptionCheckout({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                   Billing Email
                 </label>
                 <input
@@ -915,17 +1103,17 @@ export default function SubscriptionCheckout({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="billing@yourcompany.com"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors mb-3"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-500/15 transition-colors mb-3"
                 />
                 {email.trim() !== email && (
-                  <span className="text-[11px] text-amber-400 block -mt-2 mb-2">Auto-trimming spaces…</span>
+                  <span className="text-[11px] text-amber-600 block -mt-2 mb-2">Auto-trimming spaces…</span>
                 )}
               </div>
 
               {!token && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                       First Name
                     </label>
                     <input
@@ -934,11 +1122,11 @@ export default function SubscriptionCheckout({
                       onChange={(e) => setFirstName(e.target.value)}
                       placeholder="Jane"
                       autoComplete="given-name"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-500/15 transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                       Last Name
                     </label>
                     <input
@@ -947,23 +1135,21 @@ export default function SubscriptionCheckout({
                       onChange={(e) => setLastName(e.target.value)}
                       placeholder="Wanjiku"
                       autoComplete="family-name"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-500/15 transition-colors"
                     />
                   </div>
                 </div>
               )}
 
               {!token && (
-                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-200 text-xs leading-relaxed">
-                   Pay first — <strong>no account needed yet</strong>. Once your payment lands, we email a
-                   one-time claim link to the address above. Open it to set a password and unlock the dashboard;
-                   knowing the email alone is never enough.
+                <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl text-slate-700 text-xs leading-relaxed">
+                  Pay first — <strong>no account needed yet</strong>. Once your payment lands, we email a
+                  one-time claim link to the address above to set your password and unlock your client portal.
                 </div>
               )}
 
-              <div className="p-4 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed">
                 Supports Visa, Mastercard, and American Express. Your card details are tokenized securely with Paystack PCI-DSS Level 1 compliance.
-                Cards are charged in KES — international card issuers convert automatically.
               </div>
 
               <button
@@ -971,9 +1157,15 @@ export default function SubscriptionCheckout({
                 onClick={handleCardPay}
                 disabled={loading || paymentBlocked}
                 title={paymentBlocked ? 'Add hosting to complete your stack before paying' : undefined}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-950/50 text-sm"
+                className="w-full bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm text-sm"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Proceed to Card Gateway <ArrowRight className="w-4 h-4" /></>}
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    Proceed to Card Gateway <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -982,23 +1174,39 @@ export default function SubscriptionCheckout({
           {activeTab === 'WISE' && (
             <div className="space-y-4">
               {!token && (
-                <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-200 text-xs leading-relaxed">
-                   No account needed yet — enter your billing email and we&apos;ll generate the invoice. After our team
-                   confirms your wire, claim the dashboard at <strong>/portal/claim</strong>; we email a one-time
-                   link to verify that address first.
+                <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl text-purple-950 text-xs leading-relaxed">
+                  No account needed yet — enter your billing email and we&apos;ll generate the invoice. After our team
+                  confirms your wire, claim your dashboard at <strong>/portal/claim</strong>.
                 </div>
               )}
               {!wiseAccount ? (
                 <form onSubmit={handleWiseInvoice} className="space-y-4">
+                  {!token && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                        Billing Email
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="billing@yourcompany.com"
+                        required
+                        className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-500/15 transition-colors"
+                      />
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                         Settlement Currency
                       </label>
                       <select
                         value={currency}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCurrency(e.target.value as 'USD' | 'EUR' | 'GBP')}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-white text-xs focus:outline-none focus:border-purple-500"
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                          setCurrency(e.target.value as 'USD' | 'EUR' | 'GBP')
+                        }
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-3 text-slate-900 text-xs focus:outline-none focus:border-purple-600"
                       >
                         <option value="USD">USD ($) - ACH / Fedwire Routing</option>
                         <option value="EUR">EUR (€) - SEPA Instant / IBAN</option>
@@ -1007,7 +1215,7 @@ export default function SubscriptionCheckout({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                         Purchase Order # (Optional)
                       </label>
                       <input
@@ -1015,76 +1223,98 @@ export default function SubscriptionCheckout({
                         value={poNumber}
                         onChange={(e) => setPoNumber(e.target.value)}
                         placeholder="PO-2026-0089"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-white text-xs focus:outline-none focus:border-purple-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-3 text-slate-900 placeholder:text-slate-400 text-xs focus:outline-none focus:border-purple-600"
                       />
                     </div>
                   </div>
 
-                  <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
-                    <span className="text-slate-400 text-xs font-medium">B2B Net Invoice Total</span>
-                    <span className="text-xl font-bold text-purple-300 font-mono">${currentPriceUsd.toLocaleString()} USD</span>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center">
+                    <span className="text-slate-600 text-xs font-semibold">B2B Net Invoice Total</span>
+                    <span className="text-xl font-extrabold text-purple-900 font-mono">
+                      ${currentPriceUsd.toLocaleString()} USD
+                    </span>
                   </div>
 
                   <button
                     type="submit"
                     disabled={loading || paymentBlocked}
                     title={paymentBlocked ? 'Add hosting to complete your stack before requesting an invoice' : undefined}
-                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-purple-950/50 text-sm"
+                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm text-sm"
                   >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Generate B2B Invoice & Virtual Wire Account <ArrowRight className="w-4 h-4" /></>}
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        Generate B2B Invoice &amp; Wire Instructions <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
                 </form>
               ) : (
                 /* Allocated Virtual Bank Account Box */
                 <div className="space-y-4">
-                  <div className="bg-purple-950/40 border border-purple-800/60 p-4 rounded-xl flex items-center justify-between">
+                  <div className="bg-purple-50 border border-purple-200 p-4 rounded-xl flex items-center justify-between">
                     <div>
-                      <div className="text-[11px] text-purple-300 font-semibold uppercase tracking-wider">Invoice Generated</div>
-                      <div className="text-base font-bold text-white font-mono">{wiseAccount.invoiceNumber}</div>
+                      <div className="text-[11px] text-purple-700 font-bold uppercase tracking-wider">
+                        Invoice Generated
+                      </div>
+                      <div className="text-base font-bold text-slate-900 font-mono">
+                        {wiseAccount.invoiceNumber}
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => window.print()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-medium text-slate-200"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800"
                     >
-                      <Download className="w-3.5 h-3.5 text-purple-400" /> Print PDF Invoice
+                      <Download className="w-3.5 h-3.5 text-purple-600" /> Print PDF Invoice
                     </button>
                   </div>
 
                   {/* Wire Routing Details Card */}
-                  <div className="space-y-2 bg-slate-900 p-4 rounded-xl border border-slate-800 text-xs">
+                  <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                     {[
                       { label: 'Beneficiary Name', value: wiseAccount.bankTransferDetails.beneficiary },
-                      { label: 'Account Number / IBAN', value: wiseAccount.bankTransferDetails.accountNumber || wiseAccount.bankTransferDetails.iban },
+                      {
+                        label: 'Account Number / IBAN',
+                        value:
+                          wiseAccount.bankTransferDetails.accountNumber ||
+                          wiseAccount.bankTransferDetails.iban,
+                      },
                       { label: 'Routing / ABA / Sort Code', value: wiseAccount.bankTransferDetails.routingNumber },
                       { label: 'SWIFT / BIC', value: wiseAccount.bankTransferDetails.swiftBic },
                       { label: 'Mandatory Payment Reference', value: wiseAccount.paymentReference },
-                    ].filter((item): item is { label: string; value: string } => Boolean(item.value)).map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-800/80 last:border-0">
-                        <span className="text-slate-400">{item.label}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-white font-bold">{item.value}</span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(item.value, item.label)}
-                            className="p-1 text-slate-400 hover:text-white transition"
-                            title="Copy to clipboard"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
+                    ]
+                      .filter((item): item is { label: string; value: string } => Boolean(item.value))
+                      .map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between items-center py-2 border-b border-slate-200/80 last:border-0"
+                        >
+                          <span className="text-slate-600">{item.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-slate-900 font-bold">{item.value}</span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(item.value, item.label)}
+                              className="p-1 text-slate-500 hover:text-slate-900 transition"
+                              title="Copy to clipboard"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
 
                   {copiedField && (
-                    <div className="text-[11px] text-emerald-400 text-right">
+                    <div className="text-[11px] text-emerald-600 font-semibold text-right">
                       Copied {copiedField} to clipboard!
                     </div>
                   )}
 
                   {wiseAccount.bankTransferDetails.referenceNote && (
-                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs leading-relaxed">
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs leading-relaxed">
                       {wiseAccount.bankTransferDetails.referenceNote}
                     </div>
                   )}

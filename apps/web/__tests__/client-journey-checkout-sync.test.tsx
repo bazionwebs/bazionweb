@@ -177,4 +177,50 @@ describe('Client Journey: checkout cart-plan sync & mandatory stack gating', () 
     expect(screen.getByTestId('stack-hosting-row').textContent).toMatch(/Hosting included in Growth/i);
     expect(screen.getByRole('button', { name: /Send mobile-money prompt/i })).toBeEnabled();
   });
+
+  it('does not force a Care Plan when checking out a Website + Domain + Hosting stack without Step 4 Care Plan', async () => {
+    mockMarketPreference.mockReturnValue({
+      marketCode: 'GLOBAL',
+      market: 'international',
+      marketDef: { code: 'GLOBAL', currency: 'USD', currencySymbol: '$' },
+      isLocked: true,
+    });
+
+    useCartStore.getState().add({
+      kind: 'CATALOG',
+      id: 'website-launch',
+      name: 'Launch',
+      cycle: 'one-time',
+      qty: 1,
+      unitPrice: 450,
+      currency: 'USD',
+    });
+    useCartStore.getState().add({
+      kind: 'CATALOG',
+      id: 'domain-com',
+      name: 'Register .com / .net Domain (mburukiai.com)',
+      cycle: 'year',
+      qty: 1,
+      unitPrice: 20,
+      currency: 'USD',
+    });
+    useCartStore.getState().add({
+      kind: 'CATALOG',
+      id: 'host-business',
+      name: 'Host Business (1 Year (12 Months))',
+      cycle: 'year',
+      qty: 1,
+      unitPrice: 99,
+      currency: 'USD',
+    });
+
+    // Even if URL had a stale initialPlanSlug="care-essential", absence of a PLAN item
+    // in a Website/Domain/Hosting stack must keep Care Plan optional ('none') and bill $569 USD (not $644 USD)
+    renderCheckout(<SubscriptionCheckout initialPlanSlug="care-essential" cartMode />);
+
+    await screen.findByTestId('checkout-total');
+    expect(screen.getByTestId('checkout-total')).toHaveTextContent('$569 USD');
+    expect(screen.queryByText('$644 USD')).not.toBeInTheDocument();
+    expect(screen.getByTestId('stack-care-row').textContent).toMatch(/Care plan \(Optional\): None selected/i);
+  });
 });

@@ -20,10 +20,11 @@ export class CartExtraDto {
 }
 
 export class MpesaSubscriptionDto {
-  @ApiProperty({ description: 'Plan ID to subscribe to' })
-  @IsUUID()
-  @IsNotEmpty()
-  planId: string;
+  @ApiPropertyOptional({ description: 'Plan ID to subscribe to (or "none" for stack-only checkout without an optional care plan)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(none|[0-9a-fA-F-]{36}|[\w-]{2,64})$/, { message: 'planId must be a valid plan ID, slug, or "none"' })
+  planId?: string;
 
   @ApiProperty({ enum: BillingCycle, description: 'Billing cycle: MONTHLY or ANNUAL' })
   @IsEnum(BillingCycle)
@@ -46,10 +47,11 @@ export class MpesaSubscriptionDto {
 }
 
 export class PaystackSubscriptionDto {
-  @ApiProperty({ description: 'Plan ID to subscribe to' })
-  @IsUUID()
-  @IsNotEmpty()
-  planId: string;
+  @ApiPropertyOptional({ description: 'Plan ID to subscribe to (or "none" for stack-only checkout without an optional care plan)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(none|[0-9a-fA-F-]{36}|[\w-]{2,64})$/, { message: 'planId must be a valid plan ID, slug, or "none"' })
+  planId?: string;
 
   @ApiProperty({ enum: BillingCycle })
   @IsEnum(BillingCycle)
@@ -101,10 +103,11 @@ export class PayInvoiceCardDto {
 }
 
 export class BankTransferInvoiceDto {
-  @ApiProperty({ description: 'Plan ID to invoice for' })
-  @IsUUID()
-  @IsNotEmpty()
-  planId: string;
+  @ApiPropertyOptional({ description: 'Plan ID to invoice for (or "none" for stack-only checkout without an optional care plan)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(none|[0-9a-fA-F-]{36}|[\w-]{2,64})$/, { message: 'planId must be a valid plan ID, slug, or "none"' })
+  planId?: string;
 
   @ApiProperty({ enum: BillingCycle, description: 'Billing cycle: MONTHLY or ANNUAL' })
   @IsEnum(BillingCycle)
@@ -120,6 +123,14 @@ export class BankTransferInvoiceDto {
   @IsOptional()
   @IsString()
   purchaseOrderNumber?: string;
+
+  @ApiPropertyOptional({ type: [CartExtraDto], description: 'Catalog add-ons to bill with the first invoice (server-priced)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => CartExtraDto)
+  extras?: CartExtraDto[];
 }
 
 /**
@@ -128,10 +139,11 @@ export class BankTransferInvoiceDto {
  * claim-account later fills the real identity.
  */
 export class GuestMpesaSubscriptionDto {
-  @ApiProperty({ description: 'Plan ID to subscribe to' })
-  @IsUUID()
-  @IsNotEmpty()
-  planId: string;
+  @ApiPropertyOptional({ description: 'Plan ID to subscribe to (or "none" for stack-only checkout without an optional care plan)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(none|[0-9a-fA-F-]{36}|[\w-]{2,64})$/, { message: 'planId must be a valid plan ID, slug, or "none"' })
+  planId?: string;
 
   @ApiProperty({ enum: BillingCycle, description: 'Billing cycle: MONTHLY or ANNUAL' })
   @IsEnum(BillingCycle)
@@ -182,10 +194,11 @@ export class GuestMpesaSubscriptionDto {
  * generates identity + invoice + settlement instructions only.
  */
 export class GuestBankTransferInvoiceDto {
-  @ApiProperty({ description: 'Plan ID to invoice for' })
-  @IsUUID()
-  @IsNotEmpty()
-  planId: string;
+  @ApiPropertyOptional({ description: 'Plan ID to invoice for (or "none" for stack-only checkout without an optional care plan)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(none|[0-9a-fA-F-]{36}|[\w-]{2,64})$/, { message: 'planId must be a valid plan ID, slug, or "none"' })
+  planId?: string;
 
   @ApiProperty({ enum: BillingCycle, description: 'Billing cycle: MONTHLY or ANNUAL' })
   @IsEnum(BillingCycle)
@@ -230,6 +243,14 @@ export class GuestBankTransferInvoiceDto {
   @IsOptional()
   @IsString()
   purchaseOrderNumber?: string;
+
+  @ApiPropertyOptional({ type: [CartExtraDto], description: 'Catalog add-ons to bill with the first invoice (server-priced)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => CartExtraDto)
+  extras?: CartExtraDto[];
 }
 
 /**
@@ -238,10 +259,11 @@ export class GuestBankTransferInvoiceDto {
  * (POST /auth/claim-account) once the webhook confirms the charge.
  */
 export class GuestSubscriptionDto {
-  @ApiProperty({ description: 'Plan ID to subscribe to' })
-  @IsUUID()
-  @IsNotEmpty()
-  planId: string;
+  @ApiPropertyOptional({ description: 'Plan ID to subscribe to (or "none" for stack-only checkout without an optional care plan)' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(none|[0-9a-fA-F-]{36}|[\w-]{2,64})$/, { message: 'planId must be a valid plan ID, slug, or "none"' })
+  planId?: string;
 
   @ApiProperty({ enum: BillingCycle, description: 'Billing cycle: MONTHLY or ANNUAL' })
   @IsEnum(BillingCycle)
