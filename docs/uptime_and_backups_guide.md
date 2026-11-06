@@ -113,12 +113,12 @@ A transparent status page builds client confidence during planned maintenance or
 
 ---
 
-## 3. Self-Hosted Uptime Kuma Alternative
+## 3. Internal Infrastructure Monitoring (Uptime Kuma)
 
-For self-hosted internal infrastructure monitoring without SaaS costs, BazionWeb includes **Uptime Kuma** in `infrastructure/docker/docker-compose.yml`.
+For self-hosted internal infrastructure monitoring without SaaS costs, Uptime Kuma can be deployed as an independent container service under Dokploy.
 
-### 3.1 Docker Compose Service
-Verify that `uptime-kuma` is running in `infrastructure/docker/docker-compose.yml`:
+### 3.1 Dokploy Compose Service Reference
+Example service configuration for Uptime Kuma under Dokploy:
 ```yaml
   uptime-kuma:
     image: louislam/uptime-kuma:1
@@ -299,7 +299,7 @@ In the event of a catastrophic server hardware failure, database corruption, or 
 Prevents partial writes while restoration is in progress:
 ```bash
 cd /opt/bazionweb
-docker compose -f infrastructure/docker/docker-compose.yml stop api web
+docker compose -f docker-compose.dokploy.yml stop api web
 ```
 
 #### Step 3: List and Fetch Latest Healthy Snapshot from Backblaze B2
@@ -318,32 +318,27 @@ mkdir -p "${RESTORE_DIR}"
 restic restore latest --target "${RESTORE_DIR}"
 ```
 
-#### Step 4: Drop and Recreate Clean Database Container
-```bash
-docker compose -f infrastructure/docker/docker-compose.yml exec db psql \
-  -U bazionweb -c "DROP DATABASE IF EXISTS bazionweb; CREATE DATABASE bazionweb;"
-```
-
-#### Step 5: Import Restored SQL Dump
+#### Step 4: Import Restored SQL Dump into Neon Database
+BazionWeb operates on Neon Serverless PostgreSQL.
 ```bash
 RESTORE_SQL=$(ls "${RESTORE_DIR}"/tmp/*.sql | head -n 1)
-docker compose -f infrastructure/docker/docker-compose.yml exec -T db psql \
-  -U bazionweb bazionweb < "${RESTORE_SQL}"
+
+# Import into Neon using direct unpooled connection string:
+psql "${DATABASE_URL_UNPOOLED}" < "${RESTORE_SQL}"
 ```
 
-#### Step 6: Deploy Database Schema Migrations
+#### Step 5: Deploy Database Schema Migrations
 ```bash
-docker compose -f infrastructure/docker/docker-compose.yml run --rm api \
-  npx prisma migrate deploy
+DATABASE_URL="${DATABASE_URL}" npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
 ```
 
-#### Step 7: Restart Application Stack & Verify
+#### Step 6: Restart Application Stack & Verify
 ```bash
-docker compose -f infrastructure/docker/docker-compose.yml start api web
+docker compose -f docker-compose.dokploy.yml start api web
 
 # Verify health smoke tests:
 curl -f https://bazionweb.com/api/health
-curl -f https://api.bazionweb.com/api/v1/health
+curl -f https://bazionweb.com/api/v1/health
 ```
 
 #### Step 8: Clean Up & Close Incident

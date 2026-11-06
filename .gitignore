@@ -55,6 +55,5 @@ Desktop.ini
 *.zip
 *.tar.gz
 
-.vercel
 .env*
 .agents/

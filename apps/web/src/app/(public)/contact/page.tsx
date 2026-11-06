@@ -40,7 +40,7 @@ const contactMethods = [
   },
   // TODO: restore the support-ticket card (value: 'support.bazionweb.com',
   // icon: MessageSquare) once the Zammad portal is live —
-  // see infrastructure/scripts/setup-support.sh and CHANGELOG.
+  // see CHANGELOG.
 ];
 
 export default function ContactPage() {

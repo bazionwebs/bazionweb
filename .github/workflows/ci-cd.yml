@@ -36,9 +36,8 @@ env:
 
 jobs:
   # ─── Stage 0: Change detection ──────────────────────────────────────────────
-  # Skips the expensive stages (Docker builds, Trivy, migrations) when only
-  # docs or CI config changed. Vercel still auto-deploys the web app on every
-  # push — prefix a docs-only commit title with "[skip deploy]" to skip that.
+  # Skips the expensive stages (Docker builds, Trivy, migrations, Dokploy
+  # deploys) when only docs or CI config changed.
   changes:
     name: "Stage 0 — Detect changed apps"
     runs-on: ubuntu-latest
@@ -199,11 +198,16 @@ jobs:
         with:
           context: ./apps/web
           push: true
-          tags: ${{ env.WEB_IMAGE }}:${{ steps.meta.outputs.version }},${{ env.WEB_IMAGE }}:${{ github.ref_name }}
+          # `latest` on main is what docker-compose.dokploy.yml pulls by default.
+          tags: |
+            ${{ env.WEB_IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.WEB_IMAGE }}:${{ github.ref_name }}
+            ${{ github.ref == 'refs/heads/main' && format('{0}:latest', env.WEB_IMAGE) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # NEXT_PUBLIC_API_URL is intentionally NOT baked: the client bundle
+          # calls /api/v1 on its own origin and Traefik routes it to the API.
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
             NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
 
       - name: Build & push API image
@@ -211,7 +215,10 @@ jobs:
         with:
           context: ./apps/api
           push: true
-          tags: ${{ env.API_IMAGE }}:${{ steps.meta.outputs.version }},${{ env.API_IMAGE }}:${{ github.ref_name }}
+          tags: |
+            ${{ env.API_IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.API_IMAGE }}:${{ github.ref_name }}
+            ${{ github.ref == 'refs/heads/main' && format('{0}:latest', env.API_IMAGE) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -342,40 +349,26 @@ jobs:
     if: github.ref == 'refs/heads/staging'
     environment: staging
     env:
-      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCP_REGION: ${{ vars.GCP_REGION || 'europe-west1' }}
+      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_STAGING_COMPOSE_ID }}
 
     steps:
-      - uses: actions/checkout@v4
+      # Images were pushed as :staging by Stage 3; the staging compose service in
+      # Dokploy must set IMAGE_TAG=staging (and its own domains) so a redeploy
+      # pulls them (pull_policy: always).
+      - name: Trigger Dokploy redeploy (staging)
+        if: env.DOKPLOY_URL != '' && env.DOKPLOY_API_KEY != '' && env.DOKPLOY_COMPOSE_ID != ''
+        run: |
+          curl --fail-with-body --silent --show-error -X POST \
+            "${DOKPLOY_URL%/}/api/compose.deploy" \
+            -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${DOKPLOY_COMPOSE_ID}\"}"
 
-      # Cloud Run replaced Render (suspended free tier). Builds from source via
-      # Cloud Build, so no private-ghcr pull secret is needed on the service.
-      - name: Authenticate to Google Cloud
-        if: env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != ''
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Deploy API to Cloud Run (staging)
-        if: env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != ''
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          region: ${{ env.GCP_REGION }}
-          service: bazionweb-api-staging
-          source: apps/api
-          dockerfile: Dockerfile
-          flags: '--allow-unauthenticated --cpu 1 --memory 512Mi --max-instances 2 --timeout 300s'
-          env_vars: |
-            NODE_ENV=production
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            FRONTEND_URL=${{ vars.STAGING_FRONTEND_URL || 'https://staging.bazionweb.com' }}
-
-      - name: Cloud Run not configured (skipping)
-        if: env.GCP_SA_KEY == '' || env.GCP_PROJECT_ID == ''
-        run: echo "GCP_SA_KEY/GCP_PROJECT_ID secrets not set — skipping Cloud Run deploy (set them once to enable)."
+      - name: Dokploy not configured (skipping)
+        if: env.DOKPLOY_URL == '' || env.DOKPLOY_API_KEY == '' || env.DOKPLOY_COMPOSE_ID == ''
+        run: echo "DOKPLOY_URL/DOKPLOY_API_KEY/DOKPLOY_STAGING_COMPOSE_ID secrets not set — skipping staging deploy."
 
   # ─── Stage 6: E2E Tests (Staging) ───────────────────────────────────────────
   e2e-tests:
@@ -449,48 +442,31 @@ jobs:
       name: production
       url: https://bazionweb.com
     env:
-      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCP_REGION: ${{ vars.GCP_REGION || 'europe-west1' }}
-      API_URL: ${{ secrets.API_URL }}
+      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
 
     steps:
-      # Web app deploys to Vercel automatically via the GitHub integration.
-      # The API deploys to Cloud Run here (Render is retired).
-      - uses: actions/checkout@v4
+      # Web + API ship as one Dokploy compose stack (docker-compose.dokploy.yml).
+      # Stage 3 pushed :latest; Dokploy re-pulls it on redeploy (pull_policy: always).
+      - name: Trigger Dokploy redeploy (production)
+        id: dokploy
+        if: env.DOKPLOY_URL != '' && env.DOKPLOY_API_KEY != '' && env.DOKPLOY_COMPOSE_ID != ''
+        run: |
+          curl --fail-with-body --silent --show-error -X POST \
+            "${DOKPLOY_URL%/}/api/compose.deploy" \
+            -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${DOKPLOY_COMPOSE_ID}\"}"
 
-      - name: Authenticate to Google Cloud
-        if: env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != ''
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Deploy API to Cloud Run (production)
-        id: deploy-cloudrun
-        if: env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != ''
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          region: ${{ env.GCP_REGION }}
-          service: bazionweb-api
-          source: apps/api
-          dockerfile: Dockerfile
-          flags: '--allow-unauthenticated --cpu 1 --memory 512Mi --max-instances 5 --timeout 300s'
-          env_vars: |
-            NODE_ENV=production
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            FRONTEND_URL=${{ vars.PRODUCTION_FRONTEND_URL || 'https://bazionweb.com' }}
-
-      - name: Cloud Run not configured (skipping)
-        if: env.GCP_SA_KEY == '' || env.GCP_PROJECT_ID == ''
-        run: echo "GCP_SA_KEY/GCP_PROJECT_ID secrets not set — skipping Cloud Run deploy (set them once to enable)."
+      - name: Dokploy not configured (skipping)
+        if: env.DOKPLOY_URL == '' || env.DOKPLOY_API_KEY == '' || env.DOKPLOY_COMPOSE_ID == ''
+        run: echo "DOKPLOY_URL/DOKPLOY_API_KEY/DOKPLOY_COMPOSE_ID secrets not set — skipping production deploy."
 
       - name: Health check gate
-        if: (env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != '') || env.API_URL != ''
+        if: steps.dokploy.outcome == 'success'
         run: |
-          ACTIVE_API_URL="${API_URL:-${{ steps.deploy-cloudrun.outputs.url }}}"
-          ACTIVE_API_URL="${ACTIVE_API_URL:-https://bazionweb.com}"
+          ACTIVE_API_URL="https://bazionweb.com"
           FALLBACK_API_URL="https://www.bazionweb.com"
           for i in 1 2 3 4 5 6; do
             # Probe primary origin with --location to follow redirects (e.g. 308 apex -> www)
@@ -521,8 +497,6 @@ jobs:
           done
           echo "API health check failed at $ACTIVE_API_URL and $FALLBACK_API_URL"
           exit 1
-        env:
-          API_URL: ${{ secrets.API_URL }}
 
   # ─── Stage 9: Post-Deploy Verification ──────────────────────────────────────
   post-deploy-verify:
@@ -532,9 +506,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      API_URL: ${{ secrets.API_URL }}
 
     steps:
       - name: Smoke tests — homepage
@@ -543,11 +514,10 @@ jobs:
             || (echo "Homepage smoke test failed" && exit 1)
 
       - name: Smoke tests — API health
-        if: (env.GCP_SA_KEY != '' && env.GCP_PROJECT_ID != '') || env.API_URL != ''
         run: |
-          STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" "${API_URL:-https://bazionweb.com}/api/v1/health" || true)
+          STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" https://bazionweb.com/api/v1/health || true)
           if [ "$STATUS" != "200" ]; then
-            STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" "${API_URL:-https://bazionweb.com}/api/health" || true)
+            STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" https://bazionweb.com/api/health || true)
           fi
           if [ "$STATUS" != "200" ]; then
             STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" https://www.bazionweb.com/api/v1/health || true)
@@ -556,8 +526,6 @@ jobs:
             STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" https://www.bazionweb.com/api/health || true)
           fi
           [ "$STATUS" = "200" ] || (echo "API health check failed: $STATUS" && exit 1)
-        env:
-          API_URL: ${{ secrets.API_URL }}
 
       - name: Smoke tests — SSL valid
         run: |

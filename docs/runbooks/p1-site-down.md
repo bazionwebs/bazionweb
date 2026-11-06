@@ -41,13 +41,15 @@ ssh deploy@<VPS_IP> -i ~/.ssh/bazionweb_prod
 
 ```bash
 cd /opt/bazionweb
-docker compose -f infrastructure/docker/docker-compose.yml ps
+# In Dokploy, the stack is managed via docker-compose.dokploy.yml
+docker compose -f docker-compose.dokploy.yml ps
 
 # If any service is "exited" — check its logs
-docker compose -f infrastructure/docker/docker-compose.yml logs --tail=100 web
-docker compose -f infrastructure/docker/docker-compose.yml logs --tail=100 api
-docker compose -f infrastructure/docker/docker-compose.yml logs --tail=100 db
-docker compose -f infrastructure/docker/docker-compose.yml logs --tail=100 nginx-proxy-manager
+docker compose -f docker-compose.dokploy.yml logs --tail=100 web
+docker compose -f docker-compose.dokploy.yml logs --tail=100 api
+docker compose -f docker-compose.dokploy.yml logs --tail=100 redis
+# Inspect Traefik edge reverse proxy logs in Dokploy
+docker logs --tail=100 dokploy-traefik
 ```
 
 ---
@@ -58,50 +60,45 @@ docker compose -f infrastructure/docker/docker-compose.yml logs --tail=100 nginx
 
 ```bash
 # Restart the web container
-docker compose -f infrastructure/docker/docker-compose.yml restart web
+docker compose -f docker-compose.dokploy.yml restart web
 
 # Verify health
-docker compose -f infrastructure/docker/docker-compose.yml ps web
+docker compose -f docker-compose.dokploy.yml ps web
 curl -f http://localhost:3000/api/health
 ```
 
 ### Scenario B: API container crashed
 
 ```bash
-docker compose -f infrastructure/docker/docker-compose.yml restart api
+docker compose -f docker-compose.dokploy.yml restart api
 
 # Wait for health check
 sleep 30
 curl -f http://localhost:4000/api/v1/health
 ```
 
-### Scenario C: Database down
+### Scenario C: Database connectivity issue (Neon PostgreSQL)
 
 ```bash
-# Check disk space first — #1 cause of Postgres crashes
-df -h
+# BazionWeb uses external managed Neon Serverless PostgreSQL.
+# 1. Verify API database connection logs:
+docker compose -f docker-compose.dokploy.yml logs --tail=100 api | grep -i -E "prisma|database|p1001|timeout"
 
-# If disk is full:
-docker system prune -f   # Remove unused images/containers
-journalctl --vacuum-size=500M
-
-# Restart postgres
-docker compose -f infrastructure/docker/docker-compose.yml restart db
-
-# Verify connectivity
-docker compose -f infrastructure/docker/docker-compose.yml exec db pg_isready -U bazionweb
+# 2. Check Neon console status (https://console.neon.tech)
+# 3. Test connectivity directly using psql or prisma with the Neon pooled connection string:
+DATABASE_URL="<NEON_DATABASE_URL>" psql "$DATABASE_URL" -c "SELECT 1;"
 ```
 
-### Scenario D: Nginx/NPM not routing
+### Scenario D: Dokploy / Traefik routing issues
 
 ```bash
-# Check NPM container
-docker compose -f infrastructure/docker/docker-compose.yml logs nginx-proxy-manager | tail -50
+# Check Traefik container status and routing logs
+docker logs --tail=50 dokploy-traefik
 
-# Restart NPM
-docker compose -f infrastructure/docker/docker-compose.yml restart nginx-proxy-manager
+# Restart Dokploy Traefik proxy if routing rules failed to register
+docker restart dokploy-traefik
 
-# Check if port 80/443 is listening
+# Check if ports 80/443 are listening
 ss -tlnp | grep -E '80|443'
 ```
 
@@ -122,10 +119,6 @@ curl -H "Host: bazionweb.com" http://<VPS_IP>/
 # Check SSL expiry
 echo | openssl s_client -connect bazionweb.com:443 -servername bazionweb.com 2>/dev/null \
   | openssl x509 -noout -dates
-
-# Trigger Let's Encrypt renewal (via NPM)
-docker compose -f infrastructure/docker/docker-compose.yml exec nginx-proxy-manager \
-  /bin/bash -c "certbot renew --force-renewal"
 ```
 
 ---
@@ -133,12 +126,12 @@ docker compose -f infrastructure/docker/docker-compose.yml exec nginx-proxy-mana
 ## 5. Rollback (if recent deploy caused the issue)
 
 ```bash
-# Get previous image tag from Docker Hub
+# Get previous image tag from GHCR
 docker images | grep bazionweb-web
 
 # Roll back to previous image
 export IMAGE_TAG=<previous-sha>
-docker compose -f infrastructure/docker/docker-compose.yml up -d --no-deps web api
+docker compose -f docker-compose.dokploy.yml up -d --no-deps web api
 ```
 
 ---

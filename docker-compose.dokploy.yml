@@ -2,7 +2,11 @@ version: "3.9"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BazionWeb — Production Stack Composition for Dokploy & Traefik v3
-# Architecture: Isolated Database/Redis internal network + Traefik Edge Ingress
+# Architecture: Web + API containers behind Traefik edge ingress, Redis on an
+# isolated internal network, Postgres on Neon (external, managed).
+# Images are built & pushed to GHCR by .github/workflows/ci-cd.yml, which then
+# triggers a Dokploy redeploy. `pull_policy: always` makes the redeploy fetch
+# the freshly pushed tag instead of reusing the cached image.
 # ─────────────────────────────────────────────────────────────────────────────
 
 networks:
@@ -16,15 +20,14 @@ networks:
     external: true
 
 volumes:
-  postgres_data:
-    driver: local
   redis_data:
     driver: local
 
 services:
   # ── 1. Next.js Web Frontend (Standalone) ───────────────────────────────────
   web:
-    image: ghcr.io/bazionweb/web:${IMAGE_TAG:-latest}
+    image: ghcr.io/bazionwebs/bazionweb-web:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: bazionweb-web
     restart: unless-stopped
     security_opt:
@@ -73,7 +76,8 @@ services:
 
   # ── 2. NestJS REST Backend API ─────────────────────────────────────────────
   api:
-    image: ghcr.io/bazionweb/api:${IMAGE_TAG:-latest}
+    image: ghcr.io/bazionwebs/bazionweb-api:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: bazionweb-api
     restart: unless-stopped
     security_opt:
@@ -88,7 +92,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://${DB_USER:-bazionweb}:${DB_PASSWORD}@db:5432/${DB_NAME:-bazionweb}?schema=public
+      # Neon Postgres (external, managed). DATABASE_URL = pooled ("-pooler")
+      # string for runtime queries; DATABASE_URL_UNPOOLED = direct string used
+      # by Prisma's `directUrl` (migrations run from CI against Neon).
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL (Neon pooled) is required}
+      DATABASE_URL_UNPOOLED: ${DATABASE_URL_UNPOOLED:-}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
       DOKPLOY_API_URL: ${DOKPLOY_API_URL:-http://dokploy:3000}
@@ -101,8 +109,6 @@ services:
       PAYSTACK_WEBHOOK_SECRET: ${PAYSTACK_WEBHOOK_SECRET}
       FRONTEND_URL: ${FRONTEND_URL:-https://bazionweb.com}
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -143,54 +149,7 @@ services:
       - "traefik.http.routers.bazion-api-host.middlewares=secHeaders@file,apiRateLimit@file"
       - "traefik.http.routers.bazion-api-host.service=bazion-api@docker"
 
-  # ── 3. PostgreSQL 16 Relational Database ────────────────────────────────────
-  db:
-    image: postgres:16-alpine
-    container_name: bazionweb-db
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    deploy:
-      resources:
-        limits:
-          cpus: "4.0"
-          memory: 8192M
-        reservations:
-          memory: 2048M
-    environment:
-      POSTGRES_DB: ${DB_NAME:-bazionweb}
-      POSTGRES_USER: ${DB_USER:-bazionweb}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      PGDATA: /var/lib/postgresql/data/pgdata
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - bazionweb-internal
-    expose:
-      - "5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-bazionweb} -d ${DB_NAME:-bazionweb}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    command: >
-      postgres
-        -c max_connections=150
-        -c shared_buffers=2048MB
-        -c effective_cache_size=6144MB
-        -c maintenance_work_mem=512MB
-        -c checkpoint_completion_target=0.9
-        -c wal_buffers=64MB
-        -c default_statistics_target=100
-        -c random_page_cost=1.1
-        -c effective_io_concurrency=200
-        -c work_mem=16MB
-        -c min_wal_size=1GB
-        -c max_wal_size=4GB
-        -c log_min_duration_statement=1000
-
-  # ── 4. Redis 7 High-Speed In-Memory Cache & Session Store ──────────────────
+  # ── 3. Redis 7 High-Speed In-Memory Cache & Session Store ──────────────────
   redis:
     image: redis:7-alpine
     container_name: bazionweb-redis

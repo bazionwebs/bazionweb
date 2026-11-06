@@ -49,26 +49,23 @@ openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
 
 ---
 
-## 4. Restore to PostgreSQL
+## 4. Restore to PostgreSQL (Neon Managed Database)
+
+BazionWeb uses external managed PostgreSQL on Neon. To restore a backup to Neon:
 
 ```bash
-# Stop the API to prevent writes during restore
-docker compose -f infrastructure/docker/docker-compose.yml stop api
+# Stop or scale down API to prevent concurrent writes during restore
+cd /opt/bazionweb
+docker compose -f docker-compose.dokploy.yml stop api
 
 # Decompress
 gunzip -c /tmp/restore.sql.gz > /tmp/restore.sql
 
-# Drop and recreate database
-docker compose -f infrastructure/docker/docker-compose.yml exec db psql \
-  -U bazionweb -c "DROP DATABASE IF EXISTS bazionweb; CREATE DATABASE bazionweb;"
+# Restore directly to Neon using the direct unpooled connection string
+psql "${DATABASE_URL_UNPOOLED}" < /tmp/restore.sql
 
-# Restore
-docker compose -f infrastructure/docker/docker-compose.yml exec -T db psql \
-  -U bazionweb bazionweb < /tmp/restore.sql
-
-# Run any pending migrations
-docker compose -f infrastructure/docker/docker-compose.yml run --rm api \
-  npx prisma migrate deploy
+# Run any pending Prisma migrations
+DATABASE_URL="${DATABASE_URL}" npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
 ```
 
 ---
@@ -76,12 +73,12 @@ docker compose -f infrastructure/docker/docker-compose.yml run --rm api \
 ## 5. Verify and restart
 
 ```bash
-# Verify row counts
-docker compose -f infrastructure/docker/docker-compose.yml exec db psql -U bazionweb bazionweb \
+# Verify row counts directly on Neon
+psql "${DATABASE_URL}" \
   -c "SELECT 'users' AS tbl, COUNT(*) FROM users UNION ALL SELECT 'clients', COUNT(*) FROM clients UNION ALL SELECT 'tickets', COUNT(*) FROM tickets;"
 
-# Restart API
-docker compose -f infrastructure/docker/docker-compose.yml start api
+# Restart API container in Dokploy
+docker compose -f docker-compose.dokploy.yml start api
 
 # Verify API health
 curl -f https://bazionweb.com/api/v1/health

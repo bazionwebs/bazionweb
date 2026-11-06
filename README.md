@@ -53,11 +53,10 @@ bazionweb/
 ├── prisma/
 │   ├── schema.prisma               # Authoritative DB schema (v2.1, 15 models)
 │   └── seed.ts                     # Base plans + admin user seeder
+├── docker-compose.dokploy.yml       # Production stack (Dokploy + Traefik, Neon DB)
 ├── infrastructure/
 │   ├── docker/
-│   │   ├── docker-compose.yml      # Production (9 services)
-│   │   └── docker-compose.dev.yml  # Development (4 services)
-│   ├── nginx/bazionweb.conf        # Reverse proxy + SSL termination
+│   │   └── docker-compose.dev.yml  # Local development services
 │   ├── monitoring/                 # Prometheus, Grafana, Loki configs
 │   └── backups/                    # Automated backup scripts (Restic + B2)
 ├── docs/
@@ -240,12 +239,20 @@ See [`.env.example`](.env.example) for the full annotated list.
 ### Production (Docker + Dokploy)
 
 The deployment target is `docker-compose.dokploy.yml`: Web (Next.js) and API
-(NestJS) run as containers behind Traefik/Dokploy, with the in-stack Postgres
-and Redis. The API is **same-origin only** — the browser always calls
-`/api/v1/...` on the web origin (Traefik routes those paths to the API
-container); there is no `api.bazionweb.com` public host. Optionally keep the
-Neon connection strings (`DATABASE_URL` / `DATABASE_URL_UNPOOLED`) so CI can
-run Prisma migrations and skip in-container databases.
+(NestJS) run as containers behind Traefik/Dokploy, with Redis in-stack and
+PostgreSQL on **Neon** (`DATABASE_URL` = pooled string, `DATABASE_URL_UNPOOLED`
+= direct string, both set in the Dokploy environment). The API is
+**same-origin only** — the browser always calls `/api/v1/...` on the web
+origin (Traefik routes those paths to the API container); there is no
+`api.bazionweb.com` public host.
+
+Pipeline hand-off: CI builds and pushes `ghcr.io/bazionwebs/bazionweb-{web,api}`
+(`:latest` on `main`), runs `prisma migrate deploy` against Neon, then calls
+Dokploy's `compose.deploy` API. Required repo secrets: `DATABASE_URL`,
+`DATABASE_URL_UNPOOLED`, `DOKPLOY_URL`, `DOKPLOY_API_KEY`,
+`DOKPLOY_COMPOSE_ID` (and `DOKPLOY_STAGING_COMPOSE_ID` for staging). Dokploy
+must be able to pull from GHCR (add a registry credential if the packages are
+private).
 
 ---
 
