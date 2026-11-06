@@ -71,8 +71,28 @@ const PRODUCT_MARKETING: Record<string, { name: string; description: string; fea
   },
   'host-cloud': {
     name: 'Managed Cloud',
-    description: 'Dedicated multi-container cloud cluster (4.0 vCPU / 2 GB+ RAM) with 100 GB NVMe, standalone PostgreSQL 16 & Redis 7.',
-    features: ['4.0 vCPU / 2 GB+ RAM Dedicated Cluster', '100 GB NVMe SSD & 2 TB/mo Bandwidth', 'Dedicated PostgreSQL 16 & Redis 7', 'Up to 25 Corporate Email Accounts', 'Zero-Downtime CI/CD & DevOps SLA'],
+    description: 'Dedicated multi-container cloud cluster (4.0 vCPU / 2 GB+ RAM) with 100 GB NVMe, standalone PostgreSQL 16 & Redis 7. Available on Monthly, 3-mo, 6-mo, and Annual billing.',
+    features: ['4.0 vCPU / 2 GB+ RAM Dedicated Cluster', '100 GB NVMe SSD & 2 TB/mo Bandwidth', 'Dedicated PostgreSQL 16 & Redis 7', 'Multi-Cycle Flexible Billing', 'Zero-Downtime CI/CD & DevOps SLA'],
+  },
+  'host-cloud-monthly': {
+    name: 'Managed Cloud (Monthly)',
+    description: 'Dedicated multi-container cloud cluster (4.0 vCPU / 2 GB+ RAM) with 100 GB NVMe, PostgreSQL 16 & Redis 7. Monthly rolling term.',
+    features: ['4.0 vCPU / 2 GB+ RAM Dedicated Cluster', '100 GB NVMe SSD & 2 TB/mo Bandwidth', 'Dedicated PostgreSQL 16 & Redis 7', 'Monthly Flexible Term', 'DevOps SLA & Daily R2 Backups'],
+  },
+  'host-cloud-quarterly': {
+    name: 'Managed Cloud (3 Months / Quarterly)',
+    description: 'Dedicated multi-container cloud cluster billed quarterly with 5% commitment discount.',
+    features: ['4.0 vCPU / 2 GB+ RAM Dedicated Cluster', '100 GB NVMe SSD & 2 TB/mo Bandwidth', 'Save 5% vs Monthly', 'Quarterly Commitment', 'DevOps SLA & Daily R2 Backups'],
+  },
+  'host-cloud-semiannual': {
+    name: 'Managed Cloud (6 Months / Semi-Annual)',
+    description: 'Dedicated multi-container cloud cluster billed semi-annually with 10% commitment discount.',
+    features: ['4.0 vCPU / 2 GB+ RAM Dedicated Cluster', '100 GB NVMe SSD & 2 TB/mo Bandwidth', 'Save 10% vs Monthly', 'Semi-Annual Commitment', 'DevOps SLA & Daily R2 Backups'],
+  },
+  'host-cloud-annual': {
+    name: 'Managed Cloud (Annual / 12 Months)',
+    description: 'Dedicated multi-container cloud cluster billed annually with 22% commitment discount (~2.6 months free).',
+    features: ['4.0 vCPU / 2 GB+ RAM Dedicated Cluster', '100 GB NVMe SSD & 2 TB/mo Bandwidth', 'Save 22% (Best Value)', 'Annual Commitment', 'DevOps SLA & Daily R2 Backups'],
   },
   'addon-blog-news': {
     name: 'Blog / News Engine',

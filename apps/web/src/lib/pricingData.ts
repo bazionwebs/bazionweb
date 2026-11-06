@@ -61,6 +61,18 @@ export interface CarePlan {
   ctaHref: string;
 }
 
+export interface HostingBillingCycle {
+  term: 'monthly' | 'quarterly' | 'semi-annually' | 'annually';
+  label: string;
+  durationMonths: number;
+  kenyaPrice: string;
+  intlPrice: string;
+  kenyaMonthlyEquivalent: string;
+  intlMonthlyEquivalent: string;
+  discountBadge?: string;
+  popular?: boolean;
+}
+
 export interface HostingPlan {
   id: string;
   name: string;
@@ -75,6 +87,7 @@ export interface HostingPlan {
   features: string[];
   ctaText: string;
   ctaHref: string;
+  billingCycles?: HostingBillingCycle[];
 }
 
 export interface AddOnItem {
@@ -476,14 +489,58 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
   },
   {
     id: 'host-cloud',
-    name: 'Managed Cloud',
-    badge: 'Custom Architecture',
-    kenyaPrice: 'From KSh 30,000/year',
-    intlPrice: 'From $290/year',
-    billingPeriod: 'Billed annually',
+    name: 'Managed Cloud Cluster',
+    badge: 'Multi-Cycle',
+    popular: true,
+    kenyaPrice: 'From KSh 3,200/mo',
+    intlPrice: 'From $32/mo',
+    billingPeriod: 'Flexible: Monthly, 3 Months, 6 Months, or Annually',
     resources: '4.0 vCPU / 2 GB+ RAM, 100 GB NVMe, Dedicated DB',
     support: 'Dedicated DevOps SLA',
-    description: 'Fully isolated multi-container cloud cluster with dedicated PostgreSQL 16 and Redis 7 instances.',
+    description: 'Fully isolated multi-container cloud cluster with dedicated PostgreSQL 16 and Redis 7 instances. Available with slight discounts for multi-month commitments.',
+    billingCycles: [
+      {
+        term: 'monthly',
+        label: 'Monthly (1 Month)',
+        durationMonths: 1,
+        kenyaPrice: 'KSh 3,200/mo',
+        intlPrice: '$32/mo',
+        kenyaMonthlyEquivalent: 'KSh 3,200/mo',
+        intlMonthlyEquivalent: '$32/mo',
+        discountBadge: 'Standard',
+      },
+      {
+        term: 'quarterly',
+        label: 'Quarterly (3 Months)',
+        durationMonths: 3,
+        kenyaPrice: 'KSh 9,120 / 3 mos',
+        intlPrice: '$91 / 3 mos',
+        kenyaMonthlyEquivalent: 'KSh 3,040/mo',
+        intlMonthlyEquivalent: '$30.33/mo',
+        discountBadge: 'Save 5%',
+      },
+      {
+        term: 'semi-annually',
+        label: 'Bi-Annual (6 Months)',
+        durationMonths: 6,
+        kenyaPrice: 'KSh 17,280 / 6 mos',
+        intlPrice: '$172 / 6 mos',
+        kenyaMonthlyEquivalent: 'KSh 2,880/mo',
+        intlMonthlyEquivalent: '$28.67/mo',
+        discountBadge: 'Save 10%',
+      },
+      {
+        term: 'annually',
+        label: 'Annual (12 Months)',
+        durationMonths: 12,
+        kenyaPrice: 'KSh 30,000/yr',
+        intlPrice: '$290/yr',
+        kenyaMonthlyEquivalent: 'KSh 2,500/mo',
+        intlMonthlyEquivalent: '$24.16/mo',
+        discountBadge: 'Save 22% (Best Value)',
+        popular: true,
+      },
+    ],
     features: [
       'Dedicated container cluster (4.0 vCPU / 2 GB+ RAM)',
       '100 GB NVMe SSD storage & 2 TB/mo bandwidth (10 Gbps)',

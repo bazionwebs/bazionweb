@@ -59,7 +59,7 @@ interface ServiceCatalogItem {
   tagline: string;
   priceKes: number;
   priceUsd: number;
-  period: 'one-time' | 'month' | 'year';
+  period: 'one-time' | 'month' | 'quarter' | 'half-year' | 'year';
   badge?: string;
 }
 
@@ -217,13 +217,44 @@ const SERVICE_CATALOG: ServiceCatalogItem[] = [
     period: 'month',
   },
   {
-    id: 'host-cloud',
+    id: 'host-cloud-monthly',
     category: 'hosting',
-    name: 'Managed Cloud Cluster',
-    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone PostgreSQL 16 & Redis',
-    priceKes: 18000,
-    priceUsd: 189,
+    name: 'Managed Cloud (Monthly)',
+    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone PostgreSQL 16 & Redis (Monthly rolling term)',
+    priceKes: 3200,
+    priceUsd: 32,
     period: 'month',
+    badge: 'Monthly',
+  },
+  {
+    id: 'host-cloud-quarterly',
+    category: 'hosting',
+    name: 'Managed Cloud (3 Months / Quarterly)',
+    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone DB (5% discount from monthly rate)',
+    priceKes: 9120,
+    priceUsd: 91,
+    period: 'quarter',
+    badge: 'Save 5%',
+  },
+  {
+    id: 'host-cloud-semiannual',
+    category: 'hosting',
+    name: 'Managed Cloud (6 Months / Semi-Annual)',
+    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone DB (10% discount from monthly rate)',
+    priceKes: 17280,
+    priceUsd: 172,
+    period: 'half-year',
+    badge: 'Save 10%',
+  },
+  {
+    id: 'host-cloud-annual',
+    category: 'hosting',
+    name: 'Managed Cloud (Annual / 12 Months)',
+    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone DB (Best Value - 22% discount / ~2.6 mos free)',
+    priceKes: 30000,
+    priceUsd: 290,
+    period: 'year',
+    badge: 'Save 22%',
   },
 
   // ── Modular Add-ons & Integrations ──
@@ -452,7 +483,9 @@ export default function AdminInvoicesPage() {
       const newItem: CartLineItem = {
         id: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         serviceId: service.id,
-        description: service.period === 'one-time' ? service.name : `${service.name} (${service.period === 'month' ? 'Monthly Retainer' : 'Annual'})`,
+        description: service.period === 'one-time'
+          ? service.name
+          : `${service.name} (${service.period === 'month' ? 'Monthly' : service.period === 'quarter' ? '3 Months' : service.period === 'half-year' ? '6 Months' : 'Annual'})`,
         quantity: 1,
         unitPrice,
         period: service.period,
@@ -964,7 +997,9 @@ export default function AdminInvoicesPage() {
                                 {formatMoney(itemPrice, currency)}
                               </span>
                               {service.period !== 'one-time' && (
-                                <span className="text-[10px] text-slate-400 font-medium ml-1">/{service.period}</span>
+                                <span className="text-[10px] text-slate-400 font-medium ml-1">
+                                  /{service.period === 'quarter' ? '3 mos' : service.period === 'half-year' ? '6 mos' : service.period === 'year' ? 'yr' : 'mo'}
+                                </span>
                               )}
                             </div>
                             <button

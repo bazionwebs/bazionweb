@@ -10,6 +10,19 @@
 
 import { MarketCode, MARKETS } from './marketEngine';
 
+export interface BillingOption {
+  cycle: 'monthly' | 'quarterly' | 'semi-annually' | 'annually';
+  label: string;
+  periodMonths: number;
+  amount: number;
+  monthlyEquivalent: number;
+  discountPct: number;
+  savingsText?: string;
+  popular?: boolean;
+  formatted: string;
+  formattedMonthly: string;
+}
+
 export interface CommercialPriceItem {
   productId: string;
   category: 'website' | 'ecommerce' | 'custom' | 'care' | 'hosting' | 'addon' | 'rate';
@@ -17,7 +30,7 @@ export interface CommercialPriceItem {
   amount: number;
   currency: 'KES' | 'USD' | 'EUR' | 'GBP';
   formatted: string;
-  billingPeriod?: 'one-time' | 'month' | 'year' | 'starting';
+  billingPeriod?: 'one-time' | 'month' | 'quarter' | 'half-year' | 'year' | 'starting';
   description?: string;
   deliverables?: string[];
   features?: string[];
@@ -26,6 +39,7 @@ export interface CommercialPriceItem {
   supportWarranty?: string;
   badge?: string;
   popular?: boolean;
+  billingOptions?: BillingOption[];
 }
 
 export interface PriceBook {
@@ -313,12 +327,105 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
     'host-cloud': {
       productId: 'host-cloud',
       category: 'hosting',
-      name: 'Managed Cloud',
+      name: 'Managed Cloud Cluster',
       amount: 30000,
       currency: 'KES',
-      formatted: 'From KSh 30,000/yr',
+      formatted: 'From KSh 3,200/mo (KSh 30,000/yr)',
       billingPeriod: 'year',
-      description: 'Isolated Docker container orchestration, dedicated PostgreSQL database, Redis cluster.',
+      popular: true,
+      badge: 'Multi-Cycle',
+      description: 'Isolated Docker container orchestration, dedicated PostgreSQL 16 database, Redis cluster. Available on Monthly, 3-Month, 6-Month, or Annual billing with progressive commitment discounts.',
+      billingOptions: [
+        {
+          cycle: 'monthly',
+          label: 'Monthly (1 Month)',
+          periodMonths: 1,
+          amount: 3200,
+          monthlyEquivalent: 3200,
+          discountPct: 0,
+          savingsText: 'Standard rate',
+          formatted: 'KSh 3,200/mo',
+          formattedMonthly: 'KSh 3,200/mo',
+        },
+        {
+          cycle: 'quarterly',
+          label: 'Quarterly (3 Months)',
+          periodMonths: 3,
+          amount: 9120,
+          monthlyEquivalent: 3040,
+          discountPct: 5,
+          savingsText: 'Save 5%',
+          formatted: 'KSh 9,120 / 3 mos',
+          formattedMonthly: 'KSh 3,040/mo',
+        },
+        {
+          cycle: 'semi-annually',
+          label: 'Bi-Annual (6 Months)',
+          periodMonths: 6,
+          amount: 17280,
+          monthlyEquivalent: 2880,
+          discountPct: 10,
+          savingsText: 'Save 10%',
+          formatted: 'KSh 17,280 / 6 mos',
+          formattedMonthly: 'KSh 2,880/mo',
+        },
+        {
+          cycle: 'annually',
+          label: 'Annual (12 Months)',
+          periodMonths: 12,
+          amount: 30000,
+          monthlyEquivalent: 2500,
+          discountPct: 22,
+          savingsText: 'Save 22% (Best Value)',
+          popular: true,
+          formatted: 'KSh 30,000/yr',
+          formattedMonthly: 'KSh 2,500/mo',
+        },
+      ],
+    },
+    'host-cloud-monthly': {
+      productId: 'host-cloud-monthly',
+      category: 'hosting',
+      name: 'Managed Cloud (Monthly)',
+      amount: 3200,
+      currency: 'KES',
+      formatted: 'KSh 3,200/mo',
+      billingPeriod: 'month',
+      description: 'Dedicated Docker container cluster with PostgreSQL 16 & Redis (Monthly rolling term).',
+    },
+    'host-cloud-quarterly': {
+      productId: 'host-cloud-quarterly',
+      category: 'hosting',
+      name: 'Managed Cloud (3 Months / Quarterly)',
+      amount: 9120,
+      currency: 'KES',
+      formatted: 'KSh 9,120 / 3 mos (KSh 3,040/mo)',
+      billingPeriod: 'quarter',
+      badge: 'Save 5%',
+      description: 'Dedicated Docker container cluster (Billed every 3 months with 5% discount).',
+    },
+    'host-cloud-semiannual': {
+      productId: 'host-cloud-semiannual',
+      category: 'hosting',
+      name: 'Managed Cloud (6 Months / Semi-Annual)',
+      amount: 17280,
+      currency: 'KES',
+      formatted: 'KSh 17,280 / 6 mos (KSh 2,880/mo)',
+      billingPeriod: 'half-year',
+      badge: 'Save 10%',
+      description: 'Dedicated Docker container cluster (Billed every 6 months with 10% discount).',
+    },
+    'host-cloud-annual': {
+      productId: 'host-cloud-annual',
+      category: 'hosting',
+      name: 'Managed Cloud (Annual / 12 Months)',
+      amount: 30000,
+      currency: 'KES',
+      formatted: 'KSh 30,000/yr (KSh 2,500/mo)',
+      billingPeriod: 'year',
+      popular: true,
+      badge: 'Save 22%',
+      description: 'Dedicated Docker container cluster (Billed annually with 22% discount / ~2.6 months free).',
     },
 
     // Add-ons
@@ -743,12 +850,105 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
     'host-cloud': {
       productId: 'host-cloud',
       category: 'hosting',
-      name: 'Managed Cloud',
+      name: 'Managed Cloud Cluster',
       amount: 290,
       currency: 'USD',
-      formatted: 'From $290/yr',
+      formatted: 'From $32/mo ($290/yr)',
       billingPeriod: 'year',
-      description: 'Isolated Docker container orchestration, dedicated PostgreSQL database, Redis cluster.',
+      popular: true,
+      badge: 'Multi-Cycle',
+      description: 'Isolated Docker container orchestration, dedicated PostgreSQL database, Redis cluster. Available on Monthly, 3-Month, 6-Month, or Annual billing with progressive commitment discounts.',
+      billingOptions: [
+        {
+          cycle: 'monthly',
+          label: 'Monthly (1 Month)',
+          periodMonths: 1,
+          amount: 32,
+          monthlyEquivalent: 32,
+          discountPct: 0,
+          savingsText: 'Standard rate',
+          formatted: '$32/mo',
+          formattedMonthly: '$32/mo',
+        },
+        {
+          cycle: 'quarterly',
+          label: 'Quarterly (3 Months)',
+          periodMonths: 3,
+          amount: 91,
+          monthlyEquivalent: 30.33,
+          discountPct: 5,
+          savingsText: 'Save 5%',
+          formatted: '$91 / 3 mos',
+          formattedMonthly: '$30.33/mo',
+        },
+        {
+          cycle: 'semi-annually',
+          label: 'Bi-Annual (6 Months)',
+          periodMonths: 6,
+          amount: 172,
+          monthlyEquivalent: 28.67,
+          discountPct: 10,
+          savingsText: 'Save 10%',
+          formatted: '$172 / 6 mos',
+          formattedMonthly: '$28.67/mo',
+        },
+        {
+          cycle: 'annually',
+          label: 'Annual (12 Months)',
+          periodMonths: 12,
+          amount: 290,
+          monthlyEquivalent: 24.16,
+          discountPct: 24.5,
+          savingsText: 'Save 25% (Best Value)',
+          popular: true,
+          formatted: '$290/yr',
+          formattedMonthly: '$24.16/mo',
+        },
+      ],
+    },
+    'host-cloud-monthly': {
+      productId: 'host-cloud-monthly',
+      category: 'hosting',
+      name: 'Managed Cloud (Monthly)',
+      amount: 32,
+      currency: 'USD',
+      formatted: '$32/mo',
+      billingPeriod: 'month',
+      description: 'Dedicated Docker container cluster with PostgreSQL 16 & Redis (Monthly rolling term).',
+    },
+    'host-cloud-quarterly': {
+      productId: 'host-cloud-quarterly',
+      category: 'hosting',
+      name: 'Managed Cloud (3 Months / Quarterly)',
+      amount: 91,
+      currency: 'USD',
+      formatted: '$91 / 3 mos ($30.33/mo)',
+      billingPeriod: 'quarter',
+      badge: 'Save 5%',
+      description: 'Dedicated Docker container cluster (Billed every 3 months with 5% discount).',
+    },
+    'host-cloud-semiannual': {
+      productId: 'host-cloud-semiannual',
+      category: 'hosting',
+      name: 'Managed Cloud (6 Months / Semi-Annual)',
+      amount: 172,
+      currency: 'USD',
+      formatted: '$172 / 6 mos ($28.67/mo)',
+      billingPeriod: 'half-year',
+      badge: 'Save 10%',
+      description: 'Dedicated Docker container cluster (Billed every 6 months with 10% discount).',
+    },
+    'host-cloud-annual': {
+      productId: 'host-cloud-annual',
+      category: 'hosting',
+      name: 'Managed Cloud (Annual / 12 Months)',
+      amount: 290,
+      currency: 'USD',
+      formatted: '$290/yr ($24.16/mo)',
+      billingPeriod: 'year',
+      popular: true,
+      badge: 'Save 25%',
+      description: 'Dedicated Docker container cluster (Billed annually with 25% discount / ~3 months free).',
     },
 
     // Add-ons
