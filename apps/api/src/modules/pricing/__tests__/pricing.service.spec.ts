@@ -348,6 +348,60 @@ describe('PricingService', () => {
         service.calculateQuote({ marketCode: 'KE', packageType: 'business' }),
       ).rejects.toThrow('No active price book found');
     });
+
+    it('propagates billingCycle to proposal line items and quote response', async () => {
+      const quote = await service.calculateQuote({
+        marketCode: 'KE',
+        packageType: 'business',
+        care: 'growth',
+        hosting: 'business',
+        billingCycle: 'TRIENNIAL',
+        clientName: 'Amina Client',
+        clientEmail: 'AMINA@example.com',
+      });
+
+      expect(quote.billingCycle).toBe('TRIENNIAL');
+      expect(mockPrisma.proposal.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            lineItems: expect.arrayContaining([
+              expect.objectContaining({
+                kind: 'recurring',
+                productId: 'care-business',
+                billingCycle: 'TRIENNIAL',
+              }),
+              expect.objectContaining({
+                kind: 'recurring',
+                productId: 'host-business',
+                billingCycle: 'TRIENNIAL',
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('supports ecom-pro, corporate, care-enterprise, and host-cloud plan mappings', async () => {
+      mockPrisma.price.findMany.mockResolvedValue([
+        { id: 'p1', priceBookId: 'KE-2026-v1', productId: 'ecommerce-enterprise', amount: 250000, billingPeriod: 'one-time' },
+        { id: 'p2', priceBookId: 'KE-2026-v1', productId: 'care-enterprise', amount: 40000, billingPeriod: 'month' },
+        { id: 'p3', priceBookId: 'KE-2026-v1', productId: 'host-cloud', amount: 30000, billingPeriod: 'year' },
+      ]);
+
+      const quote = await service.calculateQuote({
+        marketCode: 'KE',
+        packageType: 'ecom-pro',
+        care: 'care-enterprise',
+        hosting: 'host-cloud',
+      });
+
+      expect(quote.breakdown.package.productId).toBe('ecommerce-enterprise');
+      expect(quote.breakdown.package.amount).toBe(250000);
+      expect(quote.breakdown.careMonthly.productId).toBe('care-enterprise');
+      expect(quote.breakdown.careMonthly.amount).toBe(40000);
+      expect(quote.breakdown.hostingAnnual.productId).toBe('host-cloud');
+      expect(quote.breakdown.hostingAnnual.amount).toBe(30000);
+    });
   });
 
   describe('Administrative pricing mutations with audit logging', () => {

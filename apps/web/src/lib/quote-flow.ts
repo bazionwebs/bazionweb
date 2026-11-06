@@ -53,6 +53,7 @@ export interface QuoteConfig {
   rushDelivery: boolean;
   care: string;
   hosting: string;
+  billingCycle?: string;
 }
 
 export interface ServiceMapping {

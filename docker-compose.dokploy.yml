@@ -41,7 +41,12 @@ services:
       PORT: 3000
       HOSTNAME: "0.0.0.0"
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://bazionweb.com}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.bazionweb.com/api/v1}
+      # NEXT_PUBLIC_API_URL must NOT be set here: NEXT_PUBLIC_* is baked at
+      # image build time, so a runtime env is inert. The client bundle falls
+      # back to the current origin (/api/v1 — same-origin gateway), which
+      # Traefik routes to the API container. Only ever bake NEXT_PUBLIC_API_URL
+      # if api.bazionweb.com's DNS record exists again AND is verified
+      # (it is currently NXDOMAIN on all resolvers).
       API_INTERNAL_URL: http://api:4000
     networks:
       - dokploy-network
@@ -114,13 +119,29 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      # API Router
-      - "traefik.http.routers.bazion-api.rule=Host(`api.bazionweb.com`)"
+      # The API is reachable two ways:
+      #   1. Same-origin: Host(bazionweb.com|www) + PathPrefix(/api/v1) -> api:4000
+      #      (higher priority than the catch-all web router; the client bundle
+      #      defaults to the current origin, so this is the primary path)
+      #   2. Dedicated host: Host(api.bazionweb.com) -> api:4000. NOTE: the DNS
+      #      record for api.bazionweb.com is currently ABSENT (NXDOMAIN on all
+      #      resolvers). This router is inert until that record is re-created
+      #      in the Cloudflare zone; do not point client bundles at this host
+      #      until the DNS record exists and is verified.
+      - "traefik.http.routers.bazion-api.rule=Host(`bazionweb.com`, `www.bazionweb.com`) && PathPrefix(`/api/v1`)"
       - "traefik.http.routers.bazion-api.entrypoints=websecure"
       - "traefik.http.routers.bazion-api.tls=true"
       - "traefik.http.routers.bazion-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.bazion-api.loadbalancer.server.port=4000"
+      - "traefik.http.routers.bazion-api.priority=1000"
       - "traefik.http.routers.bazion-api.middlewares=secHeaders@file,apiRateLimit@file"
+      # Dedicated API host router (inert until DNS record re-created):
+      - "traefik.http.routers.bazion-api-host.rule=Host(`api.bazionweb.com`)"
+      - "traefik.http.routers.bazion-api-host.entrypoints=websecure"
+      - "traefik.http.routers.bazion-api-host.tls=true"
+      - "traefik.http.routers.bazion-api-host.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.bazion-api-host.middlewares=secHeaders@file,apiRateLimit@file"
+      - "traefik.http.routers.bazion-api-host.service=bazion-api@docker"
 
   # ── 3. PostgreSQL 16 Relational Database ────────────────────────────────────
   db:

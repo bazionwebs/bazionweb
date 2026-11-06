@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { Analytics } from '@vercel/analytics/next';
 import '../styles/globals.css';
 import CookieBanner from '@/components/ui/CookieBanner';
 import MicrosoftClarity from '@/components/analytics/MicrosoftClarity';
@@ -109,7 +108,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen bg-white antialiased font-sans">
         {children}
-        {(process.env.VERCEL === '1' || Boolean(process.env.NEXT_PUBLIC_VERCEL_ENV)) && <Analytics />}
         <MicrosoftClarity />
         <CookieBanner />
       </body>

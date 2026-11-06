@@ -37,9 +37,14 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: https://api.bazionweb.com/api/v1
+      # Client bundle targets the current origin (/api/v1 same-origin gateway
+      # via API_INTERNAL_URL). Only set NEXT_PUBLIC_API_URL if the dedicated
+      # api.bazionweb.com DNS record exists again (currently NXDOMAIN on all
+      # resolvers).
+      API_INTERNAL_URL: http://api:4000
       NEXT_PUBLIC_APP_URL: https://bazionweb.com
     networks:
+      - bazionweb-internal
       - bazionweb-public
     expose:
       - "3000"

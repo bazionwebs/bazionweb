@@ -17,6 +17,11 @@ import PricingPrinciplesSection from '@/components/pricing/PricingPrinciplesSect
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 import {
+  getPriceBookForMarket,
+  BILLING_CYCLES_META,
+  CommitmentCycle,
+} from '@/lib/priceBooks';
+import {
   Check,
   ArrowRight,
   Globe,
@@ -51,6 +56,9 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
   const tabParam = searchParams.get('tab') as TabKey | null;
   const initialTab: TabKey = tabParam && (VALID_TABS as readonly string[]).includes(tabParam) ? tabParam : 'websites';
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [careCycle, setCareCycle] = useState<CommitmentCycle>('monthly');
+  const [hostingCycle, setHostingCycle] = useState<CommitmentCycle>('annually');
+  const priceBook = getPriceBookForMarket(marketCode);
 
   useEffect(() => {
     const currentTab = searchParams.get('tab') as TabKey | null;
@@ -424,22 +432,58 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
 
           {/* TAB 4: WEBSITE CARE & MAINTENANCE */}
           {activeTab === 'care' && (
-            <div className="space-y-12">
-              <div className="text-center max-w-2xl mx-auto">
+            <div className="space-y-10">
+              <div className="text-center max-w-3xl mx-auto">
                 <span className="text-xs font-bold uppercase tracking-widest text-[#2563EB] mb-1 block">
                   Recurring Peace of Mind
                 </span>
                 <h2 className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-2">
-                  Website Care & Ongoing Maintenance
+                  Website Care &amp; Ongoing Maintenance
                 </h2>
-                <p className="text-xs md:text-sm text-slate-500">
-                  Websites are living software. Our monthly care plans guarantee updates, daily backups, WAF defense, SEO health checks, and included engineering support hours.
+                <p className="text-xs md:text-sm text-slate-500 mb-6">
+                  Websites are living software. Our care plans guarantee updates, daily backups, WAF defense, SEO health checks, and included engineering support hours.
                 </p>
+
+                {/* Interactive Commitment Cycle Selector */}
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Select Commitment Term &amp; Unlock Progressive Discounts
+                  </div>
+                  <div className="inline-flex flex-wrap items-center justify-center p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 gap-1 shadow-inner">
+                    {BILLING_CYCLES_META.map((meta) => {
+                      const isSelected = careCycle === meta.cycle;
+                      return (
+                        <button
+                          key={meta.cycle}
+                          type="button"
+                          onClick={() => setCareCycle(meta.cycle)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-[#2563EB] text-white shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                          }`}
+                        >
+                          <span>{meta.pillLabel}</span>
+                          {meta.popular && !isSelected && (
+                            <span className="text-[9px] bg-blue-100 text-[#2563EB] px-1.5 py-0.5 rounded-full font-extrabold">
+                              Popular
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {CARE_PLANS.map(care => {
-                  const price = market === 'kenya' ? care.kenyaPrice : care.intlPrice;
+                {CARE_PLANS.map((care) => {
+                  const bookItem = priceBook.items[care.id];
+                  const opt = bookItem?.billingOptions?.find((o) => o.cycle === careCycle);
+                  const displayMonthly = opt ? opt.formattedMonthly : (market === 'kenya' ? care.kenyaPrice : care.intlPrice);
+                  const displayTotal = opt ? opt.formatted : undefined;
+                  const discountPct = opt?.discountPct ?? 0;
+
                   return (
                     <div
                       key={care.id}
@@ -447,21 +491,34 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                         care.popular ? 'border-[#2563EB] shadow-md' : 'border-slate-200/80'
                       }`}
                     >
-                      {care.badge && (
-                        <span className="inline-block self-start text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
-                          {care.badge}
-                        </span>
-                      )}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        {care.badge && (
+                          <span className="inline-block text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB]">
+                            {care.badge}
+                          </span>
+                        )}
+                        {discountPct > 0 && (
+                          <span className="inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 ml-auto">
+                            Save {discountPct}%
+                          </span>
+                        )}
+                      </div>
+
                       <h3 className="font-bold text-[#0F172A] text-base mb-1">{care.name}</h3>
-                      <div className="text-2xl font-black text-[#0F172A] mb-1">{price}</div>
-                      <div className="text-xs font-bold text-[#14B8A6] mb-3">{care.hours}</div>
+                      <div className="text-2xl font-black text-[#0F172A]">{displayMonthly}</div>
+                      {displayTotal && opt?.periodMonths && opt.periodMonths > 1 && (
+                        <div className="text-[11px] text-slate-500 font-semibold mb-1">
+                          Total: {displayTotal} ({opt.label} commitment)
+                        </div>
+                      )}
+                      <div className="text-xs font-bold text-[#14B8A6] mb-3 mt-1">{care.hours}</div>
                       <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
                         {care.description}
                       </p>
 
                       <div className="mb-6">
                         <Link
-                          href={care.ctaHref}
+                          href={`/store?add=${care.id}&cycle=${careCycle}#plans`}
                           className={care.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
                         >
                           Subscribe to Care
@@ -485,22 +542,58 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
 
           {/* TAB 5: MANAGED HOSTING */}
           {activeTab === 'hosting' && (
-            <div className="space-y-12">
-              <div className="text-center max-w-2xl mx-auto">
+            <div className="space-y-10">
+              <div className="text-center max-w-3xl mx-auto">
                 <span className="text-xs font-bold uppercase tracking-widest text-[#2563EB] mb-1 block">
-                  Infrastructure & Operations
+                  Infrastructure &amp; Operations
                 </span>
                 <h2 className="text-2xl md:text-3xl font-bold text-[#0F172A] mb-2">
-                  Managed Cloud & Website Hosting
+                  Managed Cloud &amp; Website Hosting
                 </h2>
-                <p className="text-xs md:text-sm text-slate-500">
-                  BazionWeb does not resell raw server space. We deliver managed hosting: infrastructure, configuration, SSL certificates, automated daily backups, and ongoing monitoring.
+                <p className="text-xs md:text-sm text-slate-500 mb-6">
+                  BazionWeb delivers managed hosting: infrastructure, configuration, SSL certificates, automated daily backups, and ongoing monitoring.
                 </p>
+
+                {/* Interactive Commitment Cycle Selector */}
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Select Commitment Term &amp; Unlock Progressive Discounts
+                  </div>
+                  <div className="inline-flex flex-wrap items-center justify-center p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 gap-1 shadow-inner">
+                    {BILLING_CYCLES_META.map((meta) => {
+                      const isSelected = hostingCycle === meta.cycle;
+                      return (
+                        <button
+                          key={meta.cycle}
+                          type="button"
+                          onClick={() => setHostingCycle(meta.cycle)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-[#2563EB] text-white shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                          }`}
+                        >
+                          <span>{meta.pillLabel}</span>
+                          {meta.popular && !isSelected && (
+                            <span className="text-[9px] bg-blue-100 text-[#2563EB] px-1.5 py-0.5 rounded-full font-extrabold">
+                              Popular
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {MANAGED_HOSTING_PLANS.map(host => {
-                  const price = market === 'kenya' ? host.kenyaPrice : host.intlPrice;
+                {MANAGED_HOSTING_PLANS.map((host) => {
+                  const bookItem = priceBook.items[host.id];
+                  const opt = bookItem?.billingOptions?.find((o) => o.cycle === hostingCycle);
+                  const displayMonthly = opt ? opt.formattedMonthly : (market === 'kenya' ? host.kenyaPrice : host.intlPrice);
+                  const displayTotal = opt ? opt.formatted : undefined;
+                  const discountPct = opt?.discountPct ?? 0;
+
                   return (
                     <div
                       key={host.id}
@@ -508,22 +601,34 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                         host.popular ? 'border-[#2563EB] shadow-md' : 'border-slate-200/80'
                       }`}
                     >
-                      {host.badge && (
-                        <span className="inline-block self-start text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB] mb-2">
-                          {host.badge}
-                        </span>
-                      )}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        {host.badge && (
+                          <span className="inline-block text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#2563EB]">
+                            {host.badge}
+                          </span>
+                        )}
+                        {discountPct > 0 && (
+                          <span className="inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 ml-auto">
+                            Save {discountPct}%
+                          </span>
+                        )}
+                      </div>
+
                       <h3 className="font-bold text-[#0F172A] text-base mb-1">{host.name}</h3>
-                      <div className="text-2xl font-black text-[#0F172A] mb-0.5">{price}</div>
-                      <div className="text-[11px] text-slate-400 font-medium mb-1">{host.billingPeriod}</div>
-                      <div className="text-xs font-semibold text-[#14B8A6] mb-3">{host.resources}</div>
+                      <div className="text-2xl font-black text-[#0F172A]">{displayMonthly}</div>
+                      {displayTotal && (
+                        <div className="text-[11px] text-slate-500 font-semibold mb-1">
+                          Total: {displayTotal} ({opt?.label || 'Annual'} commitment)
+                        </div>
+                      )}
+                      <div className="text-xs font-semibold text-[#14B8A6] mb-3 mt-1">{host.resources}</div>
                       <p className="text-xs text-slate-500 leading-relaxed mb-5 min-h-[2.5rem]">
                         {host.description}
                       </p>
 
                       <div className="mb-6">
                         <Link
-                          href={host.ctaHref}
+                          href={`/store?add=${host.id}&cycle=${hostingCycle}#hosting`}
                           className={host.popular ? 'btn-primary w-full justify-center text-xs py-2.5' : 'btn-secondary w-full justify-center text-xs py-2.5'}
                         >
                           {host.ctaText}

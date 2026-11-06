@@ -491,7 +491,7 @@ jobs:
         run: |
           ACTIVE_API_URL="${API_URL:-${{ steps.deploy-cloudrun.outputs.url }}}"
           ACTIVE_API_URL="${ACTIVE_API_URL:-https://bazionweb.com}"
-          FALLBACK_API_URL="https://bazionweb.vercel.app"
+          FALLBACK_API_URL="https://www.bazionweb.com"
           for i in 1 2 3 4 5 6; do
             # Probe primary origin with --location to follow redirects (e.g. 308 apex -> www)
             STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" "$ACTIVE_API_URL/api/v1/health" || true)
@@ -539,7 +539,7 @@ jobs:
     steps:
       - name: Smoke tests — homepage
         run: |
-          curl --fail --silent --location https://bazionweb.vercel.app | grep -q "BazionWeb" \
+          curl --fail --silent --location https://bazionweb.com | grep -q "BazionWeb" \
             || (echo "Homepage smoke test failed" && exit 1)
 
       - name: Smoke tests — API health
@@ -550,10 +550,10 @@ jobs:
             STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" "${API_URL:-https://bazionweb.com}/api/health" || true)
           fi
           if [ "$STATUS" != "200" ]; then
-            STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" https://bazionweb.vercel.app/api/v1/health || true)
+            STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" https://www.bazionweb.com/api/v1/health || true)
           fi
           if [ "$STATUS" != "200" ]; then
-            STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" https://bazionweb.vercel.app/api/health || true)
+            STATUS=$(curl --silent --location --output /dev/null --write-out "%{http_code}" https://www.bazionweb.com/api/health || true)
           fi
           [ "$STATUS" = "200" ] || (echo "API health check failed: $STATUS" && exit 1)
         env:
@@ -563,7 +563,7 @@ jobs:
         run: |
           TARGET_HOST="bazionweb.com"
           if ! echo | openssl s_client -connect "${TARGET_HOST}:443" -servername "${TARGET_HOST}" 2>/dev/null | grep -q "BEGIN CERTIFICATE"; then
-            TARGET_HOST="bazionweb.vercel.app"
+            TARGET_HOST="www.bazionweb.com"
           fi
           echo | openssl s_client -connect "${TARGET_HOST}:443" -servername "${TARGET_HOST}" 2>/dev/null \
             | openssl x509 -noout -checkend 2592000 \

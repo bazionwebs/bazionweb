@@ -237,27 +237,15 @@ See [`.env.example`](.env.example) for the full annotated list.
 | **8. Production Deploy** | Manual approval gate on `main` branch |
 | **9. Post-Deploy Verify** | Health checks + Slack notification |
 
-### Hosting without a VPS (Render + Neon, free tier)
+### Production (Docker + Dokploy)
 
-`render.yaml` at the repo root deploys web + api (Docker) to Render with
-Neon Postgres — no VPS needed:
-
-1. Create a free project at `console.neon.tech` and copy the **pooled**
-   (`-pooler`) and **direct** connection strings.
-2. Render Dashboard → New → Blueprint → this repo; paste the two strings
-   (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`) plus other secrets when prompted.
-3. After the first deploy, set web's `NEXT_PUBLIC_API_URL` to the real api URL.
-4. Add repo secrets `DATABASE_URL` / `DATABASE_URL_UNPOOLED` so CI runs
-   Prisma migrations; optionally add `WEB_URL` / `API_URL` for the
-   business-hours keep-awake pings and `RENDER_DEPLOY_HOOK_*` for explicit
-   deploys (auto-deploy covers it otherwise).
-
-Why Neon over Render Postgres: Render's free database expires 30 days after
-creation with no backups; Neon's free plan is permanent (0.5 GB, 100 CU-h/mo,
-scale-to-zero). Best practice applied in code: pooled URL for runtime queries,
-direct URL for migrations (`directUrl` in all Prisma schemas). Free web
-services sleep after ~15 min idle — the `keep-awake` workflow warms them
-08:00–18:59 UTC+3 to stay inside the 750 free-instance-hours/month quota.
+The deployment target is `docker-compose.dokploy.yml`: Web (Next.js) and API
+(NestJS) run as containers behind Traefik/Dokploy, with the in-stack Postgres
+and Redis. The API is **same-origin only** — the browser always calls
+`/api/v1/...` on the web origin (Traefik routes those paths to the API
+container); there is no `api.bazionweb.com` public host. Optionally keep the
+Neon connection strings (`DATABASE_URL` / `DATABASE_URL_UNPOOLED`) so CI can
+run Prisma migrations and skip in-container databases.
 
 ---
 

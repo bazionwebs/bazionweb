@@ -34,6 +34,10 @@ import {
   PACKAGE_DEFAULTS,
   normalizeProposalPayload,
 } from '@/lib/quote-flow';
+import {
+  BILLING_CYCLES_META,
+  calculatePlanCyclePrice,
+} from '@/lib/priceBooks';
 import { toCleanUrl } from '@/lib/api-base';
 
 function QuoteCalculatorContent() {
@@ -52,6 +56,7 @@ function QuoteCalculatorContent() {
     rushDelivery: false,
     care: 'none',
     hosting: 'none',
+    billingCycle: (searchParams.get('cycle') as string) || 'annually',
   });
 
   // Get Started Modal State
@@ -105,6 +110,7 @@ function QuoteCalculatorContent() {
   const serviceParam = searchParams.get('service')?.toLowerCase().trim() || null;
   const pkgParam = searchParams.get('package')?.toLowerCase().trim() || null;
   const addonParam = searchParams.get('addon') || null;
+  const cycleParam = searchParams.get('cycle')?.toLowerCase().trim() || null;
 
   // Hydrate proposal from URL parameter ?proposal=... on initial mount or URL change
   useEffect(() => {
@@ -159,9 +165,9 @@ function QuoteCalculatorContent() {
     }
   }
 
-  // Map service parameter and explicit package/addon parameters
+  // Map service parameter and explicit package/addon/cycle parameters
   useEffect(() => {
-    if (!serviceParam && !pkgParam && !addonParam) {
+    if (!serviceParam && !pkgParam && !addonParam && !cycleParam) {
       return;
     }
 
@@ -169,6 +175,7 @@ function QuoteCalculatorContent() {
       let packageType = prev.packageType;
       let care = prev.care;
       let hosting = prev.hosting;
+      let billingCycle = prev.billingCycle || 'annually';
       let selectedAddOns = [...prev.selectedAddOns];
 
       // 1. Map service slug to calculator defaults if present
@@ -198,6 +205,11 @@ function QuoteCalculatorContent() {
         selectedAddOns = [...selectedAddOns, addonParam];
       }
 
+      // 4. Explicit cycle parameter
+      if (cycleParam) {
+        billingCycle = cycleParam;
+      }
+
       const addonsUnchanged =
         selectedAddOns.length === prev.selectedAddOns.length &&
         selectedAddOns.every((val, idx) => val === prev.selectedAddOns[idx]);
@@ -206,6 +218,7 @@ function QuoteCalculatorContent() {
         packageType === prev.packageType &&
         care === prev.care &&
         hosting === prev.hosting &&
+        billingCycle === prev.billingCycle &&
         addonsUnchanged
       ) {
         return prev;
@@ -216,10 +229,11 @@ function QuoteCalculatorContent() {
         packageType,
         care,
         hosting,
+        billingCycle,
         selectedAddOns,
       };
     });
-  }, [serviceParam, pkgParam, addonParam]);
+  }, [serviceParam, pkgParam, addonParam, cycleParam]);
 
   const currencySymbol = config.market === 'kenya' ? 'KSh' : '$';
   const pkgInfo = PACKAGE_DEFAULTS[config.packageType] || PACKAGE_DEFAULTS.business;
@@ -241,21 +255,57 @@ function QuoteCalculatorContent() {
   const rushCost = Math.round(subtotalBuild * rushMultiplier);
   const totalBuild = subtotalBuild + rushCost;
 
-  // Care recurring costs
-  let monthlyCare = 0;
-  if (config.care === 'care-essential') monthlyCare = config.market === 'kenya' ? 5000 : 75;
-  else if (config.care === 'care-business') monthlyCare = config.market === 'kenya' ? 10000 : 150;
-  else if (config.care === 'care-professional') monthlyCare = config.market === 'kenya' ? 20000 : 300;
+  const selectedCycleMeta = BILLING_CYCLES_META.find(
+    m => m.cycle === config.billingCycle || m.enumValue === config.billingCycle
+  ) || BILLING_CYCLES_META[3]; // default 1 Year / 'annually'
 
-  // Annual hosting cost (mirrors the hosting options card prices)
-  const HOSTING_ANNUAL: Record<string, { kenya: number; intl: number }> = {
-    'host-essential': { kenya: 4500, intl: 49 },
-    'host-business': { kenya: 8500, intl: 99 },
-    'host-pro': { kenya: 15000, intl: 189 },
-    none: { kenya: 0, intl: 0 },
+  // Care recurring costs — mapped from canonical single source of truth (priceBooks.ts)
+  const CARE_BASE_MONTHLY: Record<string, { kenya: number; intl: number; canonicalAnnual: { kenya: number; intl: number } }> = {
+    'care-essential': { kenya: 5000, intl: 75, canonicalAnnual: { kenya: 48000, intl: 720 } },
+    'care-business': { kenya: 10000, intl: 150, canonicalAnnual: { kenya: 96000, intl: 1440 } },
+    'care-professional': { kenya: 20000, intl: 300, canonicalAnnual: { kenya: 192000, intl: 2880 } },
+    'care-enterprise': { kenya: 40000, intl: 400, canonicalAnnual: { kenya: 384000, intl: 3840 } },
+    none: { kenya: 0, intl: 0, canonicalAnnual: { kenya: 0, intl: 0 } },
   };
-  const annualHosting =
-    (HOSTING_ANNUAL[config.hosting] ?? HOSTING_ANNUAL.none)[config.market === 'kenya' ? 'kenya' : 'intl'];
+
+  const careEntry = CARE_BASE_MONTHLY[config.care] ?? CARE_BASE_MONTHLY.none;
+  const careMonthlyAmount = config.market === 'kenya' ? careEntry.kenya : careEntry.intl;
+  const careAnnualCanonical = config.market === 'kenya' ? careEntry.canonicalAnnual.kenya : careEntry.canonicalAnnual.intl;
+
+  const careCyclePricing = config.care !== 'none'
+    ? calculatePlanCyclePrice(careMonthlyAmount, selectedCycleMeta.cycle, {
+        isKes: config.market === 'kenya',
+        canonicalAnnualAmount: careAnnualCanonical,
+        annualDiscountPct: 20,
+      })
+    : { amount: 0, monthlyEquivalent: 0, discountPct: 0, durationMonths: 1 };
+
+  const monthlyCare = careCyclePricing.monthlyEquivalent;
+
+  // Hosting recurring costs — mapped from canonical single source of truth (priceBooks.ts)
+  const HOSTING_BASE_MONTHLY: Record<string, { kenya: number; intl: number; canonicalAnnual: { kenya: number; intl: number } }> = {
+    'host-essential': { kenya: 500, intl: 5.5, canonicalAnnual: { kenya: 4500, intl: 49 } },
+    'host-business': { kenya: 950, intl: 11, canonicalAnnual: { kenya: 8500, intl: 99 } },
+    'host-pro': { kenya: 1667, intl: 21, canonicalAnnual: { kenya: 15000, intl: 189 } },
+    'host-professional': { kenya: 1667, intl: 21, canonicalAnnual: { kenya: 15000, intl: 189 } },
+    'host-cloud': { kenya: 3200, intl: 32, canonicalAnnual: { kenya: 30000, intl: 300 } },
+    none: { kenya: 0, intl: 0, canonicalAnnual: { kenya: 0, intl: 0 } },
+  };
+
+  const hostEntry = HOSTING_BASE_MONTHLY[config.hosting] ?? HOSTING_BASE_MONTHLY.none;
+  const hostMonthlyAmount = config.market === 'kenya' ? hostEntry.kenya : hostEntry.intl;
+  const hostAnnualCanonical = config.market === 'kenya' ? hostEntry.canonicalAnnual.kenya : hostEntry.canonicalAnnual.intl;
+
+  const hostCyclePricing = config.hosting !== 'none'
+    ? calculatePlanCyclePrice(hostMonthlyAmount, selectedCycleMeta.cycle, {
+        isKes: config.market === 'kenya',
+        canonicalAnnualAmount: hostAnnualCanonical,
+        annualDiscountPct: config.hosting === 'host-cloud' ? 22 : 25,
+      })
+    : { amount: 0, monthlyEquivalent: 0, discountPct: 0, durationMonths: 1 };
+
+  const annualHosting = hostAnnualCanonical;
+  const cycleHostingTotal = hostCyclePricing.amount;
 
   const totalYearOne = totalBuild + annualHosting + (monthlyCare * 12);
 
@@ -289,6 +339,7 @@ function QuoteCalculatorContent() {
           rushDelivery: config.rushDelivery,
           care: config.care,
           hosting: config.hosting,
+          billingCycle: selectedCycleMeta.enumValue,
           clientName: gName.trim(),
           clientEmail: gEmail.trim().toLowerCase(),
           clientCompany: gCompany.trim(),
@@ -637,48 +688,218 @@ Please confirm availability and discuss next steps.`;
               </div>
             )}
 
-            {/* STEP 3: Care & Maintenance */}
+            {/* STEP 3: Care, Hosting & Commitment Cycle */}
             {step === 3 && (
               <div className="card p-6 md:p-8 bg-white border border-slate-200 shadow-sm space-y-8">
                 <div>
                   <h2 className="text-xl font-bold text-[#0F172A] mb-1">
-                    3. Website Care & Ongoing Maintenance
+                    3. Website Care &amp; Infrastructure
                   </h2>
                   <p className="text-xs text-slate-500 mb-6">
-                    Choose monthly proactive maintenance, software updates, security scanning, and developer support for your website after launch.
+                    Choose your billing commitment cycle and ongoing maintenance/cloud hosting tier. Progressive multi-year commitments unlock up to 40% savings.
                   </p>
 
-                  {/* Monthly Care options */}
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-                    Website Care & Maintenance (Monthly):
+                  {/* Multi-cycle commitment selector pill */}
+                  <div className="mb-6 p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Select Commitment Billing Cycle:
+                      </span>
+                      <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                        {selectedCycleMeta.discountPct > 0 ? `Save up to ${selectedCycleMeta.discountPct}%` : 'Standard 1-Month'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                      {BILLING_CYCLES_META.map(meta => {
+                        const isSelected = (config.billingCycle || 'annually') === meta.cycle;
+                        return (
+                          <button
+                            key={meta.cycle}
+                            type="button"
+                            onClick={() => setConfig(prev => ({ ...prev, billingCycle: meta.cycle }))}
+                            className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all text-center relative ${
+                              isSelected
+                                ? 'bg-[#0F172A] text-white border-[#0F172A] shadow-sm'
+                                : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {meta.popular && (
+                              <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[#2563EB] text-white text-[8px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider whitespace-nowrap">
+                                Best Value
+                              </span>
+                            )}
+                            <div>{meta.label}</div>
+                            <div className={`text-[10px] mt-0.5 font-medium ${isSelected ? 'text-teal-300' : 'text-slate-500'}`}>
+                              {meta.discountPct > 0 ? `-${meta.discountPct}% off` : '0% off'}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                  {/* Monthly Care options */}
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                    Proactive Website Care &amp; Support ({selectedCycleMeta.label}):
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
                     {[
-                      { id: 'care-essential', name: 'Care Essential', price: config.market === 'kenya' ? 'KSh 5,000/mo' : '$75/mo', desc: 'Updates, backups, monitoring + 1 hr support' },
-                      { id: 'care-business', name: 'Care Business', price: config.market === 'kenya' ? 'KSh 10,000/mo' : '$150/mo', desc: 'Weekly updates, SEO reviews + 2 hr support', rec: true },
-                      { id: 'care-professional', name: 'Care Professional', price: config.market === 'kenya' ? 'KSh 20,000/mo' : '$300/mo', desc: 'Proactive dev, speed audits + 5 hr support' },
-                      { id: 'none', name: 'No Care Plan (Warranty only)', price: 'Included Warranty', desc: 'Post-launch free defect warranty only' },
-                    ].map(c => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setConfig(prev => ({ ...prev, care: c.id }))}
-                        className={`text-left p-4 rounded-xl border-2 transition-all relative ${
-                          config.care === c.id
-                            ? 'border-[#2563EB] bg-blue-50/40'
-                            : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        {c.rec && (
-                          <span className="absolute -top-2.5 right-3 bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            Popular
-                          </span>
-                        )}
-                        <div className="font-bold text-sm text-[#0F172A]">{c.name}</div>
-                        <div className="text-xs text-slate-500 mb-1">{c.desc}</div>
-                        <div className="text-sm font-extrabold text-[#14B8A6]">{c.price}</div>
-                      </button>
-                    ))}
+                      {
+                        id: 'care-essential',
+                        name: 'Care Essential',
+                        desc: 'Core CMS updates, daily cloud backups, security scans + 1 hr engineer support',
+                        baseMonthly: config.market === 'kenya' ? 5000 : 75,
+                        canonicalAnnual: config.market === 'kenya' ? 48000 : 720,
+                      },
+                      {
+                        id: 'care-business',
+                        name: 'Care Business',
+                        desc: 'Weekly updates, Web Vitals, SEO audits + 2 hrs priority engineer support',
+                        rec: true,
+                        baseMonthly: config.market === 'kenya' ? 10000 : 150,
+                        canonicalAnnual: config.market === 'kenya' ? 96000 : 1440,
+                      },
+                      {
+                        id: 'care-professional',
+                        name: 'Care Professional',
+                        desc: 'Continuous sprint dev, speed audits + 5 hrs dedicated engineering',
+                        baseMonthly: config.market === 'kenya' ? 20000 : 300,
+                        canonicalAnnual: config.market === 'kenya' ? 192000 : 2880,
+                      },
+                      {
+                        id: 'care-enterprise',
+                        name: 'Care Enterprise',
+                        desc: 'Dedicated engineering pod, 24/7 SLA, and full-lifecycle cloud management',
+                        baseMonthly: config.market === 'kenya' ? 40000 : 400,
+                        canonicalAnnual: config.market === 'kenya' ? 384000 : 3840,
+                      },
+                      {
+                        id: 'none',
+                        name: 'No Care Plan (Warranty Only)',
+                        desc: 'Standard defect warranty only; no proactive updates or reserved hours',
+                        baseMonthly: 0,
+                        canonicalAnnual: 0,
+                      },
+                    ].map(c => {
+                      const isSelected = config.care === c.id;
+                      const cycleP = c.id !== 'none'
+                        ? calculatePlanCyclePrice(c.baseMonthly, selectedCycleMeta.cycle, {
+                            isKes: config.market === 'kenya',
+                            canonicalAnnualAmount: c.canonicalAnnual,
+                            annualDiscountPct: 20,
+                          })
+                        : null;
+                      const displayPrice = cycleP
+                        ? selectedCycleMeta.durationMonths === 1
+                          ? `${currencySymbol} ${cycleP.monthlyEquivalent.toLocaleString()}/mo`
+                          : `${currencySymbol} ${cycleP.monthlyEquivalent.toLocaleString()}/mo (${currencySymbol} ${cycleP.amount.toLocaleString()} / ${selectedCycleMeta.durationMonths} mos)`
+                        : 'Included Warranty';
+
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setConfig(prev => ({ ...prev, care: c.id }))}
+                          className={`text-left p-4 rounded-xl border-2 transition-all relative ${
+                            isSelected
+                              ? 'border-[#2563EB] bg-blue-50/40 shadow-xs'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          {c.rec && (
+                            <span className="absolute -top-2.5 right-3 bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              Popular
+                            </span>
+                          )}
+                          <div className="font-bold text-sm text-[#0F172A]">{c.name}</div>
+                          <div className="text-xs text-slate-500 mb-1.5">{c.desc}</div>
+                          <div className="text-xs font-extrabold text-[#14B8A6]">{displayPrice}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Managed Hosting options */}
+                  <div className="pt-6 border-t border-slate-200">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                      Managed High-Performance Hosting ({selectedCycleMeta.label}):
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        {
+                          id: 'host-essential',
+                          name: 'Essential Hosting',
+                          desc: 'Managed cloud container, automated SSL, weekly backups',
+                          baseMonthly: config.market === 'kenya' ? 500 : 5.5,
+                          canonicalAnnual: config.market === 'kenya' ? 4500 : 49,
+                        },
+                        {
+                          id: 'host-business',
+                          name: 'Business Hosting',
+                          desc: 'Global Edge CDN, daily snapshots, staging slot, WAF protection',
+                          rec: true,
+                          baseMonthly: config.market === 'kenya' ? 950 : 11,
+                          canonicalAnnual: config.market === 'kenya' ? 8500 : 99,
+                        },
+                        {
+                          id: 'host-pro',
+                          name: 'Host Professional',
+                          desc: 'Dedicated compute, Redis object caching, 30-day snapshots',
+                          baseMonthly: config.market === 'kenya' ? 1667 : 21,
+                          canonicalAnnual: config.market === 'kenya' ? 15000 : 189,
+                        },
+                        {
+                          id: 'host-cloud',
+                          name: 'Managed Cloud Cluster',
+                          desc: 'Isolated Docker cluster, dedicated PostgreSQL & Redis, 99.95% SLA',
+                          baseMonthly: config.market === 'kenya' ? 3200 : 32,
+                          canonicalAnnual: config.market === 'kenya' ? 30000 : 300,
+                        },
+                        {
+                          id: 'none',
+                          name: 'No Hosting (Client Hosted)',
+                          desc: 'Deploy to your existing AWS, Vercel, or cPanel environment',
+                          baseMonthly: 0,
+                          canonicalAnnual: 0,
+                        },
+                      ].map(h => {
+                        const isSelected = config.hosting === h.id;
+                        const cycleP = h.id !== 'none'
+                          ? calculatePlanCyclePrice(h.baseMonthly, selectedCycleMeta.cycle, {
+                              isKes: config.market === 'kenya',
+                              canonicalAnnualAmount: h.canonicalAnnual,
+                              annualDiscountPct: h.id === 'host-cloud' ? 22 : 25,
+                            })
+                          : null;
+                        const displayPrice = cycleP
+                          ? selectedCycleMeta.durationMonths === 1
+                            ? `${currencySymbol} ${cycleP.monthlyEquivalent.toLocaleString()}/mo`
+                            : `${currencySymbol} ${cycleP.monthlyEquivalent.toLocaleString()}/mo (${currencySymbol} ${cycleP.amount.toLocaleString()} / ${selectedCycleMeta.durationMonths} mos)`
+                          : 'Self-Hosted';
+
+                        return (
+                          <button
+                            key={h.id}
+                            type="button"
+                            onClick={() => setConfig(prev => ({ ...prev, hosting: h.id }))}
+                            className={`text-left p-4 rounded-xl border-2 transition-all relative ${
+                              isSelected
+                                ? 'border-[#2563EB] bg-blue-50/40 shadow-xs'
+                                : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {h.rec && (
+                              <span className="absolute -top-2.5 right-3 bg-[#2563EB] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                Popular
+                              </span>
+                            )}
+                            <div className="font-bold text-sm text-[#0F172A]">{h.name}</div>
+                            <div className="text-xs text-slate-500 mb-1.5">{h.desc}</div>
+                            <div className="text-xs font-extrabold text-[#2563EB]">{displayPrice}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -783,7 +1004,13 @@ Please confirm availability and discuss next steps.`;
 
               {/* Recurring & Maintenance */}
               <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-600">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="text-[11px] font-medium text-slate-500">Billing Cycle:</span>
+                  <span className="font-bold text-[#2563EB]">
+                    {selectedCycleMeta.label} ({selectedCycleMeta.durationMonths} mos{selectedCycleMeta.discountPct > 0 ? `, -${selectedCycleMeta.discountPct}%` : ''})
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-200/60">
                   <span className="text-[11px] font-medium text-slate-500">Website Care &amp; Support:</span>
                   <span className="font-bold text-slate-900">
                     {monthlyCare > 0 ? `${currencySymbol} ${monthlyCare.toLocaleString()}/mo` : 'Included Defect Warranty'}
@@ -791,9 +1018,9 @@ Please confirm availability and discuss next steps.`;
                 </div>
                 {config.hosting !== 'none' && (
                   <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-200/60">
-                    <span className="text-[11px] font-medium text-slate-500">Managed Annual Hosting:</span>
+                    <span className="text-[11px] font-medium text-slate-500">Managed Hosting ({selectedCycleMeta.label}):</span>
                     <span className="font-bold text-slate-900">
-                      +{currencySymbol} {annualHosting.toLocaleString()}/yr
+                      +{currencySymbol} {cycleHostingTotal.toLocaleString()} / {selectedCycleMeta.durationMonths} mos
                     </span>
                   </div>
                 )}

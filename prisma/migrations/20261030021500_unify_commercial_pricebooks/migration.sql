@@ -14,9 +14,9 @@ WHERE "id" IN (
 UPDATE "plans"
 SET
   "price_monthly" = 75,
-  "price_annual" = 810,
+  "price_annual" = 720,
   "price_monthly_kes" = 5000,
-  "price_annual_kes" = 54000,
+  "price_annual_kes" = 48000,
   "is_active" = true,
   "updated_at" = CURRENT_TIMESTAMP
 WHERE "id" = '55555555-5555-4555-8555-555555555555';
@@ -24,9 +24,9 @@ WHERE "id" = '55555555-5555-4555-8555-555555555555';
 UPDATE "plans"
 SET
   "price_monthly" = 150,
-  "price_annual" = 1620,
+  "price_annual" = 1440,
   "price_monthly_kes" = 10000,
-  "price_annual_kes" = 108000,
+  "price_annual_kes" = 96000,
   "is_active" = true,
   "updated_at" = CURRENT_TIMESTAMP
 WHERE "id" = '66666666-6666-4666-8666-666666666666';
@@ -34,9 +34,9 @@ WHERE "id" = '66666666-6666-4666-8666-666666666666';
 UPDATE "plans"
 SET
   "price_monthly" = 300,
-  "price_annual" = 3240,
+  "price_annual" = 2880,
   "price_monthly_kes" = 20000,
-  "price_annual_kes" = 216000,
+  "price_annual_kes" = 192000,
   "is_active" = true,
   "updated_at" = CURRENT_TIMESTAMP
 WHERE "id" = '77777777-7777-4777-8777-777777777777';
@@ -50,7 +50,7 @@ INSERT INTO "plans" (
   "is_active", "created_at", "updated_at"
 ) VALUES (
   '88888888-8888-4888-8888-888888888888', 'Care Enterprise', 'ENTERPRISE',
-  400, 4320, 40000, 432000,
+  400, 3840, 40000, 384000,
   '99.99%', 15, 30, 120,
   365, true, true, true,
   true, true, true, 25,
@@ -58,6 +58,10 @@ INSERT INTO "plans" (
 )
 ON CONFLICT ("id") DO UPDATE SET
   "name" = EXCLUDED."name",
+  "price_monthly" = EXCLUDED."price_monthly",
+  "price_annual" = EXCLUDED."price_annual",
+  "price_monthly_kes" = EXCLUDED."price_monthly_kes",
+  "price_annual_kes" = EXCLUDED."price_annual_kes",
   "price_monthly" = EXCLUDED."price_monthly",
   "price_annual" = EXCLUDED."price_annual",
   "price_monthly_kes" = EXCLUDED."price_monthly_kes",

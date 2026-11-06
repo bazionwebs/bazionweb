@@ -23,6 +23,12 @@ import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QuerySta
 import { formatMoney, formatDate, shortId } from '@/lib/format';
 import { adminApi } from '@/lib/api';
 import { resolveApiV1Base } from '@/lib/api-base';
+import {
+  CANONICAL_SERVICE_CATALOG as SERVICE_CATALOG,
+  ServiceCatalogItem,
+  CommitmentCycle,
+  BillingOption,
+} from '@/lib/priceBooks';
 
 interface RawInvoice {
   id: string;
@@ -48,315 +54,6 @@ interface RawInvoice {
   };
 }
 
-interface ServiceCatalogItem {
-  id: string;
-  category: 'websites' | 'care' | 'hosting' | 'addons';
-  name: string;
-  tagline: string;
-  priceKes: number;
-  priceUsd: number;
-  period: 'one-time' | 'month' | 'quarter' | 'half-year' | 'year';
-  badge?: string;
-}
-
-const SERVICE_CATALOG: ServiceCatalogItem[] = [
-  // ── Web Development Packages ──
-  {
-    id: 'pkg-launch',
-    category: 'websites',
-    name: 'Launch Website Package',
-    tagline: 'Up to 5 pages, WhatsApp chat, responsive UI, basic SEO',
-    priceKes: 25000,
-    priceUsd: 450,
-    period: 'one-time',
-    badge: 'Starter',
-  },
-  {
-    id: 'pkg-business',
-    category: 'websites',
-    name: 'Business Website Package',
-    tagline: 'Up to 10 pages, CMS blog engine, analytics & lead funnel',
-    priceKes: 90000,
-    priceUsd: 950,
-    period: 'one-time',
-    badge: 'Popular',
-  },
-  {
-    id: 'pkg-ecommerce',
-    category: 'websites',
-    name: 'Ecommerce Storefront Package',
-    tagline: 'Product catalog, shopping cart, M-Pesa & Card checkout',
-    priceKes: 150000,
-    priceUsd: 1500,
-    period: 'one-time',
-    badge: 'High-Volume',
-  },
-  {
-    id: 'pkg-custom-app',
-    category: 'websites',
-    name: 'Custom Web Application',
-    tagline: 'Bespoke web portal, NestJS API, PostgreSQL & custom flows',
-    priceKes: 250000,
-    priceUsd: 2500,
-    period: 'one-time',
-    badge: 'Enterprise',
-  },
-  {
-    id: 'service-admin-hub-starter',
-    category: 'websites',
-    name: 'Standalone Admin Media Hub (Retrofit)',
-    tagline: 'Independent Next.js admin control panel for existing websites with R2 media vault & banner editor',
-    priceKes: 45000,
-    priceUsd: 490,
-    period: 'one-time',
-    badge: 'Retrofit Hub',
-  },
-  {
-    id: 'service-admin-hub-corporate',
-    category: 'websites',
-    name: 'Corporate Operations Desk & Multi-User Admin',
-    tagline: 'Multi-user role-based admin workstation with content collections, live preview & audit logs',
-    priceKes: 85000,
-    priceUsd: 890,
-    period: 'one-time',
-    badge: 'Multi-User RBAC',
-  },
-  {
-    id: 'rate-extra-page',
-    category: 'websites',
-    name: 'Additional Web Page Build',
-    tagline: 'Custom responsive page design, layout, content formatting & technical SEO (per page)',
-    priceKes: 2000,
-    priceUsd: 40,
-    period: 'one-time',
-    badge: '+1 Page Unit',
-  },
-  {
-    id: 'rate-extra-landing-page',
-    category: 'websites',
-    name: 'Standalone Landing Page / Funnel',
-    tagline: 'High-conversion marketing landing page with hero CTA, testimonials & lead capture funnel',
-    priceKes: 15000,
-    priceUsd: 149,
-    period: 'one-time',
-    badge: 'Sales Funnel',
-  },
-
-  // ── Managed Care & SLA Retainers ──
-  {
-    id: 'care-essential',
-    category: 'care',
-    name: 'Care Essential Retainer',
-    tagline: 'Automated patch updates, uptime monitor & weekly R2 backups',
-    priceKes: 5000,
-    priceUsd: 75,
-    period: 'month',
-    badge: '99.9% SLA',
-  },
-  {
-    id: 'care-growth',
-    category: 'care',
-    name: 'Care Growth Retainer',
-    tagline: 'Daily backups, monthly content updates, 4-hour SLA response',
-    priceKes: 12000,
-    priceUsd: 150,
-    period: 'month',
-    badge: 'Recommended',
-  },
-  {
-    id: 'care-pro',
-    category: 'care',
-    name: 'Care Professional Retainer',
-    tagline: '1h critical SLA, security audit, speed tuning & dedicated channel',
-    priceKes: 25000,
-    priceUsd: 299,
-    period: 'month',
-    badge: 'Priority 1h',
-  },
-  {
-    id: 'care-enterprise',
-    category: 'care',
-    name: 'Care Enterprise Retainer',
-    tagline: 'Dedicated DevOps engineer, 24/7 cluster monitor & custom SLA',
-    priceKes: 50000,
-    priceUsd: 599,
-    period: 'month',
-    badge: 'Full DevOps',
-  },
-
-  // ── Managed Cloud Hosting ──
-  {
-    id: 'host-essential',
-    category: 'hosting',
-    name: 'Host Essential Container',
-    tagline: '0.5 vCPU, 384MB RAM, 10GB NVMe, automated SSL & Cloudflare',
-    priceKes: 1500,
-    priceUsd: 19,
-    period: 'month',
-  },
-  {
-    id: 'host-business',
-    category: 'hosting',
-    name: 'Host Business Container',
-    tagline: '1.5 vCPU, 768MB RAM, 25GB NVMe, 5 email inboxes, daily R2',
-    priceKes: 3500,
-    priceUsd: 39,
-    period: 'month',
-  },
-  {
-    id: 'host-pro',
-    category: 'hosting',
-    name: 'Host Professional Container',
-    tagline: '2.0 vCPU, 1.5GB RAM, 50GB NVMe, isolated Redis 7 cache',
-    priceKes: 7500,
-    priceUsd: 79,
-    period: 'month',
-  },
-  {
-    id: 'host-cloud-monthly',
-    category: 'hosting',
-    name: 'Managed Cloud (Monthly)',
-    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone PostgreSQL 16 & Redis (Monthly rolling term)',
-    priceKes: 3200,
-    priceUsd: 32,
-    period: 'month',
-    badge: 'Monthly',
-  },
-  {
-    id: 'host-cloud-quarterly',
-    category: 'hosting',
-    name: 'Managed Cloud (3 Months / Quarterly)',
-    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone DB (5% discount from monthly rate)',
-    priceKes: 9120,
-    priceUsd: 91,
-    period: 'quarter',
-    badge: 'Save 5%',
-  },
-  {
-    id: 'host-cloud-semiannual',
-    category: 'hosting',
-    name: 'Managed Cloud (6 Months / Semi-Annual)',
-    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone DB (10% discount from monthly rate)',
-    priceKes: 17280,
-    priceUsd: 172,
-    period: 'half-year',
-    badge: 'Save 10%',
-  },
-  {
-    id: 'host-cloud-annual',
-    category: 'hosting',
-    name: 'Managed Cloud (Annual / 12 Months)',
-    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone DB (Best Value - 22% discount / ~2.6 mos free)',
-    priceKes: 30000,
-    priceUsd: 290,
-    period: 'year',
-    badge: 'Save 22%',
-  },
-
-  // ── Modular Add-ons & Integrations ──
-  {
-    id: 'addon-mpesa',
-    category: 'addons',
-    name: 'Safaricom M-Pesa STK Push Gateway',
-    tagline: 'Direct Daraja API integration with instant webhook reconciliation',
-    priceKes: 15000,
-    priceUsd: 149,
-    period: 'one-time',
-  },
-  {
-    id: 'addon-card',
-    category: 'addons',
-    name: 'Card Payment Gateway Integration',
-    tagline: 'Paystack or Stripe 3D-Secure Visa/Mastercard checkout integration',
-    priceKes: 15000,
-    priceUsd: 149,
-    period: 'one-time',
-  },
-  {
-    id: 'addon-admin-dashboard',
-    category: 'addons',
-    name: 'Bespoke Client Admin & Media Upload Hub',
-    tagline: 'Branded admin portal for owners to upload photos, swap banners, publish PDFs & toggle notices',
-    priceKes: 25000,
-    priceUsd: 299,
-    period: 'one-time',
-    badge: 'Client Autonomy',
-  },
-  {
-    id: 'addon-booking',
-    category: 'addons',
-    name: 'Online Booking & Scheduling Engine',
-    tagline: 'Calendar appointment bookings, client reminders & CRM sync',
-    priceKes: 20000,
-    priceUsd: 199,
-    period: 'one-time',
-  },
-  {
-    id: 'addon-seo',
-    category: 'addons',
-    name: 'Advanced SEO Foundation & Schema',
-    tagline: 'Schema.org JSON-LD markup, Google Search Console, keyword meta',
-    priceKes: 18000,
-    priceUsd: 179,
-    period: 'one-time',
-  },
-  {
-    id: 'addon-blog',
-    category: 'addons',
-    name: 'Blog / Article CMS Engine',
-    tagline: 'Full publishing suite, categories, author bio & instant search',
-    priceKes: 15000,
-    priceUsd: 149,
-    period: 'one-time',
-  },
-  {
-    id: 'addon-copy',
-    category: 'addons',
-    name: 'Commercial Copywriting (5 Pages)',
-    tagline: 'Conversion-engineered commercial copy for core landing pages',
-    priceKes: 25000,
-    priceUsd: 249,
-    period: 'one-time',
-  },
-  {
-    id: 'rate-copywriting-extra-page',
-    category: 'addons',
-    name: 'Additional Page Copywriting',
-    tagline: 'Conversion-engineered commercial copywriting and content drafting (per page)',
-    priceKes: 5000,
-    priceUsd: 50,
-    period: 'one-time',
-    badge: 'Content',
-  },
-  {
-    id: 'addon-migration',
-    category: 'addons',
-    name: 'Zero-Downtime Website Migration',
-    tagline: 'Complete transfer of databases, code, DNS & SSL from old host',
-    priceKes: 10000,
-    priceUsd: 99,
-    period: 'one-time',
-  },
-  {
-    id: 'addon-domain',
-    category: 'addons',
-    name: 'Corporate Domain & DNS Setup',
-    tagline: 'Annual registration with Cloudflare DNS, MX, SPF & DKIM keys',
-    priceKes: 2500,
-    priceUsd: 25,
-    period: 'year',
-  },
-  {
-    id: 'rate-hourly',
-    category: 'addons',
-    name: 'Senior Engineering Retainer (Per Hour)',
-    tagline: 'DevOps, custom API development, database optimization',
-    priceKes: 5000,
-    priceUsd: 50,
-    period: 'one-time',
-  },
-];
-
 interface CartLineItem {
   id: string; // client-side item key
   serviceId?: string;
@@ -364,6 +61,8 @@ interface CartLineItem {
   quantity: number;
   unitPrice: number;
   period?: string;
+  cycle?: CommitmentCycle;
+  billingOptions?: BillingOption[];
 }
 
 export default function AdminInvoicesPage() {
@@ -464,30 +163,67 @@ export default function AdminInvoicesPage() {
     return catalogItem.priceUsd;
   };
 
-  const handleAddServiceToCart = (service: ServiceCatalogItem) => {
-    const unitPrice = getItemPrice(service, currency);
-    const existing = cartItems.find((i) => i.serviceId === service.id);
-    if (existing) {
-      setCartItems((prev) =>
-        prev.map((i) =>
-          i.serviceId === service.id
-            ? { ...i, quantity: i.quantity + 1 }
-            : i,
-        ),
-      );
-    } else {
-      const newItem: CartLineItem = {
-        id: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        serviceId: service.id,
-        description: service.period === 'one-time'
-          ? service.name
-          : `${service.name} (${service.period === 'month' ? 'Monthly' : service.period === 'quarter' ? '3 Months' : service.period === 'half-year' ? '6 Months' : 'Annual'})`,
-        quantity: 1,
-        unitPrice,
-        period: service.period,
-      };
-      setCartItems((prev) => [...prev, newItem]);
+  const handleAddServiceToCart = (service: ServiceCatalogItem, chosenCycle?: CommitmentCycle) => {
+    let unitPrice = getItemPrice(service, currency);
+    let desc = service.period === 'one-time'
+      ? service.name
+      : `${service.name} (${service.period === 'month' ? 'Monthly' : service.period === 'quarter' ? '3 Months' : service.period === 'half-year' ? '6 Months' : 'Annual'})`;
+    let cycle = chosenCycle;
+
+    if (service.billingOptions && service.billingOptions.length > 0) {
+      cycle = chosenCycle || (service.period === 'year' ? 'annually' : service.period === 'month' ? 'monthly' : service.billingOptions[0].cycle);
+      const opt = service.billingOptions.find((o) => o.cycle === cycle) || service.billingOptions[0];
+      if (opt) {
+        cycle = opt.cycle;
+        if (currency === 'KES') {
+          unitPrice = opt.amount;
+        } else {
+          const baseUsd = Math.round(opt.amount / 125);
+          unitPrice = currency === 'EUR' ? Math.round(baseUsd * 0.92) : currency === 'GBP' ? Math.round(baseUsd * 0.79) : baseUsd;
+        }
+        desc = `${service.name} — ${opt.label} (${opt.discountPct > 0 ? `${opt.discountPct}% off` : 'Standard'})`;
+      }
     }
+
+    const newItem: CartLineItem = {
+      id: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      serviceId: service.id,
+      description: desc,
+      quantity: 1,
+      unitPrice,
+      period: service.period,
+      cycle,
+      billingOptions: service.billingOptions,
+    };
+    setCartItems((prev) => [...prev, newItem]);
+  };
+
+  const handleUpdateCartItemCycle = (id: string, newCycle: CommitmentCycle) => {
+    setCartItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id || !item.billingOptions) return item;
+        const opt = item.billingOptions.find((o) => o.cycle === newCycle);
+        if (!opt) return item;
+
+        let unitPrice: number;
+        if (currency === 'KES') {
+          unitPrice = opt.amount;
+        } else {
+          const baseUsd = Math.round(opt.amount / 125);
+          unitPrice = currency === 'EUR' ? Math.round(baseUsd * 0.92) : currency === 'GBP' ? Math.round(baseUsd * 0.79) : baseUsd;
+        }
+
+        const baseName = item.description.split(' — ')[0].split(' (')[0];
+        const newDesc = `${baseName} — ${opt.label} (${opt.discountPct > 0 ? `${opt.discountPct}% off` : 'Standard'})`;
+
+        return {
+          ...item,
+          cycle: newCycle,
+          unitPrice,
+          description: newDesc,
+        };
+      })
+    );
   };
 
   const handleAddExtraPages = (pagesCount = 1) => {
@@ -997,6 +733,11 @@ export default function AdminInvoicesPage() {
                                   /{service.period === 'quarter' ? '3 mos' : service.period === 'half-year' ? '6 mos' : service.period === 'year' ? 'yr' : 'mo'}
                                 </span>
                               )}
+                              {service.billingOptions && service.billingOptions.length > 0 && (
+                                <span className="block text-[10px] text-emerald-600 font-bold">
+                                  6 cycles (up to 40% off)
+                                </span>
+                              )}
                             </div>
                             <button
                               type="button"
@@ -1192,6 +933,22 @@ export default function AdminInvoicesPage() {
                                   />
                                 </div>
                               </div>
+                              {item.billingOptions && item.billingOptions.length > 0 && (
+                                <div className="mt-1.5 flex items-center gap-1.5">
+                                  <span className="text-[10px] text-slate-500 font-medium">Cycle:</span>
+                                  <select
+                                    value={item.cycle || 'annually'}
+                                    onChange={(e) => handleUpdateCartItemCycle(item.id, e.target.value as CommitmentCycle)}
+                                    className="text-[10px] font-bold bg-blue-50/80 border border-blue-200 text-blue-900 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500"
+                                  >
+                                    {item.billingOptions.map((opt) => (
+                                      <option key={opt.cycle} value={opt.cycle}>
+                                        {opt.label} ({opt.discountPct > 0 ? `-${opt.discountPct}%` : 'Standard'}) — {formatMoney(currency === 'KES' ? opt.amount : Math.round(opt.amount / 125), currency)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-2 shrink-0">

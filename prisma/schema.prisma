@@ -43,7 +43,11 @@ enum PlanTier {
 
 enum BillingCycle {
   MONTHLY
+  QUARTERLY
+  SEMI_ANNUALLY
   ANNUAL
+  BIENNIAL
+  TRIENNIAL
 }
 
 enum SubscriptionStatus {

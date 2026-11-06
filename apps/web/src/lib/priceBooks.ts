@@ -10,8 +10,36 @@
 
 import { MarketCode, MARKETS } from './marketEngine';
 
+export type CommitmentCycle =
+  | 'monthly'
+  | 'quarterly'
+  | 'semi-annually'
+  | 'annually'
+  | 'biennially'
+  | 'triennially';
+
+export interface BillingCycleMeta {
+  cycle: CommitmentCycle;
+  enumValue: 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUALLY' | 'ANNUAL' | 'BIENNIAL' | 'TRIENNIAL';
+  label: string;
+  pillLabel: string;
+  durationMonths: number;
+  discountPct: number;
+  popular?: boolean;
+}
+
+export const BILLING_CYCLES_META: BillingCycleMeta[] = [
+  { cycle: 'monthly', enumValue: 'MONTHLY', label: 'Monthly', pillLabel: 'Monthly', durationMonths: 1, discountPct: 0 },
+  { cycle: 'quarterly', enumValue: 'QUARTERLY', label: 'Quarterly', pillLabel: '3 Months (-5%)', durationMonths: 3, discountPct: 5 },
+  { cycle: 'semi-annually', enumValue: 'SEMI_ANNUALLY', label: 'Bi-Annual', pillLabel: '6 Months (-10%)', durationMonths: 6, discountPct: 10 },
+  { cycle: 'annually', enumValue: 'ANNUAL', label: '1 Year', pillLabel: '1 Year (-25%)', durationMonths: 12, discountPct: 25, popular: true },
+  { cycle: 'biennially', enumValue: 'BIENNIAL', label: '2 Years', pillLabel: '2 Years (-32%)', durationMonths: 24, discountPct: 32 },
+  { cycle: 'triennially', enumValue: 'TRIENNIAL', label: '3 Years', pillLabel: '3 Years (-40%)', durationMonths: 36, discountPct: 40 },
+];
+
 export interface BillingOption {
-  cycle: 'monthly' | 'quarterly' | 'semi-annually' | 'annually';
+  cycle: CommitmentCycle;
+  enumValue?: 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUALLY' | 'ANNUAL' | 'BIENNIAL' | 'TRIENNIAL';
   label: string;
   periodMonths: number;
   amount: number;
@@ -21,6 +49,115 @@ export interface BillingOption {
   popular?: boolean;
   formatted: string;
   formattedMonthly: string;
+}
+
+export function generateBillingCycles(
+  baseMonthlyAmount: number,
+  currency: 'KES' | 'USD' | 'EUR' | 'GBP',
+  options?: {
+    annualDiscountPct?: number;
+    canonicalAnnualAmount?: number;
+  }
+): BillingOption[] {
+  const isKes = currency === 'KES';
+  const annualDiscount = options?.annualDiscountPct ?? (options?.canonicalAnnualAmount ? 25 : 20);
+
+  return BILLING_CYCLES_META.map((meta) => {
+    const discount = meta.cycle === 'annually' ? annualDiscount : meta.discountPct;
+    let amount: number;
+    let monthlyEquivalent: number;
+
+    if (meta.cycle === 'annually' && options?.canonicalAnnualAmount != null) {
+      amount = options.canonicalAnnualAmount;
+      monthlyEquivalent = Math.round(amount / 12);
+    } else {
+      monthlyEquivalent = isKes
+        ? Math.round(baseMonthlyAmount * (1 - discount / 100))
+        : Math.round(baseMonthlyAmount * (1 - discount / 100) * 100) / 100;
+      amount = isKes
+        ? Math.round(monthlyEquivalent * meta.durationMonths)
+        : Math.round(monthlyEquivalent * meta.durationMonths * 100) / 100;
+    }
+
+    const formattedMonthly = `${formatCurrency(monthlyEquivalent, currency)}/mo`;
+    const formatted = meta.durationMonths === 1
+      ? formattedMonthly
+      : `${formatCurrency(amount, currency)} / ${meta.durationMonths} mos`;
+
+    return {
+      cycle: meta.cycle,
+      enumValue: meta.enumValue,
+      label: `${meta.label} (${meta.durationMonths} ${meta.durationMonths === 1 ? 'Month' : 'Months'})`,
+      periodMonths: meta.durationMonths,
+      amount,
+      monthlyEquivalent,
+      discountPct: discount,
+      savingsText: discount > 0 ? `Save ${discount}%` : 'Standard rate',
+      popular: meta.popular,
+      formatted,
+      formattedMonthly,
+    };
+  });
+}
+
+export function getBillingCycleMeta(
+  cycle: CommitmentCycle | BillingCycleMeta['enumValue'] | string
+): BillingCycleMeta {
+  const norm = String(cycle || '').toLowerCase().replace(/_/g, '-');
+  return (
+    BILLING_CYCLES_META.find(
+      (m) => m.cycle === norm || m.enumValue.toLowerCase() === norm.replace(/-/g, '_')
+    ) || BILLING_CYCLES_META[0]
+  );
+}
+
+export function calculatePlanCyclePrice(
+  baseMonthlyAmount: number,
+  cycle: CommitmentCycle | BillingCycleMeta['enumValue'] | string,
+  options?: {
+    annualDiscountPct?: number;
+    canonicalAnnualAmount?: number;
+    isKes?: boolean;
+    currency?: 'KES' | 'USD' | 'EUR' | 'GBP';
+  }
+): {
+  amount: number;
+  monthlyEquivalent: number;
+  discountPct: number;
+  durationMonths: number;
+  label: string;
+  pillLabel: string;
+  enumValue: BillingCycleMeta['enumValue'];
+} {
+  const meta = getBillingCycleMeta(cycle);
+  const annualDiscount = options?.annualDiscountPct ?? (options?.canonicalAnnualAmount ? 25 : 20);
+  const discount = meta.cycle === 'annually' ? annualDiscount : meta.discountPct;
+  const isKes = options?.isKes ?? (options?.currency ? options.currency === 'KES' : true);
+
+  let amount: number;
+  let monthlyEquivalent: number;
+
+  if (meta.cycle === 'annually' && options?.canonicalAnnualAmount != null) {
+    amount = options.canonicalAnnualAmount;
+    monthlyEquivalent = Math.round(amount / 12);
+  } else {
+    monthlyEquivalent = isKes
+      ? Math.round(baseMonthlyAmount * (1 - discount / 100))
+      : Math.round(baseMonthlyAmount * (1 - discount / 100) * 100) / 100;
+    amount = isKes
+      ? Math.round(monthlyEquivalent * meta.durationMonths)
+      : Math.round(monthlyEquivalent * meta.durationMonths * 100) / 100;
+  }
+
+  return {
+    amount,
+    monthlyEquivalent,
+    discountPct: discount,
+    durationMonths: meta.durationMonths,
+    label: meta.label,
+    pillLabel: meta.pillLabel,
+    enumValue: meta.enumValue,
+  };
 }
 
 export interface CommercialPriceItem {
@@ -249,6 +386,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       formatted: 'KSh 5,000/mo',
       billingPeriod: 'month',
       description: 'Offsite backups, security monitoring, CMS core updates, and 1 hour reserved maintenance.',
+      billingOptions: generateBillingCycles(5000, 'KES', { annualDiscountPct: 20 }),
     },
     'care-business': {
       productId: 'care-business',
@@ -260,6 +398,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       billingPeriod: 'month',
       popular: true,
       description: 'Daily backups, Web Vitals monitoring, SEO health checks, and 2 hours priority development.',
+      billingOptions: generateBillingCycles(10000, 'KES', { annualDiscountPct: 20 }),
     },
     'care-professional': {
       productId: 'care-professional',
@@ -270,6 +409,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       formatted: 'KSh 20,000/mo',
       billingPeriod: 'month',
       description: 'Active sprint development, 5 hours included engineering, quarterly strategy, and emergency response.',
+      billingOptions: generateBillingCycles(20000, 'KES', { annualDiscountPct: 20 }),
     },
     'care-enterprise': {
       productId: 'care-enterprise',
@@ -280,6 +420,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       formatted: 'KSh 40,000/mo',
       billingPeriod: 'month',
       description: 'Dedicated engineering pod, 24/7 SLA, and full-lifecycle cloud management.',
+      billingOptions: generateBillingCycles(40000, 'KES', { annualDiscountPct: 20 }),
     },
 
     // Hosting Plans
@@ -292,6 +433,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       formatted: 'KSh 4,500/yr',
       billingPeriod: 'year',
       description: 'Managed NVMe cloud container, automated SSL, weekly backups.',
+      billingOptions: generateBillingCycles(500, 'KES', { canonicalAnnualAmount: 4500, annualDiscountPct: 25 }),
     },
     'host-business': {
       productId: 'host-business',
@@ -303,6 +445,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       billingPeriod: 'year',
       popular: true,
       description: 'High-performance Edge CDN, automated daily snapshots, staging slot, and WAF protection.',
+      billingOptions: generateBillingCycles(950, 'KES', { canonicalAnnualAmount: 8500, annualDiscountPct: 25 }),
     },
     'host-pro': {
       productId: 'host-pro',
@@ -313,6 +456,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       formatted: 'KSh 15,000/yr',
       billingPeriod: 'year',
       description: 'Dedicated compute allocation, Redis object caching, 30-day snapshot backups.',
+      billingOptions: generateBillingCycles(1667, 'KES', { canonicalAnnualAmount: 15000, annualDiscountPct: 25 }),
     },
     'host-professional': {
       productId: 'host-professional',
@@ -323,6 +467,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       formatted: 'KSh 15,000/yr',
       billingPeriod: 'year',
       description: 'Dedicated compute allocation, Redis object caching, 30-day snapshot backups.',
+      billingOptions: generateBillingCycles(1667, 'KES', { canonicalAnnualAmount: 15000, annualDiscountPct: 25 }),
     },
     'host-cloud': {
       productId: 'host-cloud',
@@ -335,53 +480,7 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       popular: true,
       badge: 'Multi-Cycle',
       description: 'Isolated Docker container orchestration, dedicated PostgreSQL 16 database, Redis cluster. Available on Monthly, 3-Month, 6-Month, or Annual billing with progressive commitment discounts.',
-      billingOptions: [
-        {
-          cycle: 'monthly',
-          label: 'Monthly (1 Month)',
-          periodMonths: 1,
-          amount: 3200,
-          monthlyEquivalent: 3200,
-          discountPct: 0,
-          savingsText: 'Standard rate',
-          formatted: 'KSh 3,200/mo',
-          formattedMonthly: 'KSh 3,200/mo',
-        },
-        {
-          cycle: 'quarterly',
-          label: 'Quarterly (3 Months)',
-          periodMonths: 3,
-          amount: 9120,
-          monthlyEquivalent: 3040,
-          discountPct: 5,
-          savingsText: 'Save 5%',
-          formatted: 'KSh 9,120 / 3 mos',
-          formattedMonthly: 'KSh 3,040/mo',
-        },
-        {
-          cycle: 'semi-annually',
-          label: 'Bi-Annual (6 Months)',
-          periodMonths: 6,
-          amount: 17280,
-          monthlyEquivalent: 2880,
-          discountPct: 10,
-          savingsText: 'Save 10%',
-          formatted: 'KSh 17,280 / 6 mos',
-          formattedMonthly: 'KSh 2,880/mo',
-        },
-        {
-          cycle: 'annually',
-          label: 'Annual (12 Months)',
-          periodMonths: 12,
-          amount: 30000,
-          monthlyEquivalent: 2500,
-          discountPct: 22,
-          savingsText: 'Save 22% (Best Value)',
-          popular: true,
-          formatted: 'KSh 30,000/yr',
-          formattedMonthly: 'KSh 2,500/mo',
-        },
-      ],
+      billingOptions: generateBillingCycles(3200, 'KES', { canonicalAnnualAmount: 30000, annualDiscountPct: 22 }),
     },
     'host-cloud-monthly': {
       productId: 'host-cloud-monthly',
@@ -772,6 +871,7 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       formatted: '$75/mo',
       billingPeriod: 'month',
       description: 'Cloud backups, automated security patch management, uptime telemetry, and 1 hour developer support.',
+      billingOptions: generateBillingCycles(75, 'USD', { annualDiscountPct: 20 }),
     },
     'care-business': {
       productId: 'care-business',
@@ -783,6 +883,7 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       billingPeriod: 'month',
       popular: true,
       description: 'Daily backups, Core Web Vitals maintenance, SEO health audits, and 2 hours priority development.',
+      billingOptions: generateBillingCycles(150, 'USD', { annualDiscountPct: 20 }),
     },
     'care-professional': {
       productId: 'care-professional',
@@ -793,6 +894,7 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       formatted: '$300/mo',
       billingPeriod: 'month',
       description: 'Active continuous engineering, 5 hours included development, quarterly architectural roadmap, and emergency SLA.',
+      billingOptions: generateBillingCycles(300, 'USD', { annualDiscountPct: 20 }),
     },
     'care-enterprise': {
       productId: 'care-enterprise',
@@ -803,6 +905,7 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       formatted: '$400/mo',
       billingPeriod: 'month',
       description: 'Dedicated engineering pod, 24/7 SLA, and full-lifecycle cloud management.',
+      billingOptions: generateBillingCycles(400, 'USD', { annualDiscountPct: 20 }),
     },
 
     // Hosting Plans
@@ -815,6 +918,7 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       formatted: '$49/yr',
       billingPeriod: 'year',
       description: 'High-speed cloud container, automated SSL, weekly backups.',
+      billingOptions: generateBillingCycles(5.5, 'USD', { canonicalAnnualAmount: 49, annualDiscountPct: 25 }),
     },
     'host-business': {
       productId: 'host-business',
@@ -826,6 +930,7 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       billingPeriod: 'year',
       popular: true,
       description: 'Global Edge CDN, automated daily snapshots, staging slot, and WAF protection.',
+      billingOptions: generateBillingCycles(11, 'USD', { canonicalAnnualAmount: 99, annualDiscountPct: 25 }),
     },
     'host-pro': {
       productId: 'host-pro',
@@ -836,6 +941,7 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       formatted: '$189/yr',
       billingPeriod: 'year',
       description: 'Dedicated isolated compute, Redis acceleration, real-time APM telemetry, and 99.95% uptime SLA.',
+      billingOptions: generateBillingCycles(21, 'USD', { canonicalAnnualAmount: 189, annualDiscountPct: 25 }),
     },
     'host-professional': {
       productId: 'host-professional',
@@ -846,65 +952,20 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       formatted: '$189/yr',
       billingPeriod: 'year',
       description: 'Dedicated isolated compute, Redis acceleration, real-time APM telemetry, and 99.95% uptime SLA.',
+      billingOptions: generateBillingCycles(21, 'USD', { canonicalAnnualAmount: 189, annualDiscountPct: 25 }),
     },
     'host-cloud': {
       productId: 'host-cloud',
       category: 'hosting',
       name: 'Managed Cloud Cluster',
-      amount: 290,
+      amount: 300,
       currency: 'USD',
-      formatted: 'From $32/mo ($290/yr)',
+      formatted: 'From $32/mo ($300/yr)',
       billingPeriod: 'year',
       popular: true,
       badge: 'Multi-Cycle',
       description: 'Isolated Docker container orchestration, dedicated PostgreSQL database, Redis cluster. Available on Monthly, 3-Month, 6-Month, or Annual billing with progressive commitment discounts.',
-      billingOptions: [
-        {
-          cycle: 'monthly',
-          label: 'Monthly (1 Month)',
-          periodMonths: 1,
-          amount: 32,
-          monthlyEquivalent: 32,
-          discountPct: 0,
-          savingsText: 'Standard rate',
-          formatted: '$32/mo',
-          formattedMonthly: '$32/mo',
-        },
-        {
-          cycle: 'quarterly',
-          label: 'Quarterly (3 Months)',
-          periodMonths: 3,
-          amount: 91,
-          monthlyEquivalent: 30.33,
-          discountPct: 5,
-          savingsText: 'Save 5%',
-          formatted: '$91 / 3 mos',
-          formattedMonthly: '$30.33/mo',
-        },
-        {
-          cycle: 'semi-annually',
-          label: 'Bi-Annual (6 Months)',
-          periodMonths: 6,
-          amount: 172,
-          monthlyEquivalent: 28.67,
-          discountPct: 10,
-          savingsText: 'Save 10%',
-          formatted: '$172 / 6 mos',
-          formattedMonthly: '$28.67/mo',
-        },
-        {
-          cycle: 'annually',
-          label: 'Annual (12 Months)',
-          periodMonths: 12,
-          amount: 290,
-          monthlyEquivalent: 24.16,
-          discountPct: 24.5,
-          savingsText: 'Save 25% (Best Value)',
-          popular: true,
-          formatted: '$290/yr',
-          formattedMonthly: '$24.16/mo',
-        },
-      ],
+      billingOptions: generateBillingCycles(32, 'USD', { canonicalAnnualAmount: 300, annualDiscountPct: 22 }),
     },
     'host-cloud-monthly': {
       productId: 'host-cloud-monthly',
@@ -1141,3 +1202,316 @@ export function formatCurrency(amount: number, currency: 'KES' | 'USD' | 'EUR' |
   }
   return `$${amount.toLocaleString('en-US')}`;
 }
+
+/**
+ * Single Source of Truth Service Catalog for B2B Invoice Generation and Admin Suite
+ */
+export interface ServiceCatalogItem {
+  id: string;
+  category: 'websites' | 'care' | 'hosting' | 'addons';
+  name: string;
+  tagline: string;
+  priceKes: number;
+  priceUsd: number;
+  period: 'one-time' | 'month' | 'quarter' | 'half-year' | 'year' | 'biennial' | 'triennial';
+  badge?: string;
+  billingOptions?: BillingOption[];
+}
+
+export const CANONICAL_SERVICE_CATALOG: ServiceCatalogItem[] = [
+  // ── Web Development Packages ──
+  {
+    id: 'pkg-launch',
+    category: 'websites',
+    name: 'Launch Website Package',
+    tagline: 'Up to 5 pages, WhatsApp chat, responsive UI, basic SEO foundation',
+    priceKes: 25000,
+    priceUsd: 450,
+    period: 'one-time',
+    badge: 'Starter',
+  },
+  {
+    id: 'pkg-business',
+    category: 'websites',
+    name: 'Business Website Package',
+    tagline: 'Up to 10 pages, headless CMS, analytics & lead funnel, 30-day warranty',
+    priceKes: 90000,
+    priceUsd: 950,
+    period: 'one-time',
+    badge: 'Popular',
+  },
+  {
+    id: 'pkg-professional',
+    category: 'websites',
+    name: 'Professional Website Package',
+    tagline: 'Up to 15 pages, multi-author CMS, search, CRM integration & 60-day warranty',
+    priceKes: 160000,
+    priceUsd: 1750,
+    period: 'one-time',
+    badge: 'Advanced UX',
+  },
+  {
+    id: 'pkg-ecommerce',
+    category: 'websites',
+    name: 'Ecommerce Starter Storefront',
+    tagline: 'Up to 50 products, catalog, shopping cart, M-Pesa STK & Card checkout',
+    priceKes: 90000,
+    priceUsd: 890,
+    period: 'one-time',
+    badge: 'Storefront',
+  },
+  {
+    id: 'pkg-ecommerce-business',
+    category: 'websites',
+    name: 'Ecommerce Business Platform',
+    tagline: '100+ products, coupons, inventory sync, dynamic shipping & accounting export',
+    priceKes: 175000,
+    priceUsd: 1650,
+    period: 'one-time',
+    badge: 'High-Volume',
+  },
+  {
+    id: 'pkg-custom-app',
+    category: 'websites',
+    name: 'Enterprise Web Application',
+    tagline: 'Custom web application architecture, PostgreSQL, API sync & custom flows',
+    priceKes: 320000,
+    priceUsd: 3600,
+    period: 'one-time',
+    badge: 'Enterprise',
+  },
+  {
+    id: 'service-admin-hub-starter',
+    category: 'websites',
+    name: 'Standalone Admin Media Hub (Retrofit)',
+    tagline: 'Independent Next.js admin control panel for existing websites with R2 media vault & banner editor',
+    priceKes: 45000,
+    priceUsd: 490,
+    period: 'one-time',
+    badge: 'Retrofit Hub',
+  },
+  {
+    id: 'service-admin-hub-corporate',
+    category: 'websites',
+    name: 'Corporate Operations Desk & Multi-User Admin',
+    tagline: 'Multi-user role-based admin workstation with content collections, live preview & audit logs',
+    priceKes: 85000,
+    priceUsd: 890,
+    period: 'one-time',
+    badge: 'Multi-User RBAC',
+  },
+  {
+    id: 'rate-extra-page',
+    category: 'websites',
+    name: 'Additional Web Page Build',
+    tagline: 'Custom responsive page design, layout, content formatting & technical SEO (per page)',
+    priceKes: 2000,
+    priceUsd: 40,
+    period: 'one-time',
+    badge: '+1 Page Unit',
+  },
+  {
+    id: 'rate-extra-landing-page',
+    category: 'websites',
+    name: 'Standalone Landing Page / Funnel',
+    tagline: 'High-conversion marketing landing page with hero CTA, testimonials & lead capture funnel',
+    priceKes: 15000,
+    priceUsd: 149,
+    period: 'one-time',
+    badge: 'Sales Funnel',
+  },
+
+  // ── Managed Care & Maintenance Retainers ──
+  {
+    id: 'care-essential',
+    category: 'care',
+    name: 'Care Essential Retainer',
+    tagline: 'Automated patch updates, 24/7 uptime monitoring & verified weekly offsite R2 backups',
+    priceKes: 5000,
+    priceUsd: 75,
+    period: 'month',
+    badge: '99.9% SLA',
+    billingOptions: generateBillingCycles(5000, 'KES', { annualDiscountPct: 20 }),
+  },
+  {
+    id: 'care-business',
+    category: 'care',
+    name: 'Care Business Retainer',
+    tagline: 'Daily backups, monthly content updates, Core Web Vitals maintenance & priority response',
+    priceKes: 10000,
+    priceUsd: 150,
+    period: 'month',
+    badge: 'Recommended',
+    billingOptions: generateBillingCycles(10000, 'KES', { annualDiscountPct: 20 }),
+  },
+  {
+    id: 'care-professional',
+    category: 'care',
+    name: 'Care Professional Retainer',
+    tagline: 'Dedicated engineering hours, quarterly roadmap, emergency SLA hotline & security audit',
+    priceKes: 20000,
+    priceUsd: 300,
+    period: 'month',
+    badge: 'Priority 1h',
+    billingOptions: generateBillingCycles(20000, 'KES', { annualDiscountPct: 20 }),
+  },
+  {
+    id: 'care-enterprise',
+    category: 'care',
+    name: 'Care Enterprise Retainer',
+    tagline: 'Dedicated DevOps engineer, 24/7 cluster monitoring & custom engineering sprint SLA',
+    priceKes: 40000,
+    priceUsd: 400,
+    period: 'month',
+    badge: 'Full DevOps',
+    billingOptions: generateBillingCycles(40000, 'KES', { annualDiscountPct: 20 }),
+  },
+
+  // ── Managed Cloud Hosting ──
+  {
+    id: 'host-essential',
+    category: 'hosting',
+    name: 'Host Essential Container',
+    tagline: '0.5 vCPU, 384MB RAM burst, 10GB NVMe, automated SSL, weekly R2 backups (KSh 4,500/yr)',
+    priceKes: 4500,
+    priceUsd: 49,
+    period: 'year',
+    billingOptions: generateBillingCycles(500, 'KES', { canonicalAnnualAmount: 4500, annualDiscountPct: 25 }),
+  },
+  {
+    id: 'host-business',
+    category: 'hosting',
+    name: 'Host Business Container',
+    tagline: '1.5 vCPU, 768MB RAM burst, 25GB NVMe, 5 email inboxes, daily R2 backups (KSh 8,500/yr)',
+    priceKes: 8500,
+    priceUsd: 99,
+    period: 'year',
+    badge: 'Popular',
+    billingOptions: generateBillingCycles(950, 'KES', { canonicalAnnualAmount: 8500, annualDiscountPct: 25 }),
+  },
+  {
+    id: 'host-pro',
+    category: 'hosting',
+    name: 'Host Professional Container',
+    tagline: '2.0 vCPU, 1.5GB RAM burst, 50GB NVMe, isolated Redis 7 cache, 30-day snapshots (KSh 15,000/yr)',
+    priceKes: 15000,
+    priceUsd: 189,
+    period: 'year',
+    badge: 'High Perf',
+    billingOptions: generateBillingCycles(1667, 'KES', { canonicalAnnualAmount: 15000, annualDiscountPct: 25 }),
+  },
+  {
+    id: 'host-cloud',
+    category: 'hosting',
+    name: 'Managed Cloud Cluster',
+    tagline: 'Dedicated 4.0 vCPU, 100GB NVMe, standalone PostgreSQL 16 & Redis (Multi-Cycle from KSh 3,200/mo)',
+    priceKes: 30000,
+    priceUsd: 300,
+    period: 'year',
+    badge: 'Multi-Cycle',
+    billingOptions: generateBillingCycles(3200, 'KES', { canonicalAnnualAmount: 30000, annualDiscountPct: 22 }),
+  },
+
+  // ── Production Add-Ons & Integrations ──
+  {
+    id: 'addon-blog-news',
+    category: 'addons',
+    name: 'Blog & Content Publishing Engine',
+    tagline: 'Self-hosted MDX or Headless CMS newsfeed with automated XML sitemaps',
+    priceKes: 7500,
+    priceUsd: 120,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-advanced-form',
+    category: 'addons',
+    name: 'Multi-Step Lead / Survey Form',
+    tagline: 'Conditional branching, file attachments, and instant webhook dispatches',
+    priceKes: 5000,
+    priceUsd: 80,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-booking',
+    category: 'addons',
+    name: 'Online Booking & Scheduling Engine',
+    tagline: 'Calendar sync, appointment reminders, and deposit payments',
+    priceKes: 15000,
+    priceUsd: 220,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-payment-gateway',
+    category: 'addons',
+    name: 'Card & International Gateway (Paystack/Stripe)',
+    tagline: 'Full checkout integration supporting USD, EUR, GBP and regional card rails',
+    priceKes: 10000,
+    priceUsd: 150,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-mpesa',
+    category: 'addons',
+    name: 'M-Pesa STK Push Gateway (Daraja API)',
+    tagline: 'Automated instant mobile checkout, callback reconciliation & ledger settlement',
+    priceKes: 10000,
+    priceUsd: 150,
+    period: 'one-time',
+    badge: 'Kenya SME',
+  },
+  {
+    id: 'addon-seo-advanced',
+    category: 'addons',
+    name: 'Advanced SEO & Schema.org Hardening',
+    tagline: 'Structured data snippets, Core Web Vitals optimization & Search Console verification',
+    priceKes: 15000,
+    priceUsd: 220,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-copywriting',
+    category: 'addons',
+    name: 'Professional Copywriting (Per Section)',
+    tagline: 'Conversion-engineered English copywriting, value propositions & CTA narrative',
+    priceKes: 10000,
+    priceUsd: 180,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-migration',
+    category: 'addons',
+    name: 'Complete Website & Content Migration',
+    tagline: 'Zero-downtime DNS transfer, asset preservation, and 301 redirect map',
+    priceKes: 5000,
+    priceUsd: 80,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-multilingual',
+    category: 'addons',
+    name: 'Multilingual Localization (i18n)',
+    tagline: 'Multi-language content pipeline, language selector & localized SEO routing',
+    priceKes: 15000,
+    priceUsd: 240,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-document-hub',
+    category: 'addons',
+    name: 'Document & PDF Vault (R2/S3)',
+    tagline: 'Searchable resource library, protected client file downloads & CDN delivery',
+    priceKes: 6000,
+    priceUsd: 120,
+    period: 'one-time',
+  },
+  {
+    id: 'addon-admin-dashboard',
+    category: 'addons',
+    name: 'Bespoke Client Admin & Media Vault Hub',
+    tagline: 'Subdomain admin panel for media uploads, hero CTA edits & announcements with zero code',
+    priceKes: 25000,
+    priceUsd: 299,
+    period: 'one-time',
+    badge: 'Admin Hub',
+  },
+];

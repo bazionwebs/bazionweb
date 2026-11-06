@@ -19,14 +19,25 @@ import { resolveApiV1Base } from '@/lib/api-base';
 import { useAuthStore } from '@/store/auth.store';
 import { DEFAULT_PLAN_SLUG, planMarketing, usePlans } from '@/lib/plans';
 import { useCartStore } from '@/lib/cart';
-import { getProductPrice } from '@/lib/priceBooks';
+import {
+  getProductPrice,
+  BILLING_CYCLES_META,
+  calculatePlanCyclePrice,
+} from '@/lib/priceBooks';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { isTrustedCheckoutUrl, normalizeKenyanPhoneNumber } from '@/lib/utils';
 
+export type CheckoutCycle =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'SEMI_ANNUALLY'
+  | 'ANNUAL'
+  | 'BIENNIAL'
+  | 'TRIENNIAL';
 
 interface CheckoutProps {
   initialPlanSlug?: string;
-  initialCycle?: 'MONTHLY' | 'ANNUAL';
+  initialCycle?: CheckoutCycle | string;
   token?: string;
   /** When arriving from /cart, show the full cart and bill its add-ons with the invoice. */
   cartMode?: boolean;
@@ -72,7 +83,11 @@ export default function SubscriptionCheckout({
   const { plans, bySlug, loading: plansLoading, error: plansError } = usePlans();
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(initialPlanSlug);
   const [activeTab, setActiveTab] = useState<PaymentTab>(isKe ? 'MPESA' : 'CARD');
-  const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>(initialCycle);
+  const [billingCycle, setBillingCycle] = useState<CheckoutCycle>(() => {
+    const raw = String(initialCycle || 'MONTHLY').toUpperCase().replace('-', '_');
+    const match = BILLING_CYCLES_META.find(m => m.enumValue === raw || m.cycle === initialCycle?.toLowerCase());
+    return (match?.enumValue || 'MONTHLY') as CheckoutCycle;
+  });
 
   // Sync default tab if market resolves to international after initial load
   useEffect(() => {
@@ -152,18 +167,20 @@ export default function SubscriptionCheckout({
     if (bySlug[cartPlanItem.id] && selectedPlanSlug !== cartPlanItem.id) {
       setSelectedPlanSlug(cartPlanItem.id);
     }
-    if (
-      (cartPlanItem.cycle === 'MONTHLY' || cartPlanItem.cycle === 'ANNUAL') &&
-      billingCycle !== cartPlanItem.cycle
-    ) {
-      setBillingCycle(cartPlanItem.cycle as 'MONTHLY' | 'ANNUAL');
+    if (cartPlanItem?.cycle) {
+      const raw = String(cartPlanItem.cycle).toUpperCase().replace('-', '_');
+      const match = BILLING_CYCLES_META.find(
+        (m) => m.enumValue === raw || m.cycle === cartPlanItem.cycle.toLowerCase()
+      );
+      if (match && match.enumValue !== billingCycle) {
+        setBillingCycle(match.enumValue as CheckoutCycle);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartMode, cartPlanItem?.id, cartPlanItem?.cycle, plansLoading, bySlug]);
 
   const currentPlan = bySlug[selectedPlanSlug] ?? bySlug[DEFAULT_PLAN_SLUG] ?? plans[0];
   const marketing = currentPlan ? planMarketing(currentPlan.slug) : null;
-  const annualDiscountPct = currentPlan?.annualDiscountPct ?? 0;
 
   // Mandatory stack (cart mode): the care plan is the subscription anchor and
   // hosting must exist — either included in a bundle tier or bought as a
@@ -205,8 +222,23 @@ export default function SubscriptionCheckout({
     );
   }
 
-  const planPriceKes = billingCycle === 'ANNUAL' ? currentPlan.priceAnnualKes : currentPlan.priceMonthlyKes;
-  const planPriceUsd = billingCycle === 'ANNUAL' ? currentPlan.priceAnnual : currentPlan.priceMonthly;
+  const planPriceKes = (() => {
+    const baseMonthly = currentPlan.priceMonthlyKes || currentPlan.priceMonthly * 130;
+    const baseAnnual = currentPlan.priceAnnualKes;
+    return calculatePlanCyclePrice(baseMonthly, billingCycle, {
+      canonicalAnnualAmount: baseAnnual,
+      isKes: true,
+    }).amount;
+  })();
+
+  const planPriceUsd = (() => {
+    const baseMonthly = currentPlan.priceMonthly;
+    const baseAnnual = currentPlan.priceAnnual;
+    return calculatePlanCyclePrice(baseMonthly, billingCycle, {
+      canonicalAnnualAmount: baseAnnual,
+      isKes: false,
+    }).amount;
+  })();
   const itemPriceKes = (item: { id?: string; unitPrice: number; qty: number; currency: string }) => {
     if ((item.currency || '').toUpperCase() === 'KES') {
       return item.unitPrice * item.qty;
@@ -556,27 +588,31 @@ export default function SubscriptionCheckout({
 
           {/* Billing Cycle Switcher */}
           <div className="mt-5 pt-4 border-t border-slate-800">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400 font-medium">Billing Frequency</span>
-              <div className="bg-slate-900 p-1 rounded-xl flex items-center border border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('MONTHLY')}
-                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
-                    billingCycle === 'MONTHLY' ? 'bg-[#2563EB] text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Monthly
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBillingCycle('ANNUAL')}
-                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
-                    billingCycle === 'ANNUAL' ? 'bg-[#2563EB] text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Annual <span className="text-[10px] text-emerald-300 font-bold bg-emerald-950 px-1 rounded">-{annualDiscountPct}%</span>
-                </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">Billing Term & Commitment</span>
+                <span className="text-[11px] text-teal-400 font-bold">
+                  {BILLING_CYCLES_META.find(m => m.enumValue === billingCycle)?.label}
+                </span>
+              </div>
+              <div className="bg-slate-900 p-1.5 rounded-2xl flex flex-wrap items-center gap-1 border border-slate-800 shadow-inner">
+                {BILLING_CYCLES_META.map((meta) => {
+                  const isSelected = billingCycle === meta.enumValue;
+                  return (
+                    <button
+                      key={meta.enumValue}
+                      type="button"
+                      onClick={() => setBillingCycle(meta.enumValue as CheckoutCycle)}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-xl transition-all flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-[#2563EB] text-white shadow'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <span>{meta.pillLabel}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

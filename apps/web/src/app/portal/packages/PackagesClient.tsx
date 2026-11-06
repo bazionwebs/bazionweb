@@ -41,7 +41,7 @@ import {
   type AddOnItem,
 } from '@/lib/pricingData';
 import { usePlans, planMarketing, type ApiPlan } from '@/lib/plans';
-import { formatCurrency, getPriceBookForMarket } from '@/lib/priceBooks';
+import { formatCurrency, getPriceBookForMarket, BILLING_CYCLES_META } from '@/lib/priceBooks';
 import { formatMoney } from '@/lib/format';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import { toCleanUrl } from '@/lib/api-base';
@@ -56,9 +56,40 @@ import { resolveApiV1Base } from '@/lib/api-base';
 import { cn, isTrustedCheckoutUrl } from '@/lib/utils';
 
 type CatalogTab = 'care' | 'builds' | 'hosting' | 'addons';
-type Cycle = 'MONTHLY' | 'ANNUAL';
+type Cycle = 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUALLY' | 'ANNUAL' | 'BIENNIAL' | 'TRIENNIAL';
 type CarePayMethod = 'MPESA' | 'CARD' | 'WIRE';
 type BuildFamily = 'websites' | 'ecommerce' | 'custom';
+
+function getPlanCycleAmount(plan: ApiPlan, cycle: Cycle, isKenya: boolean): number {
+  const baseMonthly = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
+  switch (cycle) {
+    case 'MONTHLY':
+      return baseMonthly;
+    case 'QUARTERLY':
+      return Math.round(baseMonthly * 3 * 0.95);
+    case 'SEMI_ANNUALLY':
+      return Math.round(baseMonthly * 6 * 0.90);
+    case 'ANNUAL':
+      return isKenya ? plan.priceAnnualKes : plan.priceAnnual;
+    case 'BIENNIAL':
+      return Math.round(baseMonthly * 24 * 0.68);
+    case 'TRIENNIAL':
+      return Math.round(baseMonthly * 36 * 0.60);
+    default:
+      return baseMonthly;
+  }
+}
+
+function getCycleLabel(cycle: Cycle): string {
+  switch (cycle) {
+    case 'MONTHLY': return 'Monthly';
+    case 'QUARTERLY': return 'Quarterly (-5%)';
+    case 'SEMI_ANNUALLY': return '6 Months (-10%)';
+    case 'ANNUAL': return 'Annual (-20%)';
+    case 'BIENNIAL': return '2 Years (-32%)';
+    case 'TRIENNIAL': return '3 Years (-40%)';
+  }
+}
 
 interface FixedBuildTarget {
   packageType: string;
@@ -845,34 +876,25 @@ export default function PackagesClient() {
               </p>
             </div>
 
-            <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl shrink-0 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => setCareCycle('MONTHLY')}
-                className={cn(
-                  'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all',
-                  careCycle === 'MONTHLY'
-                    ? 'bg-white text-[#0F172A] shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800',
-                )}
-              >
-                Monthly
-              </button>
-              <button
-                type="button"
-                onClick={() => setCareCycle('ANNUAL')}
-                className={cn(
-                  'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5',
-                  careCycle === 'ANNUAL'
-                    ? 'bg-white text-[#0F172A] shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800',
-                )}
-              >
-                <span>Annual</span>
-                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
-                  Save 10%
-                </span>
-              </button>
+            <div className="inline-flex flex-wrap items-center bg-slate-100 p-1 rounded-xl shrink-0 self-start sm:self-auto gap-1">
+              {BILLING_CYCLES_META.map((meta) => {
+                const isSelected = careCycle === meta.enumValue;
+                return (
+                  <button
+                    key={meta.enumValue}
+                    type="button"
+                    onClick={() => setCareCycle(meta.enumValue)}
+                    className={cn(
+                      'px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1',
+                      isSelected
+                        ? 'bg-white text-[#0F172A] shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800',
+                    )}
+                  >
+                    <span>{meta.pillLabel}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -894,14 +916,7 @@ export default function PackagesClient() {
                   activeSubscription?.status === 'ACTIVE' &&
                   activeSubscription?.plan?.id === plan.id;
                 const isPopular = plan.slug === 'care-business';
-                const amount =
-                  careCycle === 'ANNUAL'
-                    ? isKenya
-                      ? plan.priceAnnualKes
-                      : plan.priceAnnual
-                    : isKenya
-                      ? plan.priceMonthlyKes
-                      : plan.priceMonthly;
+                const amount = getPlanCycleAmount(plan, careCycle, isKenya);
 
                 return (
                   <div
@@ -937,7 +952,7 @@ export default function PackagesClient() {
                           {formatCurrency(amount, activeCurrency)}
                         </span>
                         <span className="text-xs text-slate-400 font-semibold ml-1">
-                          /{careCycle === 'ANNUAL' ? 'year' : 'month'}
+                          /{careCycle === 'MONTHLY' ? 'mo' : careCycle === 'QUARTERLY' ? '3 mos' : careCycle === 'SEMI_ANNUALLY' ? '6 mos' : careCycle === 'ANNUAL' ? 'yr' : careCycle === 'BIENNIAL' ? '2 yrs' : '3 yrs'}
                         </span>
                       </div>
 
@@ -1466,19 +1481,13 @@ export default function PackagesClient() {
                   In-Workspace Subscription Checkout
                 </span>
                 <h3 className="text-lg font-extrabold mt-0.5">
-                  {selectedCarePlan.name} ({careCycle === 'ANNUAL' ? 'Annual -10%' : 'Monthly'})
+                  {selectedCarePlan.name} ({getCycleLabel(careCycle)})
                 </h3>
                 <p className="text-xs text-slate-300 mt-1">
                   Total:{' '}
                   <strong className="text-white">
                     {formatCurrency(
-                      careCycle === 'ANNUAL'
-                        ? isKenya
-                          ? selectedCarePlan.priceAnnualKes
-                          : selectedCarePlan.priceAnnual
-                        : isKenya
-                          ? selectedCarePlan.priceMonthlyKes
-                          : selectedCarePlan.priceMonthly,
+                      getPlanCycleAmount(selectedCarePlan, careCycle, isKenya),
                       activeCurrency,
                     )}
                   </strong>{' '}

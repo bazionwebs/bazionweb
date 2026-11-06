@@ -62,7 +62,7 @@ export interface CarePlan {
 }
 
 export interface HostingBillingCycle {
-  term: 'monthly' | 'quarterly' | 'semi-annually' | 'annually';
+  term: 'monthly' | 'quarterly' | 'semi-annually' | 'annually' | 'biennially' | 'triennially';
   label: string;
   durationMonths: number;
   kenyaPrice: string;
@@ -534,11 +534,31 @@ export const MANAGED_HOSTING_PLANS: HostingPlan[] = [
         label: 'Annual (12 Months)',
         durationMonths: 12,
         kenyaPrice: 'KSh 30,000/yr',
-        intlPrice: '$290/yr',
+        intlPrice: '$300/yr',
         kenyaMonthlyEquivalent: 'KSh 2,500/mo',
-        intlMonthlyEquivalent: '$24.16/mo',
+        intlMonthlyEquivalent: '$25/mo',
         discountBadge: 'Save 22% (Best Value)',
         popular: true,
+      },
+      {
+        term: 'biennially',
+        label: 'Biennial (24 Months / 2 Years)',
+        durationMonths: 24,
+        kenyaPrice: 'KSh 52,224 / 2 yrs',
+        intlPrice: '$522 / 2 yrs',
+        kenyaMonthlyEquivalent: 'KSh 2,176/mo',
+        intlMonthlyEquivalent: '$21.75/mo',
+        discountBadge: 'Save 32%',
+      },
+      {
+        term: 'triennially',
+        label: 'Triennial (36 Months / 3 Years)',
+        durationMonths: 36,
+        kenyaPrice: 'KSh 69,120 / 3 yrs',
+        intlPrice: '$691 / 3 yrs',
+        kenyaMonthlyEquivalent: 'KSh 1,920/mo',
+        intlMonthlyEquivalent: '$19.19/mo',
+        discountBadge: 'Save 40%',
       },
     ],
     features: [

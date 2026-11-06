@@ -24,8 +24,31 @@ export class CalculateQuoteDto {
   countryCode?: string; // e.g. 'KE', 'US', 'GB'
 
   @IsString()
-  @IsIn(['launch', 'business', 'professional', 'ecom-starter', 'ecom-business', 'custom', 'starter', 'ecommerce', 'enterprise'])
-  packageType: 'launch' | 'business' | 'professional' | 'ecom-starter' | 'ecom-business' | 'custom' | 'starter' | 'ecommerce' | 'enterprise';
+  @IsIn([
+    'launch',
+    'business',
+    'professional',
+    'ecom-starter',
+    'ecom-business',
+    'ecom-pro',
+    'custom',
+    'corporate',
+    'starter',
+    'ecommerce',
+    'enterprise',
+  ])
+  packageType:
+    | 'launch'
+    | 'business'
+    | 'professional'
+    | 'ecom-starter'
+    | 'ecom-business'
+    | 'ecom-pro'
+    | 'custom'
+    | 'corporate'
+    | 'starter'
+    | 'ecommerce'
+    | 'enterprise';
 
   @IsOptional()
   @IsNumber()
@@ -47,13 +70,67 @@ export class CalculateQuoteDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['none', 'care-essential', 'care-business', 'care-professional', 'starter', 'growth', 'scale'])
-  care?: 'none' | 'care-essential' | 'care-business' | 'care-professional' | 'starter' | 'growth' | 'scale';
+  @IsIn([
+    'none',
+    'care-essential',
+    'care-business',
+    'care-professional',
+    'care-enterprise',
+    'starter',
+    'growth',
+    'scale',
+  ])
+  care?:
+    | 'none'
+    | 'care-essential'
+    | 'care-business'
+    | 'care-professional'
+    | 'care-enterprise'
+    | 'starter'
+    | 'growth'
+    | 'scale';
 
   @IsOptional()
   @IsString()
-  @IsIn(['none', 'host-essential', 'host-business', 'host-pro', 'starter', 'business', 'enterprise'])
-  hosting?: 'none' | 'host-essential' | 'host-business' | 'host-pro' | 'starter' | 'business' | 'enterprise';
+  @IsIn([
+    'none',
+    'host-essential',
+    'host-business',
+    'host-pro',
+    'host-professional',
+    'host-cloud',
+    'starter',
+    'business',
+    'enterprise',
+  ])
+  hosting?:
+    | 'none'
+    | 'host-essential'
+    | 'host-business'
+    | 'host-pro'
+    | 'host-professional'
+    | 'host-cloud'
+    | 'starter'
+    | 'business'
+    | 'enterprise';
+
+  @IsOptional()
+  @IsString()
+  @IsIn([
+    'monthly',
+    'quarterly',
+    'semi-annually',
+    'annually',
+    'biennially',
+    'triennially',
+    'MONTHLY',
+    'QUARTERLY',
+    'SEMI_ANNUALLY',
+    'ANNUAL',
+    'BIENNIAL',
+    'TRIENNIAL',
+  ])
+  billingCycle?: string;
 
   @IsOptional()
   @IsString()

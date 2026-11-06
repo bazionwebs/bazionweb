@@ -6,13 +6,13 @@ export const dynamic = 'force-dynamic';
 /**
  * Same-origin API v1 gateway.
  *
- * The canonical deployment layout routes /api/v1 to the NestJS service at
- * the edge (vercel.json rewrites / Traefik). Some deployments only expose the
- * web origin publicly, so this runtime catch-all proxies every remaining
+ * Deployment layout routes /api/v1 to the NestJS service at the edge
+ * (Traefik Host+PathPrefix rule). Some deployments only expose the web
+ * origin publicly, so this runtime catch-all proxies every remaining
  * /api/v1/* call to the API resolved by resolveApiBase():
  *
- *   - Vercel Services -> API_INTERNAL_URL (service binding)
- *   - Docker/Dokploy  -> NEXT_PUBLIC_API_URL or API_INTERNAL_URL (http://api:4000)
+ *   - Docker/Dokploy  -> API_INTERNAL_URL (http://api:4000)
+ *   - External hosts  -> NEXT_PUBLIC_API_URL
  *   - Local dev       -> http://localhost:4000
  *
  * Security notes:

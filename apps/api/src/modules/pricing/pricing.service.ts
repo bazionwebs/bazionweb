@@ -22,6 +22,7 @@ export interface CalculatedQuoteResponse {
   currencySymbol: string;
   priceBookId: string;
   priceBookVersion: string;
+  billingCycle?: string;
   breakdown: {
     package: {
       productId: string;
@@ -259,13 +260,15 @@ export class PricingService {
     const priceBook = await this.getActivePriceBook(market.id);
 
     // 1. Map the public configurator options to canonical price-book product IDs.
-    const packageKeys: Record<CalculateQuoteDto['packageType'], string> = {
+    const packageKeys: Record<string, string> = {
       launch: 'website-launch',
       business: 'website-business',
       professional: 'website-professional',
       'ecom-starter': 'ecommerce-starter',
       'ecom-business': 'ecommerce-business',
+      'ecom-pro': 'ecommerce-enterprise',
       custom: 'website-enterprise',
+      corporate: 'website-enterprise',
       starter: 'website-launch',
       ecommerce: 'ecommerce-starter',
       enterprise: 'website-enterprise',
@@ -285,7 +288,7 @@ export class PricingService {
       multilingual: 'addon-multilingual',
       'document-hub': 'addon-document-hub',
     };
-    const packageKey = packageKeys[dto.packageType];
+    const packageKey = packageKeys[dto.packageType] || `website-${dto.packageType}`;
     const extraPageKey = 'rate-extra-page';
     const selectedAddOns = [
       ...new Set((dto.selectedAddOns || []).map((id) => addonAliases[id] || id)),
@@ -294,12 +297,15 @@ export class PricingService {
       starter: 'care-essential',
       growth: 'care-business',
       scale: 'care-professional',
+      'care-enterprise': 'care-enterprise',
     };
     const hostingAliases: Record<string, string> = {
       starter: 'host-essential',
       business: 'host-business',
       enterprise: 'host-pro',
+      'host-pro': 'host-pro',
       'host-professional': 'host-pro',
+      'host-cloud': 'host-cloud',
     };
     const careKey = dto.care && dto.care !== 'none' ? careAliases[dto.care] || dto.care : null;
     const hostingKey = dto.hosting && dto.hosting !== 'none' ? hostingAliases[dto.hosting] || dto.hosting : null;
@@ -446,6 +452,7 @@ export class PricingService {
       currencySymbol: market.currency.symbol,
       priceBookId: priceBook.id,
       priceBookVersion: priceBook.version,
+      billingCycle: dto.billingCycle,
       breakdown: {
         package: {
           productId: packageKey,
@@ -504,8 +511,8 @@ export class PricingService {
         ...(rushAmount > 0 ? [{ kind: 'rush-delivery', name: 'Priority Rush Delivery (+35%)', amount: rushAmount, billingPeriod: 'one-time' }] : []),
         ...(discountAmount > 0 ? [{ kind: 'discount', name: discountDescription || 'Promotional Discount', amount: -discountAmount, code: appliedCoupon }] : []),
         { kind: 'tax', name: taxRule ? taxRule.name : 'Standard VAT', amount: taxAmount, rate: taxRate, included: isInclusive },
-        ...(careKey ? [{ kind: 'recurring', productId: careKey, name: this.formatProductName(careKey), amount: careAmount, billingPeriod: 'month' }] : []),
-        ...(hostingKey ? [{ kind: 'recurring', productId: hostingKey, name: this.formatProductName(hostingKey), amount: hostingAmount, billingPeriod: 'year' }] : []),
+        ...(careKey ? [{ kind: 'recurring', productId: careKey, name: this.formatProductName(careKey), amount: careAmount, billingPeriod: 'month', ...(dto.billingCycle ? { billingCycle: dto.billingCycle } : {}) }] : []),
+        ...(hostingKey ? [{ kind: 'recurring', productId: hostingKey, name: this.formatProductName(hostingKey), amount: hostingAmount, billingPeriod: 'year', ...(dto.billingCycle ? { billingCycle: dto.billingCycle } : {}) }] : []),
       ];
 
       const [proposal, lead] = await this.prisma.$transaction([
@@ -762,6 +769,15 @@ export class PricingService {
       'addon-custom-api': 'Custom API Integration',
       'addon-multilingual': 'Multilingual Support (i18n)',
       'addon-document-hub': 'Document Download Hub',
+      'care-essential': 'Care Essential',
+      'care-business': 'Care Business',
+      'care-professional': 'Care Professional',
+      'care-enterprise': 'Care Enterprise',
+      'host-essential': 'Host Essential',
+      'host-business': 'Host Business',
+      'host-pro': 'Host Professional',
+      'host-professional': 'Host Professional',
+      'host-cloud': 'Managed Cloud Cluster',
     };
     if (names[id]) return names[id];
     return id

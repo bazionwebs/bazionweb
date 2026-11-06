@@ -18,6 +18,7 @@ import { resolveApiV1Base } from '@/lib/api-base';
 import { usePlans, PLAN_MARKETING } from '@/lib/plans';
 import { useCartStore, type CartItem } from '@/lib/cart';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import { BILLING_CYCLES_META, calculatePlanCyclePrice } from '@/lib/priceBooks';
 import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 import StoreOrderSummary from './StoreOrderSummary';
 
@@ -237,22 +238,33 @@ export default function StoreView() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const addParam = searchParams.get('add');
+  const cycleParam = searchParams.get('cycle');
   useEffect(() => {
     if (!addParam || plansLoading || catalog.isLoading) return;
     const plan = (plans ?? []).find((p) => p.slug === addParam);
     if (plan && PLAN_MARKETING[plan.slug]) {
-      const planPrice = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
+      const norm = String(cycleParam || 'MONTHLY').toUpperCase().replace('-', '_');
+      const validCycle = BILLING_CYCLES_META.find(
+        (m) => m.enumValue === norm || m.cycle === cycleParam?.toLowerCase()
+      );
+      const planCycle = validCycle ? validCycle.enumValue : 'MONTHLY';
+      const baseMonthly = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
+      const baseAnnual = isKenya ? plan.priceAnnualKes : plan.priceAnnual;
+      const cyclePrice = calculatePlanCyclePrice(baseMonthly, planCycle, {
+        canonicalAnnualAmount: baseAnnual,
+        isKes: isKenya,
+      }).amount;
       const planCurrency = isKenya ? 'KES' : activeCurrency;
       add({
         kind: 'PLAN',
         id: plan.slug,
         name: plan.name,
-        cycle: 'MONTHLY',
+        cycle: planCycle,
         qty: 1,
-        unitPrice: planPrice,
+        unitPrice: cyclePrice,
         currency: planCurrency,
       });
-      setAddedKey(`PLAN:${plan.slug}:MONTHLY`);
+      setAddedKey(`PLAN:${plan.slug}:${planCycle}`);
       scrollToSectionId('plans');
     } else {
       const price = (catalog.data?.prices ?? []).find((p) => p.productId === addParam);

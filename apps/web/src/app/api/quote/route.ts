@@ -177,6 +177,7 @@ export async function POST(request: NextRequest) {
           rushDelivery: Boolean(rushDelivery),
           care,
           hosting,
+          billingCycle: body.billingCycle || 'ANNUAL',
           couponCode,
           clientEmail: clientEmail.trim().toLowerCase(),
           clientName: clientName.trim(),
@@ -185,6 +186,17 @@ export async function POST(request: NextRequest) {
           source: 'website_quote_calculator',
         }),
       });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        return NextResponse.json(
+          {
+            error: errBody?.message || errBody?.error || 'Pricing service rejected proposal creation',
+            details: errBody,
+          },
+          { status: response.status >= 500 ? 502 : response.status }
+        );
+      }
 
       if (response.ok) {
         const envelope = await response.json().catch(() => ({}));
@@ -274,8 +286,17 @@ export async function POST(request: NextRequest) {
           });
         }
       }
-    } catch {
-      // Backend API unreachable or timed out — fall back to local calculation
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('[Quote BFF] Backend pricing service offline or timed out:', err);
+        return NextResponse.json(
+          {
+            error: 'Pricing service is temporarily unavailable. Please retry shortly.',
+            code: 'UPSTREAM_OFFLINE',
+          },
+          { status: 503 }
+        );
+      }
     }
 
     // ─── 2. Resilient Local Fallback Engine (Authoritative Price Books) ────────
@@ -288,8 +309,12 @@ export async function POST(request: NextRequest) {
       professional: 'website-professional',
       'ecom-starter': 'ecommerce-starter',
       'ecom-business': 'ecommerce-business',
+      'ecom-pro': 'ecommerce-enterprise',
       custom: 'website-enterprise',
       corporate: 'website-enterprise',
+      starter: 'website-launch',
+      ecommerce: 'ecommerce-starter',
+      enterprise: 'website-enterprise',
     };
     const packageKey = packageMap[packageType] || `website-${packageType}`;
     const packageItem = priceBook.items[packageKey] || priceBook.items['website-business'];
@@ -342,6 +367,7 @@ export async function POST(request: NextRequest) {
         if (care === 'care-essential') monthlyCare = marketCode === 'KE' ? 5000 : 75;
         if (care === 'care-business') monthlyCare = marketCode === 'KE' ? 10000 : 150;
         if (care === 'care-professional') monthlyCare = marketCode === 'KE' ? 20000 : 300;
+        if (care === 'care-enterprise') monthlyCare = marketCode === 'KE' ? 40000 : 400;
       }
     }
 
@@ -354,6 +380,7 @@ export async function POST(request: NextRequest) {
         if (hosting === 'host-essential') annualHosting = marketCode === 'KE' ? 4500 : 49;
         if (hosting === 'host-business') annualHosting = marketCode === 'KE' ? 8500 : 99;
         if (hosting === 'host-pro' || hosting === 'host-professional') annualHosting = marketCode === 'KE' ? 15000 : 189;
+        if (hosting === 'host-cloud') annualHosting = marketCode === 'KE' ? 30000 : 300;
       }
     }
 

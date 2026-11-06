@@ -8,8 +8,6 @@ function buildContentSecurityPolicy() {
   const connectSrc = [
     "'self'",
     'https://api.bazionweb.com',
-    'https://vercel.live',
-    'wss://vercel.live',
   ];
 
   if (isDev) {
@@ -47,11 +45,11 @@ function buildContentSecurityPolicy() {
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://vercel.live https://va.vercel-scripts.com https://js.paystack.co https://embed.tawk.to https://*.tawk.to https://cdn.jsdelivr.net https://www.clarity.ms https://*.clarity.ms https://static.cloudflareinsights.com https://cloudflareinsights.com`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://www.googletagmanager.com https://js.paystack.co https://embed.tawk.to https://*.tawk.to https://cdn.jsdelivr.net https://www.clarity.ms https://*.clarity.ms https://static.cloudflareinsights.com https://cloudflareinsights.com`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.tawk.to",
     "font-src 'self' https://fonts.gstatic.com data: https://*.tawk.to",
     "img-src 'self' data: https: blob: https://*.tawk.to https://tawk.link https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms",
-    `connect-src ${connectSrc.join(' ')} https://vitals.vercel-insights.com https://api.paystack.co https://*.tawk.to wss://*.tawk.to https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms https://cloudflareinsights.com https://static.cloudflareinsights.com`,
+    `connect-src ${connectSrc.join(' ')} https://api.paystack.co https://*.tawk.to wss://*.tawk.to https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms https://cloudflareinsights.com https://static.cloudflareinsights.com`,
     "frame-src https://js.paystack.co https://checkout.paystack.com https://*.tawk.to https://embed.tawk.to",
     "object-src 'none'",
     "base-uri 'self'",
@@ -102,9 +100,11 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    // Production routes /api/v1 to the api service via vercel.json; mirror
-    // that same-origin behaviour in local dev so the browser talks to
-    // localhost:3000 and Next proxies to the NestJS dev server on :4000.
+    // Same-origin API gateway: the browser always talks to /api/v1 on the web
+    // origin — Traefik/Dokploy delivers it to the NestJS service either at the
+    // edge or through the runtime catch-all proxy route. In local dev mirror
+    // that same-origin behaviour so the browser talks to localhost:3000 and
+    // Next proxies to the NestJS dev server on :4000.
     if (process.env.NODE_ENV !== 'development') return [];
     return [
       {

@@ -98,15 +98,31 @@ export class BillingService {
   }
 
   private planAmount(plan: any, billingCycle: BillingCycle, currency: 'KES' | 'USD' | 'EUR' | 'GBP'): number {
-    const isAnnual = billingCycle === BillingCycle.ANNUAL;
-    if (currency === 'KES') {
-      if (isAnnual && plan.priceAnnualKes != null) return this.toNumber(plan.priceAnnualKes);
-      if (!isAnnual && plan.priceMonthlyKes != null) return this.toNumber(plan.priceMonthlyKes);
-      const base = isAnnual ? plan.priceAnnual : plan.priceMonthly;
-      const n = this.toNumber(base);
-      return Number.isFinite(n) ? n * 130 : NaN;
+    const isKes = currency === 'KES';
+    const monthlyRate = isKes
+      ? (plan.priceMonthlyKes != null ? this.toNumber(plan.priceMonthlyKes) : this.toNumber(plan.priceMonthly) * 130)
+      : this.toNumber(plan.priceMonthly);
+
+    const annualRate = isKes
+      ? (plan.priceAnnualKes != null ? this.toNumber(plan.priceAnnualKes) : (plan.priceAnnual != null ? this.toNumber(plan.priceAnnual) * 130 : Math.round(monthlyRate * 12 * 0.80)))
+      : (plan.priceAnnual != null ? this.toNumber(plan.priceAnnual) : Math.round(monthlyRate * 12 * 0.80));
+
+    switch (billingCycle) {
+      case BillingCycle.MONTHLY:
+        return monthlyRate;
+      case BillingCycle.QUARTERLY:
+        return Math.round(monthlyRate * 3 * 0.95);
+      case BillingCycle.SEMI_ANNUALLY:
+        return Math.round(monthlyRate * 6 * 0.90);
+      case BillingCycle.ANNUAL:
+        return annualRate;
+      case BillingCycle.BIENNIAL:
+        return Math.round(monthlyRate * 24 * 0.68);
+      case BillingCycle.TRIENNIAL:
+        return Math.round(monthlyRate * 36 * 0.60);
+      default:
+        return monthlyRate;
     }
-    return this.toNumber(isAnnual ? plan.priceAnnual : plan.priceMonthly);
   }
 
   private newInvoiceNumber(prefix: string): string {

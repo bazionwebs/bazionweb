@@ -48,12 +48,38 @@ function invoiceDescription(lineItems: unknown): string | undefined {
   return typeof firstItem?.description === 'string' ? firstItem.description : undefined;
 }
 
+function getBillingCycleDays(cycle: BillingCycle | string): number {
+  switch (cycle) {
+    case BillingCycle.MONTHLY:
+    case 'MONTHLY':
+      return 30;
+    case BillingCycle.QUARTERLY:
+    case 'QUARTERLY':
+      return 90;
+    case BillingCycle.SEMI_ANNUALLY:
+    case 'SEMI_ANNUALLY':
+      return 182;
+    case BillingCycle.ANNUAL:
+    case 'ANNUAL':
+      return 365;
+    case BillingCycle.BIENNIAL:
+    case 'BIENNIAL':
+      return 730;
+    case BillingCycle.TRIENNIAL:
+    case 'TRIENNIAL':
+      return 1095;
+    default:
+      return 30;
+  }
+}
+
 function intentFromLineItems(lineItems: unknown): CheckoutIntent {
   const first = Array.isArray(lineItems) ? (lineItems[0] as Record<string, unknown> | undefined) : undefined;
   const purpose = first?.purpose === 'invoice_payment' ? 'invoice_payment' : 'subscription';
-  const cycle = first?.billingCycle === 'ANNUAL' || first?.billingCycle === 'MONTHLY'
-    ? (first.billingCycle as BillingCycle)
-    : undefined;
+  const cycle =
+    first?.billingCycle && Object.values(BillingCycle).includes(first.billingCycle as BillingCycle)
+      ? (first.billingCycle as BillingCycle)
+      : undefined;
   const planId = typeof first?.planId === 'string' && first.planId ? first.planId : undefined;
   return { purpose, planId, billingCycle: cycle };
 }
@@ -133,11 +159,14 @@ export class PaymentSettlementService {
     if (!planId) planId = opts.metadataPlanId;
     if (!planId) planId = invoice.client?.planId;
 
+    const rawCycle = intent.billingCycle || opts.metadataBillingCycle;
     const billingCycle: BillingCycle =
-      intent.billingCycle ||
-      (opts.metadataBillingCycle === 'ANNUAL' || opts.metadataBillingCycle === 'MONTHLY'
-        ? (opts.metadataBillingCycle as BillingCycle)
-        : BillingCycle.MONTHLY);
+      rawCycle && Object.values(BillingCycle).includes(rawCycle as BillingCycle)
+        ? (rawCycle as BillingCycle)
+        : BillingCycle.MONTHLY;
+
+    const cycleDays = getBillingCycleDays(billingCycle);
+    const periodEnd = new Date(now.getTime() + cycleDays * 86_400_000);
 
     if (invoice.subscriptionId) {
       await tx.subscription.update({
@@ -145,8 +174,8 @@ export class PaymentSettlementService {
         data: {
           status: SubscriptionStatus.ACTIVE,
           currentPeriodStart: now,
-          currentPeriodEnd: new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000),
-          renewalDate: new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000),
+          currentPeriodEnd: periodEnd,
+          renewalDate: periodEnd,
           gracePeriodEnd: null,
           dunningAttemptsCount: 0,
           lastDunningAt: null,
@@ -167,8 +196,8 @@ export class PaymentSettlementService {
             planId,
             billingCycle,
             currentPeriodStart: now,
-            currentPeriodEnd: new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000),
-            renewalDate: new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000),
+            currentPeriodEnd: periodEnd,
+            renewalDate: periodEnd,
             gracePeriodEnd: null,
             dunningAttemptsCount: 0,
             lastDunningAt: null,
@@ -177,7 +206,7 @@ export class PaymentSettlementService {
         });
         await tx.invoice.update({ where: { id: invoice.id }, data: { subscriptionId: existingActive.id } });
       } else {
-        const nextPeriod = new Date(now.getTime() + (billingCycle === 'ANNUAL' ? 365 : 30) * 86_400_000);
+        const nextPeriod = periodEnd;
         const sub = await tx.subscription.create({
           data: {
             clientId: invoice.clientId,

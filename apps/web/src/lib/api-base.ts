@@ -1,20 +1,23 @@
 /**
  * Resolves the base origin for calling the NestJS API.
  *
- * Vercel Services layout (see /vercel.json): `web` is public at /(.*) and
- * `api` at /api/(.*) on the SAME deployment domain. The web service declares
- * a service binding to `api`, so Vercel injects the api service's internal
- * base URL into API_INTERNAL_URL — at function runtime only (never during
- * builds, and not visible in the browser).
+ * Deployment layout (docker-compose.dokploy.yml + Traefik): `web` is public
+ * at Host(bazionweb.com, www) and the API is served on the SAME origin at
+ * /api/v1 (higher-priority Traefik edge route wired to the api container).
+ * The web container declares API_INTERNAL_URL=http://api:4000 on the shared
+ * docker network so the runtime catch-all proxy can forward any /api/v1
+ * request the edge did not intercept.
  *
  * Resolution order:
- *   1. Browser: NEXT_PUBLIC_API_URL if set (dev .env.local, legacy external
- *      API hosts), else the current origin — browser requests go to /api/v1/...
- *      on the same domain and the top-level rewrite routes /api/(.*) to `api`.
- *   2. Server: API_INTERNAL_URL (Vercel services binding), then
- *      NEXT_PUBLIC_API_URL (legacy separate-domain deploys), then
- *      http://localhost:4000 in development / https://bazionweb.com in
- *      production (same-origin rewrite routes /api/v1 to the api service).
+ *   1. Browser: NEXT_PUBLIC_API_URL if set, else the current origin —
+ *      browser requests go to /api/v1/... on the same domain. Only bake a
+ *      dedicated API host (e.g. api.bazionweb.com) into the image when its
+ *      DNS record exists and is verified — it is currently NXDOMAIN on all
+ *      resolvers.
+ *   2. Server: API_INTERNAL_URL (Docker/Dokploy), then NEXT_PUBLIC_API_URL
+ *      (external API hosts), then http://localhost:4000 in development /
+ *      https://bazionweb.com in production (edge routes /api/v1 to the api
+ *      service).
  *
  * Production env drift has produced values like
  *   "NEXT_PUBLIC_API_URL = https://api.bazionweb.com/api/v1"   (name pasted in)
