@@ -21,14 +21,11 @@ import {
   DollarSign,
   Key,
   Lock,
-  Unlock,
   Server,
   ShieldCheck,
   Copy,
   AlertTriangle,
   Zap,
-  Clock,
-  Layers,
   FileText,
 } from 'lucide-react';
 import {
@@ -416,7 +413,6 @@ function AdminTroubleshootingContent() {
     (i: any) => i.lockoutReason === 'CLIENT_SUSPENDED' || i.lockoutReason === 'CLIENT_SOFT_DELETED' || i.lockoutReason === 'USER_SOFT_DELETED',
   ).length;
   const unclaimedCount = accessItems.filter((i: any) => i.lockoutReason === 'PASSWORD_UNSET').length;
-  const accessCount = actualLockedCount;
   const suspendedDomainCount = suspendedDomainsQuery.data?.totalSuspended ?? overview?.suspendedDomainsCount ?? 0;
 
   return (

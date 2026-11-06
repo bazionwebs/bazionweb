@@ -7,7 +7,7 @@ import {
   Lock, Loader2, CheckCircle2, AlertCircle, Eye, EyeOff, ShieldCheck, Mail, ArrowLeft,
 } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
-import { resolveApiV1Base } from '@/lib/api-base';
+import { resolveApiV1Base, toCleanUrl } from '@/lib/api-base';
 import { useAuthStore } from '@/store/auth.store';
 
 const API_BASE = resolveApiV1Base();
@@ -95,7 +95,7 @@ function ClaimContent() {
 
     setRequesting(true);
     try {
-      const res = await fetch('/api/auth/claim-link', {
+      const res = await fetch(toCleanUrl('/api/auth/claim-link'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: targetEmail.trim() }),

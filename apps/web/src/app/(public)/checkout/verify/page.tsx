@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, Download, Smartphone, CreditCard, Mail, Tag, Lock, LayoutDashboard } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
+import { toCleanUrl } from '@/lib/api-base';
 
 function VerifyPaymentContent() {
   const searchParams = useSearchParams();
@@ -29,7 +30,7 @@ function VerifyPaymentContent() {
     queryKey: ['checkout-verification', reference],
     enabled: Boolean(reference),
     queryFn: async () => {
-      const response = await fetch(`/api/paystack/verify?reference=${encodeURIComponent(reference!)}`, { cache: 'no-store' });
+      const response = await fetch(toCleanUrl(`/api/paystack/verify?reference=${encodeURIComponent(reference!)}`), { cache: 'no-store' });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.message || 'Payment verification is temporarily unavailable.');
       return body as {

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { to, url, clientName, type } = body ?? {};
+    const { to, url, type } = body ?? {};
 
     if (!to || typeof to !== 'string' || !to.includes('@') || !url || typeof url !== 'string') {
       return NextResponse.json(

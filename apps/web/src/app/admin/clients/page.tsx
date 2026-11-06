@@ -26,7 +26,6 @@ import {
   RefreshCw,
   Mail,
   ShieldAlert,
-  ArrowRight,
   CheckCircle2,
 } from 'lucide-react';
 import {

@@ -34,6 +34,7 @@ import {
   PACKAGE_DEFAULTS,
   normalizeProposalPayload,
 } from '@/lib/quote-flow';
+import { toCleanUrl } from '@/lib/api-base';
 
 function QuoteCalculatorContent() {
   const router = useRouter();
@@ -83,7 +84,7 @@ function QuoteCalculatorContent() {
     setIsLoadingProposal(true);
     setProposalFetchError(null);
     try {
-      const res = await fetch(`/api/quote?code=${encodeURIComponent(code)}`);
+      const res = await fetch(toCleanUrl(`/api/quote?code=${encodeURIComponent(code)}`));
       const envelope = await res.json().catch(() => ({}));
       if (!res.ok || !envelope.success || !envelope.data) {
         throw new Error(envelope.error || 'Proposal not found or reference code is invalid.');
@@ -277,7 +278,7 @@ function QuoteCalculatorContent() {
     setSubmissionError('');
 
     try {
-      const response = await fetch('/api/quote', {
+      const response = await fetch(toCleanUrl('/api/quote'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

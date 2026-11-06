@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Send, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import { toCleanUrl } from '@/lib/api-base';
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -65,7 +66,7 @@ export default function ContactForm() {
 
     setState('submitting');
     try {
-      const res = await fetch('/api/leads', {
+      const res = await fetch(toCleanUrl('/api/leads'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

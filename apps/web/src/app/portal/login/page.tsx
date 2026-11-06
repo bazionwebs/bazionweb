@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Eye, EyeOff, Loader2, AlertCircle, Mail, KeyRound, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import Logo from '@/components/ui/Logo';
+import { toCleanUrl } from '@/lib/api-base';
 
 export default function PortalLoginPage() {
   const { login } = useAuth();
@@ -41,7 +42,7 @@ export default function PortalLoginPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/magic-link', {
+      const res = await fetch(toCleanUrl('/api/auth/magic-link'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

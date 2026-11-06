@@ -63,3 +63,55 @@ export function resolveApiV1Base(): string {
   const origin = resolveApiBase();
   return `${origin}/api/v1`;
 }
+
+/**
+ * Resolves any relative or absolute URL into a clean absolute URL stripped of any
+ * embedded credentials (username/password).
+ *
+ * This directly prevents the browser error:
+ * "Failed to execute 'fetch' on 'Window': Request cannot be constructed from a URL that includes credentials"
+ * which browsers throw whenever fetch() is called with a relative path on a document
+ * loaded via HTTP Basic Auth or `https://user@domain`.
+ */
+export function toCleanUrl(pathOrUrl: string): string {
+  if (typeof window === 'undefined') {
+    return pathOrUrl;
+  }
+  // If already absolute (http:// or https://)
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    try {
+      const parsed = new URL(pathOrUrl);
+      parsed.username = '';
+      parsed.password = '';
+      return parsed.toString();
+    } catch {
+      return pathOrUrl;
+    }
+  }
+  const cleanPath = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+  // window.location.protocol + '//' + window.location.host is strictly scheme + host[:port]
+  // and NEVER contains userinfo/credentials.
+  return `${window.location.protocol}//${window.location.host}${cleanPath}`;
+}
+
+// Client-side fetch sanitizer safeguard:
+// Intercepts window.fetch to automatically strip credentials from relative and absolute string URLs.
+if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+  const originalFetch = window.fetch;
+  const isPatchedKey = '__bazion_clean_fetch_installed__';
+  if (!(window as any)[isPatchedKey]) {
+    (window as any)[isPatchedKey] = true;
+    window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
+      if (typeof input === 'string') {
+        return originalFetch.call(this, toCleanUrl(input), init);
+      }
+      if (input instanceof URL) {
+        const clean = new URL(input.toString());
+        clean.username = '';
+        clean.password = '';
+        return originalFetch.call(this, clean, init);
+      }
+      return originalFetch.call(this, input, init);
+    };
+  }
+}

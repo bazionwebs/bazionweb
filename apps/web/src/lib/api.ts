@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { ApiResponse, QuoteRequest } from '@/types';
 import { useAuthStore } from '@/store/auth.store';
-import { resolveApiV1Base } from '@/lib/api-base';
+import { resolveApiV1Base, toCleanUrl } from '@/lib/api-base';
 
 const api = axios.create({
   baseURL: resolveApiV1Base(),
@@ -362,7 +362,7 @@ export const adminApi = {
     clientName?: string;
     type?: 'claim' | 'magic';
   }) => {
-    const res = await fetch('/api/admin/dispatch-link', {
+    const res = await fetch(toCleanUrl('/api/admin/dispatch-link'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),

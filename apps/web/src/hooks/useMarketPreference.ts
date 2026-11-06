@@ -85,15 +85,12 @@ export interface UseMarketPreferenceReturn {
  * Strictly auto-detected and read-only.
  */
 export function useMarketPreference(initialMarket?: MarketCode): UseMarketPreferenceReturn {
-  // Synchronous state initialization from cookie / client hints / SSR initialMarket
-  const [marketCode, setMarketCode] = useState<MarketCode>(() => {
-    if (typeof window === 'undefined') return initialMarket || 'GLOBAL';
-    return detectMarket() || initialMarket || 'GLOBAL';
-  });
+  // Synchronous state initialization: Match SSR on initial render pass to prevent React #418/#425 hydration mismatches
+  const [marketCode, setMarketCode] = useState<MarketCode>(initialMarket || 'GLOBAL');
 
   useEffect(() => {
     // Re-verify cookie or client hints on mount and persist if not already saved
-    const resolved = detectMarket();
+    const resolved = detectMarket() || initialMarket || 'GLOBAL';
     setMarketCode(resolved);
     setMarketCookie(resolved);
 
@@ -103,7 +100,7 @@ export function useMarketPreference(initialMarket?: MarketCode): UseMarketPrefer
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [initialMarket]);
 
   const marketDef: MarketDefinition = MARKETS[marketCode] || MARKETS.GLOBAL;
   const legacyMarket: LegacyMarket = marketCode === 'KE' ? 'kenya' : 'international';

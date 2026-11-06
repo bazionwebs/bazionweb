@@ -20,7 +20,7 @@ import {
   Printer,
   Eye,
 } from 'lucide-react';
-import { resolveApiV1Base } from '@/lib/api-base';
+import { resolveApiV1Base, toCleanUrl } from '@/lib/api-base';
 import { portalApi } from '@/lib/api';
 import {
   useClientInvoices,
@@ -351,7 +351,7 @@ export default function InvoicesClient() {
     (async () => {
       if (ref) {
         try {
-          const res = await fetch(`/api/paystack/verify?reference=${encodeURIComponent(ref)}`, {
+          const res = await fetch(toCleanUrl(`/api/paystack/verify?reference=${encodeURIComponent(ref)}`), {
             cache: 'no-store',
           });
           const data = await res.json().catch(() => ({}));

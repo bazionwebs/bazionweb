@@ -44,6 +44,7 @@ import { usePlans, planMarketing, type ApiPlan } from '@/lib/plans';
 import { formatCurrency, getPriceBookForMarket } from '@/lib/priceBooks';
 import { formatMoney } from '@/lib/format';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
+import { toCleanUrl } from '@/lib/api-base';
 import {
   useClientProfile,
   useClientProjects,
@@ -508,7 +509,7 @@ export default function PackagesClient() {
       const firstName = nameParts[0] || 'Valued';
       const lastName = nameParts.slice(1).join(' ') || 'Client';
 
-      const quoteRes = await fetch('/api/quote', {
+      const quoteRes = await fetch(toCleanUrl('/api/quote'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

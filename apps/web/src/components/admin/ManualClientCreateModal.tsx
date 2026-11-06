@@ -13,7 +13,6 @@ import {
   Layers,
   Globe,
   AlertCircle,
-  ExternalLink,
   ShieldCheck,
 } from 'lucide-react';
 import { useManualProvisionClient } from '@/hooks/useAdminData';
