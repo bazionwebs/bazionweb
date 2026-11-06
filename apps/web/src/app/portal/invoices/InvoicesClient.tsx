@@ -190,7 +190,7 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(inv.invoiceNumber)} — Bazion Technologies Limited</title>
+  <title>${escapeHtml(inv.invoiceNumber)} — BAZION WEB</title>
   <style>
     ${getAntiFraudWatermarkCss()}
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 24px; background: #0B0F17; color: #0f172a; }

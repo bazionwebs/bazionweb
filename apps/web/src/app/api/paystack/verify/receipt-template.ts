@@ -596,7 +596,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
 
     <!-- Footer -->
     <div class="receipt-footer">
-      <p>Thank you for choosing <strong>Bazion Technologies</strong>. Your payment has been confirmed; view the dashboard for current service status.</p>
+      <p>Thank you for choosing <strong>BAZION WEB</strong>. Your payment has been confirmed; view the dashboard for current service status.</p>
       <p>For billing assistance or questions regarding this transaction, contact <strong>billing@bazionweb.com</strong> or call <strong>+254 721 287 053</strong>.</p>
     </div>
 

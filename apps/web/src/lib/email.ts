@@ -63,7 +63,7 @@ function renderEmailHeaderHtml(badge: string, subtitle = 'Managed Website Lifecy
       Bazion<span style="color: #2563EB;">Web</span>
     </div>
     <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px;">
-      Bazion Technologies Limited &bull; ${escapeHtml(subtitle)}
+      BAZION WEB &bull; ${escapeHtml(subtitle)}
     </div>
     <div style="margin-top: 10px;">
       <span style="display: inline-block; padding: 4px 14px; background: rgba(37, 99, 235, 0.15); border: 1px solid rgba(37, 99, 235, 0.35); color: #60A5FA; border-radius: 9999px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;">
@@ -84,7 +84,7 @@ function renderEmailSecuritySealHtml(docRef?: string): string {
       </div>
       <div style="display: table-cell; vertical-align: middle; padding-left: 12px;">
         <div style="font-size: 10.5px; font-weight: 800; color: #F8FAFC; letter-spacing: 0.04em;">
-          ★ BAZION TECHNOLOGIES LIMITED ★ OFFICIAL SYSTEM-GENERATED RECORD
+          ★ BAZION WEB (BN-DLSZOZ6O) ★ OFFICIAL SYSTEM-GENERATED RECORD
         </div>
         <div style="font-size: 9.5px; color: #94A3B8; margin-top: 2px; line-height: 1.4;">
           Authenticated via SSOT Engine. ${docRef ? `Ref: <span style="font-family: monospace; color: #38BDF8;">${escapeHtml(docRef)}</span> &bull; ` : ''}Pursuant to Kenya KICA Cap 411A, legally valid without wet signature.
@@ -98,8 +98,8 @@ function renderEmailCorporateFooterHtml(): string {
   const year = new Date().getFullYear();
   return `<!-- Corporate Single Source of Truth Footer -->
   <div style="font-size: 11px; color: #64748B; text-align: center; line-height: 1.6; margin-top: 24px;">
-    &copy; ${year} Bazion Technologies Limited &bull; Riverside Square, Nairobi, Kenya.<br>
-    <strong>KRA PIN:</strong> P052198745M &bull; <strong>Reg:</strong> PVT-XZ1988B<br>
+    &copy; ${year} BAZION WEB &bull; Mwiki, Gituamba, Embakasi, Nairobi (P.O. Box 46376, 00100 - G.P.O Nairobi).<br>
+    <strong>BRS Reg:</strong> BN-DLSZOZ6O (Cap 499) &bull; <strong>KRA PIN:</strong> P052198745M<br>
     billing@bazionweb.com &bull; support@bazionweb.com &bull; +254 721 287 053 &bull; www.bazionweb.com
   </div>`;
 }

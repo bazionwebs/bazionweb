@@ -344,7 +344,7 @@ export function ProposalPresentationView({
                   Turnkey Engineering &amp; Scope Statement
                 </h1>
                 <p className="mt-1 text-xs text-slate-300 sm:text-sm print:text-slate-600">
-                  Bazion Technologies Limited · Riverside Square, Nairobi, Kenya &bull; Global Operations
+                  {BAZION_CORPORATE_DETAILS.legalName} (Proprietor: {BAZION_CORPORATE_DETAILS.proprietor}) · {BAZION_CORPORATE_DETAILS.address}, Nairobi, Kenya &bull; Global Operations
                 </p>
               </div>
 
@@ -866,7 +866,7 @@ export function ProposalPresentationView({
             >
               {/* Security Microprint Ribbon */}
               <div className="rounded-lg bg-slate-900 text-slate-300 font-mono text-[9px] uppercase tracking-widest px-3 py-1.5 text-center mb-6">
-                ••• BAZION TECHNOLOGIES LIMITED ••• OFFICIAL SYSTEM-GENERATED RECORD ••• TAMPER-EVIDENT ELECTRONIC AUTHENTICATION ••• ISO 14533 ALIGNED •••
+                ••• BAZION WEB (BN-DLSZOZ6O) ••• OFFICIAL SYSTEM-GENERATED RECORD ••• TAMPER-EVIDENT ELECTRONIC AUTHENTICATION ••• ISO 14533 ALIGNED •••
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
@@ -932,7 +932,7 @@ export function ProposalPresentationView({
                       <div className="pt-1.5 border-t border-slate-200/80">
                         <span className="text-slate-500">Issuing Entity: </span>
                         <strong className="text-slate-900 block">
-                          Bazion Technologies Limited
+                          {BAZION_CORPORATE_DETAILS.legalName}
                         </strong>
                         <span className="text-[10px] text-slate-500 font-mono">
                           PIN: {BAZION_CORPORATE_DETAILS.taxPin} · Reg: {BAZION_CORPORATE_DETAILS.regNumber}
@@ -965,7 +965,7 @@ export function ProposalPresentationView({
               </div>
 
               <div className="rounded-xl bg-slate-100/90 border border-slate-200 px-4 py-3 text-[10px] text-slate-600 leading-relaxed text-center print:bg-slate-50">
-                <strong>Statutory Electronic Validity Notice:</strong> Pursuant to the <strong>Kenya Information and Communications Act (Cap 411A, Electronic Transactions)</strong> and the <strong>UNCITRAL Model Law on Electronic Commerce</strong>, this system-generated commercial statement is legally authentic, valid, and enforceable without a physical wet-ink signature or manual rubber seal.
+                <strong>Statutory Electronic Validity Notice:</strong> Pursuant to the <strong>Registration of Business Names Act (Cap 499, Sec 14)</strong>, <strong>Kenya Information and Communications Act (Cap 411A, Electronic Transactions)</strong> and the <strong>UNCITRAL Model Law on Electronic Commerce</strong>, this system-generated commercial statement is legally authentic, valid, and enforceable without a physical wet-ink signature or manual rubber seal. Official BRS verification: SMS &quot;BRS&quot; to 21546.
               </div>
             </section>
 

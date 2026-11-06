@@ -1,17 +1,21 @@
 /**
- * Official Corporate Metadata for Bazion Technologies Limited
+ * Official Corporate Metadata for BAZION WEB
  * Single Source of Truth across Invoices, Receipts, Proposals, Statements, and Emails.
+ * Compliant with Government of Kenya Certificate of Registration BN-DLSZOZ6O.
  */
 export const BAZION_CORPORATE_DETAILS = {
-  legalName: 'Bazion Technologies Limited',
+  legalName: 'BAZION WEB',
   tradingName: 'BazionWeb',
+  proprietor: 'Joseph Mburu Kiai',
   slogan: 'Managed Website Lifecycle & Enterprise Cloud Infrastructure',
-  regNumber: 'PVT-XZ1988B',
+  regNumber: 'BN-DLSZOZ6O',
   taxPin: 'P052198745M',
-  address: 'Riverside Square, Riverside Drive, Westlands',
-  poBox: 'P.O. Box 30920-00100',
+  address: 'Mwiki, Gituamba, Embakasi District',
+  poBox: 'P.O. Box 46376, 00100 - G.P.O Nairobi',
   city: 'Nairobi',
   country: 'Kenya',
+  brsValidation: 'Send BRS to 21546',
+  actCap: 'The Registration of Business Names Act (Cap 499, Sec 14)',
   email: 'billing@bazionweb.com',
   supportEmail: 'support@bazionweb.com',
   phone: '+254 721 287 053',
@@ -465,11 +469,11 @@ export function renderDigitalStampSvg(options: DigitalStampOptions = {}): string
   <circle cx="100" cy="100" r="86" stroke="${color}" stroke-width="1.8" fill="none" />
   <circle cx="100" cy="100" r="58" stroke="${color}" stroke-width="1.4" stroke-dasharray="3,2" fill="none" opacity="0.9" />
   <!-- Arched corporate identity text -->
-  <text font-family="'Inter', -apple-system, sans-serif" font-size="9.5" font-weight="900" fill="${color}" letter-spacing="1.5">
-    <textPath href="#seal-top-arc" startOffset="50%" text-anchor="middle">★ BAZION TECHNOLOGIES LIMITED ★</textPath>
+  <text font-family="'Inter', -apple-system, sans-serif" font-size="9" font-weight="900" fill="${color}" letter-spacing="1.4">
+    <textPath href="#seal-top-arc" startOffset="50%" text-anchor="middle">★ BAZION WEB · BN-DLSZOZ6O ★</textPath>
   </text>
   <text font-family="'Inter', -apple-system, sans-serif" font-size="8.5" font-weight="800" fill="${color}" letter-spacing="1.3">
-    <textPath href="#seal-bot-arc" startOffset="50%" text-anchor="middle">OFFICIAL DIGITAL SEAL · NAIROBI</textPath>
+    <textPath href="#seal-bot-arc" startOffset="50%" text-anchor="middle">OFFICIAL DIGITAL SEAL · NAIROBI, KENYA</textPath>
   </text>
   <!-- Security Shield Emblem -->
   <path d="M 80,72 L 120,72 L 126,98 L 100,122 L 74,98 Z" fill="${lightBg}" stroke="${color}" stroke-width="2" />
@@ -545,12 +549,12 @@ export function renderDocumentLetterheadHtml(options: LetterheadOptions): string
       <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
         ${renderBrandLogoSvg(36)}
       </div>
-      <div style="font-size: 11px; font-weight: 800; color: #0F172A; letter-spacing: 0.02em;">
-        ${legalName}
+      <div style="font-size: 12px; font-weight: 900; color: #0F172A; letter-spacing: 0.02em;">
+        ${legalName} <span style="font-size: 10px; font-weight: 600; color: #64748B;">(Proprietor: ${BAZION_CORPORATE_DETAILS.proprietor})</span>
       </div>
-      <div style="font-size: 11px; color: #64748B; margin-top: 3px; line-height: 1.45;">
-        ${address} · ${city}, ${country}<br>
-        <strong>KRA PIN:</strong> ${taxPin} · <strong>Reg:</strong> ${BAZION_CORPORATE_DETAILS.regNumber}<br>
+      <div style="font-size: 10.5px; color: #64748B; margin-top: 3px; line-height: 1.45;">
+        ${address} · ${BAZION_CORPORATE_DETAILS.poBox} · ${city}, ${country}<br>
+        <strong>BRS Reg:</strong> ${BAZION_CORPORATE_DETAILS.regNumber} (Cap 499, Sec 14) · <strong>KRA PIN:</strong> ${taxPin}<br>
         <strong>Email:</strong> <a href="mailto:${email}" style="color: #2563EB; text-decoration: none;">${email}</a> · <strong>Tel:</strong> ${phone} · <a href="${website}" style="color: #64748B; text-decoration: none;">${website.replace(/^https?:\/\//, '')}</a>
       </div>
     </div>
@@ -616,7 +620,7 @@ export function renderSecurityVerificationSectionHtml(options: SecuritySectionOp
 <section style="margin-top: 36px; border: 1px solid #CBD5E1; border-radius: 16px; background: #F8FAFC; overflow: hidden; page-break-inside: avoid;">
   <!-- Security Microprint Ribbon -->
   <div style="background: #0F172A; color: #94A3B8; font-size: 9px; font-family: 'JetBrains Mono', monospace, Courier; text-transform: uppercase; letter-spacing: 0.14em; padding: 6px 14px; text-align: center; border-bottom: 1px solid #1E293B;">
-    ••• BAZION TECHNOLOGIES LIMITED ••• OFFICIAL SYSTEM-GENERATED RECORD ••• TAMPER-EVIDENT ELECTRONIC AUTHENTICATION ••• ISO 14533 ALIGNED •••
+    ••• BAZION WEB (BN-DLSZOZ6O) ••• OFFICIAL SYSTEM-GENERATED RECORD ••• TAMPER-EVIDENT ELECTRONIC AUTHENTICATION ••• ISO 14533 ALIGNED •••
   </div>
 
   <div style="padding: 18px 22px;">
@@ -648,7 +652,7 @@ export function renderSecurityVerificationSectionHtml(options: SecuritySectionOp
           ${checksum}
         </div>
         <p style="font-size: 9.5px; color: #475569; margin-top: 6px; line-height: 1.45;">
-          <strong>Statutory Validity:</strong> Pursuant to the Kenya Information and Communications Act (Electronic Transactions) and UNCITRAL Model Law on Electronic Commerce, this computer-generated record is legally valid and binding without a wet-ink signature or physical seal.
+          <strong>Statutory Validity:</strong> Pursuant to the Registration of Business Names Act (Cap 499, Sec 14), Kenya Information and Communications Act (Electronic Transactions, Cap 411A) and UNCITRAL Model Law on Electronic Commerce, this computer-generated record is legally valid and binding without a wet-ink signature or physical seal. Official BRS validation: SMS "BRS" to 21546.
         </p>
       </div>
 
