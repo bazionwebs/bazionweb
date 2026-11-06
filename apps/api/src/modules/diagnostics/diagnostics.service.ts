@@ -232,14 +232,12 @@ export class AdminDiagnosticsService {
           dnsOk = false;
         }
 
-        let sslValid = false;
         let sslDaysLeft: number | null = null;
         let sslIssuer = acc.sslIssuer || 'Unknown';
         let handshakeError = false;
 
         if (acc.sslExpiry) {
           const expTime = new Date(acc.sslExpiry).getTime();
-          sslValid = expTime > now;
           sslDaysLeft = Math.floor((expTime - now) / 86_400_000);
         }
 
@@ -249,7 +247,6 @@ export class AdminDiagnosticsService {
             const cert = await this.inspectTlsCert(acc.domain, resolvedIp);
             if (cert.valid_to) {
               const expDate = new Date(cert.valid_to);
-              sslValid = expDate.getTime() > now;
               sslDaysLeft = Math.floor((expDate.getTime() - now) / 86_400_000);
               const rawIssuer = cert.issuer as any;
               sslIssuer = Array.isArray(rawIssuer?.O)

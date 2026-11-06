@@ -503,7 +503,6 @@ export class ClientsService {
       }
 
       // 2. Repair missing User
-      let userId = client.userId;
       if (!client.user) {
         const parts = client.contactName.split(/\s+/);
         const newUser = await tx.user.create({
@@ -520,7 +519,6 @@ export class ClientsService {
           where: { id: client.id },
           data: { userId: newUser.id },
         });
-        userId = newUser.id;
         repairedItems.push('Recreated missing linked User auth identity');
       }
 

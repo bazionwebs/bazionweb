@@ -1,4 +1,3 @@
-import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AdminDiagnosticsService } from '../diagnostics.service';
 import { AdminDiagnosticsController } from '../diagnostics.controller';

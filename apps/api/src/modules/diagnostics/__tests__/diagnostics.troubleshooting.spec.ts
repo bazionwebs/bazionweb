@@ -1,4 +1,4 @@
-import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import * as dns from 'dns';
 import { ConfigService } from '@nestjs/config';
 import { AdminDiagnosticsService } from '../diagnostics.service';
 import { ClientsService } from '../../clients/clients.service';
@@ -269,7 +269,7 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
   // ───────────────────────────────────────────────────────────────────────────
   describe('2. Fleet DNS & SSL Resolver', () => {
     it('TC-DIAG-SSL-1: flags certificate expiring within 7 days', async () => {
-      jest.spyOn(require('dns').promises, 'resolve4').mockResolvedValue(['104.21.5.12']);
+      jest.spyOn(dns.promises, 'resolve4').mockResolvedValue(['104.21.5.12']);
       const fiveDaysFromNow = new Date(Date.now() + 5 * 86_400_000);
       const mockHosting = [
         {
@@ -327,7 +327,7 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
         domain: 'internal.corp',
         ipAddress: '127.0.0.1',
       });
-      jest.spyOn(require('dns').promises, 'resolve4').mockResolvedValue(['192.168.1.50']);
+      jest.spyOn(dns.promises, 'resolve4').mockResolvedValue(['192.168.1.50']);
 
       await expect(
         diagnosticsService.remediateDnsSsl(
@@ -338,7 +338,7 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
     });
 
     it('TC-SSRF-SSL-2: scanDnsSslFleet avoids live TLS inspection for private/reserved resolved IPs', async () => {
-      jest.spyOn(require('dns').promises, 'resolve4').mockResolvedValue(['10.0.0.1']);
+      jest.spyOn(dns.promises, 'resolve4').mockResolvedValue(['10.0.0.1']);
       const inspectSpy = jest.spyOn<any, any>(diagnosticsService, 'inspectTlsCert');
 
       const mockHosting = [
