@@ -38,6 +38,7 @@ export interface ProposalViewModel {
 }
 
 export type QuotePackageType =
+  | 'existing'
   | 'launch'
   | 'business'
   | 'professional'
@@ -51,6 +52,8 @@ export interface QuoteConfig {
   extraPages: number;
   selectedAddOns: string[];
   rushDelivery: boolean;
+  domainType?: string;
+  domainName?: string;
   care: string;
   hosting: string;
   billingCycle?: string;
@@ -65,6 +68,9 @@ export interface ServiceMapping {
 
 export const SERVICE_TO_QUOTE_CONFIG: Record<string, ServiceMapping> = {
   // Websites service family
+  existing: { packageType: 'existing' },
+  'existing-website': { packageType: 'existing' },
+  byow: { packageType: 'existing' },
   websites: { packageType: 'business' },
   website: { packageType: 'business' },
   web: { packageType: 'business' },
@@ -101,6 +107,7 @@ export const SERVICE_TO_QUOTE_CONFIG: Record<string, ServiceMapping> = {
 };
 
 export const PACKAGE_DEFAULTS = {
+  existing: { name: 'Existing Website (Bring Your Own)', basePages: 0, kenyaCost: 0, intlCost: 0 },
   launch: { name: 'Launch Website', basePages: 5, kenyaCost: 25000, intlCost: 450 },
   business: { name: 'Business Website', basePages: 10, kenyaCost: 90000, intlCost: 950 },
   professional: { name: 'Professional Website', basePages: 15, kenyaCost: 160000, intlCost: 1750 },

@@ -47,7 +47,9 @@ function QuoteCalculatorContent() {
   const lastFetchedCodeRef = useRef<string | null>(null);
 
   const { market, marketCode, marketDef } = useMarketPreference();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [domainOption, setDomainOption] = useState<'domain-existing' | 'domain-co-ke' | 'domain-com' | 'domain-org'>('domain-existing');
+  const [domainNameInput, setDomainNameInput] = useState('');
   const [config, setConfig] = useState<QuoteConfig>({
     market,
     packageType: (searchParams.get('package') as QuoteConfig['packageType']) || 'business',
@@ -55,7 +57,7 @@ function QuoteCalculatorContent() {
     selectedAddOns: [],
     rushDelivery: false,
     care: 'none',
-    hosting: 'none',
+    hosting: 'host-business',
     billingCycle: (searchParams.get('cycle') as string) || 'annually',
   });
 
@@ -415,21 +417,17 @@ Please confirm availability and discuss next steps.`;
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       {/* Header */}
-      <div className="bg-[#0F172A] pt-32 pb-16 text-white">
+      <div className="bg-[#0F172A] pt-32 pb-14 text-white">
         <div className="container-default max-w-5xl">
           <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Instant Quote Calculator' }]} />
-          <div className="my-6 max-w-5xl">
-            <ClientJourneyProgress currentStep={2} variant="dark" />
-          </div>
-          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
+          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mt-4 mb-3">
             Interactive Cost Estimator
           </span>
           <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
             Build your custom project estimate
           </h1>
           <p className="text-slate-300 text-sm md:text-base max-w-2xl leading-relaxed mb-4">
-            Configure your website tier, extra pages, payment integrations, and managed care plans.
-            Itemized transparency with zero hidden markups.
+            Configure your website tier (existing or new build), domain name, managed hosting, and optional care plans on a single page with a live frozen summary.
           </p>
 
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-slate-200">
@@ -439,6 +437,56 @@ Please confirm availability and discuss next steps.`;
             <span className="text-slate-300">
               {marketCode === 'KE' ? 'M-Pesa STK · 16% KRA VAT Inclusive' : 'Card / Wire · 0% Export'}
             </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Step-by-Step Client Journey Banner (Below Hero Banner with High Contrast) */}
+      <div className="bg-[#0B1120] border-b border-slate-800 py-5">
+        <div className="container-default max-w-5xl">
+          <ClientJourneyProgress currentStep={2} variant="dark" />
+        </div>
+      </div>
+
+      {/* Distinct Dark Slate Sticky Step Bar (Different from White Navbar) */}
+      <div className="sticky top-20 z-30 bg-[#1E293B] backdrop-blur-md border-y border-slate-700/80 shadow-md text-white">
+        <div className="container-default max-w-5xl py-3">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {[
+              { num: 1, label: '1. Website / App Foundation (Mandatory)' },
+              { num: 2, label: '2. Add-Ons & Domain Name (Mandatory)' },
+              { num: 3, label: '3. Managed Hosting & Care Plan' },
+            ].map((s) => {
+              const active = step === s.num;
+              const done = step > s.num;
+              return (
+                <button
+                  key={s.num}
+                  type="button"
+                  onClick={() => setStep(s.num as 1 | 2 | 3)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${
+                    active
+                      ? 'bg-[#14B8A6] text-slate-950 shadow-sm'
+                      : done
+                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60'
+                        : 'bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                      done
+                        ? 'bg-emerald-500 text-white'
+                        : active
+                          ? 'bg-slate-950 text-[#14B8A6]'
+                          : 'bg-slate-900 text-slate-300'
+                    }`}
+                  >
+                    {done ? <Check className="w-3 h-3" /> : s.num}
+                  </div>
+                  <span>{s.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -461,62 +509,24 @@ Please confirm availability and discuss next steps.`;
         </div>
       )}
 
-      <div className="container-default max-w-5xl py-12">
-        {/* Progress Navigation */}
-        <div className="flex items-center gap-3 mb-10 overflow-x-auto pb-2">
-          {[
-            { num: 1, label: 'Core Package & Pages' },
-            { num: 2, label: 'Add-Ons & Integrations' },
-            { num: 3, label: 'Care & Maintenance' },
-          ].map(s => {
-            const active = step === s.num;
-            const done = step > s.num;
-            return (
-              <button
-                key={s.num}
-                onClick={() => setStep(s.num as 1 | 2 | 3)}
-                className="flex items-center gap-2 shrink-0"
-              >
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                    done
-                      ? 'bg-[#22C55E] text-white'
-                      : active
-                      ? 'bg-[#2563EB] text-white'
-                      : 'bg-slate-200 text-slate-500'
-                  }`}
-                >
-                  {done ? <Check className="w-3.5 h-3.5" /> : s.num}
-                </div>
-                <span
-                  className={`text-sm font-semibold ${
-                    active ? 'text-[#0F172A]' : 'text-slate-400'
-                  }`}
-                >
-                  {s.label}
-                </span>
-                {s.num < 3 && <ChevronRight className="w-4 h-4 text-slate-300 mx-1" />}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="container-default max-w-5xl py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left: Step Configurator */}
           <div className="lg:col-span-2 space-y-6">
             {/* STEP 1: Core Package & Pages */}
             {step === 1 && (
               <div className="card p-6 md:p-8 bg-white border border-slate-200 shadow-sm">
                 <h2 className="text-xl font-bold text-[#0F172A] mb-1">
-                  1. Select Your Baseline Package
+                  1. Select Your Website Foundation (Existing or New Build)
                 </h2>
                 <p className="text-xs text-slate-500 mb-6">
-                  Each package includes mobile-first architecture, SSL, SEO setup, and included post-launch defect warranty.
+                  Start with an already-built website (0 base build fee) or select a new website, e-commerce store, or custom digital system.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
                   {(
                     [
+                      { id: 'existing', name: 'Existing Website (Bring Your Own)', desc: 'Already have a site? Add features, domain, or hosting', pages: 0 },
                       { id: 'launch', name: 'Launch', desc: 'Up to 5 pages, brochure setup', pages: 5 },
                       { id: 'business', name: 'Business', desc: 'Up to 10 pages + CMS + Blog', pages: 10, rec: true },
                       { id: 'professional', name: 'Professional', desc: 'Up to 15 pages + Advanced UX', pages: 15 },
@@ -600,17 +610,54 @@ Please confirm availability and discuss next steps.`;
               </div>
             )}
 
-            {/* STEP 2: Add-Ons & Integrations */}
+            {/* STEP 2: Domain Name & Add-Ons */}
             {step === 2 && (
-              <div className="card p-6 md:p-8 bg-white border border-slate-200 shadow-sm">
-                <h2 className="text-xl font-bold text-[#0F172A] mb-1">
-                  2. Choose Add-Ons & Functional Modules
-                </h2>
-                <p className="text-xs text-slate-500 mb-6">
-                  Select additional features or integrations to bundle into your build quotation.
-                </p>
+              <div className="card p-6 md:p-8 bg-white border border-slate-200 shadow-sm space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold text-[#0F172A] mb-1">
+                    2. Domain Name &amp; Add-On Modules
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-4">
+                    Choose whether you already own a domain or need a new registration, then select any optional add-on modules.
+                  </p>
 
-                <div className="space-y-3 mb-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                    {[
+                      { id: 'domain-existing' as const, label: 'I Already Own a Domain', price: `${currencySymbol} 0 (Free DNS/SSL Setup)` },
+                      { id: 'domain-co-ke' as const, label: 'Register .co.ke Domain', price: config.market === 'kenya' ? 'KSh 1,500/yr' : '$15/yr' },
+                      { id: 'domain-com' as const, label: 'Register .com Domain', price: config.market === 'kenya' ? 'KSh 2,500/yr' : '$20/yr' },
+                      { id: 'domain-org' as const, label: 'Register .org Domain', price: config.market === 'kenya' ? 'KSh 3,500/yr' : '$28/yr' },
+                    ].map((dom) => (
+                      <button
+                        key={dom.id}
+                        type="button"
+                        onClick={() => setDomainOption(dom.id)}
+                        className={`p-3.5 rounded-xl border-2 text-left transition-all ${
+                          domainOption === dom.id
+                            ? 'border-[#2563EB] bg-blue-50/40'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="font-bold text-xs text-[#0F172A]">{dom.label}</div>
+                        <div className="text-xs font-extrabold text-[#14B8A6] mt-0.5">{dom.price}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    type="text"
+                    value={domainNameInput}
+                    onChange={(e) => setDomainNameInput(e.target.value)}
+                    placeholder="Optional: Enter your existing or desired domain (e.g. mycompany.co.ke)"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-[#2563EB]"
+                  />
+                </div>
+
+                <div className="pt-4 border-t border-slate-100">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                    Optional Add-On Modules &amp; Integrations:
+                  </div>
+                <div className="space-y-3 mb-6">
                   {ADD_ON_RATE_CARD.filter(a => a.id !== 'extra-page' && a.id !== 'rush-delivery').map(addon => {
                     const isChecked = config.selectedAddOns.includes(addon.id);
                     const price = config.market === 'kenya' ? addon.kenyaPrice : addon.intlPrice;
@@ -646,6 +693,7 @@ Please confirm availability and discuss next steps.`;
                       </button>
                     );
                   })}
+                  </div>
                 </div>
 
                 {/* Priority Rush Delivery Option */}

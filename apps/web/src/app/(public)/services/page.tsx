@@ -194,19 +194,16 @@ export default async function ServicesPage() {
         }}
       />
       {/* ─── Hero Header ─── */}
-      <section className="section bg-[#0F172A] pt-32 pb-20 text-white">
+      <section className="section bg-[#0F172A] pt-32 pb-16 text-white">
         <div className="container-default max-w-4xl mx-auto text-center">
           <div className="flex justify-center mb-4">
             <Breadcrumbs trail={[{ name: 'Home', href: '/' }, { name: 'Services' }]} />
-          </div>
-          <div className="mb-6 max-w-4xl mx-auto">
-            <ClientJourneyProgress currentStep={1} variant="dark" />
           </div>
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-3">
             Core Service Architecture
           </span>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 tracking-tight">
-            Websites, Digital Systems & Managed Technology
+            Websites, Digital Systems &amp; Managed Technology
           </h1>
           <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed mb-8">
             We design, develop, secure, and maintain professional digital solutions for businesses, organizations, and institutions in Kenya and worldwide.
@@ -220,6 +217,13 @@ export default async function ServicesPage() {
               Open Instant Quote Calculator
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* ─── Step-by-Step Client Journey Banner (Below Hero Banner with High Contrast) ─── */}
+      <section className="bg-[#0B1120] border-b border-slate-800 py-5">
+        <div className="container-default max-w-6xl mx-auto">
+          <ClientJourneyProgress currentStep={1} variant="dark" />
         </div>
       </section>
 

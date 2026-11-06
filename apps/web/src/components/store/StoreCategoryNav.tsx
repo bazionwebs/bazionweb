@@ -98,7 +98,7 @@ export function StoreCategoryNav({
   return (
     <nav
       aria-label="Store category navigation"
-      className="sticky top-20 z-30 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs transition-shadow"
+      className="sticky top-20 z-30 w-full bg-[#1E293B] backdrop-blur-md border-y border-slate-700/80 shadow-md transition-shadow"
     >
       <div className="container-default max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16 gap-3 sm:gap-4">
@@ -109,7 +109,7 @@ export function StoreCategoryNav({
               data-testid="fade-left"
               aria-hidden="true"
               className={cn(
-                'absolute left-0 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-r from-white via-white/80 to-transparent transition-opacity duration-200',
+                'absolute left-0 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-r from-[#1E293B] via-[#1E293B]/80 to-transparent transition-opacity duration-200',
                 canScrollLeft ? 'opacity-100' : 'opacity-0'
               )}
             />
@@ -150,18 +150,18 @@ export function StoreCategoryNav({
                       }
                     }}
                     className={cn(
-                      'group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2',
+                      'group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1E293B]',
                       isActive
-                        ? 'bg-[#2563EB] text-white shadow-sm shadow-blue-500/20'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 bg-transparent border border-slate-200/60'
+                        ? 'bg-[#2563EB] text-white shadow-md shadow-blue-500/30 ring-1 ring-blue-400/50'
+                        : 'text-slate-200 hover:text-white hover:bg-slate-700/80 bg-slate-800/80 border border-slate-600/80'
                     )}
                   >
                     <Icon
                       className={cn(
                         'h-4 w-4 shrink-0 transition-colors',
                         isActive
-                          ? 'text-white'
-                          : 'text-slate-500 group-hover:text-slate-700'
+                          ? 'text-[#14B8A6]'
+                          : 'text-slate-300 group-hover:text-white'
                       )}
                     />
                     <span>{cat.label}</span>
@@ -172,7 +172,7 @@ export function StoreCategoryNav({
                           'text-[11px] font-extrabold px-2 py-0.5 rounded-full transition-colors',
                           isActive
                             ? 'bg-white/20 text-white'
-                            : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200 group-hover:text-slate-900'
+                            : 'bg-slate-700 text-slate-200 group-hover:bg-slate-600 group-hover:text-white'
                         )}
                       >
                         {cat.count}
@@ -184,8 +184,8 @@ export function StoreCategoryNav({
                         className={cn(
                           'text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full transition-colors',
                           isActive
-                            ? 'bg-teal-400 text-slate-900'
-                            : 'bg-teal-50 text-teal-700 border border-teal-200/60'
+                            ? 'bg-[#14B8A6] text-slate-950'
+                            : 'bg-teal-500/20 text-teal-300 border border-teal-400/40'
                         )}
                       >
                         {cat.count}
@@ -197,8 +197,8 @@ export function StoreCategoryNav({
                         className={cn(
                           'text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full transition-colors',
                           isActive
-                            ? 'bg-teal-400 text-slate-900'
-                            : 'bg-teal-50 text-teal-700 border border-teal-200/60'
+                            ? 'bg-[#14B8A6] text-slate-950'
+                            : 'bg-teal-500/20 text-teal-300 border border-teal-400/40'
                         )}
                       >
                         {cat.badge}
@@ -214,7 +214,7 @@ export function StoreCategoryNav({
               data-testid="fade-right"
               aria-hidden="true"
               className={cn(
-                'absolute right-0 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-l from-white via-white/80 to-transparent transition-opacity duration-200',
+                'absolute right-0 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-l from-[#1E293B] via-[#1E293B]/80 to-transparent transition-opacity duration-200',
                 canScrollRight ? 'opacity-100' : 'opacity-0'
               )}
             />
@@ -225,11 +225,11 @@ export function StoreCategoryNav({
             <Link
               href="/cart"
               aria-label={`View Cart, ${cartCount} items`}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs sm:text-sm font-bold hover:bg-slate-800 transition-all duration-150 shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#14B8A6] text-slate-950 text-xs sm:text-sm font-extrabold hover:bg-teal-400 transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
             >
-              <ShoppingCart className="h-4 w-4 text-teal-400" />
+              <ShoppingCart className="h-4 w-4 text-slate-950" />
               <span className="hidden sm:inline">View Cart</span>
-              <span className="bg-[#2563EB] text-white text-[11px] font-extrabold px-2 py-0.5 rounded-full">
+              <span className="bg-slate-950 text-white text-[11px] font-extrabold px-2 py-0.5 rounded-full">
                 {cartCount}
               </span>
             </Link>

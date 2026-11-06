@@ -103,17 +103,20 @@ export default function CartView() {
 
   return (
     <main className="bg-white">
-      <section className="bg-[#0F172A] pt-32 pb-16 text-white">
+      <section className="bg-[#0F172A] pt-32 pb-14 text-white">
         <div className="container-default max-w-7xl mx-auto px-4">
-          <Suspense fallback={null}>
-            <div className="mb-4 max-w-5xl">
-              <ClientJourneyProgress variant="dark" />
-            </div>
-          </Suspense>
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-[#14B8A6] mb-4">
             <ShoppingCart className="h-4 w-4" /> Shopping Cart
           </span>
           <h1 className="text-4xl font-extrabold tracking-tight">Review your order</h1>
+        </div>
+      </section>
+
+      <section className="bg-[#0B1120] border-b border-slate-800 py-5">
+        <div className="container-default max-w-7xl mx-auto px-4">
+          <Suspense fallback={null}>
+            <ClientJourneyProgress variant="dark" />
+          </Suspense>
         </div>
       </section>
 

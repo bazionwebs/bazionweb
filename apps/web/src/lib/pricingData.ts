@@ -90,6 +90,167 @@ export interface HostingPlan {
   billingCycles?: HostingBillingCycle[];
 }
 
+export interface DomainPlan {
+  id: 'domain-existing' | 'domain-co-ke' | 'domain-com' | 'domain-org';
+  name: string;
+  badge?: string;
+  popular?: boolean;
+  isExisting?: boolean;
+  kenyaPrice: string;
+  intlPrice: string;
+  rawKes: number;
+  rawUsd: number;
+  billingPeriod: 'one-time' | 'year';
+  description: string;
+  features: string[];
+}
+
+export interface CommercialFlowStep {
+  step: 1 | 2 | 3 | 4;
+  id: 'websites' | 'domains' | 'hosting' | 'plans';
+  title: string;
+  shortTitle: string;
+  subtitle: string;
+  mandatory: boolean;
+  badgeLabel: string;
+}
+
+export const COMMERCIAL_FLOW_STEPS: CommercialFlowStep[] = [
+  {
+    step: 1,
+    id: 'websites',
+    title: '1. Website / App & Add-Ons',
+    shortTitle: '1. Website & Add-Ons',
+    subtitle: 'Start with an existing website (bring your own) or pick a new build package, plus any optional add-ons.',
+    mandatory: true,
+    badgeLabel: 'Step 1 · Required',
+  },
+  {
+    step: 2,
+    id: 'domains',
+    title: '2. Domain Name',
+    shortTitle: '2. Domain',
+    subtitle: 'Connect a domain you already own or register a new .co.ke, .com, or .org domain.',
+    mandatory: true,
+    badgeLabel: 'Step 2 · Required',
+  },
+  {
+    step: 3,
+    id: 'hosting',
+    title: '3. Managed Hosting Package',
+    shortTitle: '3. Hosting',
+    subtitle: 'Choose your cloud container & SSL hosting tier for fast, reliable online visibility.',
+    mandatory: true,
+    badgeLabel: 'Step 3 · Required',
+  },
+  {
+    step: 4,
+    id: 'plans',
+    title: '4. Website Care & Maintenance Plan',
+    shortTitle: '4. Care Plan (Optional)',
+    subtitle: 'Optional ongoing updates, backups & priority developer hours — or stick with the included launch warranty.',
+    mandatory: false,
+    badgeLabel: 'Step 4 · Optional',
+  },
+];
+
+export const EXISTING_WEBSITE_PACKAGE: WebsitePlan = {
+  id: 'existing',
+  name: 'Existing Website (Bring Your Own)',
+  badge: 'Already Have a Site',
+  kenyaPrice: 'KSh 0',
+  intlPrice: '$0',
+  pages: 'Existing Website / Web App',
+  timeline: '1–3 working days onboarding',
+  revisions: 'Compatibility & DNS Audit',
+  support: 'Free migration & SSL readiness check',
+  targetAudience: 'Clients who already have a built website or application and want domain connection, managed hosting, care, or feature add-ons.',
+  description: 'Already have a website built? Select this package to onboard your existing site at zero build cost, then pick any add-ons, domain, hosting, and optional care plan.',
+  deliverables: [
+    'Technical compatibility & stack audit for your existing site',
+    'Zero-downtime deployment & container environment setup',
+    'Automated SSL certificate & Cloudflare CDN routing',
+    'Ready to attach any feature Add-Ons (M-Pesa, SEO, Booking, Admin Hub)',
+    'Seamless connection to your existing or new domain name',
+    'Direct onboarding into Managed Hosting & optional Care Plan',
+  ],
+  ctaText: 'Use My Existing Website',
+  ctaHref: '/quote?package=existing',
+};
+
+export const DOMAIN_PACKAGES: DomainPlan[] = [
+  {
+    id: 'domain-existing',
+    name: 'I Already Own a Domain',
+    badge: 'Bring Your Own Domain',
+    isExisting: true,
+    kenyaPrice: 'KSh 0 (Included)',
+    intlPrice: '$0 (Included)',
+    rawKes: 0,
+    rawUsd: 0,
+    billingPeriod: 'one-time',
+    description: 'Keep your existing registrar and point your DNS records to our managed cloud, or transfer management cleanly.',
+    features: [
+      'Free DNS zone configuration & propagation check',
+      'Automated SSL/TLS HTTPS certificate provisioning',
+      'Custom business email MX & SPF/DKIM record preservation',
+      '100% domain ownership remains in your name',
+    ],
+  },
+  {
+    id: 'domain-co-ke',
+    name: 'Register .co.ke / .or.ke Domain',
+    badge: 'Popular in Kenya',
+    popular: true,
+    kenyaPrice: 'KSh 1,500/year',
+    intlPrice: '$15/year',
+    rawKes: 1500,
+    rawUsd: 15,
+    billingPeriod: 'year',
+    description: 'Official KENIC East African domain registration (.co.ke, .or.ke, .me.ke) registered 100% under your organization.',
+    features: [
+      '1-year official .co.ke / .or.ke domain registration',
+      'Cloudflare Anycast DNS & DDoS protection included',
+      'Automated Let’s Encrypt SSL certificate renewal',
+      'Registered directly under your legal business identity',
+    ],
+  },
+  {
+    id: 'domain-com',
+    name: 'Register .com / .net Domain',
+    badge: 'Global Standard',
+    kenyaPrice: 'KSh 2,500/year',
+    intlPrice: '$20/year',
+    rawKes: 2500,
+    rawUsd: 20,
+    billingPeriod: 'year',
+    description: 'Universal commercial .com or .net domain name for local and international brand authority.',
+    features: [
+      '1-year .com or .net domain name registration',
+      'Free WHOIS domain privacy protection included',
+      'Managed Anycast DNS & instant SSL activation',
+      'Full registrar transfer & ownership control',
+    ],
+  },
+  {
+    id: 'domain-org',
+    name: 'Register .org / .africa / .io Domain',
+    badge: 'NGOs & Tech',
+    kenyaPrice: 'KSh 3,500/year',
+    intlPrice: '$28/year',
+    rawKes: 3500,
+    rawUsd: 28,
+    billingPeriod: 'year',
+    description: 'Specialized top-level domains for NGOs, foundations, pan-African enterprises, and technology startups.',
+    features: [
+      '1-year .org, .africa, or .io domain registration',
+      'WHOIS privacy & DNSSEC security protection',
+      'Automated HTTPS SSL & email DNS readiness',
+      'Full client ownership & renewal alerts',
+    ],
+  },
+];
+
 export interface AddOnItem {
   id: string;
   name: string;

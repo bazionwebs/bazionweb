@@ -52,17 +52,19 @@ export default async function CheckoutPage({
         </div>
 
         {/* Section Header — synced journey: auto-infers Step 4 (Secure Settlement) */}
-        <div className="text-center max-w-2xl mx-auto mb-8">
-          <Suspense fallback={null}>
-            <div className="min-w-0">
-              <ClientJourneyProgress variant="dark" />
-            </div>
-          </Suspense>
-          <span className="text-xs font-bold uppercase tracking-widest text-[#14B8A6]">Billing & Activation</span>
+        <div className="text-center max-w-2xl mx-auto mb-6">
+          <span className="text-xs font-bold uppercase tracking-widest text-[#14B8A6]">Billing &amp; Activation</span>
           <h1 className="text-3xl md:text-4xl font-extrabold text-white mt-1">Complete Your Subscription</h1>
           <p className="text-sm text-slate-400 mt-2">
             Choose your preferred payment method. Mobile-money instant activation or international card billing via Paystack.
           </p>
+        </div>
+
+        {/* High-Contrast Step-by-Step Journey Banner Below Header */}
+        <div className="max-w-5xl mx-auto mb-8">
+          <Suspense fallback={null}>
+            <ClientJourneyProgress variant="dark" />
+          </Suspense>
         </div>
 
         {/* Dynamic Checkout Component */}

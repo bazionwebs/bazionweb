@@ -25,7 +25,28 @@ export interface CartItem {
   /** Display-only unit price in the market currency. */
   unitPrice: number;
   currency: string;
+  /** Optional metadata such as domain name or existing website URL. */
+  meta?: string;
 }
+
+export const isWebsiteItem = (item: { id: string; kind?: string }): boolean =>
+  item.id.startsWith('website-') ||
+  item.id.startsWith('ecommerce-') ||
+  item.id.startsWith('pkg-') ||
+  item.id.startsWith('custom-tier-') ||
+  item.id.startsWith('service-admin-hub-');
+
+export const isDomainItem = (item: { id: string; kind?: string }): boolean =>
+  item.id.startsWith('domain-');
+
+export const isHostingItem = (item: { id: string; kind?: string }): boolean =>
+  item.id.startsWith('host-');
+
+export const isCarePlanItem = (item: { id: string; kind?: string }): boolean =>
+  item.kind === 'PLAN' || item.id.startsWith('care-');
+
+export const isAddOnItem = (item: { id: string; kind?: string }): boolean =>
+  !isWebsiteItem(item) && !isDomainItem(item) && !isHostingItem(item) && !isCarePlanItem(item);
 
 interface CartState {
   items: CartItem[];
@@ -44,16 +65,33 @@ export const useCartStore = create<CartState>()(
       add: (item) =>
         set((state) => {
           const key = makeKey(item);
-          // A cart anchors on exactly one subscription plan — adding another
-          // replaces it (WHMCS behaves the same way for plan switches).
-          const base = item.kind === 'PLAN' ? state.items.filter((i) => i.kind !== 'PLAN') : state.items;
+          // Single-slot categories (Care Plan, Website Foundation, Domain, Hosting)
+          // replace any prior selection in the same slot; Add-Ons stack freely.
+          let base = state.items;
+          if (item.kind === 'PLAN' || item.id.startsWith('care-')) {
+            base = base.filter((i) => i.kind !== 'PLAN' && !i.id.startsWith('care-'));
+          } else if (isWebsiteItem(item)) {
+            base = base.filter((i) => !isWebsiteItem(i));
+          } else if (isDomainItem(item)) {
+            base = base.filter((i) => !isDomainItem(i));
+          } else if (isHostingItem(item)) {
+            base = base.filter((i) => !isHostingItem(i));
+          }
+
           const existing = base.find((i) => i.key === key);
           if (existing) {
-            // Plans/hosting are single-subscription lines — cap at 1; add-ons stack.
-            const cap = item.kind === 'PLAN' || item.cycle !== 'one-time' ? 1 : 10;
+            const isSingleSlot =
+              item.kind === 'PLAN' ||
+              item.cycle !== 'one-time' ||
+              isWebsiteItem(item) ||
+              isDomainItem(item) ||
+              isHostingItem(item);
+            const cap = isSingleSlot ? 1 : 10;
             return {
               items: base.map((i) =>
-                i.key === key ? { ...i, qty: Math.min(cap, i.qty + item.qty) } : i,
+                i.key === key
+                  ? { ...i, qty: Math.min(cap, i.qty + item.qty), ...(item.meta !== undefined ? { meta: item.meta } : {}) }
+                  : i,
               ),
             };
           }

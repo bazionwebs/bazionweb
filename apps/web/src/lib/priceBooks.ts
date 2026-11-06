@@ -162,7 +162,7 @@ export function calculatePlanCyclePrice(
 
 export interface CommercialPriceItem {
   productId: string;
-  category: 'website' | 'ecommerce' | 'custom' | 'care' | 'hosting' | 'addon' | 'rate';
+  category: 'website' | 'ecommerce' | 'custom' | 'domain' | 'care' | 'hosting' | 'addon' | 'rate';
   name: string;
   amount: number;
   currency: 'KES' | 'USD' | 'EUR' | 'GBP';
@@ -209,6 +209,20 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
   paymentRails: ['M-Pesa STK Push', 'Local Visa / Mastercard'],
   items: {
     // Websites
+    'website-existing': {
+      productId: 'website-existing',
+      category: 'website',
+      name: 'Existing Website (Bring Your Own Site)',
+      amount: 0,
+      currency: 'KES',
+      formatted: 'KSh 0 (Included Onboarding)',
+      billingPeriod: 'one-time',
+      pages: 'Existing site / app',
+      timeline: '1–3 working days onboarding',
+      supportWarranty: 'Compatibility & DNS check',
+      badge: 'Already Have a Site',
+      description: 'Connect your already-built website or web app to our domain, managed hosting, care plans, or feature add-ons.',
+    },
     'website-launch': {
       productId: 'website-launch',
       category: 'website',
@@ -421,6 +435,53 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       billingPeriod: 'month',
       description: 'Dedicated engineering pod, 24/7 SLA, and full-lifecycle cloud management.',
       billingOptions: generateBillingCycles(40000, 'KES', { annualDiscountPct: 20 }),
+    },
+
+    // Domains
+    'domain-existing': {
+      productId: 'domain-existing',
+      category: 'domain',
+      name: 'Connect Existing Domain (DNS & SSL Setup)',
+      amount: 0,
+      currency: 'KES',
+      formatted: 'KSh 0 (Included)',
+      billingPeriod: 'one-time',
+      badge: 'Bring Your Own Domain',
+      description: 'Point your existing domain name to our managed DNS & automated SSL infrastructure at zero extra charge.',
+    },
+    'domain-co-ke': {
+      productId: 'domain-co-ke',
+      category: 'domain',
+      name: '.co.ke / .or.ke / .me.ke Domain Registration',
+      amount: 1500,
+      currency: 'KES',
+      formatted: 'KSh 1,500/yr',
+      billingPeriod: 'year',
+      popular: true,
+      badge: 'Kenya Official TLD',
+      description: 'Annual KENIC domain registration with managed DNS, WHOIS protection, and auto-renewing SSL.',
+    },
+    'domain-com': {
+      productId: 'domain-com',
+      category: 'domain',
+      name: '.com / .net Global Domain Registration',
+      amount: 2500,
+      currency: 'KES',
+      formatted: 'KSh 2,500/yr',
+      billingPeriod: 'year',
+      badge: 'Global Standard',
+      description: 'International .com or .net commercial domain registration with DNS management and privacy protection.',
+    },
+    'domain-org': {
+      productId: 'domain-org',
+      category: 'domain',
+      name: '.org / .africa / .io Domain Registration',
+      amount: 3500,
+      currency: 'KES',
+      formatted: 'KSh 3,500/yr',
+      billingPeriod: 'year',
+      badge: 'Org & Tech TLD',
+      description: 'Specialized domain registration for NGOs, institutions, pan-African brands, and technology startups.',
     },
 
     // Hosting Plans
@@ -694,6 +755,20 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
   paymentRails: ['International Visa / Mastercard / Amex (Paystack)'],
   items: {
     // Websites (Aggressive Market-Penetration Tier)
+    'website-existing': {
+      productId: 'website-existing',
+      category: 'website',
+      name: 'Existing Website (Bring Your Own Site)',
+      amount: 0,
+      currency: 'USD',
+      formatted: '$0 (Included Onboarding)',
+      billingPeriod: 'one-time',
+      pages: 'Existing site / app',
+      timeline: '1–3 working days onboarding',
+      supportWarranty: 'Compatibility & DNS check',
+      badge: 'Already Have a Site',
+      description: 'Connect your already-built website or web app to our domain, managed hosting, care plans, or feature add-ons.',
+    },
     'website-launch': {
       productId: 'website-launch',
       category: 'website',
@@ -906,6 +981,53 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       billingPeriod: 'month',
       description: 'Dedicated engineering pod, 24/7 SLA, and full-lifecycle cloud management.',
       billingOptions: generateBillingCycles(400, 'USD', { annualDiscountPct: 20 }),
+    },
+
+    // Domains
+    'domain-existing': {
+      productId: 'domain-existing',
+      category: 'domain',
+      name: 'Connect Existing Domain (DNS & SSL Setup)',
+      amount: 0,
+      currency: 'USD',
+      formatted: '$0 (Included)',
+      billingPeriod: 'one-time',
+      badge: 'Bring Your Own Domain',
+      description: 'Point your existing domain name to our managed DNS & automated SSL infrastructure at zero extra charge.',
+    },
+    'domain-co-ke': {
+      productId: 'domain-co-ke',
+      category: 'domain',
+      name: '.co.ke / .or.ke / .me.ke Domain Registration',
+      amount: 15,
+      currency: 'USD',
+      formatted: '$15/yr',
+      billingPeriod: 'year',
+      badge: 'East Africa TLD',
+      description: 'Annual regional domain registration with managed DNS, WHOIS protection, and auto-renewing SSL.',
+    },
+    'domain-com': {
+      productId: 'domain-com',
+      category: 'domain',
+      name: '.com / .net Global Domain Registration',
+      amount: 20,
+      currency: 'USD',
+      formatted: '$20/yr',
+      billingPeriod: 'year',
+      popular: true,
+      badge: 'Global Standard',
+      description: 'International .com or .net commercial domain registration with DNS management and privacy protection.',
+    },
+    'domain-org': {
+      productId: 'domain-org',
+      category: 'domain',
+      name: '.org / .africa / .io Domain Registration',
+      amount: 28,
+      currency: 'USD',
+      formatted: '$28/yr',
+      billingPeriod: 'year',
+      badge: 'Org & Tech TLD',
+      description: 'Specialized domain registration for NGOs, institutions, pan-African brands, and technology startups.',
     },
 
     // Hosting Plans
@@ -1208,7 +1330,7 @@ export function formatCurrency(amount: number, currency: 'KES' | 'USD' | 'EUR' |
  */
 export interface ServiceCatalogItem {
   id: string;
-  category: 'websites' | 'care' | 'hosting' | 'addons';
+  category: 'websites' | 'domains' | 'care' | 'hosting' | 'addons';
   name: string;
   tagline: string;
   priceKes: number;
@@ -1220,6 +1342,16 @@ export interface ServiceCatalogItem {
 
 export const CANONICAL_SERVICE_CATALOG: ServiceCatalogItem[] = [
   // ── Web Development Packages ──
+  {
+    id: 'website-existing',
+    category: 'websites',
+    name: 'Existing Website (Bring Your Own Site)',
+    tagline: 'Already built your website? Connect it to our domain, hosting, care plans, or feature add-ons.',
+    priceKes: 0,
+    priceUsd: 0,
+    period: 'one-time',
+    badge: 'Already Have a Site',
+  },
   {
     id: 'pkg-launch',
     category: 'websites',
@@ -1319,6 +1451,48 @@ export const CANONICAL_SERVICE_CATALOG: ServiceCatalogItem[] = [
     priceUsd: 149,
     period: 'one-time',
     badge: 'Sales Funnel',
+  },
+
+  // ── Domains (Existing Connection & New Registrations) ──
+  {
+    id: 'domain-existing',
+    category: 'domains',
+    name: 'Connect Existing Domain (DNS & SSL Setup)',
+    tagline: 'Use a domain you already own — free DNS routing and automated HTTPS SSL configuration',
+    priceKes: 0,
+    priceUsd: 0,
+    period: 'one-time',
+    badge: 'Bring Your Own Domain',
+  },
+  {
+    id: 'domain-co-ke',
+    category: 'domains',
+    name: '.co.ke / .or.ke / .me.ke Domain Registration',
+    tagline: 'Official East African TLD registration with managed DNS, WHOIS protection & SSL',
+    priceKes: 1500,
+    priceUsd: 15,
+    period: 'year',
+    badge: 'Popular in Kenya',
+  },
+  {
+    id: 'domain-com',
+    category: 'domains',
+    name: '.com / .net Global Commercial Domain',
+    tagline: 'International commercial domain registration with managed DNS & privacy protection',
+    priceKes: 2500,
+    priceUsd: 20,
+    period: 'year',
+    badge: 'Global Standard',
+  },
+  {
+    id: 'domain-org',
+    category: 'domains',
+    name: '.org / .africa / .io Domain Registration',
+    tagline: 'Specialized domain registration for NGOs, institutions, pan-African & tech brands',
+    priceKes: 3500,
+    priceUsd: 28,
+    period: 'year',
+    badge: 'Org & Tech',
   },
 
   // ── Managed Care & Maintenance Retainers ──

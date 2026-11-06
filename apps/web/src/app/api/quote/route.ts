@@ -304,6 +304,8 @@ export async function POST(request: NextRequest) {
     const currency = priceBook.currency;
 
     const packageMap: Record<string, string> = {
+      existing: 'website-existing',
+      'existing-website': 'website-existing',
       launch: 'website-launch',
       business: 'website-business',
       professional: 'website-professional',

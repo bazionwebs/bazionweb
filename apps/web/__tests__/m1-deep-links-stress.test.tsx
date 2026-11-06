@@ -623,7 +623,7 @@ describe('Milestone 1 Empirical Challenger: Deep-Links & Presentation Stress Har
   // VECTOR 8: Store Stack Requirements & Frozen Order Summary
   // ═══════════════════════════════════════════════════════════════════════════
   describe('Vector 8: Store Stack Requirements & Frozen Order Summary', () => {
-    it('requires a care plan AND hosting before checkout: empty/one-legged stacks disable the CTA', async () => {
+    it('enforces the mandatory 4-step stack (1. Website -> 2. Domain -> 3. Hosting, 4. Optional Care) before unlocking checkout', async () => {
       mockMarketCode = 'KE';
       mockMarket = 'kenya';
 
@@ -655,28 +655,30 @@ describe('Milestone 1 Empirical Challenger: Deep-Links & Presentation Stress Har
       expect(stickyBox.className).toMatch(/sticky/);
       expect(stickyBox.className).toMatch(/top-24/);
 
-      // Nothing selected yet — both requirements highlighted, CTA locked.
+      // Nothing selected yet — mandatory steps 1, 2, 3 required, step 4 optional, CTA locked.
       expect(cta).toBeDisabled();
-      expect(screen.getByTestId('requirement-care').textContent).toMatch(/Choose a care plan — required/);
-      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/Add hosting — required/);
+      expect(screen.getByTestId('requirement-website').textContent).toMatch(/1\. Choose Website/i);
+      expect(screen.getByTestId('requirement-domain').textContent).toMatch(/2\. Choose Domain/i);
+      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/3\. Add hosting — required/i);
+      expect(screen.getByTestId('requirement-care').textContent).toMatch(/4\. Care plan — optional/i);
 
-      // A care plan alone is still an incomplete stack.
-      fireEvent.click(screen.getAllByRole('button', { name: /Add to Cart/i })[0]);
+      // Step 1: Select Existing Website (Bring Your Own)
+      fireEvent.click(screen.getByRole('button', { name: /Use My Existing Website/i }));
       expect(cta).toBeDisabled();
-      expect(summary.textContent).toMatch(/Care Business Plan/i);
-      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/Add hosting — required/);
 
-      // Hosting completes the stack and unlocks checkout.
-      const genericButtons = screen.getAllByRole('button', { name: /Add to Cart/i });
-      fireEvent.click(genericButtons[genericButtons.length - 1]);
-      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/Hosting configured/);
+      // Step 2: Select Existing Domain
+      fireEvent.click(screen.getByRole('button', { name: /Use Existing Domain/i }));
+      expect(cta).toBeDisabled();
+
+      // Step 3: Select Managed Hosting -> unlocks checkout even before optional Step 4 Care Plan!
+      const selectHostingBtns = screen.getAllByRole('button', { name: /Select Hosting/i });
+      fireEvent.click(selectHostingBtns[0]);
       expect(cta).toBeEnabled();
-      expect(summary.textContent).toMatch(/KES 18,500/); // 10,000 care + 8,500 host
 
-      // Removing the hosting line re-locks the stack.
-      fireEvent.click(screen.getByRole('button', { name: /Remove Host Business/i }));
-      expect(cta).toBeDisabled();
-      expect(screen.getByTestId('requirement-hosting').textContent).toMatch(/Add hosting — required/);
+      // Step 4 (Optional): Add Care Business Plan
+      fireEvent.click(screen.getAllByRole('button', { name: /Add to Cart/i })[0]);
+      expect(summary.textContent).toMatch(/Care Business Plan/i);
+      expect(cta).toBeEnabled();
     });
   });
 });

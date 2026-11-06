@@ -32,7 +32,7 @@ export const JOURNEY_STEPS: readonly JourneyStep[] = [
     stepNumber: 1,
     title: 'Package Selection',
     shortTitle: 'Packages',
-    description: 'Tiers, add-ons & care plans',
+    description: '1. Website & Add-Ons · 2. Domain · 3. Hosting · 4. Care',
     href: '/pricing',
     icon: Layers,
   },
@@ -218,13 +218,37 @@ function ClientJourneyProgressInner({
       {/* ─── Desktop View (>= md screens) ─── */}
       <div
         className={cn(
-          'hidden md:block rounded-2xl p-3 border transition-colors shadow-xs',
+          'hidden md:block rounded-2xl p-4 border-2 transition-colors shadow-lg',
           isDark
-            ? 'bg-slate-900/60 border-white/10 backdrop-blur-md'
-            : 'bg-white/95 border-slate-200/90'
+            ? 'bg-[#0F172A] border-slate-700 text-white'
+            : 'bg-white border-slate-300 text-slate-900'
         )}
       >
-        <ol role="list" className="grid grid-cols-5 gap-2 items-center">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-700/60">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-[#14B8A6] text-slate-950 shadow-xs">
+              Step {activeStep} of 5
+            </span>
+            <span className={cn('text-xs font-bold tracking-wide', isDark ? 'text-slate-100' : 'text-slate-800')}>
+              Unified Client Journey &amp; Mandatory Stack Flow:
+            </span>
+            <span className={cn('text-xs font-semibold hidden lg:inline', isDark ? 'text-teal-300' : 'text-teal-700')}>
+              1. Website &amp; Add-Ons (Required) → 2. Domain (Required) → 3. Hosting (Required) → 4. Care Plan (Optional)
+            </span>
+          </div>
+          <span
+            className={cn(
+              'text-xs font-extrabold px-3 py-1 rounded-full border',
+              isDark
+                ? 'bg-teal-500/20 text-teal-200 border-teal-400/50'
+                : 'bg-teal-50 text-teal-800 border-teal-300'
+            )}
+          >
+            {progressPercent}% Complete
+          </span>
+        </div>
+
+        <ol role="list" className="grid grid-cols-5 gap-3 items-stretch">
           {JOURNEY_STEPS.map((step) => {
             const isCompleted = step.stepNumber < activeStep;
             const isCurrent = step.stepNumber === activeStep;
@@ -235,53 +259,62 @@ function ClientJourneyProgressInner({
             const StepContent = (
               <div
                 className={cn(
-                  'group relative flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left w-full',
+                  'group relative flex items-start gap-3 p-3.5 rounded-xl transition-all duration-200 text-left w-full h-full border-2',
                   isCurrent && (isDark
-                    ? 'bg-white/10 border border-teal-400/40 shadow-md shadow-teal-500/10'
-                    : 'bg-teal-50/80 border border-teal-500/40 shadow-xs'),
+                    ? 'bg-gradient-to-br from-[#2563EB] to-[#1D4ED8] border-[#14B8A6] text-white shadow-lg shadow-blue-600/30 ring-2 ring-[#14B8A6]/40'
+                    : 'bg-gradient-to-br from-[#2563EB] to-[#1D4ED8] border-[#14B8A6] text-white shadow-md ring-2 ring-blue-500/30'),
                   isCompleted && (isDark
-                    ? 'hover:bg-white/5 border border-transparent'
-                    : 'hover:bg-slate-50 border border-transparent'),
-                  isUpcoming && 'opacity-50 border border-transparent cursor-not-allowed'
+                    ? 'bg-emerald-950/90 border-emerald-400/70 text-white hover:bg-emerald-900/90'
+                    : 'bg-emerald-50 border-emerald-400 text-slate-900 hover:bg-emerald-100/80'),
+                  isUpcoming && (isDark
+                    ? 'bg-slate-800/95 border-slate-600 text-white'
+                    : 'bg-slate-100 border-slate-300 text-slate-900')
                 )}
                 aria-current={isCurrent ? 'step' : undefined}
               >
                 {/* Step Node Icon / Number */}
                 <div
                   className={cn(
-                    'flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-transform duration-200',
-                    isCurrent && (isDark ? 'bg-[#14B8A6] text-slate-950 scale-105' : 'bg-teal-600 text-white scale-105'),
-                    isCompleted && (isDark ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'),
-                    isUpcoming && (isDark ? 'bg-white/5 text-slate-400 border border-white/10' : 'bg-slate-100 text-slate-400 border border-slate-200')
+                    'flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-black transition-transform duration-200 shadow-xs',
+                    isCurrent && 'bg-[#14B8A6] text-slate-950 scale-105 ring-2 ring-white/40',
+                    isCompleted && 'bg-emerald-500 text-slate-950',
+                    isUpcoming && (isDark
+                      ? 'bg-slate-700 text-white border border-slate-500'
+                      : 'bg-white text-slate-800 border border-slate-300')
                   )}
                 >
                   {isCompleted ? (
-                    <Check className="size-4 stroke-[2.5]" aria-hidden="true" />
+                    <Check className="size-4 stroke-[3]" aria-hidden="true" />
                   ) : (
                     <span>{step.stepNumber}</span>
                   )}
                 </div>
 
-                {/* Step Text Metadata */}
+                {/* Step Text Metadata — High Contrast & Never Truncated */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span
                       className={cn(
-                        'text-xs font-extrabold truncate',
-                        isCurrent && (isDark ? 'text-white' : 'text-slate-900'),
-                        isCompleted && (isDark ? 'text-slate-200' : 'text-slate-800'),
-                        isUpcoming && (isDark ? 'text-slate-400' : 'text-slate-500')
+                        'text-xs lg:text-sm font-extrabold leading-snug',
+                        isCurrent && 'text-white',
+                        isCompleted && (isDark ? 'text-emerald-100' : 'text-emerald-950'),
+                        isUpcoming && (isDark ? 'text-white' : 'text-slate-900')
                       )}
                     >
                       {step.title}
                     </span>
+                    {isCurrent && (
+                      <span className="inline-block px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-[#14B8A6] text-slate-950">
+                        Active
+                      </span>
+                    )}
                   </div>
                   <p
                     className={cn(
-                      'text-[10px] leading-tight truncate mt-0.5',
-                      isCurrent && (isDark ? 'text-teal-300 font-medium' : 'text-teal-700 font-medium'),
-                      isCompleted && (isDark ? 'text-slate-400' : 'text-slate-500'),
-                      isUpcoming && (isDark ? 'text-slate-500' : 'text-slate-400')
+                      'text-[11px] leading-snug mt-1',
+                      isCurrent && 'text-blue-100 font-medium',
+                      isCompleted && (isDark ? 'text-emerald-200/90' : 'text-emerald-800'),
+                      isUpcoming && (isDark ? 'text-slate-200' : 'text-slate-700')
                     )}
                   >
                     {step.description}
@@ -291,13 +324,13 @@ function ClientJourneyProgressInner({
             );
 
             return (
-              <li key={step.id} className="relative">
+              <li key={step.id} className="relative h-full">
                 {isClickable ? (
-                  <Link href={step.href} className="block outline-hidden focus-visible:ring-2 focus-visible:ring-teal-400 rounded-xl">
+                  <Link href={step.href} className="block h-full outline-hidden focus-visible:ring-2 focus-visible:ring-teal-400 rounded-xl">
                     {StepContent}
                   </Link>
                 ) : (
-                  <div>{StepContent}</div>
+                  <div className="h-full">{StepContent}</div>
                 )}
               </li>
             );

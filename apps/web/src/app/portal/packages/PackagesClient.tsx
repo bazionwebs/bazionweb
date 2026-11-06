@@ -54,6 +54,7 @@ import {
 import { useAuthStore } from '@/store/auth.store';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { cn, isTrustedCheckoutUrl } from '@/lib/utils';
+import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 
 type CatalogTab = 'care' | 'builds' | 'hosting' | 'addons';
 type Cycle = 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUALLY' | 'ANNUAL' | 'BIENNIAL' | 'TRIENNIAL';
@@ -816,13 +817,18 @@ export default function PackagesClient() {
         <div className="absolute -right-12 -bottom-12 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
       </div>
 
-      {/* ── Primary Catalog Tabs ─────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-1.5 grid grid-cols-2 lg:grid-cols-4 gap-1.5 shadow-xs">
+      {/* ── Step-by-Step Client Journey Banner (Below Header Banner) ─────── */}
+      <div className="rounded-2xl bg-[#0B1120] border border-slate-800 p-3 shadow-md">
+        <ClientJourneyProgress currentStep={5} variant="dark" />
+      </div>
+
+      {/* ── Primary Catalog Tabs (Distinct Dark Slate Sub-Bar) ───────────── */}
+      <div className="bg-[#1E293B] rounded-2xl border border-slate-700/80 p-1.5 grid grid-cols-2 lg:grid-cols-4 gap-1.5 shadow-md text-white">
         {[
-          { id: 'care' as const, label: 'Cloud Care & SLA', sub: 'Monthly / Annual Retainers', icon: ShieldCheck },
-          { id: 'builds' as const, label: 'Websites & Systems', sub: 'Builds & E-Commerce', icon: Layers },
-          { id: 'hosting' as const, label: 'Managed Hosting', sub: 'NVMe, SSL & Cloud', icon: Server },
-          { id: 'addons' as const, label: 'Modular Add-Ons', sub: 'Features & Hourly Desk', icon: Puzzle },
+          { id: 'builds' as const, label: '1. Websites & Systems', sub: 'New Builds & E-Commerce', icon: Layers },
+          { id: 'addons' as const, label: '2. Modular Add-Ons', sub: 'Features & Upgrades', icon: Puzzle },
+          { id: 'hosting' as const, label: '3. Managed Hosting', sub: 'NVMe, SSL & Cloud', icon: Server },
+          { id: 'care' as const, label: '4. Cloud Care & SLA', sub: 'Optional Retainers', icon: ShieldCheck },
         ].map(t => {
           const active = activeTab === t.id;
           return (
@@ -833,14 +839,14 @@ export default function PackagesClient() {
               className={cn(
                 'flex items-center gap-3 p-3 rounded-xl text-left transition-all',
                 active
-                  ? 'bg-[#0F172A] text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-[#0F172A]',
+                  ? 'bg-[#2563EB] text-white shadow-sm ring-1 ring-blue-400'
+                  : 'text-slate-200 hover:bg-slate-800 hover:text-white',
               )}
             >
               <div
                 className={cn(
                   'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                  active ? 'bg-[#2563EB] text-white' : 'bg-slate-100 text-slate-600',
+                  active ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-300',
                 )}
               >
                 <t.icon className="w-4 h-4" />
@@ -850,7 +856,7 @@ export default function PackagesClient() {
                 <div
                   className={cn(
                     'text-[10px] truncate',
-                    active ? 'text-slate-300' : 'text-slate-400',
+                    active ? 'text-blue-100' : 'text-slate-400',
                   )}
                 >
                   {t.sub}
