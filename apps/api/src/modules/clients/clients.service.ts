@@ -162,13 +162,13 @@ export class ClientsService {
       delete (dto as any).email;
     }
 
-    const normalizeNullable = (v: string | undefined) =>
-      v === undefined ? undefined : v.trim() === '' ? null : v.trim();
+    const normalizeNullable = (v: string | null | undefined) =>
+      v == null ? null : typeof v === 'string' && v.trim() === '' ? null : typeof v === 'string' ? v.trim() : null;
 
     const data: Record<string, any> = {};
     const userPatch: Record<string, any> = {};
 
-    if (dto.email !== undefined && dto.email.trim()) {
+    if (dto.email !== undefined && dto.email && typeof dto.email === 'string' && dto.email.trim()) {
       const cleanEmail = dto.email.trim().toLowerCase();
       if (cleanEmail !== client.email) {
         if (!isStaff) throw new ForbiddenException('Only administrators can update account email addresses');
@@ -184,10 +184,10 @@ export class ClientsService {
       }
     }
 
-    if (dto.businessName !== undefined && dto.businessName.trim()) {
+    if (dto.businessName !== undefined && dto.businessName && typeof dto.businessName === 'string' && dto.businessName.trim()) {
       data.businessName = dto.businessName.trim();
     }
-    if (dto.contactName !== undefined && dto.contactName.trim()) {
+    if (dto.contactName !== undefined && dto.contactName && typeof dto.contactName === 'string' && dto.contactName.trim()) {
       data.contactName = dto.contactName.trim();
     }
     if (dto.phone !== undefined) data.phone = normalizeNullable(dto.phone);

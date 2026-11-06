@@ -70,8 +70,11 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
         const permitted = requiredRoles.some(r => hasRole(r));
         if (!permitted) {
           if (active) setStatus('unauthorized');
-          if (!redirectUnlessHere('/portal')) {
-            await logout();
+          const isStaffRoute = normalizedPath.startsWith('/admin') || redirectTo === '/admin/login';
+          if (isStaffRoute) {
+            redirectUnlessHere(redirectTo || '/admin/login');
+          } else if (!redirectUnlessHere('/portal')) {
+            await logout('/portal/login');
             redirectUnlessHere(redirectTo);
           }
           return;

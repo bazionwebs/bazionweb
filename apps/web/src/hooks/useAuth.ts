@@ -54,12 +54,17 @@ export function useAuth() {
     }
   }, [setSession, router]);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (customRedirect?: string) => {
     try {
       if (accessToken) await api.post('/auth/logout');
     } catch { /* ignore */ }
     clearSession();
-    router.push('/portal/login');
+    const target =
+      customRedirect ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
+        ? '/admin/login'
+        : '/portal/login');
+    router.push(target);
   }, [accessToken, clearSession, router]);
 
   const refresh = useCallback(async () => {

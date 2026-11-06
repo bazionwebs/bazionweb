@@ -14,21 +14,21 @@ export class UpdateClientDto {
   @IsOptional() @IsEmail() @MaxLength(120)
   email?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(32)
-  phone?: string;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional() @MaxLength(32)
+  phone?: string | null;
 
-  @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(255)
-  address?: string;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional() @MaxLength(255)
+  address?: string | null;
 
-  @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(80)
-  country?: string;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional() @MaxLength(80)
+  country?: string | null;
 
-  @ApiPropertyOptional()
-  @IsOptional() @IsString() @MaxLength(40)
-  taxPin?: string;
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional() @MaxLength(40)
+  taxPin?: string | null;
 
   @ApiPropertyOptional({ enum: ['ACTIVE', 'SUSPENDED', 'CANCELLED', 'TRIAL'] })
   @IsOptional()

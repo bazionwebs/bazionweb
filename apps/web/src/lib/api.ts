@@ -24,7 +24,7 @@ api.interceptors.request.use(config => {
 function onProtectedRoute() {
   if (typeof window === 'undefined') return false;
   const path = window.location.pathname;
-  if (path.startsWith('/portal/login')) return false;
+  if (path.startsWith('/portal/login') || path.startsWith('/admin/login')) return false;
   return /^\/(portal|admin)(\/|$)/.test(path);
 }
 
@@ -55,7 +55,8 @@ api.interceptors.response.use(
 
     useAuthStore.getState().clearSession();
     if (onProtectedRoute()) {
-      window.location.href = '/portal/login';
+      const path = window.location.pathname;
+      window.location.href = path.startsWith('/admin') ? '/admin/login' : '/portal/login';
     }
     return Promise.reject(error);
   },

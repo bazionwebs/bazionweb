@@ -92,7 +92,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const handleSignOut = async () => {
     await authApi.logout().catch(() => undefined);
     clearSession();
-    router.replace('/portal/login');
+    router.replace('/admin/login');
   };
 
   // Determine active item from pathname
