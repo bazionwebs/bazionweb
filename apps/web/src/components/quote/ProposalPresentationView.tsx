@@ -873,7 +873,7 @@ export function ProposalPresentationView({
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-[#2563EB]" aria-hidden="true" />
                   <h2 id="digital-auth-heading" className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
-                    Official Document Authentication &amp; Electronic Seal
+                    Electronic Document Authentication &amp; Execution Record
                   </h2>
                 </div>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
@@ -927,7 +927,7 @@ export function ProposalPresentationView({
                       </div>
                       <div className="truncate">
                         <span className="text-slate-500">Verified Billing Email: </span>
-                        <span className="font-mono text-[11px] block truncate">{proposal.clientEmail}</span>
+                        <span className="font-mono text-[11px] block truncate">{`‹${proposal.clientEmail}›`}</span>
                       </div>
                       <div className="pt-1.5 border-t border-slate-200/80">
                         <span className="text-slate-500">Issuing Entity: </span>

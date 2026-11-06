@@ -172,7 +172,7 @@ const fallbackMarketing = (productId: string) => ({
 });
 
 const formatMoney = (amount: number, symbol: string) =>
-  `${symbol}${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  `${symbol}${(Number(amount) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
 export default function StoreView() {
   const apiBase = resolveApiV1Base();

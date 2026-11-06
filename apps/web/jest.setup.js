@@ -1,7 +1,11 @@
 try {
   require('@testing-library/jest-dom');
 } catch {
-  // @testing-library/jest-dom optional fallback
+  try {
+    require(require.resolve('@testing-library/jest-dom', { paths: [__dirname] }));
+  } catch {
+    // @testing-library/jest-dom optional fallback
+  }
 }
 
 jest.mock('next/navigation', () => {
