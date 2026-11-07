@@ -143,25 +143,38 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
   const paymentLog = inv.paymentLogs?.[0];
   const breakdown = computeInvoiceTaxBreakdown(inv);
   const rawItems = Array.isArray(inv.lineItems) ? inv.lineItems : [];
-  const rowsHtml =
+  const normalizedItems =
     rawItems.length > 0
       ? rawItems
-          .map(item => {
-            const desc = escapeHtml(String(item.description || inv.notes || 'BazionWeb Services'));
-            const qty = Number(item.quantity ?? 1);
-            const amt = Number(item.amount ?? inv.amount ?? 0);
-            return `<tr>
-              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-weight:500;">${desc}</td>
-              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;text-align:center;color:#475569;">${qty}</td>
-              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;color:#0f172a;">${escapeHtml(formatMoney(amt, inv.currency))}</td>
-            </tr>`;
-          })
-          .join('')
-      : `<tr>
-          <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-weight:500;">${escapeHtml(inv.notes || 'Engineering & Managed Cloud Services')}</td>
-          <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;text-align:center;color:#475569;">1</td>
-          <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:700;color:#0f172a;">${escapeHtml(formatMoney(inv.amount, inv.currency))}</td>
-        </tr>`;
+      : [
+          {
+            description: inv.notes || 'Engineering & Managed Cloud Services',
+            quantity: 1,
+            amount: inv.amount,
+          },
+        ];
+  const rowsHtml = normalizedItems
+    .map((item, idx) => {
+      const rawDesc = String(item.description || inv.notes || 'BazionWeb Services');
+      const desc = escapeHtml(rawDesc);
+      const isTaxRow = /vat|value added tax|tax/i.test(rawDesc);
+      const qty = Math.max(1, Number(item.quantity ?? 1));
+      const amt = Number(item.amount ?? inv.amount ?? 0);
+      const unitPrice = amt / qty;
+      const rowNum = String(idx + 1).padStart(2, '0');
+      const rowBg = isTaxRow ? '#EEF4FF' : idx % 2 === 1 ? '#F7FAFF' : '#FFFFFF';
+      const accentColor = isTaxRow ? '#0D9488' : '#2563EB';
+      return `<tr style="background:${rowBg};">
+        <td style="padding:11px 10px;border-bottom:1px solid #CBD5E1;border-left:4px solid ${accentColor};border-right:1px solid #E2E8F0;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:800;color:${accentColor};text-align:center;">${rowNum}</td>
+        <td style="padding:11px 14px;border-bottom:1px solid #CBD5E1;border-right:1px solid #E2E8F0;color:#0F172A;font-weight:700;font-size:13px;">${desc}</td>
+        <td style="padding:11px 10px;border-bottom:1px solid #CBD5E1;border-right:1px solid #E2E8F0;text-align:center;">
+          <span style="display:inline-block;min-width:28px;padding:2px 8px;border-radius:6px;background:${isTaxRow ? '#CCFBF1' : '#DBEAFE'};color:${isTaxRow ? '#0F766E' : '#1D4ED8'};font-family:'JetBrains Mono',monospace;font-weight:800;font-size:12px;">${qty}</span>
+        </td>
+        <td style="padding:11px 12px;border-bottom:1px solid #CBD5E1;border-right:1px solid #E2E8F0;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;font-weight:600;">${escapeHtml(formatMoney(unitPrice, inv.currency))}</td>
+        <td style="padding:11px 14px;border-bottom:1px solid #CBD5E1;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:13px;color:${isTaxRow ? '#0F766E' : '#0F172A'};">${escapeHtml(formatMoney(amt, inv.currency))}</td>
+      </tr>`;
+    })
+    .join('');
 
   const letterheadHtml = renderDocumentLetterheadHtml({
     docType: isPaid ? 'PAYMENT RECEIPT' : 'OFFICIAL INVOICE',
@@ -233,16 +246,21 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
       </div>
     </div>
 
-    <table style="width:100%;border-collapse:collapse;margin-top:32px;font-size:13px;position:relative;z-index:2;">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding-bottom:10px;border-bottom:2px solid #cbd5e1;font-size:11px;text-transform:uppercase;color:#64748b;">Description</th>
-          <th style="text-align:center;padding-bottom:10px;border-bottom:2px solid #cbd5e1;font-size:11px;text-transform:uppercase;color:#64748b;width:80px;">Qty</th>
-          <th style="text-align:right;padding-bottom:10px;border-bottom:2px solid #cbd5e1;font-size:11px;text-transform:uppercase;color:#64748b;width:160px;">Amount</th>
-        </tr>
-      </thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>
+    <div style="margin-top:28px;border:1.5px solid #2563EB;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px -4px rgba(15,23,42,0.08);position:relative;z-index:2;">
+      <div style="height:3px;background:linear-gradient(90deg,#2563EB 0%,#38BDF8 60%,#10B981 100%);"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#0F172A;color:#FFFFFF;">
+            <th style="text-align:center;padding:11px 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:#7DD3FC;width:46px;">No.</th>
+            <th style="text-align:left;padding:11px 14px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;">Service / Deliverable Description</th>
+            <th style="text-align:center;padding:11px 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;width:70px;">Qty</th>
+            <th style="text-align:right;padding:11px 12px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;width:130px;">Unit Price</th>
+            <th style="text-align:right;padding:11px 14px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;width:145px;">Line Total</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
 
     <div style="display:flex;justify-content:space-between;align-items:stretch;gap:20px;flex-wrap:wrap;margin-top:24px;position:relative;z-index:2;">
       ${renderPaymentInstructionsHtml({ docNumber: inv.invoiceNumber, isPaid })}

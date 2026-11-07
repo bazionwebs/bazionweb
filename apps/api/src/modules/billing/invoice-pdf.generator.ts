@@ -314,27 +314,39 @@ export class InvoicePdfGenerator {
     }
     contentLines.push('ET');
 
-    // ── 4. Itemized Table Header ──
+    // ── 4. Executive Itemized Table Header (High-Contrast Navy + Royal Accent) ──
+    const tableTopY = 625;
+    const headerH = 23;
+    const headerBottomY = tableTopY - headerH; // 602
+
     contentLines.push('q');
-    contentLines.push('0.95 0.96 0.98 rg');
-    contentLines.push('40 603 515 22 re f');
-    contentLines.push('0.85 0.88 0.92 RG 0.5 w');
-    contentLines.push('40 603 515 22 re S');
+    // Deep Navy header bar (#0F172A)
+    contentLines.push('0.059 0.090 0.165 rg');
+    contentLines.push(`40 ${headerBottomY} 515 ${headerH} re f`);
+    // Top 2.5pt Royal Blue accent rule (#2563EB)
+    contentLines.push('0.145 0.388 0.921 rg');
+    contentLines.push(`40 ${tableTopY - 2.5} 515 2.5 re f`);
     contentLines.push('Q');
 
     contentLines.push('BT');
-    contentLines.push('/F2 8 Tf');
-    contentLines.push('0.2 0.25 0.3 rg');
-    contentLines.push('50 610 Td');
-    contentLines.push(`(${esc('DESCRIPTION')}) Tj`);
-    contentLines.push('340 0 Td');
+    contentLines.push('/F2 7.8 Tf');
+    contentLines.push('0.49 0.83 0.99 rg'); // Sky Blue #7DD3FC for NO.
+    contentLines.push(`47 ${headerBottomY + 7.5} Td`);
+    contentLines.push(`(${esc('NO.')}) Tj`);
+    contentLines.push('1 1 1 rg');
+    contentLines.push('25 0 Td');
+    contentLines.push(`(${esc('SERVICE / DELIVERABLE DESCRIPTION')}) Tj`);
+    contentLines.push('273 0 Td');
     contentLines.push(`(${esc('QTY')}) Tj`);
-    contentLines.push('60 0 Td');
-    contentLines.push(`(${esc('AMOUNT')}) Tj`);
+    contentLines.push('40 0 Td');
+    contentLines.push(`(${esc('UNIT PRICE')}) Tj`);
+    contentLines.push('85 0 Td');
+    contentLines.push(`(${esc('LINE TOTAL')}) Tj`);
     contentLines.push('ET');
 
-    // ── 5. Line Items Rendering ──
-    let currentY = 583;
+    // ── 5. Standout Zebra-Striped & Framed Line Items Rendering ──
+    const rowH = 21;
+    let rowTopY = headerBottomY;
     const items =
       data.lineItems && data.lineItems.length > 0
         ? data.lineItems
@@ -346,32 +358,105 @@ export class InvoicePdfGenerator {
             },
           ];
 
-    for (const item of items) {
+    items.forEach((item, idx) => {
+      const rowBottomY = rowTopY - rowH;
+      const textY = rowBottomY + 7;
       const desc = sanitizePdfText(
         item.description || 'Cloud & Hosting Infrastructure Service',
       );
-      const qty = item.quantity ?? 1;
-      const amtVal = item.amount ?? data.amount ?? 0;
-      const amt = `${data.currency} ${amtVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const isTaxRow = /vat|value added tax|tax/i.test(desc);
+      const qty = Math.max(1, Number(item.quantity ?? 1));
+      const amtVal = Number(item.amount ?? data.amount ?? 0);
+      const unitVal =
+        item.unitPrice !== undefined && Number(item.unitPrice) > 0
+          ? Number(item.unitPrice)
+          : amtVal / qty;
 
-      contentLines.push('BT');
-      contentLines.push('/F1 8 Tf');
-      contentLines.push('0.1 0.1 0.1 rg');
-      contentLines.push(`50 ${currentY} Td`);
-      contentLines.push(`(${esc(desc.slice(0, 62))}) Tj`);
-      contentLines.push('345 0 Td');
-      contentLines.push(`(${esc(String(qty))}) Tj`);
-      contentLines.push('50 0 Td');
-      contentLines.push(`(${esc(amt)}) Tj`);
-      contentLines.push('ET');
+      const unitStr = `${data.currency} ${unitVal.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+      const amtStr = `${data.currency} ${amtVal.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+      const rowNumStr = String(idx + 1).padStart(2, '0');
 
       contentLines.push('q');
-      contentLines.push('0.92 0.94 0.96 RG 0.5 w');
-      contentLines.push(`40 ${currentY - 6} m 555 ${currentY - 6} l S`);
+      // Alternating zebra row fill (with distinct soft blue-slate highlight for VAT/tax row)
+      if (isTaxRow) {
+        contentLines.push('0.935 0.958 0.992 rg');
+      } else if (idx % 2 === 1) {
+        contentLines.push('0.968 0.978 0.995 rg');
+      } else {
+        contentLines.push('1 1 1 rg');
+      }
+      contentLines.push(`40 ${rowBottomY} 515 ${rowH} re f`);
+
+      // Left 3pt color-coded accent bar per row (#2563EB Royal Blue for services, #0D9488 Teal for Tax)
+      contentLines.push(isTaxRow ? '0.051 0.580 0.533 rg' : '0.145 0.388 0.921 rg');
+      contentLines.push(`40 ${rowBottomY} 3 ${rowH} re f`);
+
+      // Subtle QTY pill badge background
+      contentLines.push(isTaxRow ? '0.86 0.95 0.93 rg' : '0.918 0.945 0.996 rg');
+      contentLines.push(`342 ${rowBottomY + 4} 24 13 re f`);
+
+      // Horizontal row divider line
+      contentLines.push('0.84 0.88 0.93 RG 0.6 w');
+      contentLines.push(`40 ${rowBottomY} m 555 ${rowBottomY} l S`);
       contentLines.push('Q');
 
-      currentY -= 20;
-    }
+      contentLines.push('BT');
+      // 1. Row Index (01, 02...)
+      contentLines.push('/F2 7.8 Tf');
+      contentLines.push(isTaxRow ? '0.051 0.580 0.533 rg' : '0.145 0.388 0.921 rg');
+      contentLines.push(`48 ${textY} Td`);
+      contentLines.push(`(${esc(rowNumStr)}) Tj`);
+
+      // 2. Deliverable Description (Bold crisp dark navy)
+      contentLines.push('/F2 7.8 Tf');
+      contentLines.push(isTaxRow ? '0.08 0.28 0.36 rg' : '0.06 0.09 0.16 rg');
+      contentLines.push('23 0 Td');
+      contentLines.push(`(${esc(desc.slice(0, 60))}) Tj`);
+
+      // 3. Quantity inside pill
+      contentLines.push('/F2 7.8 Tf');
+      contentLines.push(isTaxRow ? '0.04 0.45 0.40 rg' : '0.11 0.30 0.85 rg');
+      contentLines.push('280 0 Td');
+      contentLines.push(`(${esc(String(qty))}) Tj`);
+
+      // 4. Unit Price
+      contentLines.push('/F1 7.8 Tf');
+      contentLines.push('0.30 0.36 0.44 rg');
+      contentLines.push('34 0 Td');
+      contentLines.push(`(${esc(unitStr)}) Tj`);
+
+      // 5. Line Total (Bold high-contrast amount)
+      contentLines.push('/F2 8.4 Tf');
+      contentLines.push(isTaxRow ? '0.05 0.38 0.35 rg' : '0.059 0.090 0.165 rg');
+      contentLines.push('85 0 Td');
+      contentLines.push(`(${esc(amtStr)}) Tj`);
+      contentLines.push('ET');
+
+      rowTopY = rowBottomY;
+    });
+
+    // Outer Table Frame & Vertical Column Dividers
+    const tableBottomY = rowTopY;
+    const totalTableH = tableTopY - tableBottomY;
+    contentLines.push('q');
+    // Subtle vertical column separators inside body
+    contentLines.push('0.86 0.89 0.94 RG 0.5 w');
+    contentLines.push(`66 ${tableBottomY} m 66 ${headerBottomY} l S`);
+    contentLines.push(`336 ${tableBottomY} m 336 ${headerBottomY} l S`);
+    contentLines.push(`376 ${tableBottomY} m 376 ${headerBottomY} l S`);
+    contentLines.push(`462 ${tableBottomY} m 462 ${headerBottomY} l S`);
+    // Crisp outer border around entire table (header + body)
+    contentLines.push('0.145 0.388 0.921 RG 1 w');
+    contentLines.push(`40 ${tableBottomY} 515 ${totalTableH} re S`);
+    contentLines.push('Q');
+
+    const currentY = tableBottomY - 6;
 
     // ── 6. Payment Instructions Card (Left) & Financial Breakdown Box (Right) ──
     // Keep both boxes cleanly above the bottom security & barcode block (top at y=138)
