@@ -15,9 +15,8 @@
  *      DNS record exists and is verified — it is currently NXDOMAIN on all
  *      resolvers.
  *   2. Server: API_INTERNAL_URL (Docker/Dokploy), then NEXT_PUBLIC_API_URL
- *      (external API hosts), then http://localhost:4000 in development /
- *      https://bazionweb.com in production (edge routes /api/v1 to the api
- *      service).
+ *      (external API hosts, excluding web self-hosts), then http://api:4000
+ *      in production / http://localhost:4000 in development.
  *
  * Production env drift has produced values like
  *   "NEXT_PUBLIC_API_URL = https://api.bazionweb.com/api/v1"   (name pasted in)
@@ -38,6 +37,24 @@ function normalizeOrigin(raw: string | undefined | null): string | null {
   }
 }
 
+const WEB_SELF_HOSTS = new Set([
+  'bazionweb.com',
+  'www.bazionweb.com',
+  'staging.bazionweb.com',
+]);
+
+export function isWebSelfHost(hostname: string): boolean {
+  return WEB_SELF_HOSTS.has(hostname.toLowerCase());
+}
+
+function isSelfHost(origin: string): boolean {
+  try {
+    return isWebSelfHost(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function resolveApiBase(): string {
   // ── Browser ──────────────────────────────────────────────────────────────
   // API_INTERNAL_URL is a server-only function binding and is undefined here.
@@ -47,15 +64,22 @@ export function resolveApiBase(): string {
   }
 
   // ── Server ───────────────────────────────────────────────────────────────
+  // 1. Docker/Dokploy internal container network URL
   const internalUrl = normalizeOrigin(process.env.API_INTERNAL_URL);
   if (internalUrl) return internalUrl;
 
+  // 2. External API host (e.g. dedicated api host), BUT reject self-domain
+  // to prevent server-side proxy loops through public edge/Cloudflare.
   const publicUrl = normalizeOrigin(process.env.NEXT_PUBLIC_API_URL);
-  if (publicUrl) return publicUrl;
+  if (publicUrl && !isSelfHost(publicUrl)) {
+    return publicUrl;
+  }
 
-  return process.env.NODE_ENV === 'development'
-    ? 'http://localhost:4000'
-    : 'https://bazionweb.com';
+  // 3. Fallback: on the server, default to internal container service in production
+  // and localhost in development. It MUST NEVER fall back to 'https://bazionweb.com'.
+  return process.env.NODE_ENV === 'production'
+    ? 'http://api:4000'
+    : 'http://localhost:4000';
 }
 
 /**
@@ -102,8 +126,9 @@ export function toCleanUrl(pathOrUrl: string): string {
 if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
   const originalFetch = window.fetch;
   const isPatchedKey = '__bazion_clean_fetch_installed__';
-  if (!(window as any)[isPatchedKey]) {
-    (window as any)[isPatchedKey] = true;
+  const win = window as unknown as Record<string, unknown>;
+  if (!win[isPatchedKey]) {
+    win[isPatchedKey] = true;
     window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
       if (typeof input === 'string') {
         return originalFetch.call(this, toCleanUrl(input), init);

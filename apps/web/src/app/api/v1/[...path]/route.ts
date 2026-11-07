@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resolveApiBase } from '@/lib/api-base';
+import { isWebSelfHost, resolveApiBase } from '@/lib/api-base';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +39,8 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 
 // Forwarded only if present; never spoofable into token minting.
+// Forbidden edge headers (cf-connecting-ip, cf-ray, cf-ipcountry, cf-visitor)
+// are strictly omitted to prevent Cloudflare edge recursion errors.
 const FORWARDED_HEADER_ALLOWLIST = [
   'authorization',
   'content-type',
@@ -47,27 +49,61 @@ const FORWARDED_HEADER_ALLOWLIST = [
   'user-agent',
   'x-request-id',
   'x-real-ip',
-  'cf-connecting-ip',
   'x-forwarded-for',
 ];
 
 const UPSTREAM_TIMEOUT_MS = 30_000;
+
+const isLoopbackHost = (h: string) => h === 'localhost' || h === '127.0.0.1' || h === '::1';
 
 async function proxy(req: Request, segments: string[]): Promise<Response> {
   const apiBase = resolveApiBase();
 
   let target: URL;
   try {
+    target = new URL(`/api/v1/${segments.map(encodeURIComponent).join('/')}`, apiBase);
+
+    // Loop detection:
+    // 1. Direct comparison with request origin (e.g. http://localhost:3000)
     const requestOrigin = new URL(req.url).origin;
-    if (apiBase === requestOrigin) {
+    if (target.origin === requestOrigin) {
       return NextResponse.json(
         {
-          error: 'API origin misconfigured: gateway target equals this origin. Set API_INTERNAL_URL or NEXT_PUBLIC_API_URL.',
+          error: 'Self-referential gateway loop detected. Configure API_INTERNAL_URL.',
         },
         { status: 503 },
       );
     }
-    target = new URL(`/api/v1/${segments.map(encodeURIComponent).join('/')}`, apiBase);
+
+    // 2. Comparison with incoming Host and X-Forwarded-Host headers.
+    // Exclude loopback hosts from simple hostname equality so local dev
+    // (e.g. localhost:3000 -> localhost:4000) is allowed.
+    const rawHostHeader =
+      req.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+      req.headers.get('host') ||
+      '';
+    const [incomingHost, incomingPort] = rawHostHeader.toLowerCase().split(':');
+    const targetHost = target.hostname.toLowerCase();
+    const targetPort = target.port || (target.protocol === 'https:' ? '443' : '80');
+    const incomingPortResolved =
+      incomingPort || (new URL(req.url).protocol === 'https:' ? '443' : '80');
+
+    const isSelfHost = isWebSelfHost(targetHost);
+    const isNonLoopbackHostMatch =
+      !isLoopbackHost(targetHost) && Boolean(incomingHost) && targetHost === incomingHost;
+    const isLoopbackLoop =
+      isLoopbackHost(targetHost) &&
+      isLoopbackHost(incomingHost) &&
+      targetPort === incomingPortResolved;
+
+    if (isSelfHost || isNonLoopbackHostMatch || isLoopbackLoop) {
+      return NextResponse.json(
+        {
+          error: 'Self-referential gateway loop detected. Configure API_INTERNAL_URL.',
+        },
+        { status: 503 },
+      );
+    }
   } catch {
     return NextResponse.json({ error: 'Invalid API gateway configuration' }, { status: 503 });
   }
@@ -99,6 +135,17 @@ async function proxy(req: Request, segments: string[]): Promise<Response> {
   } catch {
     return NextResponse.json(
       { error: 'API service is unreachable from the gateway. Try again shortly.' },
+      { status: 502 },
+    );
+  }
+
+  // Intercept Cloudflare or edge HTML error responses (e.g. Error 1000)
+  // to avoid leaking raw HTML error pages to JSON clients.
+  // Genuine application JSON 403 responses (e.g. NestJS guards) are preserved.
+  const contentType = (upstream.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('text/html')) {
+    return NextResponse.json(
+      { error: 'Upstream service unavailable', status: 502 },
       { status: 502 },
     );
   }
