@@ -1,17 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, Loader2, AlertCircle, Mail, KeyRound, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import Logo from '@/components/ui/Logo';
 import { toCleanUrl } from '@/lib/api-base';
+import { sanitizeRedirectPath } from '@/lib/utils';
 
-export default function PortalLoginPage() {
+function PortalLoginContent() {
   const { login } = useAuth();
+  const searchParams = useSearchParams();
+  const initialEmail = searchParams.get('email')?.trim() || '';
+  const initialMode = searchParams.get('mode') === 'password' ? 'password' : 'magic-link';
+  const redirectPath = sanitizeRedirectPath(searchParams.get('redirect'));
 
-  const [authMethod, setAuthMethod] = useState<'magic-link' | 'password'>('magic-link');
-  const [email, setEmail] = useState('');
+  const [authMethod, setAuthMethod] = useState<'magic-link' | 'password'>(initialMode);
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,7 +29,7 @@ export default function PortalLoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, redirectPath);
     } catch {
       setError('Invalid credentials. If you recently paid, claim your account from the link in your payment confirmation.');
     } finally {
@@ -45,7 +51,10 @@ export default function PortalLoginPage() {
       const res = await fetch(toCleanUrl('/api/auth/magic-link'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          ...(redirectPath ? { redirect: redirectPath } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch sign-in link');
@@ -84,6 +93,12 @@ export default function PortalLoginPage() {
 
         {/* Card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100">
+          {redirectPath?.startsWith('/checkout') && (
+            <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/80 px-3.5 py-2.5 text-xs text-blue-950 leading-relaxed">
+              Sign in to return directly to your checkout with your selected stack intact.
+            </div>
+          )}
+
           {/* Auth Method Tabs */}
           <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-100 mb-6 text-xs font-bold">
             <button
@@ -277,5 +292,19 @@ export default function PortalLoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function PortalLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        </div>
+      }
+    >
+      <PortalLoginContent />
+    </Suspense>
   );
 }

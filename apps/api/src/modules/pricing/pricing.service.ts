@@ -14,6 +14,10 @@ import {
   UpsertTaxRuleDto,
   UpsertAdjustmentDto,
 } from './pricing.dto';
+import {
+  CANONICAL_CATALOG_PRICES,
+  resolveCanonicalProductId,
+} from './canonical-catalog';
 
 export interface CalculatedQuoteResponse {
   marketCode: string;
@@ -258,6 +262,7 @@ export class PricingService {
   async calculateQuote(dto: CalculateQuoteDto): Promise<CalculatedQuoteResponse> {
     const market = await this.resolveMarket(dto.countryCode, dto.marketCode);
     const priceBook = await this.getActivePriceBook(market.id);
+    const currencyKey: 'KES' | 'USD' = market.currencyCode === 'KES' ? 'KES' : 'USD';
 
     // 1. Map the public configurator options to canonical price-book product IDs.
     const packageKeys: Record<string, string> = {
@@ -275,25 +280,23 @@ export class PricingService {
       ecommerce: 'ecommerce-starter',
       enterprise: 'website-enterprise',
     };
-    const addonAliases: Record<string, string> = {
-      'blog-news': 'addon-blog-news',
-      'advanced-form': 'addon-advanced-form',
-      'booking-system': 'addon-booking',
-      'payment-gateway': 'addon-payment-gateway',
-      'mpesa-integration': 'addon-mpesa',
-      newsletter: 'addon-newsletter',
-      'advanced-seo': 'addon-seo-advanced',
-      copywriting: 'addon-copywriting',
-      migration: 'addon-migration',
-      'extra-revision': 'addon-extra-revision',
-      'custom-api': 'addon-custom-api',
-      multilingual: 'addon-multilingual',
-      'document-hub': 'addon-document-hub',
-    };
-    const packageKey = packageKeys[dto.packageType] || `website-${dto.packageType}`;
+    const rawPkg = (dto.packageType || '').trim();
+    const resolvedDirectPkg = resolveCanonicalProductId(rawPkg);
+    const packageKey =
+      packageKeys[rawPkg] ||
+      (CANONICAL_CATALOG_PRICES[resolvedDirectPkg]
+        ? resolvedDirectPkg
+        : resolveCanonicalProductId(`website-${rawPkg}`));
+
     const extraPageKey = 'rate-extra-page';
+    const rawAddOns = (dto.selectedAddOns || []).map((id) => (id || '').trim()).filter(Boolean);
+    const hasRushInAddOns = rawAddOns.some((id) => id.toLowerCase() === 'rush-delivery');
     const selectedAddOns = [
-      ...new Set((dto.selectedAddOns || []).map((id) => addonAliases[id] || id)),
+      ...new Set(
+        rawAddOns
+          .filter((id) => id.toLowerCase() !== 'rush-delivery')
+          .map((id) => resolveCanonicalProductId(id)),
+      ),
     ];
     const careAliases: Record<string, string> = {
       starter: 'care-essential',
@@ -309,8 +312,14 @@ export class PricingService {
       'host-professional': 'host-pro',
       'host-cloud': 'host-cloud',
     };
-    const careKey = dto.care && dto.care !== 'none' ? careAliases[dto.care] || dto.care : null;
-    const hostingKey = dto.hosting && dto.hosting !== 'none' ? hostingAliases[dto.hosting] || dto.hosting : null;
+    const careKey =
+      dto.care && dto.care !== 'none'
+        ? resolveCanonicalProductId(careAliases[dto.care] || dto.care)
+        : null;
+    const hostingKey =
+      dto.hosting && dto.hosting !== 'none'
+        ? resolveCanonicalProductId(hostingAliases[dto.hosting] || dto.hosting)
+        : null;
 
     const allKeysToFetch = [
       packageKey,
@@ -336,8 +345,16 @@ export class PricingService {
       priceMap.set('website-existing', 0);
     }
 
+    const resolveItemPrice = (productId: string): number | undefined => {
+      if (priceMap.has(productId)) {
+        return priceMap.get(productId);
+      }
+      const canonical = CANONICAL_CATALOG_PRICES[productId];
+      return canonical ? canonical[currencyKey] : undefined;
+    };
+
     // 3. Resolve package price
-    const basePackageAmount = priceMap.get(packageKey);
+    const basePackageAmount = resolveItemPrice(packageKey);
     if (basePackageAmount === undefined) {
       throw new BadRequestException(
         `Product ${packageKey} is not priced in active price book ${priceBook.id}`,
@@ -346,7 +363,7 @@ export class PricingService {
 
     // 4. Resolve extra pages
     const extraPagesCount = Number(dto.extraPages) || 0;
-    const configuredPageRate = priceMap.get(extraPageKey);
+    const configuredPageRate = resolveItemPrice(extraPageKey);
     if (extraPagesCount > 0 && configuredPageRate === undefined) {
       throw new BadRequestException('Additional pages are not priced in the active price book.');
     }
@@ -358,7 +375,7 @@ export class PricingService {
     let addOnsSubtotal = 0;
 
     for (const addonId of selectedAddOns) {
-      const addonAmount = priceMap.get(addonId);
+      const addonAmount = resolveItemPrice(addonId);
       if (addonAmount === undefined) {
         throw new BadRequestException(`Add-on ${addonId} is not available in the active price book.`);
       }
@@ -370,16 +387,17 @@ export class PricingService {
       });
     }
 
-    if (careKey && !priceMap.has(careKey)) {
+    if (careKey && resolveItemPrice(careKey) === undefined) {
       throw new BadRequestException(`Care plan ${careKey} is not available in the active price book.`);
     }
-    if (hostingKey && !priceMap.has(hostingKey)) {
+    if (hostingKey && resolveItemPrice(hostingKey) === undefined) {
       throw new BadRequestException(`Hosting plan ${hostingKey} is not available in the active price book.`);
     }
 
     // 6. Subtotal Build & Rush Delivery
     const subtotalBuild = basePackageAmount + extraPagesAmount + addOnsSubtotal;
-    const rushMultiplier = dto.rushDelivery ? 0.35 : 0;
+    const rushApplied = Boolean(dto.rushDelivery || hasRushInAddOns);
+    const rushMultiplier = rushApplied ? 0.35 : 0;
     const rushAmount = Math.round(subtotalBuild * rushMultiplier);
     const grossBuildBeforeDiscount = subtotalBuild + rushAmount;
 
@@ -447,8 +465,8 @@ export class PricingService {
     }
 
     // 9. Recurring Care & Hosting
-    const careAmount = careKey ? priceMap.get(careKey) || 0 : 0;
-    const hostingAmount = hostingKey ? priceMap.get(hostingKey) || 0 : 0;
+    const careAmount = careKey ? resolveItemPrice(careKey) || 0 : 0;
+    const hostingAmount = hostingKey ? resolveItemPrice(hostingKey) || 0 : 0;
 
     const result: CalculatedQuoteResponse = {
       marketCode: market.code,
@@ -471,8 +489,8 @@ export class PricingService {
         },
         addOns: itemizedAddOns,
         rushDelivery: {
-          applied: !!dto.rushDelivery,
-          surchargePct: dto.rushDelivery ? 35 : 0,
+          applied: rushApplied,
+          surchargePct: rushApplied ? 35 : 0,
           amount: rushAmount,
         },
         subtotalBuild,
@@ -785,6 +803,7 @@ export class PricingService {
       'host-cloud': 'Managed Cloud Cluster',
     };
     if (names[id]) return names[id];
+    if (CANONICAL_CATALOG_PRICES[id]?.name) return CANONICAL_CATALOG_PRICES[id].name;
     return id
       .replace(/^addon-/, '')
       .split('-')

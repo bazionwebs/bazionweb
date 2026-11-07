@@ -35,6 +35,7 @@ import {
   BILLING_CYCLES_META,
   calculatePlanCyclePrice,
   getPriceBookForMarket,
+  normalizeCatalogProductId,
 } from '@/lib/priceBooks';
 import {
   EXISTING_WEBSITE_PACKAGE,
@@ -246,6 +247,16 @@ const PRODUCT_MARKETING: Record<string, { name: string; description: string; fea
     description: 'Filterable PDF library for policies, tenders, reports, and corporate brochures.',
     features: [],
   },
+  'addon-admin-dashboard': {
+    name: 'Bespoke Client Admin & Media Upload Hub',
+    description: 'Branded admin portal to upload project photos, swap banners, publish PDFs, and toggle noticebars.',
+    features: [],
+  },
+  'rate-extra-page': {
+    name: 'Additional Page',
+    description: 'Fully designed and responsive page adhering to your design system.',
+    features: [],
+  },
 };
 
 const fallbackMarketing = (productId: string) => ({
@@ -380,7 +391,10 @@ export default function StoreView() {
       setAddedKey(`PLAN:${plan.slug}:${planCycle}`);
       scrollToSectionId('plans');
     } else {
-      const price = (catalog.data?.prices ?? []).find((p) => p.productId === addParam);
+      const canonicalAddParam = normalizeCatalogProductId(addParam);
+      const price = (catalog.data?.prices ?? []).find(
+        (p) => p.productId === addParam || p.productId === canonicalAddParam,
+      );
       if (price) {
         const marketing = PRODUCT_MARKETING[price.productId] ?? fallbackMarketing(price.productId);
         add({
@@ -406,11 +420,13 @@ export default function StoreView() {
   );
 
   const addonItems = useMemo(() => {
-    const apiAddons = (catalog.data?.prices ?? []).filter((p) => p.productId.startsWith('addon-'));
+    const apiAddons = (catalog.data?.prices ?? []).filter(
+      (p) => p.productId.startsWith('addon-') || p.productId === 'rate-extra-page',
+    );
     if (apiAddons.length > 0) return apiAddons;
     return ADD_ON_RATE_CARD.filter((a) => a.rawKes > 0).map((a) => ({
       id: a.id,
-      productId: a.id.startsWith('addon-') ? a.id : `addon-${a.id}`,
+      productId: normalizeCatalogProductId(a.id),
       amount: isKenya ? a.rawKes : a.rawUsd,
       billingPeriod: 'one-time',
     }));

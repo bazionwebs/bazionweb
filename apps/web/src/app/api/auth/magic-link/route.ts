@@ -3,6 +3,7 @@ import { sendMagicLinkEmail } from '@/lib/email';
 import { resolveApiBase } from '@/lib/api-base';
 import { getTrustedSiteOrigin } from '@/lib/site-origin';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { sanitizeRedirectPath } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const { email } = await req.json();
+    const { email, redirect } = await req.json();
+    const safeRedirect = sanitizeRedirectPath(redirect);
 
     if (!email || !email.includes('@')) {
       return NextResponse.json({ error: 'Valid email address is required' }, { status: 400 });
@@ -76,7 +78,11 @@ export async function POST(req: Request) {
     }
 
     const origin = getTrustedSiteOrigin();
-    const magicLinkUrl = `${origin}/portal/login/verify?token=${encodeURIComponent(magicToken)}`;
+    const verifyParams = new URLSearchParams({ token: magicToken });
+    if (safeRedirect) {
+      verifyParams.set('redirect', safeRedirect);
+    }
+    const magicLinkUrl = `${origin}/portal/login/verify?${verifyParams.toString()}`;
 
     const sendResult = await sendMagicLinkEmail({
       to: cleanEmail,

@@ -60,6 +60,29 @@ export function isTrustedCheckoutUrl(raw?: string | null): boolean {
   }
 }
 
+/**
+ * Validates an internal post-login redirect path.
+ * Only permits single-slash relative paths on this origin (e.g. "/checkout?cart=1"),
+ * blocking external URLs, protocol-relative URLs ("//evil.com"), backslashes, and auth-page loops.
+ */
+export function sanitizeRedirectPath(raw?: string | null): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('\\')) {
+    return null;
+  }
+  try {
+    const parsed = new URL(trimmed, 'https://bazionweb.local');
+    if (parsed.origin !== 'https://bazionweb.local') return null;
+    if (parsed.pathname.startsWith('/portal/login') || parsed.pathname.startsWith('/admin/login')) {
+      return null;
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return null;
+  }
+}
+
 export {
   KENYAN_PHONE_REGEX,
   isValidKenyanPhone,

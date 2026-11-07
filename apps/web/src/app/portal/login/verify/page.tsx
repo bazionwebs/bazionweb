@@ -8,6 +8,7 @@ import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
 import type { AuthUser } from '@/store/auth.store';
 import { resolveApiV1Base } from '@/lib/api-base';
+import { sanitizeRedirectPath } from '@/lib/utils';
 
 const API_BASE = resolveApiV1Base();
 
@@ -25,6 +26,9 @@ function MagicVerifyContent() {
   const searchParams = useSearchParams();
   const urlToken = searchParams.get('token') || '';
   const [token] = useState(() => urlToken);
+  const [redirectPath] = useState(
+    () => sanitizeRedirectPath(searchParams.get('redirect')) || '/portal',
+  );
   const verifiedRef = React.useRef(false);
   const setSession = useAuthStore(s => s.setSession);
 
@@ -88,7 +92,7 @@ function MagicVerifyContent() {
         setSuccess(true);
 
         const timer = setTimeout(() => {
-          router.push('/portal');
+          router.push(redirectPath);
         }, 1200);
         return () => { cancelled = true; clearTimeout(timer); };
       } catch (err: unknown) {
@@ -101,7 +105,7 @@ function MagicVerifyContent() {
     })();
 
     return () => { cancelled = true; };
-  }, [token, urlToken, setSession, router]);
+  }, [token, urlToken, redirectPath, setSession, router]);
 
   return (
     <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100 text-slate-900 text-center">
@@ -129,14 +133,16 @@ function MagicVerifyContent() {
             Signed in as <strong className="text-slate-800">{email}</strong>.
           </p>
           <p className="text-xs text-slate-400">
-            Opening your Client Operating Hub…
+            {redirectPath.startsWith('/checkout')
+              ? 'Returning you to your checkout…'
+              : 'Opening your Client Operating Hub…'}
           </p>
           <div className="pt-2">
             <Link
-              href="/portal"
+              href={redirectPath}
               className="btn-primary w-full py-3 justify-center text-xs font-bold shadow-lg"
             >
-              Enter Workspace Now
+              {redirectPath.startsWith('/checkout') ? 'Return to Checkout' : 'Enter Workspace Now'}
               <ArrowRight className="w-4 h-4 ml-1" />
             </Link>
           </div>

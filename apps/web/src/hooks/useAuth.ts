@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import api from '@/lib/api';
+import { sanitizeRedirectPath } from '@/lib/utils';
 
 function parseJwt(token: string) {
   try {
@@ -23,7 +24,7 @@ export function useAuth() {
   const router = useRouter();
   const { user, accessToken, refreshToken, setSession, clearSession, isAuthenticated, hasRole, isTokenExpired } = useAuthStore();
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, redirectTo?: string | null) => {
     const res = await api.post('/auth/login', { email, password });
     const { accessToken: at, refreshToken: rt, expiresIn } = res.data.data;
 
@@ -44,6 +45,12 @@ export function useAuth() {
       rt,
       expiresIn,
     );
+
+    const safeRedirect = sanitizeRedirectPath(redirectTo);
+    if (safeRedirect) {
+      router.push(safeRedirect);
+      return;
+    }
 
     // Route based on role
     const roles: string[] = decoded.realm_access?.roles ?? [];

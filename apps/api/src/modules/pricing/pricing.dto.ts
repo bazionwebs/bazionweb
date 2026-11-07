@@ -14,6 +14,85 @@ import {
   MaxLength,
 } from 'class-validator';
 
+const ALLOWED_QUOTE_PACKAGE_TYPES = [
+  'existing',
+  'existing-website',
+  'byow',
+  'website-existing',
+  'launch',
+  'business',
+  'professional',
+  'ecom-starter',
+  'ecom-business',
+  'ecom-pro',
+  'custom',
+  'corporate',
+  'starter',
+  'ecommerce',
+  'enterprise',
+  'website-launch',
+  'website-business',
+  'website-professional',
+  'website-enterprise',
+  'ecommerce-starter',
+  'ecommerce-business',
+  'ecommerce-enterprise',
+  'service-admin-hub-starter',
+  'service-admin-hub-pro',
+  'service-admin-hub-corporate',
+  'custom-tier-1',
+  'custom-tier-2',
+  'custom-tier-3',
+  'pkg-launch',
+  'pkg-business',
+  'pkg-professional',
+  'pkg-ecommerce',
+  'pkg-ecommerce-business',
+  'pkg-custom-app',
+] as const;
+
+const ALLOWED_QUOTE_HOSTING_OPTIONS = [
+  'none',
+  'host-essential',
+  'host-business',
+  'host-pro',
+  'host-professional',
+  'host-cloud',
+  'starter',
+  'business',
+  'enterprise',
+  'host-essential-monthly',
+  'host-essential-quarterly',
+  'host-essential-semiannual',
+  'host-essential-annual',
+  'host-essential-biennial',
+  'host-essential-triennial',
+  'host-business-monthly',
+  'host-business-quarterly',
+  'host-business-semiannual',
+  'host-business-annual',
+  'host-business-biennial',
+  'host-business-triennial',
+  'host-pro-monthly',
+  'host-pro-quarterly',
+  'host-pro-semiannual',
+  'host-pro-annual',
+  'host-pro-biennial',
+  'host-pro-triennial',
+  'host-professional-monthly',
+  'host-professional-quarterly',
+  'host-professional-semiannual',
+  'host-professional-annual',
+  'host-professional-biennial',
+  'host-professional-triennial',
+  'host-cloud-monthly',
+  'host-cloud-quarterly',
+  'host-cloud-semiannual',
+  'host-cloud-annual',
+  'host-cloud-biennial',
+  'host-cloud-triennial',
+] as const;
+
 export class CalculateQuoteDto {
   @IsOptional()
   @IsString()
@@ -24,31 +103,8 @@ export class CalculateQuoteDto {
   countryCode?: string; // e.g. 'KE', 'US', 'GB'
 
   @IsString()
-  @IsIn([
-    'launch',
-    'business',
-    'professional',
-    'ecom-starter',
-    'ecom-business',
-    'ecom-pro',
-    'custom',
-    'corporate',
-    'starter',
-    'ecommerce',
-    'enterprise',
-  ])
-  packageType:
-    | 'launch'
-    | 'business'
-    | 'professional'
-    | 'ecom-starter'
-    | 'ecom-business'
-    | 'ecom-pro'
-    | 'custom'
-    | 'corporate'
-    | 'starter'
-    | 'ecommerce'
-    | 'enterprise';
+  @IsIn(ALLOWED_QUOTE_PACKAGE_TYPES)
+  packageType: (typeof ALLOWED_QUOTE_PACKAGE_TYPES)[number];
 
   @IsOptional()
   @IsNumber()
@@ -92,27 +148,8 @@ export class CalculateQuoteDto {
 
   @IsOptional()
   @IsString()
-  @IsIn([
-    'none',
-    'host-essential',
-    'host-business',
-    'host-pro',
-    'host-professional',
-    'host-cloud',
-    'starter',
-    'business',
-    'enterprise',
-  ])
-  hosting?:
-    | 'none'
-    | 'host-essential'
-    | 'host-business'
-    | 'host-pro'
-    | 'host-professional'
-    | 'host-cloud'
-    | 'starter'
-    | 'business'
-    | 'enterprise';
+  @IsIn(ALLOWED_QUOTE_HOSTING_OPTIONS)
+  hosting?: (typeof ALLOWED_QUOTE_HOSTING_OPTIONS)[number];
 
   @IsOptional()
   @IsString()

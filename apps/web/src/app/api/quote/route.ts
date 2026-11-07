@@ -5,7 +5,11 @@ import {
   getRegionalCountryOptions,
   mapCountryToMarket,
 } from '@/lib/marketEngine';
-import { getPriceBookForMarket, formatCurrency } from '@/lib/priceBooks';
+import {
+  getPriceBookForMarket,
+  formatCurrency,
+  normalizeCatalogProductId,
+} from '@/lib/priceBooks';
 import { ADD_ON_RATE_CARD } from '@/lib/pricingData';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { sendQuoteSummaryEmail } from '@/lib/email';
@@ -332,18 +336,19 @@ export async function POST(request: NextRequest) {
 
     if (Array.isArray(selectedAddOns)) {
       for (const addonId of selectedAddOns) {
-        const addon = ADD_ON_RATE_CARD.find((a) => a.id === addonId);
-        if (addon) {
+        const canonicalId = normalizeCatalogProductId(addonId);
+        const addon = ADD_ON_RATE_CARD.find((a) => a.id === addonId || normalizeCatalogProductId(a.id) === canonicalId);
+        if (addon && (addon.rawKes > 0 || addon.rawUsd > 0)) {
           const cost = marketCode === 'KE' ? addon.rawKes : addon.rawUsd;
           addOnsCost += cost;
           itemizedAddOns.push({
-            productId: addon.id,
+            productId: canonicalId,
             name: addon.name,
             amount: cost,
             formatted: formatCurrency(cost, currency),
           });
-        } else if (priceBook.items[addonId]) {
-          const item = priceBook.items[addonId];
+        } else if (priceBook.items[canonicalId] || priceBook.items[addonId]) {
+          const item = priceBook.items[canonicalId] || priceBook.items[addonId];
           addOnsCost += item.amount;
           itemizedAddOns.push({
             productId: item.productId,

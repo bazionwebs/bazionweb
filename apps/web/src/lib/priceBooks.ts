@@ -736,6 +736,15 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       formatted: 'KSh 2,000 / page',
       billingPeriod: 'one-time',
     },
+    'rate-extra-landing-page': {
+      productId: 'rate-extra-landing-page',
+      category: 'rate',
+      name: 'Standalone Landing Page / Funnel',
+      amount: 15000,
+      currency: 'KES',
+      formatted: 'KSh 15,000',
+      billingPeriod: 'one-time',
+    },
   },
 };
 
@@ -1282,8 +1291,132 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       formatted: '$40 / page',
       billingPeriod: 'one-time',
     },
+    'rate-extra-landing-page': {
+      productId: 'rate-extra-landing-page',
+      category: 'rate',
+      name: 'Standalone Landing Page / Funnel',
+      amount: 149,
+      currency: 'USD',
+      formatted: '$149',
+      billingPeriod: 'one-time',
+    },
   },
 };
+
+const HOSTING_CYCLE_SUFFIX: Record<CommitmentCycle, string> = {
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+  'semi-annually': 'semiannual',
+  annually: 'annual',
+  biennially: 'biennial',
+  triennially: 'triennial',
+};
+
+/**
+ * Resolves the cycle-specific product ID for a managed hosting selection so
+ * cart display amounts and server-side checkout pricing match across all 6 cycles.
+ */
+export function resolveHostingCycleProductId(
+  baseSlug: string,
+  cycle: CommitmentCycle,
+): string {
+  const clean = (baseSlug || '').trim().toLowerCase();
+  if (cycle === 'annually') return clean;
+  const suffix = HOSTING_CYCLE_SUFFIX[cycle];
+  return suffix ? `${clean}-${suffix}` : clean;
+}
+
+// Populate missing multi-cycle hosting SKUs in both price books from each tier's billingOptions
+for (const book of [PRICE_BOOK_KE_2026_V1, PRICE_BOOK_GLOBAL_2026_V1]) {
+  for (const baseKey of ['host-essential', 'host-business', 'host-pro', 'host-professional', 'host-cloud']) {
+    const baseItem = book.items[baseKey];
+    if (!baseItem?.billingOptions) continue;
+    for (const opt of baseItem.billingOptions) {
+      const cycleProductId = `${baseKey}-${HOSTING_CYCLE_SUFFIX[opt.cycle]}`;
+      if (!book.items[cycleProductId]) {
+        book.items[cycleProductId] = {
+          productId: cycleProductId,
+          category: 'hosting',
+          name: `${baseItem.name} (${opt.label})`,
+          amount: opt.amount,
+          currency: baseItem.currency,
+          formatted: opt.formatted,
+          billingPeriod:
+            opt.cycle === 'monthly'
+              ? 'month'
+              : opt.cycle === 'quarterly'
+                ? 'quarter'
+                : opt.cycle === 'semi-annually'
+                  ? 'half-year'
+                  : 'year',
+          description: baseItem.description,
+        };
+      }
+    }
+  }
+}
+
+/**
+ * Canonical product ID alias map so short/unprefixed rate-card IDs (e.g. "extra-page",
+ * "blog-news", "mpesa-integration"), naive "addon-*" prefixes, and B2B "pkg-*" IDs
+ * always normalize to the authoritative price-book product ID.
+ */
+export const CATALOG_PRODUCT_ALIASES: Record<string, string> = {
+  // Websites & E-Commerce
+  existing: 'website-existing',
+  'existing-website': 'website-existing',
+  byow: 'website-existing',
+  'pkg-launch': 'website-launch',
+  'website-starter': 'website-launch',
+  'pkg-business': 'website-business',
+  'website-pro': 'website-professional',
+  'pkg-professional': 'website-professional',
+  'website-corporate': 'website-enterprise',
+  'pkg-custom-app': 'website-enterprise',
+  'ecom-starter': 'ecommerce-starter',
+  'pkg-ecommerce': 'ecommerce-starter',
+  'ecom-business': 'ecommerce-business',
+  'pkg-ecommerce-business': 'ecommerce-business',
+  'ecom-pro': 'ecommerce-enterprise',
+  'ecommerce-pro': 'ecommerce-enterprise',
+  'pkg-ecommerce-enterprise': 'ecommerce-enterprise',
+  'service-admin-hub-pro': 'service-admin-hub-corporate',
+
+  // Add-ons & Rates (short ADD_ON_RATE_CARD IDs + StoreView naive addon-* prefixes)
+  'extra-page': 'rate-extra-page',
+  'addon-extra-page': 'rate-extra-page',
+  'extra-landing-page': 'rate-extra-landing-page',
+  'addon-landing-page': 'rate-extra-landing-page',
+  'admin-dashboard': 'addon-admin-dashboard',
+  'blog-news': 'addon-blog-news',
+  'blog-setup': 'addon-blog-news',
+  'addon-blog-setup': 'addon-blog-news',
+  'advanced-form': 'addon-advanced-form',
+  'booking-system': 'addon-booking',
+  'addon-booking-system': 'addon-booking',
+  'payment-gateway': 'addon-payment-gateway',
+  'addon-card-gateway': 'addon-payment-gateway',
+  'addon-multi-currency': 'addon-payment-gateway',
+  'mpesa-integration': 'addon-mpesa',
+  'addon-mpesa-integration': 'addon-mpesa',
+  newsletter: 'addon-newsletter',
+  'advanced-seo': 'addon-seo-advanced',
+  'addon-advanced-seo': 'addon-seo-advanced',
+  'addon-seo-audit': 'addon-seo-advanced',
+  copywriting: 'addon-copywriting',
+  migration: 'addon-migration',
+  'extra-revision': 'addon-extra-revision',
+  'custom-api': 'addon-custom-api',
+  'addon-crm-erp': 'addon-custom-api',
+  multilingual: 'addon-multilingual',
+  'document-hub': 'addon-document-hub',
+};
+
+export function normalizeCatalogProductId(productId: string): string {
+  const clean = (productId || '').trim();
+  if (!clean) return clean;
+  return CATALOG_PRODUCT_ALIASES[clean] || CATALOG_PRODUCT_ALIASES[clean.toLowerCase()] || clean;
+}
 
 /**
  * Registry of all price books
@@ -1306,7 +1439,7 @@ export function getPriceBookForMarket(marketCode: MarketCode): PriceBook {
  */
 export function getProductPrice(productId: string, marketCode: MarketCode): CommercialPriceItem | null {
   const book = getPriceBookForMarket(marketCode);
-  return book.items[productId] || null;
+  return book.items[productId] || book.items[normalizeCatalogProductId(productId)] || null;
 }
 
 /**

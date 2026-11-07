@@ -202,7 +202,13 @@ function QuoteCalculatorContent() {
       }
 
       // 3. Explicit add-on parameter
-      if (addonParam && !selectedAddOns.includes(addonParam)) {
+      let extraPages = prev.extraPages;
+      let rushDelivery = prev.rushDelivery;
+      if (addonParam === 'rush-delivery') {
+        rushDelivery = true;
+      } else if (addonParam === 'extra-page' || addonParam === 'rate-extra-page') {
+        extraPages = Math.max(prev.extraPages, 1);
+      } else if (addonParam && !selectedAddOns.includes(addonParam)) {
         selectedAddOns = [...selectedAddOns, addonParam];
       }
 
@@ -220,6 +226,8 @@ function QuoteCalculatorContent() {
         care === prev.care &&
         hosting === prev.hosting &&
         billingCycle === prev.billingCycle &&
+        extraPages === prev.extraPages &&
+        rushDelivery === prev.rushDelivery &&
         addonsUnchanged
       ) {
         return prev;
@@ -231,6 +239,8 @@ function QuoteCalculatorContent() {
         care,
         hosting,
         billingCycle,
+        extraPages,
+        rushDelivery,
         selectedAddOns,
       };
     });

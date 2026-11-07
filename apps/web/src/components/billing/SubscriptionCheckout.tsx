@@ -13,9 +13,11 @@ import {
   Copy, 
   Loader2, 
   ArrowRight,
-  Lock
+  Lock,
+  KeyRound,
+  Mail
 } from 'lucide-react';
-import { resolveApiV1Base } from '@/lib/api-base';
+import { resolveApiV1Base, toCleanUrl } from '@/lib/api-base';
 import { useAuthStore } from '@/store/auth.store';
 import { DEFAULT_PLAN_SLUG, planMarketing, usePlans } from '@/lib/plans';
 import { useCartStore } from '@/lib/cart';
@@ -23,9 +25,19 @@ import {
   getProductPrice,
   BILLING_CYCLES_META,
   calculatePlanCyclePrice,
+  normalizeCatalogProductId,
 } from '@/lib/priceBooks';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
-import { isTrustedCheckoutUrl, normalizeKenyanPhoneNumber } from '@/lib/utils';
+import { isTrustedCheckoutUrl, normalizeKenyanPhoneNumber, sanitizeRedirectPath } from '@/lib/utils';
+
+class CheckoutApiError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'CheckoutApiError';
+    this.code = code;
+  }
+}
 
 export type CheckoutCycle =
   | 'MONTHLY'
@@ -87,14 +99,29 @@ export default function SubscriptionCheckout({
   const clearCart = useCartStore((s) => s.clear);
   const removeCartItem = useCartStore((s) => s.remove);
   const cartPlanItem = cartMode ? cartItems.find((i) => i.kind === 'PLAN') : undefined;
-  const catalogCartItems = cartMode ? cartItems.filter((i) => i.kind === 'CATALOG') : [];
-  const cartExtras = catalogCartItems.map((i) => ({ productId: i.id, qty: i.qty }));
-  const hasWebsiteOrDomainInCart = catalogCartItems.some(
-    (i) =>
-      i.id.startsWith('website-') ||
-      i.id.startsWith('ecommerce-') ||
-      i.id.startsWith('domain-'),
+  const catalogCartItems = React.useMemo(
+    () => (cartMode ? cartItems.filter((i) => i.kind === 'CATALOG') : []),
+    [cartMode, cartItems],
   );
+  const cartExtras = React.useMemo(() => {
+    const merged = new Map<string, number>();
+    for (const item of catalogCartItems) {
+      const canonicalId = normalizeCatalogProductId(item.id);
+      if (!canonicalId) continue;
+      merged.set(canonicalId, (merged.get(canonicalId) || 0) + item.qty);
+    }
+    return Array.from(merged.entries()).map(([productId, qty]) => ({ productId, qty }));
+  }, [catalogCartItems]);
+  const hasWebsiteOrDomainInCart = catalogCartItems.some((i) => {
+    const canonicalId = normalizeCatalogProductId(i.id);
+    return (
+      canonicalId.startsWith('website-') ||
+      canonicalId.startsWith('ecommerce-') ||
+      canonicalId.startsWith('domain-') ||
+      canonicalId.startsWith('custom-tier-') ||
+      canonicalId.startsWith('service-admin-hub-')
+    );
+  });
 
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>(() => {
     if (cartMode) {
@@ -129,7 +156,10 @@ export default function SubscriptionCheckout({
   const [poNumber, setPoNumber] = useState('');
 
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string; code?: string } | null>(null);
+  const [inlineMagicSending, setInlineMagicSending] = useState(false);
+  const [inlineMagicSentTo, setInlineMagicSentTo] = useState<string | null>(null);
+  const [inlineMagicError, setInlineMagicError] = useState<string | null>(null);
   const [wiseAccount, setWiseAccount] = useState<WiseBankAccount | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [paymentAttempt, setPaymentAttempt] = useState<{ trackingId: string; invoiceNumber: string } | null>(null);
@@ -169,6 +199,27 @@ export default function SubscriptionCheckout({
       setEmail(prev => prev || storeUser.email);
     }
   }, [storeUser]);
+
+  // Clear ACCOUNT_EXISTS gate automatically once authenticated or when billing email is edited.
+  useEffect(() => {
+    if (token && (feedback?.code === 'ACCOUNT_EXISTS' || /account already exists/i.test(feedback?.message || ''))) {
+      setFeedback(null);
+      setInlineMagicSentTo(null);
+      setInlineMagicError(null);
+    }
+  }, [token, feedback?.code, feedback?.message]);
+
+  const prevEmailRef = React.useRef(email);
+  useEffect(() => {
+    if (prevEmailRef.current !== email) {
+      prevEmailRef.current = email;
+      setInlineMagicSentTo(null);
+      setInlineMagicError(null);
+      if (feedback?.code === 'ACCOUNT_EXISTS' || /account already exists/i.test(feedback?.message || '')) {
+        setFeedback(null);
+      }
+    }
+  }, [email, feedback?.code, feedback?.message]);
 
   // Keep the selected slug valid as the server catalog loads or changes.
   useEffect(() => {
@@ -345,9 +396,14 @@ export default function SubscriptionCheckout({
             ...(cartExtras.length ? { extras: cartExtras } : {}),
           }),
         });
-        const envelope = await res.json();
+        const envelope = await res.json().catch(() => ({}));
         const data = envelope?.data ?? envelope;
-        if (!res.ok) throw new Error(data.message || 'M-Pesa initialization failed');
+        if (!res.ok) {
+          throw new CheckoutApiError(
+            data?.message || envelope?.message || 'M-Pesa initialization failed',
+            data?.code || envelope?.code || (res.status === 409 ? 'ACCOUNT_EXISTS' : undefined),
+          );
+        }
         if (!data.trackingId) throw new Error('The payment prompt was not created. Please retry.');
         setPaymentAttempt({ trackingId: String(data.trackingId), invoiceNumber: String(data.invoiceNumber || '') });
         setFeedback({
@@ -355,7 +411,12 @@ export default function SubscriptionCheckout({
           message: `${data.message || 'M-Pesa prompt sent!'} Check your handset and enter your PIN.`,
         });
       } catch (err: unknown) {
-        setFeedback({ type: 'error', message: paymentFailedMessage(err, 'M-Pesa payment request failed') });
+        const code = err instanceof CheckoutApiError ? err.code : undefined;
+        setFeedback({
+          type: 'error',
+          message: paymentFailedMessage(err, 'M-Pesa payment request failed'),
+          ...(code ? { code } : {}),
+        });
       } finally {
         setLoading(false);
       }
@@ -449,14 +510,24 @@ export default function SubscriptionCheckout({
       });
       const body = await res.json().catch(() => ({}));
       const data = body?.data ?? body;
-      if (!res.ok) throw new Error(data.message || body.message || 'Card gateway initialization failed');
+      if (!res.ok) {
+        throw new CheckoutApiError(
+          data?.message || body?.message || 'Card gateway initialization failed',
+          data?.code || body?.code || (res.status === 409 ? 'ACCOUNT_EXISTS' : undefined),
+        );
+      }
       if (data.checkoutUrl && isTrustedCheckoutUrl(data.checkoutUrl)) {
         window.location.href = data.checkoutUrl;
         return;
       }
       throw new Error('Payment gateway returned an invalid or untrusted checkout URL');
     } catch (err: unknown) {
-      setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Card gateway error') });
+      const code = err instanceof CheckoutApiError ? err.code : undefined;
+      setFeedback({
+        type: 'error',
+        message: paymentFailedMessage(err, 'Card gateway error'),
+        ...(code ? { code } : {}),
+      });
       setLoading(false);
     }
 
@@ -491,14 +562,24 @@ export default function SubscriptionCheckout({
         });
         const body = await res.json().catch(() => ({}));
         const data = body?.data ?? body;
-        if (!res.ok) throw new Error(data.message || body.message || 'Invoice generation failed');
+        if (!res.ok) {
+          throw new CheckoutApiError(
+            data?.message || body?.message || 'Invoice generation failed',
+            data?.code || body?.code || (res.status === 409 ? 'ACCOUNT_EXISTS' : undefined),
+          );
+        }
         setWiseAccount(data);
         setFeedback({
           type: 'success',
           message: `Corporate invoice ${data.invoiceNumber} ready. Wire to ${data.bankTransferDetails?.beneficiary} with reference ${data.paymentReference}. After we confirm the transfer, claim the dashboard at /portal/claim with ${cleanEmail} — we will email a one-time link to verify it is yours.`,
         });
       } catch (err: unknown) {
-        setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Corporate invoice generation failed') });
+        const code = err instanceof CheckoutApiError ? err.code : undefined;
+        setFeedback({
+          type: 'error',
+          message: paymentFailedMessage(err, 'Corporate invoice generation failed'),
+          ...(code ? { code } : {}),
+        });
       } finally {
         setLoading(false);
       }
@@ -537,6 +618,49 @@ export default function SubscriptionCheckout({
       setFeedback({ type: 'error', message: paymentFailedMessage(err, 'Corporate invoice generation failed') });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fallbackCheckoutPath = `/checkout?plan=${encodeURIComponent(selectedPlanSlug)}&cycle=${encodeURIComponent(billingCycle)}${cartMode ? '&cart=1' : ''}`;
+  const checkoutReturnPath =
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/checkout')
+      ? sanitizeRedirectPath(`${window.location.pathname}${window.location.search}`)
+      : null) || fallbackCheckoutPath;
+  const normalizedBillingEmail = email.trim().toLowerCase();
+  const isAccountExistsError =
+    !token &&
+    feedback?.type === 'error' &&
+    (feedback.code === 'ACCOUNT_EXISTS' || /account already exists/i.test(feedback.message));
+  const signInHref = (() => {
+    const params = new URLSearchParams({ mode: 'password', redirect: checkoutReturnPath });
+    if (normalizedBillingEmail) params.set('email', normalizedBillingEmail);
+    return `/portal/login?${params.toString()}`;
+  })();
+
+  const handleInlineMagicLink = async () => {
+    if (!normalizedBillingEmail || !normalizedBillingEmail.includes('@')) return;
+    setInlineMagicSending(true);
+    setInlineMagicError(null);
+    try {
+      const res = await fetch(toCleanUrl('/api/auth/magic-link'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: normalizedBillingEmail,
+          redirect: checkoutReturnPath,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Could not send sign-in link right now.');
+      }
+      setInlineMagicSentTo(normalizedBillingEmail);
+    } catch (err: unknown) {
+      setInlineMagicError(
+        err instanceof Error ? err.message : 'Could not send sign-in link right now.',
+      );
+    } finally {
+      setInlineMagicSending(false);
     }
   };
 
@@ -951,7 +1075,51 @@ export default function SubscriptionCheckout({
               ) : (
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
               )}
-              <div className="leading-relaxed font-medium">{feedback.message}</div>
+              <div className="flex-1 min-w-0">
+                <div className="leading-relaxed font-medium">{feedback.message}</div>
+                {isAccountExistsError && (
+                  <div className="mt-3 pt-3 border-t border-red-200/80 space-y-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={signInHref}
+                        data-testid="checkout-direct-signin-link"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] hover:bg-blue-700 text-white font-bold px-3.5 py-2 text-xs shadow-2xs transition-colors"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        Sign in to complete payment
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                      {normalizedBillingEmail.includes('@') && (
+                        <button
+                          type="button"
+                          onClick={handleInlineMagicLink}
+                          disabled={inlineMagicSending}
+                          data-testid="checkout-inline-magic-link"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-semibold px-3 py-2 text-xs transition-colors disabled:opacity-50"
+                        >
+                          {inlineMagicSending ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2563EB]" />
+                          ) : (
+                            <Mail className="w-3.5 h-3.5 text-[#2563EB]" />
+                          )}
+                          {inlineMagicSentTo ? 'Resend sign-in link' : 'Email me a sign-in link'}
+                        </button>
+                      )}
+                    </div>
+                    {inlineMagicSentTo && (
+                      <p
+                        data-testid="checkout-inline-magic-sent"
+                        className="text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2"
+                      >
+                        Sign-in link sent to <strong>{inlineMagicSentTo}</strong> — open it from your inbox to return directly to this checkout.
+                      </p>
+                    )}
+                    {inlineMagicError && (
+                      <p className="text-[11px] font-medium text-red-700">{inlineMagicError}</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

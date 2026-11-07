@@ -32,6 +32,8 @@ import {
   getPriceBookForMarket,
   BILLING_CYCLES_META,
   CommitmentCycle,
+  normalizeCatalogProductId,
+  resolveHostingCycleProductId,
 } from '@/lib/priceBooks';
 import {
   Check,
@@ -103,14 +105,20 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
   const selectedAddons = cartItems.filter(isAddOnItem);
 
   const normalizeWebsiteCartId = (slug: string) => {
-    if (slug.startsWith('website-') || slug.startsWith('ecommerce-') || slug.startsWith('custom-tier-')) {
-      return slug;
+    if (
+      slug.startsWith('website-') ||
+      slug.startsWith('ecommerce-') ||
+      slug.startsWith('custom-tier-') ||
+      slug.startsWith('service-admin-hub-')
+    ) {
+      return normalizeCatalogProductId(slug);
     }
     if (slug.startsWith('ecom-')) {
-      return `ecommerce-${slug.replace('ecom-', '')}`;
+      return normalizeCatalogProductId(`ecommerce-${slug.replace('ecom-', '')}`);
     }
-    if (slug === 'professional') return 'website-pro';
-    return `website-${slug}`;
+    if (slug === 'professional') return 'website-professional';
+    if (slug === 'corporate') return 'website-enterprise';
+    return normalizeCatalogProductId(`website-${slug}`);
   };
 
   useEffect(() => {
@@ -206,9 +214,10 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
     const bookItem = priceBook.items[slug];
     const opt = bookItem?.billingOptions?.find((o) => o.cycle === hostingCycle);
     const unitPrice = opt ? opt.amount : resolveBookAmount(slug, fallbackKes, fallbackUsd);
+    const cycleProductId = resolveHostingCycleProductId(slug, hostingCycle);
     addToCart({
       kind: 'CATALOG',
-      id: slug,
+      id: cycleProductId,
       name: `${name} (${opt?.label || 'Annual'})`,
       cycle: hostingCycle === 'monthly' ? 'month' : 'year',
       qty: 1,
@@ -949,24 +958,28 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                       {/* Quick Interactive Add-On Pills */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4">
                         {ADD_ON_RATE_CARD.slice(0, 6).map((addon) => {
-                          const addonId = addon.id;
-                          const isAdded = cartItems.some((i) => i.id === addonId);
+                          const canonicalAddonId = normalizeCatalogProductId(addon.id);
+                          const isAdded = cartItems.some(
+                            (i) => i.id === canonicalAddonId || i.id === addon.id,
+                          );
                           const unitPrice = marketCode === 'KE' ? addon.rawKes : addon.rawUsd;
                           const displayPrice =
                             market === 'kenya' ? addon.kenyaPrice : addon.intlPrice;
 
                           return (
                             <button
-                              key={addonId}
+                              key={addon.id}
                               type="button"
                               onClick={() => {
                                 if (isAdded) {
-                                  const existing = cartItems.find((i) => i.id === addonId);
+                                  const existing = cartItems.find(
+                                    (i) => i.id === canonicalAddonId || i.id === addon.id,
+                                  );
                                   if (existing) removeFromCart(existing.key);
                                 } else {
                                   addToCart({
                                     kind: 'CATALOG',
-                                    id: addonId,
+                                    id: canonicalAddonId,
                                     name: addon.name,
                                     cycle: 'one-time',
                                     qty: 1,
@@ -1329,7 +1342,9 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                             : host.intlPrice;
                         const displayTotal = opt ? opt.formatted : undefined;
                         const discountPct = opt?.discountPct ?? 0;
-                        const isSelected = selectedHosting?.id === host.id;
+                        const isSelected =
+                          selectedHosting?.id === host.id ||
+                          Boolean(selectedHosting?.id?.startsWith(`${host.id}-`));
 
                         return (
                           <div
