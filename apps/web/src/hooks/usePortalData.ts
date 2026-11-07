@@ -418,7 +418,13 @@ export function useNotifications() {
     queryFn: () =>
       portalApi
         .getNotifications({ limit: 15 })
-        .then(r => ((r.data ?? r) as { data?: ApiNotification[] }).data ?? (r as unknown as ApiNotification[]) ?? []),
+        .then(r => {
+          if (Array.isArray(r)) return r;
+          if (Array.isArray(r?.data)) return r.data;
+          if (Array.isArray(r?.data?.items)) return r.data.items;
+          return [];
+        })
+        .catch(() => [] as ApiNotification[]),
     enabled: !!token,
     ...opts,
   });

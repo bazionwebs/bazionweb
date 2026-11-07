@@ -98,7 +98,8 @@ export default function NotificationBell() {
   const panelRef = useRef<HTMLDivElement>(null);
 
   const { data: unreadCount = 0 } = useUnreadNotificationCount();
-  const { data: notifications = [], isLoading } = useNotifications();
+  const { data: rawNotifications = [], isLoading } = useNotifications();
+  const notifications = Array.isArray(rawNotifications) ? rawNotifications : [];
   const markAllRead = useMarkAllNotificationsRead();
   const markRead = useMarkNotificationRead();
 
