@@ -362,6 +362,14 @@ export default function InvoicesClient() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
+    const verifyDocRef = params.get('verify');
+    if (verifyDocRef) {
+      const sigParam = params.get('checksum') || params.get('sig') || '';
+      const targetUrl = `/verify?ref=${encodeURIComponent(verifyDocRef)}${sigParam ? `&sig=${encodeURIComponent(sigParam)}` : ''}`;
+      window.location.replace(targetUrl);
+      return;
+    }
+
     const cardSettled = params.get('card_settled') === '1';
     const ref = params.get('reference') || params.get('trxref');
     if (!cardSettled && !ref) return;

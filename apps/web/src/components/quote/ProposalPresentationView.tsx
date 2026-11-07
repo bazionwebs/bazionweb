@@ -118,13 +118,13 @@ export function ProposalPresentationView({
     });
   }, [proposal.proposalCode, proposal.totalAmount, proposal.currency, proposal.clientEmail, proposal.createdAt]);
 
-  const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?verify=${encodeURIComponent(proposal.proposalCode)}&checksum=${encodeURIComponent(checksum.slice(8, 20))}`;
+  const cleanHashSuffix = checksum.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 8);
+  const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?ref=${encodeURIComponent(proposal.proposalCode)}&sig=${encodeURIComponent(cleanHashSuffix)}`;
 
   const securityBarcodeSvg = useMemo(() => {
-    const cleanSuffix = checksum.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 6);
-    const barcodePayload = `${String(proposal.proposalCode || 'BAZION').toUpperCase()}-${cleanSuffix}`;
-    return generateCode128BarcodeSvg(barcodePayload, { width: 230, height: 36, darkColor: '#0F172A' });
-  }, [proposal.proposalCode, checksum]);
+    const barcodePayload = String(proposal.proposalCode || 'BAZION').trim().toUpperCase();
+    return generateCode128BarcodeSvg(barcodePayload, { width: 260, height: 42, darkColor: '#000000' });
+  }, [proposal.proposalCode]);
 
   const digitalStampSvg = useMemo(() => {
     const isAccepted = acceptStage === 'accepted' || proposal.status === 'ACCEPTED';

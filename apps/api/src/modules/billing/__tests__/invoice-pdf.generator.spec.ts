@@ -1,4 +1,6 @@
 import {
+  computeDocumentFingerprint,
+  decodeCode128Bars,
   encodeCode128Bars,
   InvoicePdfGenerator,
   OFFICIAL_BAZION_KRA_PIN,
@@ -58,12 +60,36 @@ describe('InvoicePdfGenerator', () => {
     ).toBe('Host Business Container - 1 Year (12 Months) | "Pro"');
   });
 
-  it('encodes ISO/IEC 15417 Code-128B security barcode bars accurately', () => {
-    const encoded = encodeCode128Bars('INV-MAN-40770343-3099D6-3AEBCD');
-    expect(encoded.encodedText).toBe('INV-MAN-40770343-3099D6-3AEBCD');
-    // Start (11) + 30 chars * 11 (330) + checksum (11) + Stop (13) = 365 modules
-    expect(encoded.totalModules).toBe(11 + 30 * 11 + 11 + 13);
-    expect(encoded.bars.length).toBeGreaterThan(90);
+  it('encodes and round-trip decodes ISO/IEC 15417 Code-128 Auto B/C security barcode bars with Subset C digit compression', () => {
+    const encoded = encodeCode128Bars('INV-MAN-40770343-3099D6');
+    expect(encoded.encodedText).toBe('INV-MAN-40770343-3099D6');
+    // Subset C compresses the 8-digit block 40770343 into 4 symbol pairs (+ switch symbols),
+    // reducing total module width from 365 down to 266 modules for Grade-A optical scannability.
+    expect(encoded.totalModules).toBe(266);
+    expect(encoded.bars.length).toBeGreaterThan(60);
+
+    // Round-trip optical bar-and-space decoder + Modulo-103 checksum verification
+    const decoded = decodeCode128Bars(encoded.bars, encoded.totalModules);
+    expect(decoded).toBe('INV-MAN-40770343-3099D6');
+
+    // Pure numeric strings start directly in Subset C (Start C = 105)
+    const numericEncoded = encodeCode128Bars('40770343');
+    const numericDecoded = decodeCode128Bars(numericEncoded.bars, numericEncoded.totalModules);
+    expect(numericDecoded).toBe('40770343');
+    // Start C (11) + 4 digit pairs * 11 (44) + Checksum (11) + Stop (13) = 79 modules
+    expect(numericEncoded.totalModules).toBe(79);
+  });
+
+  it('computes deterministic SHA-256 document fingerprint', () => {
+    const fp = computeDocumentFingerprint({
+      docNumber: sampleData.invoiceNumber,
+      currency: sampleData.currency,
+      totalAmount: sampleData.breakdown.total,
+      recipientEmail: sampleData.client.email,
+      issueDate: sampleData.createdAt,
+    });
+    expect(fp.hashHex).toMatch(/^[0-9A-F]{64}$/);
+    expect(fp.formatted).toMatch(/^SHA256: ([0-9A-F]{4}-){7}[0-9A-F]{4}$/);
   });
 
   it('embeds the official BazionWeb raster logo XObject, KRA PIN, payment info, and Code-128B barcode', () => {
@@ -89,8 +115,10 @@ describe('InvoicePdfGenerator', () => {
     expect(latin1).toContain(OFFICIAL_BAZION_PAYMENT_DETAILS.bankAccountNumber);
     expect(latin1).toContain(OFFICIAL_BAZION_PAYMENT_DETAILS.bankSwiftCode);
 
-    // Code-128B Security Barcode present, no QR code
-    expect(latin1).toContain('SECURITY BARCODE \\(CODE-128B\\):');
+    // Code-128 Security Barcode present with pure black bars (0 0 0 rg), public /verify URL, no QR code
+    expect(latin1).toContain('SECURITY BARCODE \\(CODE-128B\\): INV-MAN-40770343-3099D6');
+    expect(latin1).toContain('Verify: bazionweb.com/verify?ref=INV-MAN-40770343-3099D6');
+    expect(latin1).toContain('0 0 0 rg\n');
     expect(latin1.toUpperCase()).not.toContain('QR CODE');
 
     // Sanitized em-dash in line item description

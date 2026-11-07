@@ -13,10 +13,11 @@ export const OFFICIAL_BAZION_PAYMENT_DETAILS = {
   bankAccountNumber: '01103361465001',
   bankSwiftCode: 'KCOOKENA',
   onlinePortalUrl: 'https://bazionweb.com/portal/invoices',
+  verificationPortalUrl: 'https://bazionweb.com/verify',
 } as const;
 
 // ISO/IEC 15417 Code 128 symbol bar/space width patterns (0..106)
-const CODE128_PATTERNS: readonly string[] = [
+export const CODE128_PATTERNS: readonly string[] = [
   '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
   '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
   '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211',
@@ -30,11 +31,24 @@ const CODE128_PATTERNS: readonly string[] = [
   '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
 ];
 
+function countDigitsAt(str: string, pos: number): number {
+  let count = 0;
+  while (pos + count < str.length) {
+    const ch = str.charCodeAt(pos + count);
+    if (ch < 48 || ch > 57) break;
+    count++;
+  }
+  return count;
+}
+
 /**
- * Encodes printable ASCII text into ISO/IEC 15417 Code 128B bar segments.
- * Returns individual black bar spans `[moduleOffset, moduleWidth]` and total module width.
+ * ISO/IEC 15417 Annex E compliant Code 128 Auto-Subset (B/C) encoder.
+ * Automatically switches into double-density numeric Subset C (Code 99 / Start 105)
+ * for runs of 4+ digits (e.g. `40770343` in `INV-MAN-40770343-3099D6`), maximizing
+ * X-dimension bar width and optical contrast for Grade-A camera and laser scanning.
  */
 export function encodeCode128Bars(rawText: string): {
+  codes: number[];
   bars: Array<{ offset: number; width: number }>;
   totalModules: number;
   encodedText: string;
@@ -44,17 +58,47 @@ export function encodeCode128Bars(rawText: string): {
       .replace(/[^\x20-\x7E]/g, '')
       .trim() || 'BAZIONWEB';
 
-  const codes: number[] = [104]; // Start Code B
-  let checksum = 104;
+  const codes: number[] = [];
+  let pos = 0;
+  const leadingDigits = countDigitsAt(encodedText, 0);
+  let mode: 'B' | 'C' =
+    leadingDigits >= 4 || (leadingDigits === 2 && encodedText.length === 2)
+      ? 'C'
+      : 'B';
+  codes.push(mode === 'C' ? 105 : 104);
 
-  for (let i = 0; i < encodedText.length; i++) {
-    const val = encodedText.charCodeAt(i) - 32;
-    codes.push(val);
-    checksum += val * (i + 1);
+  while (pos < encodedText.length) {
+    if (mode === 'C') {
+      const digits = countDigitsAt(encodedText, pos);
+      if (digits >= 2) {
+        codes.push(Number(encodedText.slice(pos, pos + 2)));
+        pos += 2;
+      } else {
+        codes.push(100); // Switch to Code B
+        mode = 'B';
+      }
+    } else {
+      const digits = countDigitsAt(encodedText, pos);
+      if (digits >= 4) {
+        if (digits % 2 === 1) {
+          codes.push(encodedText.charCodeAt(pos) - 32);
+          pos += 1;
+        }
+        codes.push(99); // Switch to Code C
+        mode = 'C';
+      } else {
+        codes.push(encodedText.charCodeAt(pos) - 32);
+        pos += 1;
+      }
+    }
   }
 
+  let checksum = codes[0];
+  for (let i = 1; i < codes.length; i++) {
+    checksum += codes[i] * i;
+  }
   codes.push(checksum % 103);
-  codes.push(106); // Stop pattern
+  codes.push(106); // Stop pattern (13 modules, 4 bars)
 
   const bars: Array<{ offset: number; width: number }> = [];
   let cursor = 0;
@@ -70,7 +114,89 @@ export function encodeCode128Bars(rawText: string): {
     }
   }
 
-  return { bars, totalModules: cursor, encodedText };
+  return { codes, bars, totalModules: cursor, encodedText };
+}
+
+/**
+ * Decodes Code 128 bar segments back into ASCII text and verifies the ISO/IEC 15417
+ * Modulo-103 checksum and Stop symbol. Used by unit tests to prove 100% scannability.
+ */
+export function decodeCode128Bars(
+  bars: Array<{ offset: number; width: number }>,
+  totalModules: number,
+): string {
+  const widths: number[] = [];
+  let pos = 0;
+  for (const b of bars) {
+    if (b.offset > pos) widths.push(b.offset - pos);
+    widths.push(b.width);
+    pos = b.offset + b.width;
+  }
+  if (totalModules > pos) widths.push(totalModules - pos);
+
+  const codes: number[] = [];
+  let i = 0;
+  while (i < widths.length) {
+    const len = widths.length - i === 7 ? 7 : 6;
+    const pat = widths.slice(i, i + len).join('');
+    const idx = CODE128_PATTERNS.indexOf(pat);
+    if (idx === -1) {
+      throw new Error(`Invalid Code 128 bar/space pattern: ${pat}`);
+    }
+    codes.push(idx);
+    i += len;
+  }
+
+  const stop = codes[codes.length - 1];
+  const check = codes[codes.length - 2];
+  let sum = codes[0];
+  for (let k = 1; k < codes.length - 2; k++) {
+    sum += codes[k] * k;
+  }
+  if (stop !== 106 || sum % 103 !== check) {
+    throw new Error('Code 128 Modulo-103 checksum or stop pattern verification failed');
+  }
+
+  let mode: 'B' | 'C' = codes[0] === 105 ? 'C' : 'B';
+  let out = '';
+  for (let k = 1; k < codes.length - 2; k++) {
+    const c = codes[k];
+    if (mode === 'C') {
+      if (c === 100) mode = 'B';
+      else out += String(c).padStart(2, '0');
+    } else {
+      if (c === 99) mode = 'C';
+      else out += String.fromCharCode(c + 32);
+    }
+  }
+  return out;
+}
+
+/**
+ * Computes the deterministic SHA-256 document security fingerprint.
+ * Shared between InvoicePdfGenerator and BillingService.verifyDocumentPublic.
+ */
+export function computeDocumentFingerprint(params: {
+  docNumber: string;
+  totalAmount: number | string;
+  currency: string;
+  recipientEmail: string;
+  issueDate: Date | string;
+}): { hashHex: string; formatted: string } {
+  const checksumRaw = [
+    String(params.docNumber || '').trim().toUpperCase(),
+    String(params.totalAmount ?? 0),
+    String(params.currency || 'USD').toUpperCase(),
+    String(params.recipientEmail || '').trim().toLowerCase(),
+    new Date(params.issueDate).toISOString().slice(0, 10),
+    'BAZION_SECURE_DOCUMENT_INTEGRITY_SALT_V1',
+  ].join('|');
+  const hashHex = createHash('sha256').update(checksumRaw).digest('hex').toUpperCase();
+  const chunks = hashHex.slice(0, 32).match(/.{1,4}/g) || [hashHex.slice(0, 32)];
+  return {
+    hashHex,
+    formatted: `SHA256: ${chunks.join('-')}`,
+  };
 }
 
 export function resolveSupplierTaxPin(configuredPin?: string | null): string {
@@ -141,8 +267,8 @@ export class InvoicePdfGenerator {
    * Generates a compliant PDF 1.4 binary buffer.
    * Embeds the official BazionWeb brand logo as a 300-DPI /FlateDecode RGB XObject (/Im1),
    * official Co-operative Bank & M-Pesa Paybill payment instructions,
-   * ISO/IEC 15417 Code-128B vector security barcode (no QR), BRS & KRA corporate credentials,
-   * and SHA-256 cryptographic tamper-evident seal.
+   * ISO/IEC 15417 Grade-A Code-128 Auto (B/C) vector security barcode (pure black on white, >=12X quiet zone),
+   * BRS & KRA corporate credentials, and SHA-256 cryptographic tamper-evident seal.
    */
   static generate(data: InvoicePdfData): Buffer {
     const isPaid = data.status === 'PAID';
@@ -320,17 +446,15 @@ export class InvoicePdfGenerator {
     const headerBottomY = tableTopY - headerH; // 602
 
     contentLines.push('q');
-    // Deep Navy header bar (#0F172A)
     contentLines.push('0.059 0.090 0.165 rg');
     contentLines.push(`40 ${headerBottomY} 515 ${headerH} re f`);
-    // Top 2.5pt Royal Blue accent rule (#2563EB)
     contentLines.push('0.145 0.388 0.921 rg');
     contentLines.push(`40 ${tableTopY - 2.5} 515 2.5 re f`);
     contentLines.push('Q');
 
     contentLines.push('BT');
     contentLines.push('/F2 7.8 Tf');
-    contentLines.push('0.49 0.83 0.99 rg'); // Sky Blue #7DD3FC for NO.
+    contentLines.push('0.49 0.83 0.99 rg');
     contentLines.push(`47 ${headerBottomY + 7.5} Td`);
     contentLines.push(`(${esc('NO.')}) Tj`);
     contentLines.push('1 1 1 rg');
@@ -383,7 +507,6 @@ export class InvoicePdfGenerator {
       const rowNumStr = String(idx + 1).padStart(2, '0');
 
       contentLines.push('q');
-      // Alternating zebra row fill (with distinct soft blue-slate highlight for VAT/tax row)
       if (isTaxRow) {
         contentLines.push('0.935 0.958 0.992 rg');
       } else if (idx % 2 === 1) {
@@ -393,45 +516,37 @@ export class InvoicePdfGenerator {
       }
       contentLines.push(`40 ${rowBottomY} 515 ${rowH} re f`);
 
-      // Left 3pt color-coded accent bar per row (#2563EB Royal Blue for services, #0D9488 Teal for Tax)
       contentLines.push(isTaxRow ? '0.051 0.580 0.533 rg' : '0.145 0.388 0.921 rg');
       contentLines.push(`40 ${rowBottomY} 3 ${rowH} re f`);
 
-      // Subtle QTY pill badge background
       contentLines.push(isTaxRow ? '0.86 0.95 0.93 rg' : '0.918 0.945 0.996 rg');
       contentLines.push(`342 ${rowBottomY + 4} 24 13 re f`);
 
-      // Horizontal row divider line
       contentLines.push('0.84 0.88 0.93 RG 0.6 w');
       contentLines.push(`40 ${rowBottomY} m 555 ${rowBottomY} l S`);
       contentLines.push('Q');
 
       contentLines.push('BT');
-      // 1. Row Index (01, 02...)
       contentLines.push('/F2 7.8 Tf');
       contentLines.push(isTaxRow ? '0.051 0.580 0.533 rg' : '0.145 0.388 0.921 rg');
       contentLines.push(`48 ${textY} Td`);
       contentLines.push(`(${esc(rowNumStr)}) Tj`);
 
-      // 2. Deliverable Description (Bold crisp dark navy)
       contentLines.push('/F2 7.8 Tf');
       contentLines.push(isTaxRow ? '0.08 0.28 0.36 rg' : '0.06 0.09 0.16 rg');
       contentLines.push('23 0 Td');
       contentLines.push(`(${esc(desc.slice(0, 60))}) Tj`);
 
-      // 3. Quantity inside pill
       contentLines.push('/F2 7.8 Tf');
       contentLines.push(isTaxRow ? '0.04 0.45 0.40 rg' : '0.11 0.30 0.85 rg');
       contentLines.push('280 0 Td');
       contentLines.push(`(${esc(String(qty))}) Tj`);
 
-      // 4. Unit Price
       contentLines.push('/F1 7.8 Tf');
       contentLines.push('0.30 0.36 0.44 rg');
       contentLines.push('34 0 Td');
       contentLines.push(`(${esc(unitStr)}) Tj`);
 
-      // 5. Line Total (Bold high-contrast amount)
       contentLines.push('/F2 8.4 Tf');
       contentLines.push(isTaxRow ? '0.05 0.38 0.35 rg' : '0.059 0.090 0.165 rg');
       contentLines.push('85 0 Td');
@@ -441,17 +556,14 @@ export class InvoicePdfGenerator {
       rowTopY = rowBottomY;
     });
 
-    // Outer Table Frame & Vertical Column Dividers
     const tableBottomY = rowTopY;
     const totalTableH = tableTopY - tableBottomY;
     contentLines.push('q');
-    // Subtle vertical column separators inside body
     contentLines.push('0.86 0.89 0.94 RG 0.5 w');
     contentLines.push(`66 ${tableBottomY} m 66 ${headerBottomY} l S`);
     contentLines.push(`336 ${tableBottomY} m 336 ${headerBottomY} l S`);
     contentLines.push(`376 ${tableBottomY} m 376 ${headerBottomY} l S`);
     contentLines.push(`462 ${tableBottomY} m 462 ${headerBottomY} l S`);
-    // Crisp outer border around entire table (header + body)
     contentLines.push('0.145 0.388 0.921 RG 1 w');
     contentLines.push(`40 ${tableBottomY} 515 ${totalTableH} re S`);
     contentLines.push('Q');
@@ -459,17 +571,14 @@ export class InvoicePdfGenerator {
     const currentY = tableBottomY - 6;
 
     // ── 6. Payment Instructions Card (Left) & Financial Breakdown Box (Right) ──
-    // Keep both boxes cleanly above the bottom security & barcode block (top at y=138)
-    const boxY = Math.max(262, currentY - 14);
-    const boxBottomY = boxY - 110; // Total box height = 125pt (boxBottomY .. boxY + 15)
+    const boxY = Math.max(268, currentY - 14);
+    const boxBottomY = boxY - 110;
 
-    // 6A. Official Payment Instructions Card (Left: x=40..318, w=278, h=125)
     contentLines.push('q');
     contentLines.push('0.975 0.985 0.995 rg');
     contentLines.push(`40 ${boxBottomY} 278 125 re f`);
     contentLines.push('0.82 0.86 0.92 RG 1 w');
     contentLines.push(`40 ${boxBottomY} 278 125 re S`);
-    // Top header accent strip inside payment card
     contentLines.push('0.059 0.090 0.165 rg');
     contentLines.push(`40 ${boxY + 1} 278 14 re f`);
     contentLines.push('Q');
@@ -483,9 +592,8 @@ export class InvoicePdfGenerator {
 
     const p = OFFICIAL_BAZION_PAYMENT_DETAILS;
     contentLines.push('BT');
-    // Channel 1: Lipa Na M-Pesa Paybill
     contentLines.push('/F2 7.8 Tf');
-    contentLines.push('0.05 0.45 0.25 rg'); // Safaricom / Co-op Emerald
+    contentLines.push('0.05 0.45 0.25 rg');
     contentLines.push(`48 ${boxY - 10} Td`);
     contentLines.push(`(${esc('1. LIPA NA M-PESA (CO-OP BANK PAYBILL):')}) Tj`);
     contentLines.push('/F2 8 Tf');
@@ -499,9 +607,8 @@ export class InvoicePdfGenerator {
     contentLines.push('0 -10 Td');
     contentLines.push(`(${esc(`Business Name: ${p.mpesaAccountName}`)}) Tj`);
 
-    // Channel 2: Bank Transfer (EFT / RTGS / SWIFT)
     contentLines.push('/F2 7.8 Tf');
-    contentLines.push('0.10 0.30 0.78 rg'); // Royal Blue
+    contentLines.push('0.10 0.30 0.78 rg');
     contentLines.push('0 -14 Td');
     contentLines.push(`(${esc('2. BANK TRANSFER (EFT / RTGS / SWIFT):')}) Tj`);
     contentLines.push('/F1 7.5 Tf');
@@ -568,59 +675,55 @@ export class InvoicePdfGenerator {
     contentLines.push('ET');
 
     // ── 7. Cryptographic SHA-256 Tamper-Evident Digest ──
-    const checksumRaw = [
-      String(data.invoiceNumber || '').trim().toUpperCase(),
-      String(data.breakdown.total ?? data.amount ?? 0),
-      String(data.currency || 'USD').toUpperCase(),
-      String(data.client.email || '').trim().toLowerCase(),
-      new Date(data.createdAt).toISOString().slice(0, 10),
-      'BAZION_SECURE_DOCUMENT_INTEGRITY_SALT_V1',
-    ].join('|');
-    const hashHex = createHash('sha256').update(checksumRaw).digest('hex').toUpperCase();
-    const chunks = hashHex.slice(0, 32).match(/.{1,4}/g) || [hashHex.slice(0, 32)];
-    const checksumStr = `SHA256: ${chunks.join('-')}`;
+    const fp = computeDocumentFingerprint({
+      docNumber: data.invoiceNumber,
+      totalAmount: data.breakdown.total ?? data.amount ?? 0,
+      currency: data.currency || 'USD',
+      recipientEmail: data.client.email || '',
+      issueDate: data.createdAt,
+    });
+    const checksumStr = fp.formatted;
 
-    // ── 8. Digital Authentication, Code-128B Security Barcode & Official Seal Block ──
-    // Spans y=24..138 (height 114pt)
+    // ── 8. Digital Authentication, ISO/IEC 15417 Grade-A Code-128 Barcode & Official Seal ──
+    // Spans y=22..142 (height 120pt)
     contentLines.push('q');
     contentLines.push('0.96 0.97 0.99 rg');
-    contentLines.push('40 24 515 114 re f');
+    contentLines.push('40 22 515 120 re f');
     contentLines.push('0.85 0.88 0.92 RG 0.75 w');
-    contentLines.push('40 24 515 114 re S');
+    contentLines.push('40 22 515 120 re S');
     // Top microprint ribbon inside block
     contentLines.push('0.059 0.090 0.165 rg');
-    contentLines.push('40 126 515 12 re f');
-    // White framed security barcode plate on bottom-left (x=48..380, y=30..70)
+    contentLines.push('40 130 515 12 re f');
+    // Borderless high-contrast Pure White (#FFFFFF) barcode quiet-zone plate (x=46..402, y=27..76)
+    // NO vertical stroke around the barcode plate so scanners never mistake a border line for a bar!
     contentLines.push('1 1 1 rg');
-    contentLines.push('48 30 332 40 re f');
-    contentLines.push('0.82 0.86 0.92 RG 0.6 w');
-    contentLines.push('48 30 332 40 re S');
-    // Official Digital Seal box on right (x=390..547, y=30..120)
+    contentLines.push('46 27 356 49 re f');
+    // Official Digital Seal box on right (x=408..549, y=27..124)
     contentLines.push('0.82 0.86 0.92 RG 0.75 w');
-    contentLines.push('390 30 157 90 re S');
+    contentLines.push('408 27 141 97 re S');
     contentLines.push('Q');
 
     // Microprint text
     contentLines.push('BT');
     contentLines.push('/F2 5.8 Tf');
     contentLines.push('0.9 0.95 1 rg');
-    contentLines.push('48 129.5 Td');
+    contentLines.push('48 133.5 Td');
     contentLines.push(
       `(${esc(`*** BAZION WEB (REG: BN-DLSZOZ6O | KRA PIN: ${supplierTaxPin}) *** OFFICIAL SYSTEM-GENERATED RECORD *** ISO 14533 ***`)}) Tj`,
     );
     contentLines.push('ET');
 
-    // Main compliance statement (Top-Left of security block, y=75..116)
+    // Main compliance statement (Top-Left of security block, y=80..120)
     contentLines.push('BT');
     contentLines.push('/F2 7.3 Tf');
     contentLines.push('0.1 0.15 0.25 rg');
-    contentLines.push('48 114 Td');
+    contentLines.push('48 119 Td');
     contentLines.push(
       `(${esc(`AUTHENTICATED SSOT ENGINE RECORD  |  REF: ${data.invoiceNumber}`)}) Tj`,
     );
     contentLines.push('/F1 6.1 Tf');
     contentLines.push('0.35 0.4 0.48 rg');
-    contentLines.push('0 -9.5 Td');
+    contentLines.push('0 -9 Td');
     contentLines.push(
       `(${esc(`Issued electronically by BAZION WEB (Proprietor: Joseph Mburu Kiai | KRA PIN: ${supplierTaxPin}).`)}) Tj`,
     );
@@ -634,48 +737,50 @@ export class InvoicePdfGenerator {
     );
     contentLines.push('ET');
 
-    // Linear ISO/IEC 15417 Code-128B Security Barcode (NO QR — vector bars only)
-    const cleanRef = sanitizePdfText(data.invoiceNumber).toUpperCase().slice(0, 28);
-    const barcodePayload = `${cleanRef}-${hashHex.slice(0, 6)}`;
-    const barcode = encodeCode128Bars(barcodePayload);
-    const quietModules = 10;
-    const totalWithQuiet = barcode.totalModules + quietModules * 2;
-    const plateInnerW = 316; // Fits inside 48..380 with 8pt padding each side
-    const modulePt = plateInnerW / totalWithQuiet;
-    const barStartX = 56 + quietModules * modulePt;
+    // ISO/IEC 15417 Grade-A Code-128 Auto (B/C) Security Barcode:
+    // - Encodes canonical invoice reference (e.g. INV-MAN-40770343-3099D6) with Subset C digit compression
+    // - Exact binary-fraction module width (1.2pt = >0.42mm X-dimension)
+    // - 100% Pure Black (0 0 0 rg) bars on 100% Pure White (1 1 1 rg) background
+    // - >= 15pt clear borderless white quiet zones on both left and right
+    const cleanRef = sanitizePdfText(data.invoiceNumber).toUpperCase().slice(0, 26);
+    const barcode = encodeCode128Bars(cleanRef);
+    const maxActiveW = 320; // leaves >=18pt pure white quiet zone on left and right inside 356pt white plate
+    const modulePt = Math.min(1.4, Math.floor((maxActiveW / barcode.totalModules) * 20) / 20);
+    const actualBarcodeW = barcode.totalModules * modulePt;
+    const barStartX = Math.round(46 + (356 - actualBarcodeW) / 2);
     const barBottomY = 42;
-    const barHeight = 23;
+    const barHeight = 29;
 
     contentLines.push('q');
-    contentLines.push('0.059 0.090 0.165 rg'); // Crisp deep navy/black bars
+    contentLines.push('0 0 0 rg'); // 100% Pure Black for maximum ISO/IEC 15416 symbol contrast
     for (const bar of barcode.bars) {
-      const bx = (barStartX + bar.offset * modulePt).toFixed(3);
-      const bw = (bar.width * modulePt).toFixed(3);
+      const bx = (barStartX + bar.offset * modulePt).toFixed(2);
+      const bw = (bar.width * modulePt).toFixed(2);
       contentLines.push(`${bx} ${barBottomY} ${bw} ${barHeight} re f`);
     }
     contentLines.push('Q');
 
-    // Human-readable security barcode text below bars
+    // Human-readable security barcode text & live verification URL cleanly below bars (11pt gap below barBottomY)
     contentLines.push('BT');
     contentLines.push('/F2 6 Tf');
-    contentLines.push('0.22 0.28 0.36 rg');
-    contentLines.push('64 33.5 Td');
+    contentLines.push('0.12 0.16 0.24 rg');
+    contentLines.push('54 31 Td');
     contentLines.push(
-      `(${esc(`SECURITY BARCODE (CODE-128B):  ${barcode.encodedText}`)}) Tj`,
+      `(${esc(`SECURITY BARCODE (CODE-128B): ${barcode.encodedText}  |  Verify: bazionweb.com/verify?ref=${barcode.encodedText}`)}) Tj`,
     );
     contentLines.push('ET');
 
-    // Seal Box text (Right)
+    // Seal Box text (Right: x=416)
     contentLines.push('BT');
-    contentLines.push('/F2 7.2 Tf');
+    contentLines.push('/F2 7 Tf');
     contentLines.push(isPaid ? '0.05 0.5 0.3 rg' : '0.1 0.3 0.8 rg');
-    contentLines.push('400 107 Td');
+    contentLines.push('416 111 Td');
     contentLines.push(`(${esc('[ OFFICIAL DIGITAL SEAL ]')}) Tj`);
-    contentLines.push('/F2 8 Tf');
+    contentLines.push('/F2 7.8 Tf');
     contentLines.push('0.06 0.09 0.16 rg');
     contentLines.push('0 -12 Td');
     contentLines.push(`(${esc('BAZION WEB')}) Tj`);
-    contentLines.push('/F1 6.5 Tf');
+    contentLines.push('/F1 6.3 Tf');
     contentLines.push('0.3 0.35 0.45 rg');
     contentLines.push('0 -10 Td');
     contentLines.push(`(${esc('REG NO: BN-DLSZOZ6O')}) Tj`);
@@ -683,15 +788,15 @@ export class InvoicePdfGenerator {
     contentLines.push(`(${esc(`KRA PIN: ${supplierTaxPin}`)}) Tj`);
     contentLines.push('0 -9.5 Td');
     contentLines.push(`(${esc('NAIROBI - KENYA')}) Tj`);
-    contentLines.push('/F2 7 Tf');
+    contentLines.push('/F2 6.8 Tf');
     contentLines.push(isPaid ? '0.05 0.5 0.3 rg' : '0.1 0.3 0.8 rg');
     contentLines.push('0 -11.5 Td');
     contentLines.push(`(${esc(isPaid ? 'VERIFIED: PAID IN FULL' : 'VERIFIED: AUTHENTICATED')}) Tj`);
-    contentLines.push('/F1 5.6 Tf');
+    contentLines.push('/F1 5.4 Tf');
     contentLines.push('0.4 0.45 0.55 rg');
     contentLines.push('0 -9.5 Td');
-    contentLines.push(`(${esc('SSOT BILLING ENGINE | SMS BRS TO 21546')}) Tj`);
-    contentLines.push('/ET'.replace('/', ''));
+    contentLines.push(`(${esc('SSOT ENGINE | SMS BRS TO 21546')}) Tj`);
+    contentLines.push('ET');
 
     const streamBody = contentLines.join('\n');
     const contentStreamBuf = Buffer.from(streamBody, 'latin1');

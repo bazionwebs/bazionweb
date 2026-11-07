@@ -36,11 +36,13 @@ describe('document-branding corporate SSOT', () => {
     expect(paymentHtml).toContain('KCOOKENA');
   });
 
-  it('renders a linear Code-128B security barcode without QR code in verification block', () => {
-    const barcodeSvg = generateCode128BarcodeSvg('INV-MAN-40770343-3099D6-3AEBCD');
+  it('renders a high-contrast ISO/IEC 15417 Code-128 Auto B/C security barcode without QR code in verification block', () => {
+    expect(BAZION_CORPORATE_DETAILS.registryUrl).toBe('https://bazionweb.com/verify');
+
+    const barcodeSvg = generateCode128BarcodeSvg('INV-MAN-40770343-3099D6');
     expect(barcodeSvg).toContain('<svg');
-    expect(barcodeSvg).toContain('<rect');
-    expect(barcodeSvg).toContain('INV-MAN-40770343-3099D6-3AEBCD');
+    expect(barcodeSvg).toContain('fill="#000000"');
+    expect(barcodeSvg).toContain('INV-MAN-40770343-3099D6');
 
     const securityHtml = renderSecurityVerificationSectionHtml({
       docNumber: 'INV-MAN-40770343-3099D6',
@@ -51,6 +53,7 @@ describe('document-branding corporate SSOT', () => {
       issueDate: '2026-11-07T08:50:00.000Z',
     });
     expect(securityHtml).toContain('Security Barcode (Code-128B)');
+    expect(securityHtml).toContain('https://bazionweb.com/verify?ref=INV-MAN-40770343-3099D6');
     expect(securityHtml).toContain('A006926734I');
     expect(securityHtml).not.toContain('Scan via smartphone camera');
   });

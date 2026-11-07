@@ -25,6 +25,7 @@ const otherUser   = { id: 'other-uuid', roles: ['CLIENT'] };
 const mockPrisma = {
   invoice: {
     findUnique: jest.fn(),
+    findFirst:  jest.fn(),
     findMany:   jest.fn(),
     count:      jest.fn(),
     create:     jest.fn(),
@@ -35,7 +36,8 @@ const mockPrisma = {
   user:    { findUnique: jest.fn(), create: jest.fn() },
   plan:    { findUnique: jest.fn() },
   wiseReceivingAccount: { create: jest.fn() },
-  paymentLog: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
+  paymentLog: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+  proposal: { findFirst: jest.fn() },
   subscription: { findMany: jest.fn() },
   market: { findFirst: jest.fn().mockResolvedValue(null) },
   currency: { findUnique: jest.fn() },
@@ -842,6 +844,78 @@ describe('BillingService', () => {
     it('rejects unknown plans', async () => {
       mockPrisma.plan.findUnique.mockResolvedValue(null);
       await expect(service.createBankTransferInvoiceGuest(guestCorpDto)).rejects.toThrow(/plan not found/i);
+    });
+  });
+
+  // ── verifyDocumentPublic() — public barcode & cryptographic verification ───
+
+  describe('verifyDocumentPublic()', () => {
+    const mockVerifiableInvoice = {
+      id: 'inv-verify-1',
+      invoiceNumber: 'INV-MAN-40770343-3099D6',
+      currency: 'KES',
+      amount: 267960,
+      status: 'SENT',
+      createdAt: new Date('2026-11-07T08:50:00.000Z'),
+      dueDate: new Date('2026-11-21T08:50:00.000Z'),
+      paidAt: null,
+      client: {
+        businessName: 'Global Missions For Christ International',
+        email: 'globalmissionfc@gmail.com',
+        user: { email: 'globalmissionfc@gmail.com', firstName: 'Global', lastName: 'Mission' },
+      },
+      paymentLogs: [],
+    };
+
+    it('verifies an authentic invoice reference and computes SHA-256 fingerprint', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
+
+      const res = await service.verifyDocumentPublic('INV-MAN-40770343-3099D6');
+
+      expect(res.verified).toBe(true);
+      expect(res.found).toBe(true);
+      expect(res.documentType).toBe('OFFICIAL TAX INVOICE');
+      expect(res.referenceNumber).toBe('INV-MAN-40770343-3099D6');
+      expect(res.issuer.taxPin).toBe('A006926734I');
+      expect(res.recipient?.emailMasked).toBe('gl***c@gmail.com');
+      expect(res.cryptographicFingerprint).toMatch(/^SHA256: ([0-9A-F]{4}-){7}[0-9A-F]{4}$/);
+      expect(res.signatureVerified).toBeNull();
+    });
+
+    it('matches legacy barcode scans that include the 6-char trailing SHA-256 checksum suffix', async () => {
+      // Compute expected fingerprint snippet first
+      mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
+      const baseRes = await service.verifyDocumentPublic('INV-MAN-40770343-3099D6');
+      const shortHex = baseRes.cryptographicFingerprint!.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 6);
+
+      // First query (exact with suffix) returns null; second query (stripped base reference) returns the invoice
+      mockPrisma.invoice.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(mockVerifiableInvoice);
+
+      const legacyScanRes = await service.verifyDocumentPublic(`INV-MAN-40770343-3099D6-${shortHex}`);
+      expect(legacyScanRes.verified).toBe(true);
+      expect(legacyScanRes.referenceNumber).toBe('INV-MAN-40770343-3099D6');
+      expect(legacyScanRes.signatureVerified).toBe(true);
+    });
+
+    it('flags a tampered checksum signature while still identifying the ledger record', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
+
+      const tamperedRes = await service.verifyDocumentPublic('INV-MAN-40770343-3099D6', 'DEADBEEF');
+      expect(tamperedRes.verified).toBe(false);
+      expect(tamperedRes.found).toBe(true);
+      expect(tamperedRes.signatureVerified).toBe(false);
+    });
+
+    it('returns verified: false when reference does not exist in any ledger', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValue(null);
+      mockPrisma.proposal.findFirst.mockResolvedValue(null);
+
+      const missingRes = await service.verifyDocumentPublic('INV-FAKE-99999999');
+      expect(missingRes.verified).toBe(false);
+      expect(missingRes.found).toBe(false);
+      expect(missingRes.referenceNumber).toBe('INV-FAKE-99999999');
     });
   });
 });

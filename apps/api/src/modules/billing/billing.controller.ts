@@ -69,6 +69,23 @@ export class BillingController {
   }
 
   /**
+   * Public: Cryptographic Document & Barcode Verification Registry.
+   * Verifies any BazionWeb Invoice, Payment Receipt, or Commercial Proposal
+   * by its reference number / scanned Code-128 barcode and optional SHA-256 checksum snippet.
+   */
+  @Get('verify/:reference')
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Verify invoice, receipt, or proposal authenticity by reference or barcode (public)' })
+  async verifyDocumentPublic(
+    @Param('reference') reference: string,
+    @Query('checksum') checksum?: string,
+    @Query('sig') sig?: string,
+  ) {
+    return this.svc.verifyDocumentPublic(reference, checksum || sig);
+  }
+
+  /**
    * Public: Retrieve proposal details by commercial reference code.
    * Throttled to 30 requests per minute to prevent scraping.
    */

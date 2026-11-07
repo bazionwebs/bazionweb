@@ -20,7 +20,8 @@ export const BAZION_CORPORATE_DETAILS = {
   supportEmail: 'support@bazionweb.com',
   phone: '+254 721 287 053',
   website: 'https://bazionweb.com',
-  registryUrl: 'https://bazionweb.com/portal/invoices',
+  registryUrl: 'https://bazionweb.com/verify',
+  portalBillingUrl: 'https://bazionweb.com/portal/invoices',
   globalRegions: 'Nairobi · Frankfurt · London Cloud Hubs',
   logoPath: '/brand/logo-with-background.png',
   paymentChannels: {
@@ -513,6 +514,16 @@ const CODE128_SVG_PATTERNS: readonly string[] = [
   '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
 ];
 
+function countDigitsAt(str: string, pos: number): number {
+  let count = 0;
+  while (pos + count < str.length) {
+    const ch = str.charCodeAt(pos + count);
+    if (ch < 48 || ch > 57) break;
+    count++;
+  }
+  return count;
+}
+
 export function generateCode128BarcodeSvg(
   rawText: string,
   options: { width?: number; height?: number; darkColor?: string; showCaption?: boolean } = {},
@@ -522,45 +533,75 @@ export function generateCode128BarcodeSvg(
       .replace(/[^\x20-\x7E]/g, '')
       .trim() || 'BAZIONWEB';
 
-  const codes: number[] = [104]; // Start Code B
-  let checksum = 104;
-  for (let i = 0; i < cleanText.length; i++) {
-    const val = cleanText.charCodeAt(i) - 32;
-    codes.push(val);
-    checksum += val * (i + 1);
+  const codes: number[] = [];
+  let pos = 0;
+  const leadingDigits = countDigitsAt(cleanText, 0);
+  let mode: 'B' | 'C' =
+    leadingDigits >= 4 || (leadingDigits === 2 && cleanText.length === 2) ? 'C' : 'B';
+  codes.push(mode === 'C' ? 105 : 104);
+
+  while (pos < cleanText.length) {
+    if (mode === 'C') {
+      const digits = countDigitsAt(cleanText, pos);
+      if (digits >= 2) {
+        codes.push(Number(cleanText.slice(pos, pos + 2)));
+        pos += 2;
+      } else {
+        codes.push(100); // Switch to Code B
+        mode = 'B';
+      }
+    } else {
+      const digits = countDigitsAt(cleanText, pos);
+      if (digits >= 4) {
+        if (digits % 2 === 1) {
+          codes.push(cleanText.charCodeAt(pos) - 32);
+          pos += 1;
+        }
+        codes.push(99); // Switch to Code C
+        mode = 'C';
+      } else {
+        codes.push(cleanText.charCodeAt(pos) - 32);
+        pos += 1;
+      }
+    }
+  }
+
+  let checksum = codes[0];
+  for (let i = 1; i < codes.length; i++) {
+    checksum += codes[i] * i;
   }
   codes.push(checksum % 103);
   codes.push(106); // Stop
 
-  const quietModules = 10;
+  const quietModules = 14;
   let cursor = quietModules;
   const rects: string[] = [];
-  const barHeight = options.height ?? 42;
+  const barHeight = options.height ?? 46;
   const showCaption = options.showCaption ?? true;
-  const totalHeight = showCaption ? barHeight + 18 : barHeight + 6;
-  const darkColor = options.darkColor ?? '#0F172A';
+  const totalHeight = showCaption ? barHeight + 22 : barHeight + 8;
+  const darkColor = options.darkColor ?? '#000000';
 
   for (const code of codes) {
     const pattern = CODE128_SVG_PATTERNS[code];
     for (let j = 0; j < pattern.length; j++) {
       const w = Number(pattern[j]);
       if (j % 2 === 0) {
-        rects.push(`<rect x="${cursor}" y="3" width="${w}" height="${barHeight}" fill="${darkColor}" />`);
+        rects.push(`<rect x="${cursor}" y="4" width="${w}" height="${barHeight}" fill="${darkColor}" />`);
       }
       cursor += w;
     }
   }
   const totalWidth = cursor + quietModules;
-  const svgWidth = options.width ?? 280;
+  const svgWidth = options.width ?? Math.max(280, Math.round(totalWidth * 1.15));
   const safeCaption = cleanText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="${svgWidth}" height="${Math.round((svgWidth * totalHeight) / totalWidth)}" shape-rendering="crispEdges" role="img" aria-label="Security Barcode ${safeCaption}">
-  <rect width="${totalWidth}" height="${totalHeight}" fill="#FFFFFF" rx="4" />
+  <rect width="${totalWidth}" height="${totalHeight}" fill="#FFFFFF" />
   ${rects.join('')}
-  ${showCaption ? `<text x="${totalWidth / 2}" y="${barHeight + 14}" text-anchor="middle" font-family="'JetBrains Mono', monospace, Courier" font-size="9.5" font-weight="700" fill="#334155" letter-spacing="0.6">${safeCaption}</text>` : ''}
+  ${showCaption ? `<text x="${totalWidth / 2}" y="${barHeight + 17}" text-anchor="middle" font-family="'JetBrains Mono', monospace, Courier" font-size="9.5" font-weight="800" fill="#0F172A" letter-spacing="0.8">${safeCaption}</text>` : ''}
 </svg>`;
 }
 
@@ -611,7 +652,7 @@ export function renderPaymentInstructionsHtml(options: { docNumber?: string; isP
         A/C Name: ${p.bankAccountName} &nbsp;|&nbsp; A/C No: ${p.bankAccountNumber}
       </div>
       <div style="font-size: 11px; color: #475569;">
-        SWIFT / BIC: <strong>${p.bankSwiftCode}</strong> &nbsp;&bull;&nbsp; Online Card / STK: <a href="${BAZION_CORPORATE_DETAILS.registryUrl}" style="color: #2563EB; text-decoration: none; font-weight: 700;">bazionweb.com/portal/invoices</a>
+        SWIFT / BIC: <strong>${p.bankSwiftCode}</strong> &nbsp;&bull;&nbsp; Online Card / STK: <a href="${BAZION_CORPORATE_DETAILS.portalBillingUrl}" style="color: #2563EB; text-decoration: none; font-weight: 700;">bazionweb.com/portal/invoices</a>
       </div>
     </div>
   </div>
@@ -713,10 +754,10 @@ export function renderSecurityVerificationSectionHtml(options: SecuritySectionOp
     issueDate: options.issueDate,
   });
 
-  const cleanHashSuffix = checksum.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 6);
-  const barcodeValue = `${String(options.docNumber || 'BAZION').toUpperCase()}-${cleanHashSuffix}`;
-  const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?verify=${encodeURIComponent(options.docNumber)}&checksum=${encodeURIComponent(checksum.slice(8, 20))}`;
-  const barcodeSvg = generateCode128BarcodeSvg(barcodeValue, { width: 290, height: 38, darkColor: '#0F172A' });
+  const cleanHashSuffix = checksum.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 8);
+  const barcodeValue = String(options.docNumber || 'BAZION').trim().toUpperCase();
+  const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?ref=${encodeURIComponent(barcodeValue)}&sig=${encodeURIComponent(cleanHashSuffix)}`;
+  const barcodeSvg = generateCode128BarcodeSvg(barcodeValue, { width: 320, height: 46, darkColor: '#000000' });
   const stampSvg = renderDigitalStampSvg({
     docNumber: options.docNumber,
     status: isPaid ? 'PAID' : 'AUTHENTICATED',

@@ -44,7 +44,9 @@ import {
   resolveCanonicalProductId,
 } from '../pricing/canonical-catalog';
 import {
+  computeDocumentFingerprint,
   InvoicePdfGenerator,
+  OFFICIAL_BAZION_KRA_PIN,
   OFFICIAL_BAZION_PAYMENT_DETAILS,
   resolveSupplierTaxPin,
 } from './invoice-pdf.generator';
@@ -2079,6 +2081,237 @@ export class BillingService {
         downloadUrlWithToken: `/api/v1/invoices/${id}/pdf/download?token=${encodeURIComponent(downloadToken)}`,
         expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       },
+    };
+  }
+
+  private maskEmailAddress(rawEmail?: string | null): string {
+    const email = String(rawEmail || '').trim().toLowerCase();
+    const atIdx = email.indexOf('@');
+    if (atIdx <= 0) return 'client@***';
+    const local = email.slice(0, atIdx);
+    const domain = email.slice(atIdx + 1);
+    const maskedLocal =
+      local.length <= 2
+        ? `${local[0] || '*'}***`
+        : `${local.slice(0, 2)}***${local.slice(-1)}`;
+    return `${maskedLocal}@${domain}`;
+  }
+
+  /**
+   * Public SSOT cryptographic verification for scanned Code-128 barcodes & reference lookups.
+   * Supports exact invoice numbers (`INV-MAN-40770343-3099D6`), legacy barcode strings with a
+   * trailing 6-hex checksum suffix (`INV-MAN-40770343-3099D6-62F583`), and proposal codes.
+   */
+  async verifyDocumentPublic(rawReference: string, checksumQuery?: string) {
+    const cleaned = String(rawReference || '')
+      .trim()
+      .toUpperCase();
+    if (!cleaned || cleaned.length < 3) {
+      throw new BadRequestException('A valid document reference or barcode is required.');
+    }
+
+    // Extract optional trailing 6-char hex checksum suffix if present from a legacy barcode scan
+    // (Note: standard invoice numbers end with 1 random 6-hex block like INV-MAN-12345678-3099D6;
+    // a legacy barcode appended a SECOND 6-hex block like INV-MAN-12345678-3099D6-62F583).
+    const parts = cleaned.split('-');
+    let embeddedSig = '';
+    const candidateRefs = [cleaned];
+    if (
+      parts.length >= 5 &&
+      /^[0-9A-F]{6}$/.test(parts[parts.length - 1]) &&
+      /^[0-9A-F]{6}$/.test(parts[parts.length - 2])
+    ) {
+      embeddedSig = parts[parts.length - 1];
+      candidateRefs.push(parts.slice(0, -1).join('-'));
+    }
+
+    const effectiveSig = String(checksumQuery || embeddedSig || '')
+      .replace(/^SHA256:\s*/i, '')
+      .replace(/[^0-9A-F]/gi, '')
+      .toUpperCase();
+
+    // 1. Check Invoices table
+    let invoice: any = null;
+    for (const candidate of candidateRefs) {
+      invoice = await this.prisma.invoice.findFirst({
+        where: {
+          invoiceNumber: { equals: candidate, mode: 'insensitive' },
+        },
+        include: {
+          client: {
+            include: {
+              user: { select: { email: true, firstName: true, lastName: true } },
+            },
+          },
+          paymentLogs: {
+            where: { status: PaymentStatus.SUCCESS },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      });
+      if (invoice) break;
+    }
+
+    if (invoice) {
+      const tax = await this.resolveInvoiceTax(invoice.currency);
+      const breakdown = this.calculateInvoiceBreakdown(invoice, tax);
+      const clientEmail =
+        invoice.client?.email ||
+        invoice.client?.user?.email ||
+        'billing@bazionweb.com';
+      const fp = computeDocumentFingerprint({
+        docNumber: invoice.invoiceNumber,
+        totalAmount: breakdown.total ?? Number(invoice.amount),
+        currency: invoice.currency,
+        recipientEmail: clientEmail,
+        issueDate: invoice.createdAt,
+      });
+
+      const signatureVerified =
+        effectiveSig.length >= 4
+          ? fp.hashHex.startsWith(effectiveSig) || fp.hashHex.includes(effectiveSig)
+          : null;
+
+      const rawItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+      const lineItems =
+        rawItems.length > 0
+          ? rawItems.map((it: any) => ({
+              description: String(it?.description || 'Service Deliverable'),
+              quantity: Math.max(1, Number(it?.quantity ?? 1)),
+              amount: Number(it?.amount ?? invoice.amount ?? 0),
+            }))
+          : [
+              {
+                description: String(invoice.notes || 'Engineering & Managed Cloud Services'),
+                quantity: 1,
+                amount: Number(invoice.amount || 0),
+              },
+            ];
+
+      return {
+        verified: signatureVerified !== false,
+        found: true,
+        signatureVerified,
+        documentType:
+          invoice.status === InvoiceStatus.PAID
+            ? 'OFFICIAL PAYMENT RECEIPT'
+            : 'OFFICIAL TAX INVOICE',
+        referenceNumber: invoice.invoiceNumber,
+        status: invoice.status,
+        currency: invoice.currency,
+        subtotal: breakdown.subtotal,
+        vatAmount: breakdown.vatAmount,
+        vatLabel: breakdown.vatLabel,
+        totalAmount: breakdown.total,
+        amountPaid: breakdown.amountPaid,
+        balanceDue: breakdown.balanceDue,
+        issuedAt: new Date(invoice.createdAt).toISOString(),
+        dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString() : null,
+        paidAt: invoice.paidAt ? new Date(invoice.paidAt).toISOString() : null,
+        settlementRef: invoice.paymentLogs?.[0]?.providerRef || null,
+        recipient: {
+          businessName: invoice.client?.businessName || 'Valued Client',
+          emailMasked: this.maskEmailAddress(clientEmail),
+        },
+        issuer: {
+          legalName: 'BAZION WEB',
+          proprietor: 'Joseph Mburu Kiai',
+          regNumber: 'BN-DLSZOZ6O',
+          taxPin: resolveSupplierTaxPin(this.config.get<string>('COMPANY_KRA_PIN')) || OFFICIAL_BAZION_KRA_PIN,
+          brsValidation: 'SMS "BRS" to 21546',
+        },
+        paymentChannels: OFFICIAL_BAZION_PAYMENT_DETAILS,
+        cryptographicFingerprint: fp.formatted,
+        lineItems,
+        verifiedAt: new Date().toISOString(),
+      };
+    }
+
+    // 2. Check Proposals table if not found in Invoices
+    for (const candidate of candidateRefs) {
+      const proposal = await this.prisma.proposal.findFirst({
+        where: {
+          proposalCode: { equals: candidate, mode: 'insensitive' },
+        },
+      });
+      if (proposal) {
+        const fp = computeDocumentFingerprint({
+          docNumber: proposal.proposalCode,
+          totalAmount: Number(proposal.totalAmount || 0),
+          currency: proposal.currency || 'KES',
+          recipientEmail: proposal.clientEmail || '',
+          issueDate: proposal.createdAt,
+        });
+        const signatureVerified =
+          effectiveSig.length >= 4
+            ? fp.hashHex.startsWith(effectiveSig) || fp.hashHex.includes(effectiveSig)
+            : null;
+        return {
+          verified: signatureVerified !== false,
+          found: true,
+          signatureVerified,
+          documentType: 'COMMERCIAL PROPOSAL',
+          referenceNumber: proposal.proposalCode,
+          status: proposal.status,
+          currency: proposal.currency,
+          subtotal: Number(proposal.totalAmount || 0),
+          vatAmount: 0,
+          vatLabel: 'Included in Proposal Scope',
+          totalAmount: Number(proposal.totalAmount || 0),
+          amountPaid: 0,
+          balanceDue: Number(proposal.totalAmount || 0),
+          issuedAt: new Date(proposal.createdAt).toISOString(),
+          dueDate: proposal.expiresAt ? new Date(proposal.expiresAt).toISOString() : null,
+          paidAt: null,
+          settlementRef: null,
+          recipient: {
+            businessName: proposal.clientCompany || proposal.clientName || 'Valued Client',
+            emailMasked: this.maskEmailAddress(proposal.clientEmail),
+          },
+          issuer: {
+            legalName: 'BAZION WEB',
+            proprietor: 'Joseph Mburu Kiai',
+            regNumber: 'BN-DLSZOZ6O',
+            taxPin: resolveSupplierTaxPin(this.config.get<string>('COMPANY_KRA_PIN')) || OFFICIAL_BAZION_KRA_PIN,
+            brsValidation: 'SMS "BRS" to 21546',
+          },
+          paymentChannels: OFFICIAL_BAZION_PAYMENT_DETAILS,
+          cryptographicFingerprint: fp.formatted,
+          lineItems: Array.isArray(proposal.lineItems) && proposal.lineItems.length > 0
+            ? (proposal.lineItems as any[]).map((it: any) => ({
+                description: String(it?.description || it?.name || 'Commercial Proposal Deliverable'),
+                quantity: Math.max(1, Number(it?.quantity ?? 1)),
+                amount: Number(it?.amount ?? it?.price ?? 0),
+              }))
+            : [
+                {
+                  description: 'Turnkey Web Engineering & Managed Cloud Proposal',
+                  quantity: 1,
+                  amount: Number(proposal.totalAmount || 0),
+                },
+              ],
+          verifiedAt: new Date().toISOString(),
+        };
+      }
+    }
+
+    return {
+      verified: false,
+      found: false,
+      signatureVerified: false,
+      documentType: null,
+      referenceNumber: cleaned,
+      message:
+        'No official BazionWeb invoice, payment receipt, or commercial proposal matches this reference.',
+      issuer: {
+        legalName: 'BAZION WEB',
+        proprietor: 'Joseph Mburu Kiai',
+        regNumber: 'BN-DLSZOZ6O',
+        taxPin: OFFICIAL_BAZION_KRA_PIN,
+        brsValidation: 'SMS "BRS" to 21546',
+      },
+      verifiedAt: new Date().toISOString(),
     };
   }
 
