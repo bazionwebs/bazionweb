@@ -309,7 +309,7 @@ export default function AdminInvoicesPage() {
     repriceCartForCurrency(nextCurrency);
   };
 
-  // Auto-detect client currency and preset VAT when client selected
+  // Auto-detect client currency when client selected (VAT defaults to false as supplier is not VAT-registered)
   const handleClientSelect = (selectedId: string) => {
     setClientId(selectedId);
     const chosen = rawClients.find((c) => c.id === selectedId);
@@ -317,7 +317,7 @@ export default function AdminInvoicesPage() {
       const isKenya = chosen.country === 'KE' || /kenya/i.test(chosen.country || '');
       const nextCurrency: SettlementCurrency = isKenya ? 'KES' : 'USD';
       setCurrency(nextCurrency);
-      setApplyVat(isKenya);
+      setApplyVat(false);
       repriceCartForCurrency(nextCurrency);
     }
   };
@@ -593,15 +593,6 @@ export default function AdminInvoicesPage() {
       unitPrice: item.unitPrice,
       amount: Math.round(item.quantity * item.unitPrice * 100) / 100,
     }));
-
-    if (applyVat && vatAmount > 0) {
-      payloadLineItems.push({
-        description: `Value Added Tax (VAT ${Math.round(vatRate * 100)}%)`,
-        quantity: 1,
-        unitPrice: vatAmount,
-        amount: vatAmount,
-      });
-    }
 
     try {
       await adminApi.generateInvoice({
@@ -1691,15 +1682,20 @@ export default function AdminInvoicesPage() {
 
                   {/* VAT / Tax Toggle */}
                   <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl text-xs">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={applyVat}
-                        onChange={(e) => setApplyVat(e.target.checked)}
-                        className="rounded text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="font-semibold text-slate-700">Apply Value Added Tax (VAT 16%)</span>
-                    </label>
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={applyVat}
+                          onChange={(e) => setApplyVat(e.target.checked)}
+                          className="rounded text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="font-semibold text-slate-700">Apply Value Added Tax (VAT 16%)</span>
+                      </label>
+                      <p className="text-[10px] text-slate-400 mt-0.5 ml-5">
+                        Only enable if supplier has active VAT obligation on KRA iTax
+                      </p>
+                    </div>
                     {applyVat && (
                       <span className="font-bold text-slate-900">+{formatMoney(vatAmount, currency)}</span>
                     )}

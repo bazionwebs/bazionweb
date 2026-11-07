@@ -29,20 +29,16 @@ describe('InvoicePdfGenerator', () => {
         quantity: 1,
         amount: 8500,
       },
-      {
-        description: 'Value Added Tax (VAT 16%)',
-        quantity: 1,
-        amount: 10240,
-      },
     ],
     breakdown: {
-      subtotal: 64000,
-      vatRate: 0.16,
-      vatAmount: 10240,
-      vatLabel: '16% KRA VAT (Inclusive)',
-      total: 74240,
+      subtotal: 8500,
+      vatRate: 0,
+      vatAmount: 0,
+      vatLabel: 'VAT Not Applicable',
+      total: 8500,
       amountPaid: 0,
-      balanceDue: 74240,
+      balanceDue: 8500,
+      vatRegistered: false,
     },
   };
 
@@ -121,8 +117,9 @@ describe('InvoicePdfGenerator', () => {
     expect(latin1).toContain('0 0 0 rg\n');
     expect(latin1.toUpperCase()).not.toContain('QR CODE');
 
-    // Sanitized em-dash in line item description
-    expect(latin1).toContain('Host Business Container - 1 Year \\(12 Months\\) \\(25% off\\)');
+    // Official Tax Invoice vs Official Invoice (VAT Act, 2013: only VAT-registered suppliers may issue Tax Invoices)
+    expect(latin1).toContain('OFFICIAL INVOICE');
+    expect(latin1).toContain('Supplier not registered for VAT');
 
     // Verify xref byte offset points directly to 7 0 obj (logo XObject)
     const xrefIdx = latin1.lastIndexOf('\nxref\n');

@@ -49,6 +49,7 @@ import {
   OFFICIAL_BAZION_KRA_PIN,
   OFFICIAL_BAZION_PAYMENT_DETAILS,
   resolveSupplierTaxPin,
+  isSupplierVatRegistered,
 } from './invoice-pdf.generator';
 
 /** JWT audience for short-lived invoice PDF download links. */
@@ -63,6 +64,8 @@ export interface InvoiceBreakdown {
   amountPaid: number;
   balanceDue: number;
   isInclusive: boolean;
+  /** False when the supplier is not VAT-registered (no VAT may be charged or shown). */
+  vatRegistered: boolean;
 }
 
 @Injectable()
@@ -1874,12 +1877,22 @@ export class BillingService {
   }
 
   /**
+   * Whether BAZION WEB is registered for the VAT obligation on KRA iTax.
+   * Defaults to false: a non-registered supplier must not charge VAT, split VAT
+   * out of the price, or title documents "Tax Invoice" (Kenya VAT Act, 2013).
+   */
+  private supplierVatRegistered(): boolean {
+    return isSupplierVatRegistered(this.config.get<string>('COMPANY_VAT_REGISTERED'));
+  }
+
+  /**
    * Resolves the VAT rule for an invoice currency from the Market table
    * (the same source of truth used by the pricing engine), so invoices never
    * show a tax line that the quote/price book did not charge.
    */
   private async resolveInvoiceTax(currency: string): Promise<{ vatRate: number; isInclusive: boolean }> {
     const fallback = { vatRate: 0, isInclusive: true };
+    if (!this.supplierVatRegistered()) return fallback;
     try {
       const market = await this.prisma.market.findFirst({
         where: { currencyCode: (currency || '').toUpperCase(), active: true },
@@ -1903,8 +1916,10 @@ export class BillingService {
   ): InvoiceBreakdown {
     const total = Number(invoice.amount || 0);
     const isKes = (invoice.currency || 'KES').toUpperCase() === 'KES';
-    const resolvedTax = tax ?? { vatRate: isKes ? 0.16 : 0.0, isInclusive: isKes };
-    const vatRate = resolvedTax.vatRate > 0 ? resolvedTax.vatRate : 0;
+    const vatRegistered = this.supplierVatRegistered();
+    const resolvedTax =
+      tax ?? { vatRate: vatRegistered && isKes ? 0.16 : 0.0, isInclusive: true };
+    const vatRate = vatRegistered && resolvedTax.vatRate > 0 ? resolvedTax.vatRate : 0;
     const isInclusive = resolvedTax.isInclusive;
 
     let subtotal = total;
@@ -1919,8 +1934,11 @@ export class BillingService {
     }
 
     const ratePct = Math.round(vatRate * 10000) / 100;
-    const vatLabel =
-      vatRate > 0 ? `${ratePct}% KRA VAT (Inclusive)` : '0% Cross-Border Export';
+    const vatLabel = !vatRegistered
+      ? 'VAT Not Applicable (Supplier not VAT-registered)'
+      : vatRate > 0
+        ? `VAT @ ${ratePct}%`
+        : '0% VAT (Zero-Rated Export of Services)';
 
     const isPaid = invoice.status === InvoiceStatus.PAID;
     const paidLogsSum = (invoice.paymentLogs || [])
@@ -1939,6 +1957,7 @@ export class BillingService {
       amountPaid,
       balanceDue,
       isInclusive,
+      vatRegistered,
     };
   }
 
@@ -2196,7 +2215,9 @@ export class BillingService {
         documentType:
           invoice.status === InvoiceStatus.PAID
             ? 'OFFICIAL PAYMENT RECEIPT'
-            : 'OFFICIAL TAX INVOICE',
+            : breakdown.vatAmount > 0
+              ? 'OFFICIAL TAX INVOICE'
+              : 'OFFICIAL INVOICE',
         referenceNumber: invoice.invoiceNumber,
         status: invoice.status,
         currency: invoice.currency,

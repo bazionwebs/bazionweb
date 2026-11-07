@@ -16,6 +16,27 @@ export const OFFICIAL_BAZION_PAYMENT_DETAILS = {
   verificationPortalUrl: 'https://bazionweb.com/verify',
 } as const;
 
+/**
+ * VAT registration status of the supplier (BAZION WEB, KRA PIN A006926734I).
+ *
+ * Under the Kenya VAT Act, 2013 only a person registered for the VAT obligation
+ * may charge VAT or issue a "Tax Invoice". BazionWeb is NOT VAT-registered, so by
+ * default no VAT is charged, split out, or labelled anywhere. Set the env var
+ * `COMPANY_VAT_REGISTERED=true` only after the VAT obligation is active on iTax.
+ */
+export function isSupplierVatRegistered(raw?: string | boolean | null): boolean {
+  if (typeof raw === 'boolean') return raw;
+  return ['true', '1', 'yes'].includes(String(raw ?? '').trim().toLowerCase());
+}
+
+export const NON_VAT_REGISTERED_NOTICE =
+  'Supplier is not registered for VAT under the Kenya VAT Act, 2013. No VAT has been charged.';
+
+/** Line items that represent a tax charge rather than a deliverable (legacy VAT rows). */
+export function isTaxLineItem(description?: string | null): boolean {
+  return /\bvat\b|value added tax/i.test(String(description || ''));
+}
+
 // ISO/IEC 15417 Code 128 symbol bar/space width patterns (0..106)
 export const CODE128_PATTERNS: readonly string[] = [
   '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
@@ -253,6 +274,8 @@ export interface InvoicePdfData {
     total: number;
     amountPaid: number;
     balanceDue: number;
+    /** Whether the supplier is VAT-registered. Defaults to vatAmount > 0. */
+    vatRegistered?: boolean;
   };
   paymentRef?: string | null;
   /** Issuer details from configuration; omitted fields fall back to official corporate defaults. */
@@ -272,7 +295,15 @@ export class InvoicePdfGenerator {
    */
   static generate(data: InvoicePdfData): Buffer {
     const isPaid = data.status === 'PAID';
-    const docTitle = isPaid ? 'OFFICIAL PAYMENT RECEIPT' : 'OFFICIAL TAX INVOICE';
+    // Only a VAT-registered supplier may title a document "Tax Invoice" (VAT Act, 2013).
+    const chargesVat =
+      (data.breakdown.vatRegistered ?? data.breakdown.vatAmount > 0) &&
+      data.breakdown.vatAmount > 0;
+    const docTitle = isPaid
+      ? 'OFFICIAL PAYMENT RECEIPT'
+      : chargesVat
+        ? 'OFFICIAL TAX INVOICE'
+        : 'OFFICIAL INVOICE';
     const statusText = isPaid ? 'PAID IN FULL' : data.status;
 
     const supplierAddress =
@@ -488,7 +519,7 @@ export class InvoicePdfGenerator {
       const desc = sanitizePdfText(
         item.description || 'Cloud & Hosting Infrastructure Service',
       );
-      const isTaxRow = /vat|value added tax|tax/i.test(desc);
+      const isTaxRow = isTaxLineItem(desc);
       const qty = Math.max(1, Number(item.quantity ?? 1));
       const amtVal = Number(item.amount ?? data.amount ?? 0);
       const unitVal =
@@ -643,19 +674,25 @@ export class InvoicePdfGenerator {
     contentLines.push('/F1 8 Tf');
     contentLines.push('0.3 0.35 0.4 rg');
     contentLines.push(`345 ${boxY} Td`);
-    contentLines.push(`(${esc('Subtotal (Net):')}) Tj`);
+    contentLines.push(`(${esc(chargesVat ? 'Subtotal (Excl. VAT):' : 'Subtotal:')}) Tj`);
     contentLines.push('110 0 Td');
     contentLines.push(`(${esc(fmt(data.breakdown.subtotal))}) Tj`);
 
     contentLines.push('-110 -18 Td');
-    contentLines.push(`(${esc(data.breakdown.vatLabel)}:) Tj`);
-    contentLines.push('110 0 Td');
-    contentLines.push(`(${esc(fmt(data.breakdown.vatAmount))}) Tj`);
+    if (chargesVat) {
+      contentLines.push(`(${esc(`Add: ${data.breakdown.vatLabel}:`)}) Tj`);
+      contentLines.push('110 0 Td');
+      contentLines.push(`(${esc(fmt(data.breakdown.vatAmount))}) Tj`);
+    } else {
+      contentLines.push(`(${esc('VAT:')}) Tj`);
+      contentLines.push('110 0 Td');
+      contentLines.push(`(${esc('Not Applicable')}) Tj`);
+    }
 
     contentLines.push('/F2 9 Tf');
     contentLines.push('0.05 0.09 0.16 rg');
     contentLines.push('-110 -22 Td');
-    contentLines.push(`(${esc('Total Invoice Amount:')}) Tj`);
+    contentLines.push(`(${esc(chargesVat ? 'Total (Incl. VAT):' : 'Total Invoice Amount:')}) Tj`);
     contentLines.push('110 0 Td');
     contentLines.push(`(${esc(fmt(data.breakdown.total))}) Tj`);
 
@@ -673,6 +710,18 @@ export class InvoicePdfGenerator {
     contentLines.push('110 0 Td');
     contentLines.push(`(${esc(fmt(data.breakdown.balanceDue))}) Tj`);
     contentLines.push('ET');
+
+    if (!chargesVat) {
+      // Statutory VAT status declaration (supplier not VAT-registered)
+      contentLines.push('BT');
+      contentLines.push('/F1 6.4 Tf');
+      contentLines.push('0.38 0.43 0.50 rg');
+      contentLines.push(`345 ${boxY - 95} Td`);
+      contentLines.push(`(${esc('Supplier not registered for VAT (Kenya VAT Act, 2013).')}) Tj`);
+      contentLines.push('0 -8 Td');
+      contentLines.push(`(${esc('No VAT has been charged on this document.')}) Tj`);
+      contentLines.push('ET');
+    }
 
     // ── 7. Cryptographic SHA-256 Tamper-Evident Digest ──
     const fp = computeDocumentFingerprint({

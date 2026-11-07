@@ -874,7 +874,7 @@ describe('BillingService', () => {
 
       expect(res.verified).toBe(true);
       expect(res.found).toBe(true);
-      expect(res.documentType).toBe('OFFICIAL TAX INVOICE');
+      expect(res.documentType).toBe('OFFICIAL INVOICE');
       expect(res.referenceNumber).toBe('INV-MAN-40770343-3099D6');
       expect(res.issuer.taxPin).toBe('A006926734I');
       expect(res.recipient?.emailMasked).toBe('gl***c@gmail.com');

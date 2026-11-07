@@ -18,6 +18,7 @@ import {
   CANONICAL_CATALOG_PRICES,
   resolveCanonicalProductId,
 } from './canonical-catalog';
+import { isSupplierVatRegistered } from '../billing/invoice-pdf.generator';
 
 export interface CalculatedQuoteResponse {
   marketCode: string;
@@ -218,7 +219,7 @@ export class PricingService {
         name: market.name,
         currencyCode: market.currencyCode,
         currencySymbol: market.currency.symbol,
-        vatRate: Number(market.vatRate),
+        vatRate: isSupplierVatRegistered(process.env.COMPANY_VAT_REGISTERED) ? Number(market.vatRate) : 0,
         taxIncludedInPrice: market.taxIncludedInPrice,
         roundingRule: market.roundingRule,
       },
@@ -442,12 +443,17 @@ export class PricingService {
     const netBuildAmount = Math.max(0, grossBuildBeforeDiscount - discountAmount);
 
     // 8. Tax Calculation (from DB TaxRules)
-    const taxRule = await this.prisma.taxRule.findFirst({
-      where: { marketId: market.id, active: true },
-      orderBy: { rate: 'desc' },
-    });
+    // A supplier that is not VAT-registered on KRA iTax must not charge or split
+    // out VAT (Kenya VAT Act, 2013) — prices are then the full, final amount.
+    const vatRegistered = isSupplierVatRegistered(process.env.COMPANY_VAT_REGISTERED);
+    const taxRule = vatRegistered
+      ? await this.prisma.taxRule.findFirst({
+          where: { marketId: market.id, active: true },
+          orderBy: { rate: 'desc' },
+        })
+      : null;
 
-    const taxRate = taxRule ? Number(taxRule.rate) : Number(market.vatRate);
+    const taxRate = !vatRegistered ? 0 : taxRule ? Number(taxRule.rate) : Number(market.vatRate);
     const isInclusive = taxRule ? taxRule.isInclusive : market.taxIncludedInPrice;
     let taxAmount = 0;
     let totalBuildGross = netBuildAmount;
@@ -501,7 +507,7 @@ export class PricingService {
         },
         netBuildAmount,
         tax: {
-          ruleName: taxRule ? taxRule.name : 'Standard VAT',
+          ruleName: !vatRegistered ? 'VAT Not Applicable' : taxRule ? taxRule.name : 'Standard VAT',
           taxType: taxRule ? taxRule.taxType : 'VAT',
           rate: taxRate,
           isInclusive,
@@ -533,7 +539,7 @@ export class PricingService {
         ...itemizedAddOns.map(item => ({ kind: 'add-on', ...item, billingPeriod: 'one-time' })),
         ...(rushAmount > 0 ? [{ kind: 'rush-delivery', name: 'Priority Rush Delivery (+35%)', amount: rushAmount, billingPeriod: 'one-time' }] : []),
         ...(discountAmount > 0 ? [{ kind: 'discount', name: discountDescription || 'Promotional Discount', amount: -discountAmount, code: appliedCoupon }] : []),
-        { kind: 'tax', name: taxRule ? taxRule.name : 'Standard VAT', amount: taxAmount, rate: taxRate, included: isInclusive },
+        ...(vatRegistered && taxAmount > 0 ? [{ kind: 'tax', name: taxRule ? taxRule.name : 'Standard VAT', amount: taxAmount, rate: taxRate, included: isInclusive }] : []),
         ...(careKey ? [{ kind: 'recurring', productId: careKey, name: this.formatProductName(careKey), amount: careAmount, billingPeriod: 'month', ...(dto.billingCycle ? { billingCycle: dto.billingCycle } : {}) }] : []),
         ...(hostingKey ? [{ kind: 'recurring', productId: hostingKey, name: this.formatProductName(hostingKey), amount: hostingAmount, billingPeriod: 'year', ...(dto.billingCycle ? { billingCycle: dto.billingCycle } : {}) }] : []),
       ];

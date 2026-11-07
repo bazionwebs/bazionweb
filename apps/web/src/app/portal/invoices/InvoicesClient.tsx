@@ -99,28 +99,17 @@ function escapeHtml(str: string): string {
 }
 
 /**
- * Tax split for display. Uses the server-computed breakdown when present,
- * falling back to standard KRA 16% VAT (Inclusive) for KES and 0% Export Rate
- * for international currencies.
+ * Tax split for display. Uses the server-computed breakdown when present.
+ * Supplier is not VAT-registered under the Kenya VAT Act, 2013, so defaults to no VAT.
  */
 export function computeInvoiceTaxBreakdown(inv: ApiInvoice) {
   if (inv.breakdown) return inv.breakdown;
   const total = Number(inv.amount || 0);
-  const isKes = (inv.currency || 'KES').toUpperCase() === 'KES';
-  const vatRate = isKes ? 0.16 : 0.0;
-  const isInclusive = isKes;
+  const vatRate = 0.0;
+  const isInclusive = true;
 
-  let subtotal = total;
-  let vatAmount = 0;
-
-  if (vatRate > 0) {
-    if (isInclusive) {
-      subtotal = Math.round((total / (1 + vatRate)) * 100) / 100;
-      vatAmount = Math.round((total - subtotal) * 100) / 100;
-    } else {
-      vatAmount = Math.round(total * vatRate * 100) / 100;
-    }
-  }
+  const subtotal = total;
+  const vatAmount = 0;
 
   const isPaid = inv.status === 'PAID';
   const amountPaid = isPaid ? total : 0;
@@ -130,7 +119,7 @@ export function computeInvoiceTaxBreakdown(inv: ApiInvoice) {
     subtotal,
     vatRate,
     vatAmount,
-    vatLabel: vatRate > 0 ? '16% KRA VAT (Inclusive)' : '0% Export Rate',
+    vatLabel: 'VAT Not Applicable',
     total,
     amountPaid,
     balanceDue,
