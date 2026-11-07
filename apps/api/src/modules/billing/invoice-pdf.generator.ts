@@ -29,8 +29,7 @@ export function isSupplierVatRegistered(raw?: string | boolean | null): boolean 
   return ['true', '1', 'yes'].includes(String(raw ?? '').trim().toLowerCase());
 }
 
-export const NON_VAT_REGISTERED_NOTICE =
-  'Supplier is not registered for VAT under the Kenya VAT Act, 2013. No VAT has been charged.';
+export const NON_VAT_REGISTERED_NOTICE = '';
 
 /** Line items that represent a tax charge rather than a deliverable (legacy VAT rows). */
 export function isTaxLineItem(description?: string | null): boolean {
@@ -678,20 +677,16 @@ export class InvoicePdfGenerator {
     contentLines.push('110 0 Td');
     contentLines.push(`(${esc(fmt(data.breakdown.subtotal))}) Tj`);
 
-    contentLines.push('-110 -18 Td');
     if (chargesVat) {
+      contentLines.push('-110 -18 Td');
       contentLines.push(`(${esc(`Add: ${data.breakdown.vatLabel}:`)}) Tj`);
       contentLines.push('110 0 Td');
       contentLines.push(`(${esc(fmt(data.breakdown.vatAmount))}) Tj`);
-    } else {
-      contentLines.push(`(${esc('VAT:')}) Tj`);
-      contentLines.push('110 0 Td');
-      contentLines.push(`(${esc('Not Applicable')}) Tj`);
     }
 
     contentLines.push('/F2 9 Tf');
     contentLines.push('0.05 0.09 0.16 rg');
-    contentLines.push('-110 -22 Td');
+    contentLines.push(chargesVat ? '-110 -22 Td' : '-110 -24 Td');
     contentLines.push(`(${esc(chargesVat ? 'Total (Incl. VAT):' : 'Total Invoice Amount:')}) Tj`);
     contentLines.push('110 0 Td');
     contentLines.push(`(${esc(fmt(data.breakdown.total))}) Tj`);
@@ -710,18 +705,6 @@ export class InvoicePdfGenerator {
     contentLines.push('110 0 Td');
     contentLines.push(`(${esc(fmt(data.breakdown.balanceDue))}) Tj`);
     contentLines.push('ET');
-
-    if (!chargesVat) {
-      // Statutory VAT status declaration (supplier not VAT-registered)
-      contentLines.push('BT');
-      contentLines.push('/F1 6.4 Tf');
-      contentLines.push('0.38 0.43 0.50 rg');
-      contentLines.push(`345 ${boxY - 95} Td`);
-      contentLines.push(`(${esc('Supplier not registered for VAT (Kenya VAT Act, 2013).')}) Tj`);
-      contentLines.push('0 -8 Td');
-      contentLines.push(`(${esc('No VAT has been charged on this document.')}) Tj`);
-      contentLines.push('ET');
-    }
 
     // ── 7. Cryptographic SHA-256 Tamper-Evident Digest ──
     const fp = computeDocumentFingerprint({

@@ -422,7 +422,7 @@ export function ProposalPresentationView({
                     <span>{proposal.marketCode === 'KE' ? 'Kenya (KES)' : 'International (USD)'}</span>
                   </div>
                   <span className="text-slate-500 block">
-                    {proposal.marketCode === 'KE' ? '16% KRA VAT Inclusive' : '0% Cross-Border Export'}
+                    {proposal.marketCode === 'KE' ? 'Direct Regional Settlement' : 'Cross-Border Settlement'}
                   </span>
                 </div>
 

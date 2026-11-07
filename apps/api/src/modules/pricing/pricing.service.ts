@@ -507,8 +507,8 @@ export class PricingService {
         },
         netBuildAmount,
         tax: {
-          ruleName: !vatRegistered ? 'VAT Not Applicable' : taxRule ? taxRule.name : 'Standard VAT',
-          taxType: taxRule ? taxRule.taxType : 'VAT',
+          ruleName: taxRule ? taxRule.name : 'Standard Rate',
+          taxType: taxRule ? taxRule.taxType : 'STANDARD',
           rate: taxRate,
           isInclusive,
           taxAmount,

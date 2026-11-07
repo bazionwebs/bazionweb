@@ -155,7 +155,6 @@ export default function AdminInvoicesPage() {
     return d.toISOString().split('T')[0];
   });
   const [notes, setNotes] = useState('Payment terms: Net 14 days. Bank wire or M-Pesa accepted.');
-  const [applyVat, setApplyVat] = useState(false);
   const [cartItems, setCartItems] = useState<CartLineItem[]>([]);
 
   // Guided 4-Step Mandatory Commercial Flow State (mirrors public /store & /pricing)
@@ -309,7 +308,7 @@ export default function AdminInvoicesPage() {
     repriceCartForCurrency(nextCurrency);
   };
 
-  // Auto-detect client currency when client selected (VAT defaults to false as supplier is not VAT-registered)
+  // Auto-detect client currency when client selected
   const handleClientSelect = (selectedId: string) => {
     setClientId(selectedId);
     const chosen = rawClients.find((c) => c.id === selectedId);
@@ -317,7 +316,6 @@ export default function AdminInvoicesPage() {
       const isKenya = chosen.country === 'KE' || /kenya/i.test(chosen.country || '');
       const nextCurrency: SettlementCurrency = isKenya ? 'KES' : 'USD';
       setCurrency(nextCurrency);
-      setApplyVat(false);
       repriceCartForCurrency(nextCurrency);
     }
   };
@@ -521,9 +519,7 @@ export default function AdminInvoicesPage() {
 
   // Financial calculations
   const cartSubtotal = cartItems.reduce((acc, item) => acc + item.quantity * item.unitPrice, 0);
-  const vatRate = applyVat ? 0.16 : 0;
-  const vatAmount = Math.round(cartSubtotal * vatRate * 100) / 100;
-  const grandTotal = Math.round((cartSubtotal + vatAmount) * 100) / 100;
+  const grandTotal = cartSubtotal;
 
   const handleMarkPaid = async (id: string) => {
     if (confirm('Are you sure you want to manually mark this invoice as PAID? This will update subscription records.')) {
@@ -1680,27 +1676,6 @@ export default function AdminInvoicesPage() {
                     )}
                   </div>
 
-                  {/* VAT / Tax Toggle */}
-                  <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl text-xs">
-                    <div>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={applyVat}
-                          onChange={(e) => setApplyVat(e.target.checked)}
-                          className="rounded text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="font-semibold text-slate-700">Apply Value Added Tax (VAT 16%)</span>
-                      </label>
-                      <p className="text-[10px] text-slate-400 mt-0.5 ml-5">
-                        Only enable if supplier has active VAT obligation on KRA iTax
-                      </p>
-                    </div>
-                    {applyVat && (
-                      <span className="font-bold text-slate-900">+{formatMoney(vatAmount, currency)}</span>
-                    )}
-                  </div>
-
                   {/* Notes / Scope */}
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">Invoice Notes &amp; Scope</label>
@@ -1720,7 +1695,7 @@ export default function AdminInvoicesPage() {
                     <div>
                       <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wider block">Total Billed Amount</span>
                       <span className="text-xs text-slate-300">
-                        Subtotal: {formatMoney(cartSubtotal, currency)} {applyVat ? '+ VAT' : ''}
+                        Total: {formatMoney(cartSubtotal, currency)}
                       </span>
                     </div>
                     <div className="text-xl font-black text-emerald-400">

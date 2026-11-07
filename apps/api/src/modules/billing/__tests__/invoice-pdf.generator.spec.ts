@@ -117,9 +117,10 @@ describe('InvoicePdfGenerator', () => {
     expect(latin1).toContain('0 0 0 rg\n');
     expect(latin1.toUpperCase()).not.toContain('QR CODE');
 
-    // Official Tax Invoice vs Official Invoice (VAT Act, 2013: only VAT-registered suppliers may issue Tax Invoices)
+    // Official Document Titling & Clean Summary (No VAT line or mention when not VAT-registered)
     expect(latin1).toContain('OFFICIAL INVOICE');
-    expect(latin1).toContain('Supplier not registered for VAT');
+    expect(latin1).not.toContain('Supplier not registered for VAT');
+    expect(latin1).not.toContain('VAT:');
 
     // Verify xref byte offset points directly to 7 0 obj (logo XObject)
     const xrefIdx = latin1.lastIndexOf('\nxref\n');

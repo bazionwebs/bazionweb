@@ -273,7 +273,7 @@ export default function CartView() {
                 Proceed to checkout <ArrowRight className="h-4 w-4" />
               </button>
               <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-                Final totals are confirmed server-side at checkout. Prices include VAT where applicable.
+                Final totals are confirmed server-side at checkout.
               </p>
             </div>
           </aside>

@@ -119,7 +119,7 @@ export function computeInvoiceTaxBreakdown(inv: ApiInvoice) {
     subtotal,
     vatRate,
     vatAmount,
-    vatLabel: 'VAT Not Applicable',
+    vatLabel: '',
     total,
     amountPaid,
     balanceDue,
@@ -1246,12 +1246,14 @@ export default function InvoicesClient() {
                     {formatMoney(inspectBreakdown.subtotal, selectedInvoiceForInspect.currency)}
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>{inspectBreakdown.vatLabel}:</span>
-                  <span className="font-semibold text-slate-900">
-                    {formatMoney(inspectBreakdown.vatAmount, selectedInvoiceForInspect.currency)}
-                  </span>
-                </div>
+                {inspectBreakdown.vatAmount > 0 && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>{inspectBreakdown.vatLabel}:</span>
+                    <span className="font-semibold text-slate-900">
+                      {formatMoney(inspectBreakdown.vatAmount, selectedInvoiceForInspect.currency)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm font-black text-[#0F172A] pt-2 border-t border-slate-200">
                   <span>Invoice Total:</span>
                   <span>{formatMoney(inspectBreakdown.total, selectedInvoiceForInspect.currency)}</span>

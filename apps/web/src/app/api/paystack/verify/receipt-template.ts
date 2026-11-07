@@ -580,10 +580,6 @@ export function generateReceiptHtml(data: ReceiptData): string {
           <span>Subtotal</span>
           <span>${formattedAmount}</span>
         </div>
-        <div class="summary-row">
-          <span>VAT / Taxes (Inclusive)</span>
-          <span>16.0% (Included)</span>
-        </div>
         <div class="summary-row total">
           <span>Total Paid</span>
           <span class="total-amount">${formattedAmount}</span>

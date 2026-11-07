@@ -1934,11 +1934,7 @@ export class BillingService {
     }
 
     const ratePct = Math.round(vatRate * 10000) / 100;
-    const vatLabel = !vatRegistered
-      ? 'VAT Not Applicable (Supplier not VAT-registered)'
-      : vatRate > 0
-        ? `VAT @ ${ratePct}%`
-        : '0% VAT (Zero-Rated Export of Services)';
+    const vatLabel = vatRate > 0 ? `VAT @ ${ratePct}%` : 'Standard Rate';
 
     const isPaid = invoice.status === InvoiceStatus.PAID;
     const paidLogsSum = (invoice.paymentLogs || [])

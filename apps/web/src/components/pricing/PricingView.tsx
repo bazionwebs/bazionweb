@@ -275,7 +275,7 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
             <span className="font-semibold text-white">{marketDef.currency} Commercial Schedule</span>
             <span className="text-slate-500">·</span>
             <span className="text-slate-400">
-              {marketCode === 'KE' ? 'M-Pesa STK · 16% KRA VAT Inclusive' : 'Card / Wire · 0% Export'}
+              {marketCode === 'KE' ? 'M-Pesa STK · Bank Wire' : 'Card / Wire · Instant Settlement'}
             </span>
           </div>
         </div>
