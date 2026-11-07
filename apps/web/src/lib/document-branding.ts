@@ -9,7 +9,7 @@ export const BAZION_CORPORATE_DETAILS = {
   proprietor: 'Joseph Mburu Kiai',
   slogan: 'Managed Website Lifecycle & Enterprise Cloud Infrastructure',
   regNumber: 'BN-DLSZOZ6O',
-  taxPin: 'P052198745M',
+  taxPin: 'A006926734I',
   address: 'Mwiki, Gituamba, Embakasi District',
   poBox: 'P.O. Box 46376, 00100 - G.P.O Nairobi',
   city: 'Nairobi',
@@ -22,6 +22,17 @@ export const BAZION_CORPORATE_DETAILS = {
   website: 'https://bazionweb.com',
   registryUrl: 'https://bazionweb.com/portal/invoices',
   globalRegions: 'Nairobi · Frankfurt · London Cloud Hubs',
+  logoPath: '/brand/logo-with-background.png',
+  paymentChannels: {
+    mpesaPaybill: '400200',
+    mpesaAccountNumber: '1205232',
+    mpesaAccountName: 'BAZION WEB',
+    bankName: 'Co-operative Bank of Kenya',
+    bankBranch: 'Dandora Branch',
+    bankAccountName: 'BAZION WEB',
+    bankAccountNumber: '01103361465001',
+    bankSwiftCode: 'KCOOKENA',
+  },
 };
 
 // ─── Pure TypeScript SHA-256 (Zero Node/Browser Dependency) ──────────────────
@@ -487,31 +498,124 @@ export function renderDigitalStampSvg(options: DigitalStampOptions = {}): string
 </svg>`;
 }
 
-// ─── Pure SVG Logo Mark (Sharp 300+ DPI Vector Branding) ─────────────────────
-/**
- * Renders the crisp vector BazionWeb brand mark + typography.
- */
-export function renderBrandLogoSvg(size = 38): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="${size * 4}" height="${size}" fill="none">
-  <defs>
-    <linearGradient id="bazion-brand-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2563EB" />
-      <stop offset="100%" stop-color="#1D4ED8" />
-    </linearGradient>
-    <linearGradient id="bazion-accent-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#10B981" />
-      <stop offset="100%" stop-color="#14B8A6" />
-    </linearGradient>
-  </defs>
-  <!-- Hexagonal faceted emblem mark -->
-  <path d="M 8,20 L 16,6 L 32,6 L 40,20 L 32,34 L 16,34 Z" fill="url(#bazion-brand-grad)" />
-  <path d="M 20,13 L 28,13 C 31,13 33,15 33,17 C 33,18.5 32,19.5 30.5,20 C 32.5,20.5 33.5,21.8 33.5,23.5 C 33.5,25.8 31.5,27 28,27 L 20,27 Z" fill="#FFFFFF" fill-rule="evenodd" />
-  <path d="M 23,16 L 27.5,16 C 28.8,16 29.8,16.5 29.8,17.5 C 29.8,18.5 28.8,19 27.5,19 L 23,19 Z" fill="#1D4ED8" />
-  <path d="M 23,21 L 28,21 C 29.5,21 30.5,21.6 30.5,22.8 C 30.5,24 29.5,24.5 28,24.5 L 23,24.5 Z" fill="#1D4ED8" />
-  <circle cx="38" cy="10" r="3" fill="url(#bazion-accent-grad)" />
-  <!-- Wordmark -->
-  <text x="48" y="27" font-family="'Inter', -apple-system, BlinkMacSystemFont, sans-serif" font-size="20" font-weight="900" fill="#0F172A" letter-spacing="-0.03em">Bazion<tspan fill="#2563EB">Web</tspan></text>
+// ─── ISO/IEC 15417 Code 128B Linear Security Barcode SVG Generator ──────────
+const CODE128_SVG_PATTERNS: readonly string[] = [
+  '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213',
+  '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132',
+  '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211',
+  '212123', '212321', '232121', '111323', '131123', '131321', '112313', '132113', '132311', '211313',
+  '231113', '231311', '112133', '112331', '132131', '113123', '113321', '133121', '313121', '211331',
+  '231131', '213113', '213311', '213131', '311123', '311321', '331121', '312113', '312311', '332111',
+  '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122', '141221', '112214',
+  '112412', '122114', '122411', '142112', '142211', '241211', '221114', '413111', '241112', '134111',
+  '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141',
+  '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141',
+  '114131', '311141', '411131', '211412', '211214', '211232', '2331112',
+];
+
+export function generateCode128BarcodeSvg(
+  rawText: string,
+  options: { width?: number; height?: number; darkColor?: string; showCaption?: boolean } = {},
+): string {
+  const cleanText =
+    String(rawText || 'BAZIONWEB')
+      .replace(/[^\x20-\x7E]/g, '')
+      .trim() || 'BAZIONWEB';
+
+  const codes: number[] = [104]; // Start Code B
+  let checksum = 104;
+  for (let i = 0; i < cleanText.length; i++) {
+    const val = cleanText.charCodeAt(i) - 32;
+    codes.push(val);
+    checksum += val * (i + 1);
+  }
+  codes.push(checksum % 103);
+  codes.push(106); // Stop
+
+  const quietModules = 10;
+  let cursor = quietModules;
+  const rects: string[] = [];
+  const barHeight = options.height ?? 42;
+  const showCaption = options.showCaption ?? true;
+  const totalHeight = showCaption ? barHeight + 18 : barHeight + 6;
+  const darkColor = options.darkColor ?? '#0F172A';
+
+  for (const code of codes) {
+    const pattern = CODE128_SVG_PATTERNS[code];
+    for (let j = 0; j < pattern.length; j++) {
+      const w = Number(pattern[j]);
+      if (j % 2 === 0) {
+        rects.push(`<rect x="${cursor}" y="3" width="${w}" height="${barHeight}" fill="${darkColor}" />`);
+      }
+      cursor += w;
+    }
+  }
+  const totalWidth = cursor + quietModules;
+  const svgWidth = options.width ?? 280;
+  const safeCaption = cleanText
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="${svgWidth}" height="${Math.round((svgWidth * totalHeight) / totalWidth)}" shape-rendering="crispEdges" role="img" aria-label="Security Barcode ${safeCaption}">
+  <rect width="${totalWidth}" height="${totalHeight}" fill="#FFFFFF" rx="4" />
+  ${rects.join('')}
+  ${showCaption ? `<text x="${totalWidth / 2}" y="${barHeight + 14}" text-anchor="middle" font-family="'JetBrains Mono', monospace, Courier" font-size="9.5" font-weight="700" fill="#334155" letter-spacing="0.6">${safeCaption}</text>` : ''}
 </svg>`;
+}
+
+function resolveBrandAssetOrigin(): string {
+  if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
+    return window.location.origin;
+  }
+  return BAZION_CORPORATE_DETAILS.website;
+}
+
+// ─── Official Brand Logo Markup ──────────────────────────────────────────────
+/**
+ * Renders the official BazionWeb brand logo (from /brand/logo-with-background.png)
+ * with absolute origin resolution so blob: print windows and standalone receipts render crisply.
+ */
+export function renderBrandLogoSvg(size = 64): string {
+  const logoUrl = `${resolveBrandAssetOrigin()}${BAZION_CORPORATE_DETAILS.logoPath}`;
+  const heightPx = Math.max(56, size);
+  return `<img src="${logoUrl}" alt="BazionWeb – Build, Host n Grow" style="height: ${heightPx}px; width: auto; display: block; border-radius: 8px; border: 1px solid #CBD5E1; object-fit: contain; background: #EBEBEB;" />`;
+}
+
+// ─── Official Payment Channels HTML Block ────────────────────────────────────
+export function renderPaymentInstructionsHtml(options: { docNumber?: string; isPaid?: boolean } = {}): string {
+  const p = BAZION_CORPORATE_DETAILS.paymentChannels;
+  const refLabel = options.docNumber ? ` (Quote Ref: ${options.docNumber})` : '';
+  return `<div style="flex: 1; min-width: 280px; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 14px; overflow: hidden;">
+  <div style="background: #0F172A; color: #FFFFFF; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 14px;">
+    Official Payment Channels${refLabel}
+  </div>
+  <div style="padding: 12px 14px; font-size: 12px; line-height: 1.5; color: #1E293B;">
+    <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #CBD5E1;">
+      <div style="font-size: 10.5px; font-weight: 800; color: #047857; text-transform: uppercase; letter-spacing: 0.04em;">
+        1. Lipa Na M-Pesa (Co-op Bank Paybill)
+      </div>
+      <div style="margin-top: 2px; font-family: 'JetBrains Mono', monospace, Courier; font-size: 12px; font-weight: 800; color: #0F172A;">
+        Paybill: <span style="color: #047857;">${p.mpesaPaybill}</span> &nbsp;|&nbsp; Account: <span style="color: #047857;">${p.mpesaAccountNumber}</span>
+      </div>
+      <div style="font-size: 11px; color: #475569;">Business Name: <strong>${p.mpesaAccountName}</strong></div>
+    </div>
+    <div>
+      <div style="font-size: 10.5px; font-weight: 800; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.04em;">
+        2. Bank Transfer (EFT / RTGS / SWIFT)
+      </div>
+      <div style="font-size: 11.5px; color: #0F172A; margin-top: 2px;">
+        <strong>${p.bankName}</strong> (${p.bankBranch})
+      </div>
+      <div style="font-family: 'JetBrains Mono', monospace, Courier; font-size: 11.5px; font-weight: 800; color: #0F172A;">
+        A/C Name: ${p.bankAccountName} &nbsp;|&nbsp; A/C No: ${p.bankAccountNumber}
+      </div>
+      <div style="font-size: 11px; color: #475569;">
+        SWIFT / BIC: <strong>${p.bankSwiftCode}</strong> &nbsp;&bull;&nbsp; Online Card / STK: <a href="${BAZION_CORPORATE_DETAILS.registryUrl}" style="color: #2563EB; text-decoration: none; font-weight: 700;">bazionweb.com/portal/invoices</a>
+      </div>
+    </div>
+  </div>
+</div>`;
 }
 
 // ─── Executive Document Letterhead HTML ──────────────────────────────────────
@@ -545,17 +649,19 @@ export function renderDocumentLetterheadHtml(options: LetterheadOptions): string
 
   <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap;">
     <!-- Left: Brand Logo & Full Registered Corporate Identity -->
-    <div style="max-width: 440px;">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
-        ${renderBrandLogoSvg(36)}
+    <div style="display: flex; align-items: flex-start; gap: 16px; max-width: 500px;">
+      <div style="flex-shrink: 0;">
+        ${renderBrandLogoSvg(74)}
       </div>
-      <div style="font-size: 12px; font-weight: 900; color: #0F172A; letter-spacing: 0.02em;">
-        ${legalName} <span style="font-size: 10px; font-weight: 600; color: #64748B;">(Proprietor: ${BAZION_CORPORATE_DETAILS.proprietor})</span>
-      </div>
-      <div style="font-size: 10.5px; color: #64748B; margin-top: 3px; line-height: 1.45;">
-        ${address} · ${BAZION_CORPORATE_DETAILS.poBox} · ${city}, ${country}<br>
-        <strong>BRS Reg:</strong> ${BAZION_CORPORATE_DETAILS.regNumber} (Cap 499, Sec 14) · <strong>KRA PIN:</strong> ${taxPin}<br>
-        <strong>Email:</strong> <a href="mailto:${email}" style="color: #2563EB; text-decoration: none;">${email}</a> · <strong>Tel:</strong> ${phone} · <a href="${website}" style="color: #64748B; text-decoration: none;">${website.replace(/^https?:\/\//, '')}</a>
+      <div>
+        <div style="font-size: 13px; font-weight: 900; color: #0F172A; letter-spacing: 0.02em;">
+          ${legalName} <span style="font-size: 10.5px; font-weight: 600; color: #64748B;">(Proprietor: ${BAZION_CORPORATE_DETAILS.proprietor})</span>
+        </div>
+        <div style="font-size: 10.5px; color: #64748B; margin-top: 3px; line-height: 1.48;">
+          ${address} · ${BAZION_CORPORATE_DETAILS.poBox} · ${city}, ${country}<br>
+          <strong>BRS Reg:</strong> ${BAZION_CORPORATE_DETAILS.regNumber} (Cap 499, Sec 14) · <strong>KRA PIN:</strong> ${taxPin}<br>
+          <strong>Email:</strong> <a href="mailto:${email}" style="color: #2563EB; text-decoration: none;">${email}</a> · <strong>Tel:</strong> ${phone} · <a href="${website}" style="color: #64748B; text-decoration: none;">${website.replace(/^https?:\/\//, '')}</a>
+        </div>
       </div>
     </div>
 
@@ -607,8 +713,10 @@ export function renderSecurityVerificationSectionHtml(options: SecuritySectionOp
     issueDate: options.issueDate,
   });
 
+  const cleanHashSuffix = checksum.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 6);
+  const barcodeValue = `${String(options.docNumber || 'BAZION').toUpperCase()}-${cleanHashSuffix}`;
   const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?verify=${encodeURIComponent(options.docNumber)}&checksum=${encodeURIComponent(checksum.slice(8, 20))}`;
-  const qrSvg = generateQrCodeSvg(verifyUrl, { size: 104, margin: 2, darkColor: '#0F172A' });
+  const barcodeSvg = generateCode128BarcodeSvg(barcodeValue, { width: 290, height: 38, darkColor: '#0F172A' });
   const stampSvg = renderDigitalStampSvg({
     docNumber: options.docNumber,
     status: isPaid ? 'PAID' : 'AUTHENTICATED',
@@ -619,40 +727,25 @@ export function renderSecurityVerificationSectionHtml(options: SecuritySectionOp
   return `<!-- Anti-Fake Document Security & Electronic Authenticity Center -->
 <section style="margin-top: 36px; border: 1px solid #CBD5E1; border-radius: 16px; background: #F8FAFC; overflow: hidden; page-break-inside: avoid;">
   <!-- Security Microprint Ribbon -->
-  <div style="background: #0F172A; color: #94A3B8; font-size: 9px; font-family: 'JetBrains Mono', monospace, Courier; text-transform: uppercase; letter-spacing: 0.14em; padding: 6px 14px; text-align: center; border-bottom: 1px solid #1E293B;">
-    ••• BAZION WEB (BN-DLSZOZ6O) ••• OFFICIAL SYSTEM-GENERATED RECORD ••• TAMPER-EVIDENT ELECTRONIC AUTHENTICATION ••• ISO 14533 ALIGNED •••
+  <div style="background: #0F172A; color: #94A3B8; font-size: 9px; font-family: 'JetBrains Mono', monospace, Courier; text-transform: uppercase; letter-spacing: 0.12em; padding: 6px 14px; text-align: center; border-bottom: 1px solid #1E293B;">
+    ••• BAZION WEB (REG: BN-DLSZOZ6O | KRA PIN: ${BAZION_CORPORATE_DETAILS.taxPin}) ••• OFFICIAL SYSTEM-GENERATED RECORD ••• ISO 14533 ALIGNED •••
   </div>
 
   <div style="padding: 18px 22px;">
     <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;">
-      <!-- Left: Dynamic Scannable QR Code -->
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <div style="background: #FFFFFF; padding: 6px; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex-shrink: 0;">
-          ${qrSvg}
+      <!-- Left: Linear ISO Code-128B Security Barcode & Cryptographic Checksum -->
+      <div style="flex: 1; min-width: 280px;">
+        <div style="font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #0F172A;">
+          Security Barcode (Code-128B) &amp; Cryptographic Fingerprint
         </div>
-        <div style="max-width: 200px;">
-          <div style="font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #0F172A;">
-            Scan to Verify
-          </div>
-          <p style="font-size: 10px; color: #475569; margin-top: 3px; line-height: 1.4;">
-            Scan via smartphone camera to verify record authenticity directly on the official BazionWeb verification registry.
-          </p>
-          <a href="${verifyUrl}" target="_blank" rel="noopener noreferrer" style="font-size: 9.5px; font-weight: 700; color: #2563EB; text-decoration: none; word-break: break-all; margin-top: 4px; display: inline-block;">
-            Verify online &rarr;
-          </a>
+        <div style="background: #FFFFFF; padding: 8px 10px; border-radius: 10px; border: 1px solid #CBD5E1; display: inline-block; margin-top: 6px;">
+          ${barcodeSvg}
         </div>
-      </div>
-
-      <!-- Center: Cryptographic Checksum & Legal Electronic Notice -->
-      <div style="flex: 1; min-width: 240px;">
-        <div style="font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #0F172A; display: flex; align-items: center; gap: 6px;">
-          <span>Cryptographic Security Fingerprint</span>
-        </div>
-        <div style="font-family: 'JetBrains Mono', monospace, Courier; font-size: 10.5px; font-weight: 800; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 5px 8px; border-radius: 6px; margin-top: 5px; word-break: break-all;">
+        <div style="font-family: 'JetBrains Mono', monospace, Courier; font-size: 10px; font-weight: 800; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 5px 8px; border-radius: 6px; margin-top: 8px; word-break: break-all;">
           ${checksum}
         </div>
         <p style="font-size: 9.5px; color: #475569; margin-top: 6px; line-height: 1.45;">
-          <strong>Statutory Validity:</strong> Pursuant to the Registration of Business Names Act (Cap 499, Sec 14), Kenya Information and Communications Act (Electronic Transactions, Cap 411A) and UNCITRAL Model Law on Electronic Commerce, this computer-generated record is legally valid and binding without a wet-ink signature or physical seal. Official BRS validation: SMS "BRS" to 21546.
+          <strong>Statutory Validity:</strong> Pursuant to Cap 499 Sec 14, Kenya KICA Cap 411A &amp; UNCITRAL Model Law, this computer-generated record (KRA PIN: <strong>${BAZION_CORPORATE_DETAILS.taxPin}</strong>) is legally valid without a wet-ink signature. <a href="${verifyUrl}" target="_blank" rel="noopener noreferrer" style="color: #2563EB; font-weight: 700; text-decoration: none;">Verify online &rarr;</a>
         </p>
       </div>
 

@@ -19,7 +19,6 @@ import {
   Building2,
   User,
   Globe,
-  QrCode,
 } from 'lucide-react';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { buildWhatsAppLink, trackWhatsAppOpen } from '@/lib/contact';
@@ -27,7 +26,7 @@ import { isTrustedCheckoutUrl, normalizeKenyanPhoneNumber } from '@/lib/utils';
 import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
 import {
   generateDocumentChecksum,
-  generateQrCodeSvg,
+  generateCode128BarcodeSvg,
   renderDigitalStampSvg,
   BAZION_CORPORATE_DETAILS,
 } from '@/lib/document-branding';
@@ -121,9 +120,11 @@ export function ProposalPresentationView({
 
   const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?verify=${encodeURIComponent(proposal.proposalCode)}&checksum=${encodeURIComponent(checksum.slice(8, 20))}`;
 
-  const qrCodeSvg = useMemo(() => {
-    return generateQrCodeSvg(verifyUrl, { size: 104, margin: 2, darkColor: '#0F172A' });
-  }, [verifyUrl]);
+  const securityBarcodeSvg = useMemo(() => {
+    const cleanSuffix = checksum.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 6);
+    const barcodePayload = `${String(proposal.proposalCode || 'BAZION').toUpperCase()}-${cleanSuffix}`;
+    return generateCode128BarcodeSvg(barcodePayload, { width: 230, height: 36, darkColor: '#0F172A' });
+  }, [proposal.proposalCode, checksum]);
 
   const digitalStampSvg = useMemo(() => {
     const isAccepted = acceptStage === 'accepted' || proposal.status === 'ACCEPTED';
@@ -331,21 +332,29 @@ export function ProposalPresentationView({
           {/* Top Brand Bar & Header */}
           <div className="relative bg-[#0F172A] px-6 py-8 text-white sm:px-10 sm:py-10 print:bg-white print:text-black print:px-0 print:py-4 print:border-b-2 print:border-slate-800">
             <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl font-black tracking-tight text-white print:text-slate-900">
-                    Bazion<span className="text-[#2563EB]">Web</span>
-                  </span>
-                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-300 print:border print:border-slate-300 print:text-slate-700">
-                    Commercial Proposal
-                  </span>
+              <div className="flex items-start gap-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={BAZION_CORPORATE_DETAILS.logoPath}
+                  alt="BazionWeb – Build, Host n Grow"
+                  className="h-16 w-auto rounded-lg border border-white/20 bg-[#EBEBEB] object-contain shadow-sm shrink-0 print:border-slate-300"
+                />
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                    <span className="text-2xl font-black tracking-tight text-white print:text-slate-900">
+                      Bazion<span className="text-[#38BDF8] print:text-[#2563EB]">Web</span>
+                    </span>
+                    <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-300 print:border print:border-slate-300 print:text-slate-700">
+                      Commercial Proposal
+                    </span>
+                  </div>
+                  <h1 className="text-xl font-extrabold text-white sm:text-2xl print:text-slate-900">
+                    Turnkey Engineering &amp; Scope Statement
+                  </h1>
+                  <p className="mt-1 text-xs text-slate-300 sm:text-sm print:text-slate-600">
+                    {BAZION_CORPORATE_DETAILS.legalName} (Proprietor: {BAZION_CORPORATE_DETAILS.proprietor}) · KRA PIN: {BAZION_CORPORATE_DETAILS.taxPin} · Reg: {BAZION_CORPORATE_DETAILS.regNumber}
+                  </p>
                 </div>
-                <h1 className="text-xl font-extrabold text-white sm:text-2xl print:text-slate-900">
-                  Turnkey Engineering &amp; Scope Statement
-                </h1>
-                <p className="mt-1 text-xs text-slate-300 sm:text-sm print:text-slate-600">
-                  {BAZION_CORPORATE_DETAILS.legalName} (Proprietor: {BAZION_CORPORATE_DETAILS.proprietor}) · {BAZION_CORPORATE_DETAILS.address}, Nairobi, Kenya &bull; Global Operations
-                </p>
               </div>
 
               {/* Reference & Validity Badge */}
@@ -883,23 +892,23 @@ export function ProposalPresentationView({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:grid-cols-3 print:gap-4 text-xs mb-6">
-                {/* 1. Scannable Verification QR Code */}
+                {/* 1. Linear Code-128B Security Barcode */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 flex flex-col justify-between print:bg-white print:border-slate-300">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-                      <QrCode className="size-3 text-slate-600" aria-hidden="true" />
-                      Scan to Verify Authenticity
+                      <ShieldCheck className="size-3 text-slate-600" aria-hidden="true" />
+                      Security Barcode (Code-128B)
                     </div>
-                    <div className="flex justify-center my-1">
+                    <div className="flex justify-center my-1 overflow-x-auto">
                       <div
                         className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs inline-block"
-                        dangerouslySetInnerHTML={{ __html: qrCodeSvg }}
+                        dangerouslySetInnerHTML={{ __html: securityBarcodeSvg }}
                       />
                     </div>
                   </div>
                   <div className="text-center mt-3">
                     <p className="text-[10px] text-slate-500 leading-tight">
-                      Scan via smartphone to verify record integrity on the BazionWeb registry.
+                      Paybill: <strong>{BAZION_CORPORATE_DETAILS.paymentChannels.mpesaPaybill}</strong> (A/C <strong>{BAZION_CORPORATE_DETAILS.paymentChannels.mpesaAccountNumber}</strong>) &bull; Co-op Bank A/C: <strong>{BAZION_CORPORATE_DETAILS.paymentChannels.bankAccountNumber}</strong>
                     </p>
                     <a
                       href={verifyUrl}

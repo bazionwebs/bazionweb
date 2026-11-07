@@ -43,7 +43,11 @@ import {
   CanonicalCatalogEntry,
   resolveCanonicalProductId,
 } from '../pricing/canonical-catalog';
-import { InvoicePdfGenerator } from './invoice-pdf.generator';
+import {
+  InvoicePdfGenerator,
+  OFFICIAL_BAZION_PAYMENT_DETAILS,
+  resolveSupplierTaxPin,
+} from './invoice-pdf.generator';
 
 /** JWT audience for short-lived invoice PDF download links. */
 const INVOICE_DOWNLOAD_AUDIENCE = 'bazionweb:invoice-download';
@@ -135,20 +139,26 @@ export class BillingService {
   }
 
   private getManualSettlementInstructions(currency: 'USD' | 'EUR' | 'GBP', paymentReference: string) {
-    const beneficiary = this.config.get<string>('BANK_BENEFICIARY', 'BazionWeb Technologies Ltd');
-    const accountNumber = this.config.get<string>('BANK_ACCOUNT_NUMBER', '');
-    const routingNumber = this.config.get<string>('BANK_ROUTING_NUMBER', '');
-    const iban = this.config.get<string>('BANK_IBAN', '');
-    const swiftBic = this.config.get<string>('BANK_SWIFT_BIC', '');
-    const line = this.config.get<string>('BANK_ADDRESS_LINE', '');
-    const city = this.config.get<string>('BANK_ADDRESS_CITY', '');
-    const country = this.config.get<string>('BANK_ADDRESS_COUNTRY', '');
-
-    if (!accountNumber && !iban) {
-      throw new ServiceUnavailableException(
-        'Bank transfer details not configured — contact billing@bazionweb.com',
-      );
-    }
+    const cleanEnv = (val?: string | null) => {
+      const v = (val || '').trim();
+      return v && !v.includes('CHANGE_ME') ? v : '';
+    };
+    const beneficiary =
+      cleanEnv(this.config.get<string>('BANK_BENEFICIARY')) ||
+      OFFICIAL_BAZION_PAYMENT_DETAILS.bankAccountName;
+    const accountNumber =
+      cleanEnv(this.config.get<string>('BANK_ACCOUNT_NUMBER')) ||
+      OFFICIAL_BAZION_PAYMENT_DETAILS.bankAccountNumber;
+    const routingNumber = cleanEnv(this.config.get<string>('BANK_ROUTING_NUMBER'));
+    const iban = cleanEnv(this.config.get<string>('BANK_IBAN'));
+    const swiftBic =
+      cleanEnv(this.config.get<string>('BANK_SWIFT_BIC')) ||
+      OFFICIAL_BAZION_PAYMENT_DETAILS.bankSwiftCode;
+    const line =
+      cleanEnv(this.config.get<string>('BANK_ADDRESS_LINE')) ||
+      `${OFFICIAL_BAZION_PAYMENT_DETAILS.bankName} - ${OFFICIAL_BAZION_PAYMENT_DETAILS.bankBranch}`;
+    const city = cleanEnv(this.config.get<string>('BANK_ADDRESS_CITY')) || 'Nairobi';
+    const country = cleanEnv(this.config.get<string>('BANK_ADDRESS_COUNTRY')) || 'Kenya';
 
     return {
       beneficiary,
@@ -2045,7 +2055,7 @@ export class BillingService {
       paymentRef: paymentLog?.providerRef,
       supplier: {
         address: this.config.get<string>('COMPANY_POSTAL_ADDRESS') || null,
-        taxPin: this.config.get<string>('COMPANY_KRA_PIN') || null,
+        taxPin: resolveSupplierTaxPin(this.config.get<string>('COMPANY_KRA_PIN')),
       },
     });
 

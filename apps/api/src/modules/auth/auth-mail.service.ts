@@ -85,6 +85,7 @@ export class AuthMailService {
   }): string {
     const year = new Date().getFullYear();
     const safeUrl = escapeHtml(opts.ctaUrl);
+    const logoUrl = `${escapeHtml(this.resolveFrontendOrigin())}/brand/logo-with-background.png`;
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -96,7 +97,10 @@ export class AuthMailService {
   <div style="max-width:560px;margin:0 auto;background:#1E293B;border:1px solid #334155;border-radius:16px;padding:36px 32px;box-shadow:0 10px 30px rgba(0,0,0,0.4);">
     <div style="border-bottom:2px solid #334155;padding-bottom:20px;margin-bottom:24px;text-align:center;">
       <div style="height:3px;background:linear-gradient(90deg,#0F172A 0%,#2563EB 60%,#10B981 100%);border-radius:2px;margin-bottom:18px;"></div>
-      <div style="font-size:26px;font-weight:900;color:#FFFFFF;letter-spacing:-0.02em;">Bazion<span style="color:#2563EB;">Web</span></div>
+      <div style="margin-bottom:10px;">
+        <img src="${logoUrl}" alt="BazionWeb – Build, Host n Grow" width="96" height="86" style="display:inline-block;height:76px;width:auto;border-radius:8px;border:1px solid #334155;background:#EBEBEB;" />
+      </div>
+      <div style="font-size:24px;font-weight:900;color:#FFFFFF;letter-spacing:-0.02em;">Bazion<span style="color:#38BDF8;">Web</span></div>
       <div style="margin-top:10px;">
         <span style="display:inline-block;padding:4px 14px;background:rgba(37,99,235,0.15);border:1px solid rgba(37,99,235,0.35);color:#60A5FA;border-radius:9999px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;">
           ${escapeHtml(opts.badge)}
@@ -117,7 +121,8 @@ export class AuthMailService {
     </div>
   </div>
   <div style="font-size:11px;color:#64748B;text-align:center;line-height:1.6;margin-top:24px;">
-    &copy; ${year} BAZION WEB &bull; billing@bazionweb.com &bull; support@bazionweb.com &bull; www.bazionweb.com
+    &copy; ${year} BAZION WEB (BRS Reg: BN-DLSZOZ6O &bull; KRA PIN: A006926734I)<br>
+    billing@bazionweb.com &bull; support@bazionweb.com &bull; www.bazionweb.com
   </div>
 </body>
 </html>`;

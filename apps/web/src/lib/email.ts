@@ -64,8 +64,11 @@ function renderEmailHeaderHtml(badge: string, subtitle = 'Managed Website Lifecy
   return `<!-- Corporate Letterhead Header -->
   <div style="border-bottom: 2px solid #334155; padding-bottom: 20px; margin-bottom: 24px; text-align: center;">
     <div style="height: 3px; background: linear-gradient(90deg, #0F172A 0%, #2563EB 60%, #10B981 100%); border-radius: 2px; margin-bottom: 18px;"></div>
-    <div style="font-size: 26px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.02em;">
-      Bazion<span style="color: #2563EB;">Web</span>
+    <div style="margin-bottom: 10px;">
+      <img src="https://bazionweb.com/brand/logo-with-background.png" alt="BazionWeb – Build, Host n Grow" width="96" height="86" style="display: inline-block; height: 76px; width: auto; border-radius: 8px; border: 1px solid #334155; background: #EBEBEB;" />
+    </div>
+    <div style="font-size: 24px; font-weight: 900; color: #FFFFFF; letter-spacing: -0.02em;">
+      Bazion<span style="color: #38BDF8;">Web</span>
     </div>
     <div style="font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px;">
       BAZION WEB &bull; ${escapeHtml(subtitle)}
@@ -104,7 +107,7 @@ function renderEmailCorporateFooterHtml(): string {
   return `<!-- Corporate Single Source of Truth Footer -->
   <div style="font-size: 11px; color: #64748B; text-align: center; line-height: 1.6; margin-top: 24px;">
     &copy; ${year} BAZION WEB &bull; Mwiki, Gituamba, Embakasi, Nairobi (P.O. Box 46376, 00100 - G.P.O Nairobi).<br>
-    <strong>BRS Reg:</strong> BN-DLSZOZ6O (Cap 499) &bull; <strong>KRA PIN:</strong> P052198745M<br>
+    <strong>BRS Reg:</strong> BN-DLSZOZ6O (Cap 499) &bull; <strong>KRA PIN:</strong> A006926734I<br>
     billing@bazionweb.com &bull; support@bazionweb.com &bull; +254 721 287 053 &bull; www.bazionweb.com
   </div>`;
 }

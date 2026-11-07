@@ -35,6 +35,7 @@ import { formatMoney, formatDate, titleCase, providerLabel } from '@/lib/format'
 import { cn, isTrustedCheckoutUrl, toSafeExternalUrl } from '@/lib/utils';
 import {
   renderDocumentLetterheadHtml,
+  renderPaymentInstructionsHtml,
   renderSecurityVerificationSectionHtml,
   getAntiFraudWatermarkCss,
 } from '@/lib/document-branding';
@@ -243,8 +244,9 @@ function openPrintableStatement(inv: ApiInvoice, client?: ApiClient | null) {
       <tbody>${rowsHtml}</tbody>
     </table>
 
-    <div style="display:flex;justify-content:flex-end;margin-top:24px;position:relative;z-index:2;">
-      <div style="min-width:320px;background:#f8fafc;padding:18px 20px;border-radius:14px;border:1px solid #e2e8f0;">
+    <div style="display:flex;justify-content:space-between;align-items:stretch;gap:20px;flex-wrap:wrap;margin-top:24px;position:relative;z-index:2;">
+      ${renderPaymentInstructionsHtml({ docNumber: inv.invoiceNumber, isPaid })}
+      <div style="min-width:300px;background:#f8fafc;padding:18px 20px;border-radius:14px;border:1px solid #e2e8f0;">
         ${breakdown.vatAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:#475569;margin-bottom:8px;">
           <span>Subtotal (Net):</span>
           <span style="font-weight:600;color:#0f172a;">${escapeHtml(formatMoney(breakdown.subtotal, inv.currency))}</span>
