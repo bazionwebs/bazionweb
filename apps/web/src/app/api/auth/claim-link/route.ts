@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { sendClaimLinkEmail, sendMagicLinkEmail } from '@/lib/email';
-import { resolveApiBase } from '@/lib/api-base';
+import {
+  fetchInternalApi,
+  resolveApiBase,
+  resolveInternalDispatchSecret,
+} from '@/lib/api-base';
 import { getTrustedSiteOrigin } from '@/lib/site-origin';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -38,12 +42,9 @@ export async function POST(req: Request) {
     const apiBaseUrl = resolveApiBase();
     if (!apiBaseUrl) return NextResponse.json(GENERIC_RESPONSE);
 
-    const dispatchSecret =
-      process.env.INTERNAL_DISPATCH_SECRET ||
-      process.env.PAYSTACK_SECRET_KEY ||
-      '';
+    const dispatchSecret = resolveInternalDispatchSecret();
 
-    const upstream = await fetch(`${apiBaseUrl}/api/v1/auth/claim-link`, {
+    const upstream = await fetchInternalApi('/api/v1/auth/claim-link', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -65,6 +66,9 @@ export async function POST(req: Request) {
 
     const envelope = await upstream.json().catch(() => ({}));
     const payload = envelope?.data ?? envelope;
+    if (payload?.emailDispatched && payload?.delivered) {
+      return NextResponse.json(GENERIC_RESPONSE, { headers: { 'Cache-Control': 'no-store' } });
+    }
     const claimToken = typeof payload?.claimToken === 'string' ? payload.claimToken : '';
 
     if (claimToken) {
@@ -90,7 +94,7 @@ export async function POST(req: Request) {
     // If no claimToken was minted, the account may already be claimed (password set).
     // Dispatch a one-time magic sign-in link for already-claimed accounts so returning
     // payers who click "Claim Account" can enter their dashboard without hitting a loop.
-    const magicUpstream = await fetch(`${apiBaseUrl}/api/v1/auth/magic-link`, {
+    const magicUpstream = await fetchInternalApi('/api/v1/auth/magic-link', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -104,6 +108,9 @@ export async function POST(req: Request) {
     if (magicUpstream.ok) {
       const magicEnvelope = await magicUpstream.json().catch(() => ({}));
       const magicPayload = magicEnvelope?.data ?? magicEnvelope;
+      if (magicPayload?.emailDispatched && magicPayload?.delivered) {
+        return NextResponse.json(GENERIC_RESPONSE, { headers: { 'Cache-Control': 'no-store' } });
+      }
       const magicToken = typeof magicPayload?.magicToken === 'string' ? magicPayload.magicToken : '';
 
       if (magicToken) {

@@ -92,6 +92,54 @@ export function resolveApiV1Base(): string {
 }
 
 /**
+ * Resolves the shared internal BFF-to-API dispatch secret when present.
+ * Matches AuthService.canDispatchTokens() candidate order.
+ */
+export function resolveInternalDispatchSecret(): string {
+  const candidates = [
+    process.env.INTERNAL_DISPATCH_SECRET,
+    process.env.PAYSTACK_SECRET_KEY,
+    process.env.JWT_SECRET,
+  ];
+  for (const raw of candidates) {
+    const clean = (raw || '').trim();
+    if (clean.length >= 12 && !clean.includes('CHANGE_ME')) {
+      return clean;
+    }
+  }
+  return '';
+}
+
+/**
+ * Server-side fetch helper for Next.js BFF routes (/api/auth/*) calling the NestJS API.
+ * Tries resolveApiBase() first; in production standalone Dokploy container deployments
+ * where `http://api:4000` is not defined (separate Dokploy app containers on `dokploy-network`),
+ * automatically retries against DOKPLOY_API_INTERNAL_URL / Dokploy's internal app hostname.
+ */
+export async function fetchInternalApi(path: string, init?: RequestInit): Promise<Response> {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const primaryBase = resolveApiBase();
+
+  try {
+    return await fetch(`${primaryBase}${cleanPath}`, init);
+  } catch (primaryErr) {
+    if (
+      typeof window === 'undefined' &&
+      process.env.NODE_ENV === 'production' &&
+      !normalizeOrigin(process.env.API_INTERNAL_URL)
+    ) {
+      const dokployFallback =
+        normalizeOrigin(process.env.DOKPLOY_API_INTERNAL_URL) ||
+        'http://bazionweb-platform-bazionwebapi-eegaq9:4000';
+      if (dokployFallback !== primaryBase) {
+        return fetch(`${dokployFallback}${cleanPath}`, init);
+      }
+    }
+    throw primaryErr;
+  }
+}
+
+/**
  * Resolves any relative or absolute URL into a clean absolute URL stripped of any
  * embedded credentials (username/password).
  *

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { sendPasswordResetEmail } from '@/lib/email';
-import { resolveApiBase } from '@/lib/api-base';
+import {
+  fetchInternalApi,
+  resolveApiBase,
+  resolveInternalDispatchSecret,
+} from '@/lib/api-base';
 import { getTrustedSiteOrigin } from '@/lib/site-origin';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -47,12 +51,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Auth backend not configured' }, { status: 503 });
     }
 
-    const dispatchSecret =
-      process.env.INTERNAL_DISPATCH_SECRET ||
-      process.env.PAYSTACK_SECRET_KEY ||
-      '';
+    const dispatchSecret = resolveInternalDispatchSecret();
 
-    const upstream = await fetch(`${apiBaseUrl}/api/v1/auth/forgot-password`, {
+    const upstream = await fetchInternalApi('/api/v1/auth/forgot-password', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -73,6 +74,17 @@ export async function POST(req: Request) {
     if (upstream.ok) {
       const envelope = await upstream.json().catch(() => ({}));
       const payload = envelope?.data ?? envelope;
+      if (payload?.emailDispatched && payload?.delivered) {
+        return NextResponse.json(
+          {
+            success: true,
+            delivered: true,
+            message:
+              'If an account exists for that email, a password reset link is on its way. Check your inbox and spam folder.',
+          },
+          { headers: { 'Cache-Control': 'no-store' } },
+        );
+      }
       const resetToken = typeof payload?.resetToken === 'string' ? payload.resetToken : '';
 
       if (resetToken) {

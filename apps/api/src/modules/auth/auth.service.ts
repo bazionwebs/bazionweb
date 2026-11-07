@@ -1,4 +1,10 @@
-import { Injectable, Logger, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Optional,
+  UnauthorizedException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   randomBytes,
@@ -8,6 +14,7 @@ import {
 } from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuthMailService, sanitizeRedirectPath } from './auth-mail.service';
 
 // Promise wrapper with an explicit signature (avoids promisify overload issues)
 function scryptAsync(
@@ -110,6 +117,7 @@ export class AuthService {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly mailService?: AuthMailService,
   ) {}
 
   /**
@@ -124,19 +132,29 @@ export class AuthService {
 
   /**
    * Raw claim/magic tokens are only returned to the Next.js mailer BFF,
-   * never to anonymous API callers. The BFF proves itself with the shared
-   * dispatch secret (INTERNAL_DISPATCH_SECRET, else PAYSTACK_SECRET_KEY).
+   * never to anonymous API callers. The BFF proves itself with a shared
+   * dispatch secret (INTERNAL_DISPATCH_SECRET, PAYSTACK_SECRET_KEY, or JWT_SECRET).
    */
   canDispatchTokens(header?: string): boolean {
-    const isProd = this.config.get<string>('NODE_ENV') === 'production';
-    const dedicated = (this.config.get<string>('INTERNAL_DISPATCH_SECRET', '') || '').trim();
-    const fallback = isProd ? '' : (this.config.get<string>('PAYSTACK_SECRET_KEY', '') || '').trim();
-    const expected = dedicated || fallback;
-    if (!expected || expected.includes('CHANGE_ME') || !header) return false;
-    const a = Buffer.from(header, 'utf8');
-    const b = Buffer.from(expected, 'utf8');
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
+    const candidate = (header || '').trim();
+    if (!candidate) return false;
+
+    const secrets = [
+      this.config.get<string>('INTERNAL_DISPATCH_SECRET', ''),
+      this.config.get<string>('PAYSTACK_SECRET_KEY', ''),
+      this.config.get<string>('JWT_SECRET', ''),
+    ]
+      .map((s) => (s || '').trim())
+      .filter((s) => s.length >= 12 && !s.includes('CHANGE_ME'));
+
+    const a = Buffer.from(candidate, 'utf8');
+    for (const expected of secrets) {
+      const b = Buffer.from(expected, 'utf8');
+      if (a.length === b.length && timingSafeEqual(a, b)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private jwtSecret(): string {
@@ -316,14 +334,27 @@ export class AuthService {
    * callers. Unknown emails, soft-deleted users, unclaimed guest identities,
    * and non-local providers all return the same empty shape (no enumeration).
    */
-  async requestPasswordReset(email: string, dispatchAuthorized = false): Promise<{ resetToken: string; expiresIn: number }> {
-    if (!dispatchAuthorized || !this.canUseLocalReset()) {
+  async requestPasswordReset(
+    email: string,
+    dispatchAuthorized = false,
+  ): Promise<{
+    resetToken: string;
+    expiresIn: number;
+    emailDispatched?: boolean;
+    delivered?: boolean;
+    provider?: string;
+    message?: string;
+  }> {
+    const apiMailReady = Boolean(this.mailService?.isConfigured());
+    if ((!dispatchAuthorized && !apiMailReady) || !this.canUseLocalReset()) {
       return { resetToken: '', expiresIn: 0 };
     }
     const cleanEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
     if (!user || user.deletedAt || !user.passwordHash) {
-      return { resetToken: '', expiresIn: 0 };
+      return apiMailReady
+        ? { resetToken: '', expiresIn: 0, emailDispatched: true, delivered: true }
+        : { resetToken: '', expiresIn: 0 };
     }
 
     const rawToken = `${RESET_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
@@ -334,6 +365,21 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 15 * 60_000),
       },
     });
+
+    if (apiMailReady && this.mailService) {
+      const origin = this.mailService.resolveFrontendOrigin();
+      const resetLinkUrl = `${origin}/portal/reset-password?token=${encodeURIComponent(rawToken)}`;
+      const sendResult = await this.mailService.sendPasswordResetEmail(cleanEmail, resetLinkUrl);
+      return {
+        resetToken: dispatchAuthorized ? rawToken : '',
+        expiresIn: dispatchAuthorized ? 900 : 0,
+        emailDispatched: true,
+        delivered: sendResult.delivered,
+        provider: sendResult.provider,
+        message: sendResult.message,
+      };
+    }
+
     return { resetToken: rawToken, expiresIn: 900 };
   }
 
@@ -502,18 +548,49 @@ export class AuthService {
    * controls it before any password is set. Unknown, unpaid, or already
    * claimed emails return the same empty shape (no enumeration).
    */
-  async requestClaimLink(email: string, dispatchAuthorized = false): Promise<{ claimToken: string; expiresIn: number }> {
-    if (!dispatchAuthorized) {
+  async requestClaimLink(
+    email: string,
+    dispatchAuthorized = false,
+  ): Promise<{
+    claimToken: string;
+    expiresIn: number;
+    emailDispatched?: boolean;
+    delivered?: boolean;
+    provider?: string;
+    message?: string;
+  }> {
+    const apiMailReady = Boolean(this.mailService?.isConfigured());
+    if (!dispatchAuthorized && !apiMailReady) {
       return { claimToken: '', expiresIn: 0 };
     }
     const cleanEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
-    if (!user || user.deletedAt || user.passwordHash) {
+    if (!user || user.deletedAt) {
+      return apiMailReady
+        ? { claimToken: '', expiresIn: 0, emailDispatched: true, delivered: true }
+        : { claimToken: '', expiresIn: 0 };
+    }
+    if (user.passwordHash) {
+      if (!dispatchAuthorized && apiMailReady) {
+        const magicRes = await this.requestMagicLink(cleanEmail, false);
+        return {
+          claimToken: '',
+          expiresIn: 0,
+          emailDispatched: true,
+          delivered: magicRes.delivered,
+          provider: magicRes.provider,
+          message: magicRes.message,
+        };
+      }
       return { claimToken: '', expiresIn: 0 };
     }
 
     const { paid } = await this.loadPaidEvidence(cleanEmail);
-    if (!paid) return { claimToken: '', expiresIn: 0 };
+    if (!paid) {
+      return apiMailReady
+        ? { claimToken: '', expiresIn: 0, emailDispatched: true, delivered: true }
+        : { claimToken: '', expiresIn: 0 };
+    }
 
     const rawToken = `${CLAIM_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
     await this.prisma.refreshToken.create({
@@ -523,6 +600,21 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 15 * 60_000),
       },
     });
+
+    if (apiMailReady && this.mailService) {
+      const origin = this.mailService.resolveFrontendOrigin();
+      const claimLinkUrl = `${origin}/portal/claim?token=${encodeURIComponent(rawToken)}&email=${encodeURIComponent(cleanEmail)}`;
+      const sendResult = await this.mailService.sendClaimLinkEmail(cleanEmail, claimLinkUrl);
+      return {
+        claimToken: dispatchAuthorized ? rawToken : '',
+        expiresIn: dispatchAuthorized ? 900 : 0,
+        emailDispatched: true,
+        delivered: sendResult.delivered,
+        provider: sendResult.provider,
+        message: sendResult.message,
+      };
+    }
+
     return { claimToken: rawToken, expiresIn: 900 };
   }
 
@@ -642,8 +734,20 @@ export class AuthService {
   }
 
   /** Issues a one-time, 15-minute login token ONLY for claimed accounts. */
-  async requestMagicLink(email: string, dispatchAuthorized = false): Promise<{ magicToken: string; expiresIn: number }> {
-    if (!dispatchAuthorized) {
+  async requestMagicLink(
+    email: string,
+    dispatchAuthorized = false,
+    redirect?: string,
+  ): Promise<{
+    magicToken: string;
+    expiresIn: number;
+    emailDispatched?: boolean;
+    delivered?: boolean;
+    provider?: string;
+    message?: string;
+  }> {
+    const apiMailReady = Boolean(this.mailService?.isConfigured());
+    if (!dispatchAuthorized && !apiMailReady) {
       return { magicToken: '', expiresIn: 0 };
     }
     const cleanEmail = email.trim().toLowerCase();
@@ -651,7 +755,9 @@ export class AuthService {
     // Silently no-op for unknown/unclaimed emails — the response shape stays
     // identical so the caller cannot distinguish "sent" from "not eligible".
     if (!user || user.deletedAt || !this.canUseMagicLink(user)) {
-      return { magicToken: '', expiresIn: 0 };
+      return apiMailReady
+        ? { magicToken: '', expiresIn: 0, emailDispatched: true, delivered: true }
+        : { magicToken: '', expiresIn: 0 };
     }
 
     const rawToken = `${MAGIC_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
@@ -662,6 +768,26 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 15 * 60_000),
       },
     });
+
+    if (apiMailReady && this.mailService) {
+      const origin = this.mailService.resolveFrontendOrigin();
+      const safeRedirect = sanitizeRedirectPath(redirect);
+      const params = new URLSearchParams({ token: rawToken });
+      if (safeRedirect) {
+        params.set('redirect', safeRedirect);
+      }
+      const magicLinkUrl = `${origin}/portal/login/verify?${params.toString()}`;
+      const sendResult = await this.mailService.sendMagicLinkEmail(cleanEmail, magicLinkUrl);
+      return {
+        magicToken: dispatchAuthorized ? rawToken : '',
+        expiresIn: dispatchAuthorized ? 900 : 0,
+        emailDispatched: true,
+        delivered: sendResult.delivered,
+        provider: sendResult.provider,
+        message: sendResult.message,
+      };
+    }
+
     return { magicToken: rawToken, expiresIn: 900 };
   }
 

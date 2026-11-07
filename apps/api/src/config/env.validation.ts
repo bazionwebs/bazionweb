@@ -21,6 +21,15 @@ export const envValidationSchema = Joi.object({
     .invalid('CHANGE_ME_256BIT_SECRET_KEY_FOR_LOCAL_DEV', 'secret', 'password'),
   JWT_EXPIRY: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRY: Joi.string().default('7d'),
+  INTERNAL_DISPATCH_SECRET: Joi.string().optional().allow(''),
+
+  // Transactional Email (Resend HTTP API + SMTP fallback)
+  RESEND_API_KEY: Joi.string().optional().allow(''),
+  SMTP_HOST: Joi.string().optional().allow(''),
+  SMTP_PORT: Joi.number().optional(),
+  SMTP_USER: Joi.string().optional().allow(''),
+  SMTP_PASS: Joi.string().optional().allow(''),
+  SMTP_FROM: Joi.string().optional().allow(''),
 
   // Paystack — Cards + M-Pesa (KES/USD)
   PAYSTACK_SECRET_KEY: Joi.string().min(8).optional().allow(''),

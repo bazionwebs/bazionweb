@@ -642,19 +642,47 @@ export default function SubscriptionCheckout({
     setInlineMagicSending(true);
     setInlineMagicError(null);
     try {
+      const payloadBody = JSON.stringify({
+        email: normalizedBillingEmail,
+        redirect: checkoutReturnPath,
+      });
+
       const res = await fetch(toCleanUrl('/api/auth/magic-link'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: normalizedBillingEmail,
-          redirect: checkoutReturnPath,
-        }),
+        body: payloadBody,
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || 'Could not send sign-in link right now.');
+
+      if (res.ok && data?.delivered !== false) {
+        setInlineMagicSentTo(normalizedBillingEmail);
+        return;
       }
-      setInlineMagicSentTo(normalizedBillingEmail);
+
+      // Direct Traefik -> NestJS API fallback when web BFF cannot reach API internally
+      // or when email credentials are configured directly on bazionweb-api.
+      if (res.status >= 500 || data?.delivered === false) {
+        const directRes = await fetch(toCleanUrl(`${resolveApiV1Base()}/auth/magic-link`), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payloadBody,
+        }).catch(() => null);
+
+        if (directRes?.ok) {
+          const directEnvelope = await directRes.json().catch(() => ({}));
+          const directPayload = directEnvelope?.data ?? directEnvelope;
+          if (directPayload?.emailDispatched && directPayload?.delivered) {
+            setInlineMagicSentTo(normalizedBillingEmail);
+            return;
+          }
+        }
+      }
+
+      throw new Error(
+        data?.error ||
+          data?.message ||
+          'Could not send sign-in link right now. Please use password sign-in.',
+      );
     } catch (err: unknown) {
       setInlineMagicError(
         err instanceof Error ? err.message : 'Could not send sign-in link right now.',

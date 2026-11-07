@@ -451,11 +451,36 @@ export function generateQuoteSummaryEmailHtml(options: QuoteSummaryOptions): str
 </html>`;
 }
 
+function isUsableEmailSecret(val: string | undefined | null): boolean {
+  const clean = (val || '').trim();
+  return clean.length > 0 && !clean.includes('CHANGE_ME');
+}
+
+export function isEmailTransportConfigured(): boolean {
+  if (isUsableEmailSecret(process.env.RESEND_API_KEY)) return true;
+  return (
+    isUsableEmailSecret(process.env.SMTP_HOST) &&
+    isUsableEmailSecret(process.env.SMTP_USER) &&
+    isUsableEmailSecret(process.env.SMTP_PASS)
+  );
+}
+
 async function sendEmail(to: string, subject: string, html: string, fallbackUrl: string): Promise<SendEmailResult> {
-  const fromEmail = process.env.SMTP_FROM || 'BazionWeb <noreply@bazionweb.com>';
+  const rawFrom = (process.env.SMTP_FROM || '').trim();
+  const fromEmail = rawFrom
+    ? rawFrom.includes('<')
+      ? rawFrom
+      : `BazionWeb <${rawFrom}>`
+    : 'BazionWeb <noreply@bazionweb.com>';
+
+  const plainText = fallbackUrl
+    ? `${subject}\n\nOpen this secure link:\n${fallbackUrl}\n\nBazionWeb — support@bazionweb.com`
+    : undefined;
 
   // 1. Check for Resend API Key
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendApiKey = isUsableEmailSecret(process.env.RESEND_API_KEY)
+    ? process.env.RESEND_API_KEY!.trim()
+    : '';
   let resendFallbackReason = '';
   if (resendApiKey) {
     const sendViaResend = async (sender: string) => {
@@ -470,6 +495,7 @@ async function sendEmail(to: string, subject: string, html: string, fallbackUrl:
           to: [to],
           subject,
           html,
+          ...(plainText ? { text: plainText } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -519,6 +545,7 @@ async function sendEmail(to: string, subject: string, html: string, fallbackUrl:
         to,
         subject,
         html,
+        ...(plainText ? { text: plainText } : {}),
       });
 
       console.log(`[Email] ✅ Delivered via SMTP (${smtpHost}) to ${to}`);

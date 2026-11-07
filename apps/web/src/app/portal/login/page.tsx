@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, Loader2, AlertCircle, Mail, KeyRound, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import Logo from '@/components/ui/Logo';
-import { toCleanUrl } from '@/lib/api-base';
+import { resolveApiV1Base, toCleanUrl } from '@/lib/api-base';
 import { sanitizeRedirectPath } from '@/lib/utils';
 
 function PortalLoginContent() {
@@ -48,19 +48,47 @@ function PortalLoginContent() {
     }
     setLoading(true);
     try {
+      const payloadBody = JSON.stringify({
+        email,
+        ...(redirectPath ? { redirect: redirectPath } : {}),
+      });
+
       const res = await fetch(toCleanUrl('/api/auth/magic-link'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          ...(redirectPath ? { redirect: redirectPath } : {}),
-        }),
+        body: payloadBody,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to dispatch sign-in link');
+      const data = await res.json().catch(() => ({}));
 
-      setDeliveryInfo(data);
-      setMagicLinkSent(true);
+      if (res.ok && (data?.delivered !== false || data?.previewUrl)) {
+        setDeliveryInfo(data);
+        setMagicLinkSent(true);
+        return;
+      }
+
+      if (res.status >= 500 || data?.delivered === false) {
+        const directRes = await fetch(toCleanUrl(`${resolveApiV1Base()}/auth/magic-link`), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payloadBody,
+        }).catch(() => null);
+
+        if (directRes?.ok) {
+          const directEnvelope = await directRes.json().catch(() => ({}));
+          const directPayload = directEnvelope?.data ?? directEnvelope;
+          if (directPayload?.emailDispatched && directPayload?.delivered) {
+            setDeliveryInfo({ delivered: true });
+            setMagicLinkSent(true);
+            return;
+          }
+        }
+      }
+
+      throw new Error(
+        data?.error ||
+          data?.message ||
+          'Failed to dispatch sign-in link. Please sign in with your password instead.',
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to dispatch magic link. Please check your network.');
     } finally {

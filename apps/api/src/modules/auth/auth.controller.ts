@@ -70,6 +70,12 @@ class MagicLinkRequestDto {
   @ApiProperty({ example: 'client@example.com' })
   @IsEmail()
   email: string;
+
+  @ApiProperty({ required: false, example: '/checkout?plan=care-essential&cycle=MONTHLY&cart=1' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  redirect?: string;
 }
 
 class MagicLinkVerifyDto {
@@ -213,6 +219,7 @@ export class AuthController {
     return this.authService.requestMagicLink(
       dto.email,
       this.authService.canDispatchTokens(dispatchSecret),
+      dto.redirect,
     );
   }
 
