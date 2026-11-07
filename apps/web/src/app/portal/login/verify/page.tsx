@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
@@ -10,27 +10,79 @@ import type { AuthUser } from '@/store/auth.store';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { sanitizeRedirectPath } from '@/lib/utils';
 
-const API_BASE = resolveApiV1Base();
+interface VerifyApiResult {
+  ok: boolean;
+  status: number;
+  body: Record<string, unknown>;
+}
+
+/**
+ * Deduplicate single-use token verification requests across React StrictMode
+ * double-effects or Suspense boundary remounts so the single-use DB token is
+ * only posted once and every active mount receives the same settled result.
+ */
+const inFlightTokenRequests = new Map<string, Promise<VerifyApiResult>>();
+
+function verifyTokenOnce(apiBase: string, activeToken: string): Promise<VerifyApiResult> {
+  const existing = inFlightTokenRequests.get(activeToken);
+  if (existing) return existing;
+
+  const reqPromise = (async (): Promise<VerifyApiResult> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch(`${apiBase}/auth/magic-link/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: activeToken }),
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      return { ok: res.ok, status: res.status, body };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  })();
+
+  inFlightTokenRequests.set(activeToken, reqPromise);
+  return reqPromise;
+}
 
 /**
  * Magic-link verification — SERVER-VERIFIED.
  *
  * The emailed token is a single-use, DB-backed opaque string. It is sent to
  * the API (POST /auth/magic-link/verify), which checks its hash, expiry and
- * revocation before returning a real JWT session. The browser never decodes
- * or trusts token contents — the previous client-side base64 "auth" that
- * minted fake sessions is gone.
+ * revocation before returning a real JWT session.
  */
 function MagicVerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const urlToken = searchParams.get('token') || '';
-  const [token] = useState(() => urlToken);
-  const [redirectPath] = useState(
-    () => sanitizeRedirectPath(searchParams.get('redirect')) || '/portal',
-  );
-  const verifiedRef = React.useRef(false);
-  const setSession = useAuthStore(s => s.setSession);
+
+  // Capture token & redirect once on initial mount so scrubbing the URL bar via
+  // history.replaceState never mutates effect dependencies or cancels an in-flight verify call.
+  const [initialToken] = useState(() => {
+    const fromHook = searchParams.get('token');
+    if (fromHook) return fromHook.trim();
+    if (typeof window !== 'undefined') {
+      return (new URLSearchParams(window.location.search).get('token') || '').trim();
+    }
+    return '';
+  });
+
+  const [redirectPath] = useState(() => {
+    const fromHook = sanitizeRedirectPath(searchParams.get('redirect'));
+    if (fromHook) return fromHook;
+    if (typeof window !== 'undefined') {
+      const rawRedirect = new URLSearchParams(window.location.search).get('redirect');
+      return sanitizeRedirectPath(rawRedirect) || '/portal';
+    }
+    return '/portal';
+  });
+
+  const setSession = useAuthStore((s) => s.setSession);
+  const unmountedRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -38,74 +90,100 @@ function MagicVerifyContent() {
   const [email, setEmail] = useState('');
 
   useEffect(() => {
-    const activeToken = token || urlToken;
-    if (!activeToken) {
-      if (!verifiedRef.current) {
-        setLoading(false);
-        setError('No authentication token found in link.');
-      }
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!initialToken) {
+      setLoading(false);
+      setError('No authentication token found in link. Please request a fresh sign-in link.');
       return;
     }
 
-    if (verifiedRef.current) return;
-    verifiedRef.current = true;
-
-    // Clean token from browser history and URL bar to prevent Referer / shoulder-surfing leakage
-    if (typeof window !== 'undefined') {
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-
-    let cancelled = false;
+    let redirectTimer: ReturnType<typeof setTimeout> | null = null;
 
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/auth/magic-link/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: activeToken }),
-        });
-        const body = await res.json().catch(() => ({}));
-        const payload = body?.data ?? body;
-        const rawUser = payload?.user ?? body?.user;
+        const apiBase = resolveApiV1Base();
+        const { ok, body } = await verifyTokenOnce(apiBase, initialToken);
 
-        if (!res.ok || !payload?.accessToken) {
-          throw new Error(body.message || 'This sign-in link is invalid or has expired.');
+        // Scrub single-use token from address bar AFTER verification settles so Next.js's
+        // patched history.replaceState never cancels our effect while fetch is in flight.
+        if (typeof window !== 'undefined' && window.location.search.includes('token=')) {
+          const cleanParams = new URLSearchParams(window.location.search);
+          cleanParams.delete('token');
+          const qs = cleanParams.toString();
+          window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
         }
 
-        if (cancelled) return;
+        const payload = ((body?.data as Record<string, unknown> | undefined) ?? body) || {};
+        const rawUser =
+          (payload?.user as Record<string, unknown> | undefined) ??
+          (body?.user as Record<string, unknown> | undefined);
+        const accessToken = typeof payload?.accessToken === 'string' ? payload.accessToken : '';
+        const refreshToken = typeof payload?.refreshToken === 'string' ? payload.refreshToken : '';
 
-        setEmail(rawUser?.email || 'your account');
+        if (!ok || !accessToken) {
+          const msg =
+            (typeof payload?.message === 'string' && payload.message) ||
+            (typeof body?.message === 'string' && body.message) ||
+            'This sign-in link is invalid or has expired.';
+          throw new Error(msg);
+        }
+
+        if (unmountedRef.current) return;
+
+        const resolvedEmail = typeof rawUser?.email === 'string' ? rawUser.email : 'your account';
+        setEmail(resolvedEmail);
         setSession(
           {
-            id: rawUser?.id || '',
-            email: rawUser?.email || '',
-            firstName: rawUser?.firstName || '',
-            lastName: rawUser?.lastName || '',
-            roles: Array.isArray(rawUser?.roles) && rawUser.roles.length > 0 ? rawUser.roles : ['CLIENT'],
-            keycloakId: rawUser?.keycloakId || rawUser?.id || '',
-            subscriptionStatus: rawUser?.subscriptionStatus,
+            id: typeof rawUser?.id === 'string' ? rawUser.id : '',
+            email: typeof rawUser?.email === 'string' ? rawUser.email : '',
+            firstName: typeof rawUser?.firstName === 'string' ? rawUser.firstName : '',
+            lastName: typeof rawUser?.lastName === 'string' ? rawUser.lastName : '',
+            roles:
+              Array.isArray(rawUser?.roles) && rawUser.roles.length > 0
+                ? (rawUser.roles as string[])
+                : ['CLIENT'],
+            keycloakId:
+              typeof rawUser?.keycloakId === 'string'
+                ? rawUser.keycloakId
+                : typeof rawUser?.id === 'string'
+                ? rawUser.id
+                : '',
+            subscriptionStatus: rawUser?.subscriptionStatus as AuthUser['subscriptionStatus'],
           } as AuthUser,
-          payload.accessToken,
-          payload.refreshToken,
-          Number(payload.expiresIn) || 900,
+          accessToken,
+          refreshToken,
+          Number(payload?.expiresIn) || 900,
         );
         setSuccess(true);
+        setLoading(false);
 
-        const timer = setTimeout(() => {
-          router.push(redirectPath);
-        }, 1200);
-        return () => { cancelled = true; clearTimeout(timer); };
+        redirectTimer = setTimeout(() => {
+          router.replace(redirectPath);
+        }, 900);
       } catch (err: unknown) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Authentication link is invalid or has expired.');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (unmountedRef.current) return;
+        const isTimeout = err instanceof Error && err.name === 'AbortError';
+        setError(
+          isTimeout
+            ? 'Verification timed out while contacting the server. Please request a fresh sign-in link and try again.'
+            : err instanceof Error
+            ? err.message
+            : 'Authentication link is invalid or has expired.',
+        );
+        setLoading(false);
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [token, urlToken, redirectPath, setSession, router]);
+    return () => {
+      if (redirectTimer) clearTimeout(redirectTimer);
+    };
+  }, [initialToken, redirectPath, setSession, router]);
 
   return (
     <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-2xl border border-slate-100 text-slate-900 text-center">
@@ -160,7 +238,11 @@ function MagicVerifyContent() {
           </p>
           <div className="pt-4">
             <Link
-              href="/portal/login"
+              href={
+                redirectPath && redirectPath !== '/portal'
+                  ? `/portal/login?redirect=${encodeURIComponent(redirectPath)}`
+                  : '/portal/login'
+              }
               className="btn-primary w-full py-3 justify-center text-xs font-bold"
             >
               Request a New Sign-In Link
@@ -175,11 +257,13 @@ function MagicVerifyContent() {
 export default function MagicVerifyPage() {
   return (
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
-      <Suspense fallback={
-        <div className="text-center text-white p-8">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500" />
-        </div>
-      }>
+      <Suspense
+        fallback={
+          <div className="text-center text-white p-8">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500" />
+          </div>
+        }
+      >
         <MagicVerifyContent />
       </Suspense>
     </div>

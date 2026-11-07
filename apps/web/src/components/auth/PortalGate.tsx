@@ -12,7 +12,12 @@ import PortalShell from '@/components/portal/PortalShell';
  * target === guarded page). Claim is public by design (pay-first checkout;
  * no session exists yet). Register is a server redirect to /checkout.
  */
-const PUBLIC_PORTAL_PATHS = ['/portal/login', '/portal/claim', '/portal/register'];
+const PUBLIC_PORTAL_PATHS = [
+  '/portal/login',
+  '/portal/claim',
+  '/portal/register',
+  '/portal/reset-password',
+];
 const PORTAL_ROLES = ['CLIENT', 'ADMIN', 'SUPER_ADMIN', 'SUPPORT'];
 
 export default function PortalGate({ children }: { children: React.ReactNode }) {

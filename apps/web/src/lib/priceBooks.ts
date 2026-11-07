@@ -1822,3 +1822,48 @@ export const CANONICAL_SERVICE_CATALOG: ServiceCatalogItem[] = [
     badge: 'Admin Hub',
   },
 ];
+
+/**
+ * Resolve multi-cycle billing options for a catalog service in any supported
+ * settlement currency directly from the canonical KE (KES) or GLOBAL (USD)
+ * price books so Admin B2B invoices match public store & pricing pages.
+ */
+export function getServiceBillingOptions(
+  service: Pick<ServiceCatalogItem, 'id' | 'billingOptions'>,
+  currency: 'KES' | 'USD' | 'EUR' | 'GBP',
+): BillingOption[] | undefined {
+  if (!service.billingOptions || service.billingOptions.length === 0) {
+    return undefined;
+  }
+
+  if (currency === 'KES') {
+    return PRICE_BOOK_KE_2026_V1.items[service.id]?.billingOptions ?? service.billingOptions;
+  }
+
+  const usdOptions = PRICE_BOOK_GLOBAL_2026_V1.items[service.id]?.billingOptions;
+  if (!usdOptions || usdOptions.length === 0) {
+    return service.billingOptions;
+  }
+
+  if (currency === 'USD') {
+    return usdOptions;
+  }
+
+  const fxMultiplier = currency === 'EUR' ? 0.92 : 0.79;
+  return usdOptions.map((opt) => {
+    const amount = Math.round(opt.amount * fxMultiplier * 100) / 100;
+    const monthlyEquivalent = Math.round(opt.monthlyEquivalent * fxMultiplier * 100) / 100;
+    const formattedMonthly = `${formatCurrency(monthlyEquivalent, currency)}/mo`;
+    const formatted =
+      opt.periodMonths === 1
+        ? formattedMonthly
+        : `${formatCurrency(amount, currency)} / ${opt.periodMonths} mos`;
+    return {
+      ...opt,
+      amount,
+      monthlyEquivalent,
+      formatted,
+      formattedMonthly,
+    };
+  });
+}
