@@ -203,20 +203,26 @@ describe('PricingService', () => {
     });
 
     it('calculates standard business package quote correctly with tax inclusive', async () => {
-      const quote = await service.calculateQuote({
-        marketCode: 'KE',
-        packageType: 'business',
-      });
+      const prevVat = process.env.COMPANY_VAT_REGISTERED;
+      process.env.COMPANY_VAT_REGISTERED = 'true';
+      try {
+        const quote = await service.calculateQuote({
+          marketCode: 'KE',
+          packageType: 'business',
+        });
 
-      expect(quote.marketCode).toBe('KE');
-      expect(quote.currency).toBe('KES');
-      expect(quote.breakdown.package.amount).toBe(90000);
-      expect(quote.breakdown.subtotalBuild).toBe(90000);
-      expect(quote.breakdown.tax.isInclusive).toBe(true);
-      expect(quote.breakdown.tax.rate).toBe(0.16);
-      // Tax is inclusive: net / (1 + 0.16)
-      expect(quote.breakdown.tax.taxAmount).toBe(Math.round(90000 - 90000 / 1.16));
-      expect(quote.totalPayableNow).toBe(90000);
+        expect(quote.marketCode).toBe('KE');
+        expect(quote.currency).toBe('KES');
+        expect(quote.breakdown.package.amount).toBe(90000);
+        expect(quote.breakdown.subtotalBuild).toBe(90000);
+        expect(quote.breakdown.tax.isInclusive).toBe(true);
+        expect(quote.breakdown.tax.rate).toBe(0.16);
+        // Tax is inclusive: net / (1 + 0.16)
+        expect(quote.breakdown.tax.taxAmount).toBe(Math.round(90000 - 90000 / 1.16));
+        expect(quote.totalPayableNow).toBe(90000);
+      } finally {
+        process.env.COMPANY_VAT_REGISTERED = prevVat;
+      }
     });
 
     it('adds extra pages and add-ons to build subtotal', async () => {
@@ -320,25 +326,31 @@ describe('PricingService', () => {
     });
 
     it('calculates exclusive tax (added on top) for non-inclusive markets', async () => {
-      mockPrisma.market.findUnique.mockResolvedValue(mockMarketGlobal);
-      mockPrisma.taxRule.findFirst.mockResolvedValue({
-        id: 'tr-2',
-        marketId: 'market-global-uuid',
-        name: 'Sales Tax 10%',
-        taxType: 'SALES_TAX',
-        rate: 0.10,
-        isInclusive: false,
-        active: true,
-      });
+      const prevVat = process.env.COMPANY_VAT_REGISTERED;
+      process.env.COMPANY_VAT_REGISTERED = 'true';
+      try {
+        mockPrisma.market.findUnique.mockResolvedValue(mockMarketGlobal);
+        mockPrisma.taxRule.findFirst.mockResolvedValue({
+          id: 'tr-2',
+          marketId: 'market-global-uuid',
+          name: 'Sales Tax 10%',
+          taxType: 'SALES_TAX',
+          rate: 0.10,
+          isInclusive: false,
+          active: true,
+        });
 
-      const quote = await service.calculateQuote({
-        marketCode: 'GLOBAL',
-        packageType: 'business',
-      });
+        const quote = await service.calculateQuote({
+          marketCode: 'GLOBAL',
+          packageType: 'business',
+        });
 
-      expect(quote.breakdown.tax.isInclusive).toBe(false);
-      expect(quote.breakdown.tax.taxAmount).toBe(9000); // 90000 * 0.10
-      expect(quote.totalPayableNow).toBe(99000); // 90000 + 9000
+        expect(quote.breakdown.tax.isInclusive).toBe(false);
+        expect(quote.breakdown.tax.taxAmount).toBe(9000); // 90000 * 0.10
+        expect(quote.totalPayableNow).toBe(99000); // 90000 + 9000
+      } finally {
+        process.env.COMPANY_VAT_REGISTERED = prevVat;
+      }
     });
 
     it('throws NotFoundException when no active price book exists', async () => {

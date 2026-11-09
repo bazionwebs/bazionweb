@@ -366,9 +366,13 @@ export const adminApi = {
     clientName?: string;
     type?: 'claim' | 'magic';
   }) => {
+    const token = useAuthStore.getState().accessToken;
     const res = await fetch(toCleanUrl('/api/admin/dispatch-link'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(data),
     });
     return res.json();

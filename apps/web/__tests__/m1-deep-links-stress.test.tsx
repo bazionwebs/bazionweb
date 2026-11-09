@@ -229,7 +229,7 @@ describe('Milestone 1 Empirical Challenger: Deep-Links & Presentation Stress Har
       render(<QuoteCalculatorPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(validCode)).toBeInTheDocument();
+        expect(screen.getAllByText(validCode).length).toBeGreaterThan(0);
       });
 
       expect(screen.getByText('Sarah Jenkins')).toBeInTheDocument();
@@ -331,7 +331,7 @@ describe('Milestone 1 Empirical Challenger: Deep-Links & Presentation Stress Har
 
       render(<ProposalPresentationView proposal={emptyItemsProposal} />);
 
-      expect(screen.getByText(baseProposal.proposalCode)).toBeInTheDocument();
+      expect(screen.getAllByText(baseProposal.proposalCode).length).toBeGreaterThan(0);
       expect(screen.getByText('Total One-Time Build Investment')).toBeInTheDocument();
       expect(screen.getByText('Commercial Client')).toBeInTheDocument(); // fallback company
     });
@@ -375,7 +375,7 @@ describe('Milestone 1 Empirical Challenger: Deep-Links & Presentation Stress Har
       render(<QuoteCalculatorPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(validCode)).toBeInTheDocument();
+        expect(screen.getAllByText(validCode).length).toBeGreaterThan(0);
       });
 
       expect(fetchCount).toBe(1);

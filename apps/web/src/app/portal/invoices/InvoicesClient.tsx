@@ -106,7 +106,6 @@ export function computeInvoiceTaxBreakdown(inv: ApiInvoice) {
   if (inv.breakdown) return inv.breakdown;
   const total = Number(inv.amount || 0);
   const vatRate = 0.0;
-  const isInclusive = true;
 
   const subtotal = total;
   const vatAmount = 0;

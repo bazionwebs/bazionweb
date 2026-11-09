@@ -270,7 +270,7 @@ export default function Navbar() {
 
       {/* ─── Mobile Navigation Menu ─── */}
       {menuOpen && (
-        <div className="lg:hidden bg-white border-t border-slate-200/80 shadow-2xl max-h-[85vh] overflow-y-auto">
+        <div className="lg:hidden bg-white border-t border-slate-200/80 shadow-2xl max-h-[calc(100dvh-5rem)] pb-8 overflow-y-auto">
           <div className="container-default py-5 flex flex-col gap-1 text-sm">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-1 pb-1">
               Core Services

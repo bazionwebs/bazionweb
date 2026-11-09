@@ -149,7 +149,7 @@ describe('Milestone 1 Frontend Components & Journey Flows', () => {
     it('renders proposal header with reference code and client info', () => {
       render(<ProposalPresentationView proposal={mockProposal} />);
 
-      expect(screen.getByText('BZ-KE-2026-TESTPROPOSAL')).toBeInTheDocument();
+      expect(screen.getAllByText('BZ-KE-2026-TESTPROPOSAL').length).toBeGreaterThan(0);
       expect(screen.getByText('Dr. Mwangi')).toBeInTheDocument();
       expect(screen.getByText('Nairobi Health Clinic')).toBeInTheDocument();
       // The billing email renders in multiple views (mobile header, details
