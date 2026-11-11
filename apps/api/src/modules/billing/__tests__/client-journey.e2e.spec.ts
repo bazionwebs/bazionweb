@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import { BillingService } from '../billing.service';
 import { PaymentSettlementService } from '../payment-settlement.service';
+import { PlatformProvisioningOutboxService } from '../../platform-provisioning/platform-provisioning-outbox.service';
 import { PaystackService } from '../paystack.service';
 import { DarajaService } from '../daraja.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -442,6 +443,10 @@ describe('Backend Opaque-Box E2E Test Suite: BazionWeb Client Journey (Tiers 1 -
       providers: [
         BillingService,
         PaymentSettlementService,
+        {
+          provide: PlatformProvisioningOutboxService,
+          useValue: { enqueueForSettledInvoice: jest.fn().mockResolvedValue([]) },
+        },
         PricingService,
         ClientsService,
         { provide: PrismaService, useValue: mockPrisma },

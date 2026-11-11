@@ -4,6 +4,7 @@ import {
   checkoutLineItem,
 } from '../payment-settlement.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { PlatformProvisioningOutboxService } from '../../platform-provisioning/platform-provisioning-outbox.service';
 import { PaystackService } from '../paystack.service';
 import {
   PaymentStatus,
@@ -97,6 +98,10 @@ async function build(prisma: any, paystack?: any) {
   const m: TestingModule = await Test.createTestingModule({
     providers: [
       PaymentSettlementService,
+      {
+        provide: PlatformProvisioningOutboxService,
+        useValue: { enqueueForSettledInvoice: jest.fn().mockResolvedValue([]) },
+      },
       { provide: PrismaService, useValue: prisma },
       { provide: PaystackService, useValue: paystack ?? makePaystack() },
     ],
