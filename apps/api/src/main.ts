@@ -18,9 +18,11 @@ async function bootstrap() {
 
   const config = app.get(ConfigService);
 
-  // Trust single upstream reverse proxy (Render / Cloudflare / Nginx) so
-  // ThrottlerGuard & AuditInterceptor resolve real client IPs accurately.
-  app.set('trust proxy', 1);
+  // Trust the documented reverse-proxy chain (Cloudflare -> Traefik / Nginx)
+  // so ThrottlerGuard & AuditInterceptor resolve real client IPs. TRUST_PROXY
+  // lets operators raise the hop count if the chain gains another proxy.
+  const trustProxyHops = Number(config.get('TRUST_PROXY') ?? 1);
+  app.set('trust proxy', Number.isFinite(trustProxyHops) && trustProxyHops > 0 ? trustProxyHops : 1);
   app.disable('x-powered-by');
 
   // ── Security ────────────────────────────────────────────────────────────────
@@ -118,6 +120,11 @@ async function bootstrap() {
   const port = config.get<number>('PORT', 4000);
   await app.listen(port);
   console.log(`🚀 BazionWeb API running on port ${port}`);
+
+  // SIGTERM/SIGINT must drain connections and run Prisma onModuleDestroy + cron
+  // teardown (stopInFlight payment settlements, hosting cron jobs, etc.) before
+  // the container exits during deploys.
+  app.enableShutdownHooks();
 }
 
 bootstrap();

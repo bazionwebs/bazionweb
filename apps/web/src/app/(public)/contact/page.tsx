@@ -8,7 +8,7 @@ import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 import { buildWhatsAppLink, SITE_CONTACT } from '@/lib/contact';
 
 export const metadata: Metadata = {
-  title: 'Contact Our Engineering & Sales Team | BazionWeb',
+  title: 'Contact Our Engineering & Sales Team',
   description: 'Get in touch for a free website assessment, custom software consultation, or e-commerce quote. Based in Nairobi, Kenya, serving clients worldwide.',
   alternates: { canonical: 'https://bazionweb.com/contact' },
 };

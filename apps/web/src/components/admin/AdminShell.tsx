@@ -291,7 +291,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                       Close
                     </button>
                   </div>
-                  <div className="p-2 space-y-1 max-h-72 overflow-y-auto">
+                  <div className="p-2 space-y-1 max-h-72 overflow-y-auto custom-scrollbar">
                     {breachedTickets.length === 0 && sslAlerts === 0 ? (
                       <div className="p-4 text-center">
                         <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto mb-1" />
@@ -347,7 +347,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </header>
 
         {/* Routed Page Content */}
-        <main className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar">
           {children}
         </main>
       </div>

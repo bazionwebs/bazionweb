@@ -19,7 +19,7 @@ import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress
 import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
-  title: 'Digital Engineering Services — Websites, E-Commerce & Systems | BazionWeb',
+  title: 'Digital Engineering Services — Websites, E-Commerce & Systems',
   description:
     'Complete website & system lifecycle: custom development, e-commerce, custom web applications, security, and ongoing care plans.',
   alternates: { canonical: 'https://bazionweb.com/services' },

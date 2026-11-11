@@ -328,6 +328,16 @@ export const useAuthStore = create<AuthState>()(
               }
               window.sessionStorage.setItem(name, value);
               window.localStorage.setItem(name, value);
+              if (name === 'bazionweb-auth' && typeof document !== 'undefined') {
+                try {
+                  const parsed = JSON.parse(value);
+                  if (parsed?.state?.accessToken) {
+                    document.cookie = 'bazionweb_session=1; path=/; SameSite=Lax';
+                  }
+                } catch {
+                  // Ignore JSON parse errors
+                }
+              }
             } catch {
               // Ignore quota errors
             }
@@ -340,6 +350,9 @@ export const useAuthStore = create<AuthState>()(
               }
               window.sessionStorage.removeItem(name);
               window.localStorage.removeItem(name);
+              if (name === 'bazionweb-auth' && typeof document !== 'undefined') {
+                document.cookie = 'bazionweb_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+              }
             } catch {
               // Ignore storage removal errors
             }

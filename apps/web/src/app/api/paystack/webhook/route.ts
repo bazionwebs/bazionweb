@@ -17,7 +17,16 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: Request) {
   try {
+    // Reject oversized bodies before buffering them into memory — genuine
+    // Paystack events are small JSON payloads.
+    const declaredLength = Number(req.headers.get('content-length') || '0');
+    if (Number.isFinite(declaredLength) && declaredLength > 512 * 1024) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+    }
     const bodyText = await req.text();
+    if (bodyText.length > 512 * 1024) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+    }
     const signature = req.headers.get('x-paystack-signature');
     const secretKey =
       process.env.PAYSTACK_WEBHOOK_SECRET || process.env.PAYSTACK_SECRET_KEY || '';

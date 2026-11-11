@@ -88,10 +88,21 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!isSandbox) return;
-    const interval = setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
+    const updateTicker = () => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        setNow(Date.now());
+      }
+    };
+    const interval = setInterval(updateTicker, 5000);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', updateTicker);
+    }
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', updateTicker);
+      }
+    };
   }, [isSandbox]);
 
   useEffect(() => {
@@ -482,7 +493,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-y-auto custom-scrollbar">{children}</main>
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar">{children}</main>
       </div>
 
       <WhatsAppFloatingChat source="portal_widget" message={whatsappMessage} label="WhatsApp Support" />

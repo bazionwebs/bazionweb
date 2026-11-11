@@ -91,7 +91,7 @@ export async function POST(req: Request) {
         const resetLinkUrl = `${getTrustedSiteOrigin()}/portal/reset-password?token=${encodeURIComponent(resetToken)}`;
         const sendResult = await sendPasswordResetEmail({ to: cleanEmail, resetLinkUrl });
 
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' && process.env.SHOW_DEV_TOKEN_PREVIEW === '1') {
           return NextResponse.json(
             {
               success: true,

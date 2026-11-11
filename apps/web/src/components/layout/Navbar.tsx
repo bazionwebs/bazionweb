@@ -240,7 +240,7 @@ export default function Navbar() {
           <WhatsAppLink
             source="navbar"
             ariaLabel="Chat with BazionWeb on WhatsApp"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
             iconClassName="h-4 w-4"
           />
 
@@ -260,7 +260,7 @@ export default function Navbar() {
           <NavbarCartLink />
           <button
             onClick={() => setMenuOpen(v => !v)}
-            className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors"
+            className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors flex items-center justify-center"
             aria-label="Toggle navigation menu"
           >
             {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -280,7 +280,7 @@ export default function Navbar() {
                 key={item.name}
                 href={item.href}
                 onClick={() => setMenuOpen(false)}
-                className="px-3 py-2 rounded-xl text-slate-700 hover:bg-teal-50 hover:text-[#0D9488] flex items-center justify-between"
+                className="px-3 py-3 min-h-[44px] rounded-xl text-slate-700 hover:bg-teal-50 hover:text-[#0D9488] flex items-center justify-between"
               >
                 <span className="font-semibold">{item.name}</span>
                 <span className="text-[11px] text-slate-400">{item.desc}</span>
@@ -290,37 +290,38 @@ export default function Navbar() {
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-3 pb-1 border-t border-slate-100">
               Navigation
             </div>
-            <Link href="/pricing" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/pricing" onClick={() => setMenuOpen(false)} className="px-3 py-3 min-h-[44px] rounded-xl font-medium text-slate-800 hover:bg-slate-50 flex items-center">
               Pricing Book
             </Link>
-            <Link href="/store" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/store" onClick={() => setMenuOpen(false)} className="px-3 py-3 min-h-[44px] rounded-xl font-medium text-slate-800 hover:bg-slate-50 flex items-center">
               Add-ons Store
             </Link>
-            <Link href="/process" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/process" onClick={() => setMenuOpen(false)} className="px-3 py-3 min-h-[44px] rounded-xl font-medium text-slate-800 hover:bg-slate-50 flex items-center">
               6-Stage Process
             </Link>
-            <Link href="/case-studies" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/case-studies" onClick={() => setMenuOpen(false)} className="px-3 py-3 min-h-[44px] rounded-xl font-medium text-slate-800 hover:bg-slate-50 flex items-center">
               Work &amp; Case Studies
             </Link>
-            <Link href="/about" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/about" onClick={() => setMenuOpen(false)} className="px-3 py-3 min-h-[44px] rounded-xl font-medium text-slate-800 hover:bg-slate-50 flex items-center">
               About BazionWeb
             </Link>
-            <Link href="/contact" onClick={() => setMenuOpen(false)} className="px-3 py-2 rounded-xl font-medium text-slate-800 hover:bg-slate-50">
+            <Link href="/contact" onClick={() => setMenuOpen(false)} className="px-3 py-3 min-h-[44px] rounded-xl font-medium text-slate-800 hover:bg-slate-50 flex items-center">
               Contact &amp; Inquiry
             </Link>
             <WhatsAppLink
               source="navbar"
+              ariaLabel="Chat with BazionWeb on WhatsApp"
               onClick={() => setMenuOpen(false)}
-              className="px-3 py-2 rounded-xl font-medium text-emerald-700 hover:bg-emerald-50"
+              className="px-3 py-3 min-h-[44px] rounded-xl font-medium text-emerald-700 hover:bg-emerald-50 flex items-center"
             >
               Chat on WhatsApp
             </WhatsAppLink>
 
             <div className="pt-4 mt-2 border-t border-slate-100 flex flex-col gap-2.5">
-              <Link href="/portal" onClick={() => setMenuOpen(false)} className="text-center py-2 text-xs font-semibold text-slate-600 hover:text-[#0D9488]">
+              <Link href="/portal" onClick={() => setMenuOpen(false)} className="text-center py-3 min-h-[44px] text-xs font-semibold text-slate-600 hover:text-[#0D9488] flex items-center justify-center">
                 Existing Client Portal Login →
               </Link>
-              <Link href="/quote" onClick={() => setMenuOpen(false)} className="btn-primary w-full justify-center text-sm py-3 font-bold">
+              <Link href="/quote" onClick={() => setMenuOpen(false)} className="btn-primary w-full justify-center text-sm py-3 min-h-[44px] font-bold flex items-center">
                 Get a Free Assessment
               </Link>
             </div>

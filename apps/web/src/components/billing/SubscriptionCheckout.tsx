@@ -1036,14 +1036,14 @@ export default function SubscriptionCheckout({
           </div>
 
           {/* Tab Rail Buttons */}
-          <div className="grid grid-cols-3 gap-3 my-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-5">
             <button
               type="button"
               onClick={() => {
                 setActiveTab('MPESA');
                 setFeedback(null);
               }}
-              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
+              className={`min-h-[44px] flex flex-row sm:flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
                 activeTab === 'MPESA'
                   ? 'bg-emerald-50 border-emerald-600 text-emerald-900 ring-2 ring-emerald-500/15'
                   : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -1060,7 +1060,7 @@ export default function SubscriptionCheckout({
                 setActiveTab('CARD');
                 setFeedback(null);
               }}
-              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
+              className={`min-h-[44px] flex flex-row sm:flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
                 activeTab === 'CARD'
                   ? 'bg-blue-50 border-[#2563EB] text-[#1E40AF] ring-2 ring-blue-500/15'
                   : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -1076,7 +1076,7 @@ export default function SubscriptionCheckout({
                 setActiveTab('WISE');
                 setFeedback(null);
               }}
-              className={`flex flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
+              className={`min-h-[44px] flex flex-row sm:flex-col md:flex-row items-center justify-center gap-2 p-3 rounded-xl border text-xs font-bold transition-all ${
                 activeTab === 'WISE'
                   ? 'bg-purple-50 border-purple-600 text-purple-900 ring-2 ring-purple-500/15'
                   : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'

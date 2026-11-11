@@ -5,7 +5,7 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: 'Engineering Blog & Technical Insights | BazionWeb',
+  title: 'Engineering Blog & Technical Insights',
   description: 'Actionable guides and technical insights on Core Web Vitals, modern Next.js development, e-commerce optimization, SSL security, and managed website services.',
   alternates: { canonical: 'https://bazionweb.com/blog' },
 };

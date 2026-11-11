@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ShieldCheck,
   Lock,
@@ -333,10 +334,12 @@ export function ProposalPresentationView({
           <div className="relative bg-[#0F172A] px-6 py-8 text-white sm:px-10 sm:py-10 print:bg-white print:text-black print:px-0 print:py-4 print:border-b-2 print:border-slate-800">
             <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
               <div className="flex items-start gap-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={BAZION_CORPORATE_DETAILS.logoPath}
                   alt="BazionWeb – Build, Host n Grow"
+                  width={128}
+                  height={64}
+                  priority
                   className="h-16 w-auto rounded-lg border border-white/20 bg-[#EBEBEB] object-contain shadow-sm shrink-0 print:border-slate-300"
                 />
                 <div>
@@ -484,18 +487,20 @@ export function ProposalPresentationView({
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-slate-200 bg-slate-50/70 font-bold">
-                      <td colSpan={2} className="py-3 px-4 sm:px-6 text-slate-900 text-sm">
+                      <td className="py-3 px-4 sm:px-6 text-slate-900 text-sm">
                         Total One-Time Build Investment
                       </td>
+                      <td aria-hidden="true" className="hidden sm:table-cell" />
                       <td className="py-3 px-4 sm:px-6 text-right text-lg font-black text-[#2563EB]">
                         {proposal.currencySymbol} {proposal.totalAmount.toLocaleString()}
                       </td>
                     </tr>
                     {proposal.recurringMonthlyCare && (
                       <tr className="border-t border-slate-200 text-xs text-slate-600">
-                        <td colSpan={2} className="py-2.5 px-4 sm:px-6">
+                        <td className="py-2.5 px-4 sm:px-6">
                           Ongoing Monthly Proactive Website Care &amp; Support
                         </td>
+                        <td aria-hidden="true" className="hidden sm:table-cell" />
                         <td className="py-2.5 px-4 sm:px-6 text-right font-bold text-slate-900">
                           {proposal.currencySymbol} {proposal.recurringMonthlyCare.amount.toLocaleString()} / month
                         </td>
@@ -503,9 +508,10 @@ export function ProposalPresentationView({
                     )}
                     {proposal.recurringAnnualHosting && (
                       <tr className="border-t border-slate-200 text-xs text-slate-600">
-                        <td colSpan={2} className="py-2.5 px-4 sm:px-6">
+                        <td className="py-2.5 px-4 sm:px-6">
                           Managed High-Speed NVMe Annual Cloud Hosting
                         </td>
+                        <td aria-hidden="true" className="hidden sm:table-cell" />
                         <td className="py-2.5 px-4 sm:px-6 text-right font-bold text-slate-900">
                           {proposal.currencySymbol} {proposal.recurringAnnualHosting.amount.toLocaleString()} / year
                         </td>
@@ -513,9 +519,10 @@ export function ProposalPresentationView({
                     )}
                     {proposal.totalYearOne && (
                       <tr className="border-t border-slate-200 bg-blue-50/50 font-extrabold text-xs text-blue-900">
-                        <td colSpan={2} className="py-2.5 px-4 sm:px-6">
+                        <td className="py-2.5 px-4 sm:px-6">
                           Estimated Total Year 1 Commitment (Build + Care + Hosting)
                         </td>
+                        <td aria-hidden="true" className="hidden sm:table-cell" />
                         <td className="py-2.5 px-4 sm:px-6 text-right text-sm text-[#2563EB]">
                           {proposal.currencySymbol} {proposal.totalYearOne.toLocaleString()}
                         </td>

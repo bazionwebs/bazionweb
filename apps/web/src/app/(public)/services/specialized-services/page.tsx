@@ -4,7 +4,7 @@ import { SERVICE_FAMILIES_DATA } from '@/lib/servicesFamilyData';
 import ServiceFamilyView from '@/components/services/ServiceFamilyView';
 
 export const metadata: Metadata = {
-  title: 'Specialized Engineering: Migrations, Security & Speed | BazionWeb',
+  title: 'Specialized Engineering: Migrations, Security & Speed',
   description:
     'Surgical technical interventions: zero-downtime platform migrations, security penetration audits, malware cleanup, and Core Web Vitals speed optimization.',
   alternates: { canonical: 'https://bazionweb.com/services/specialized-services' },

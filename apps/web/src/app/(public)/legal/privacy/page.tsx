@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | BazionWeb',
+  title: 'Privacy Policy',
   description: 'BazionWeb Privacy Policy — how we collect, use, and protect your personal data under the Kenya Data Protection Act 2019 and GDPR.',
   alternates: { canonical: 'https://bazionweb.com/legal/privacy' },
 };

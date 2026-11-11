@@ -86,18 +86,19 @@ export async function generateStaticParams() {
   return Object.keys(studies).map(slug => ({ slug }));
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const s = studies[params.slug];
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const s = studies[slug];
   if (!s) return {};
   return {
     title: `${s.client} — Client Case Study`,
     description: s.challenge.slice(0, 160),
-    alternates: { canonical: `https://bazionweb.com/case-studies/${params.slug}` },
+    alternates: { canonical: `https://bazionweb.com/case-studies/${slug}` },
     openGraph: {
       title: `${s.client} — Client Case Study | BazionWeb`,
       description: s.challenge.slice(0, 160),
       type: 'article',
-      url: `https://bazionweb.com/case-studies/${params.slug}`,
+      url: `https://bazionweb.com/case-studies/${slug}`,
       images: [{ url: '/og-image.png', width: 1200, height: 630, alt: `${s.client} Case Study` }],
     },
     twitter: {
@@ -109,8 +110,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default function CaseStudyPage({ params }: { params: { slug: string } }) {
-  const s = studies[params.slug];
+export default async function CaseStudyPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const s = studies[slug];
   if (!s) notFound();
 
   return (
@@ -135,7 +137,7 @@ export default function CaseStudyPage({ params }: { params: { slug: string } }) 
             url: 'https://bazionweb.com/',
             logo: 'https://bazionweb.com/brand/logo.png',
           },
-          mainEntityOfPage: `https://bazionweb.com/case-studies/${params.slug}`,
+          mainEntityOfPage: `https://bazionweb.com/case-studies/${slug}`,
         }}
       />
       <section className="bg-[#0F172A] pt-32 pb-16">

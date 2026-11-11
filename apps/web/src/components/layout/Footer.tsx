@@ -46,24 +46,24 @@ export default function Footer() {
               Complete website lifecycle management for growing businesses.
               One provider, one invoice — development, custom systems, security, and ongoing support.
             </p>
-            <div className="flex flex-col gap-2 mb-8">
-              <a href={`mailto:${SITE_CONTACT.email}`} className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
+            <div className="flex flex-col gap-1 mb-8">
+              <a href={`mailto:${SITE_CONTACT.email}`} className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm py-1.5 min-h-[44px]">
                 <Mail className="w-4 h-4 shrink-0 text-[#14B8A6]" />
                 {SITE_CONTACT.email}
               </a>
-              <a href={SITE_CONTACT.phoneHref} className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm">
+              <a href={SITE_CONTACT.phoneHref} className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors text-sm py-1.5 min-h-[44px]">
                 <Phone className="w-4 h-4 shrink-0 text-[#14B8A6]" />
                 {SITE_CONTACT.phoneDisplay}
               </a>
               <WhatsAppLink
                 source="footer"
                 message="Hello BazionWeb, I'd like to discuss a project."
-                className="text-slate-300 hover:text-white transition-colors text-sm"
+                className="text-slate-300 hover:text-white transition-colors text-sm py-1.5 min-h-[44px] flex items-center"
                 iconClassName="h-4 w-4 shrink-0 text-[#25D366]"
               >
                 WhatsApp · {SITE_CONTACT.whatsappDisplay}
               </WhatsAppLink>
-              <span className="flex items-center gap-2 text-slate-300 text-sm">
+              <span className="flex items-center gap-2 text-slate-300 text-sm py-1.5 min-h-[44px]">
                 <MapPin className="w-4 h-4 shrink-0 text-[#14B8A6]" />
                 {SITE_CONTACT.location}
               </span>
@@ -80,7 +80,7 @@ export default function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                  className="w-11 h-11 min-h-[44px] min-w-[44px] rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
                 >
                   <Icon className="w-4 h-4 text-slate-300 hover:text-white" />
                 </a>
@@ -91,10 +91,10 @@ export default function Footer() {
           {/* Services */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-widest">Services</h3>
-            <ul className="flex flex-col gap-2.5">
+            <ul className="flex flex-col gap-1">
               {services.map(s => (
                 <li key={s.name}>
-                  <Link href={s.href} className="text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-2">
+                  <Link href={s.href} className="text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-2 py-2 min-h-[44px]">
                     <s.icon className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
                     {s.name}
                   </Link>
@@ -106,7 +106,7 @@ export default function Footer() {
           {/* Company */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-widest">Company</h3>
-            <ul className="flex flex-col gap-2.5">
+            <ul className="flex flex-col gap-1">
               {company.map(l => (
                 <li key={l.name}>
                   {l.href.startsWith('http') ? (
@@ -114,7 +114,7 @@ export default function Footer() {
                       href={l.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-1.5"
+                      className="text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-1.5 py-2 min-h-[44px]"
                     >
                       {l.name}
                       {l.name === 'System Status' && (
@@ -122,7 +122,7 @@ export default function Footer() {
                       )}
                     </a>
                   ) : (
-                    <Link href={l.href} className="text-sm text-slate-300 hover:text-white transition-colors">
+                    <Link href={l.href} className="text-sm text-slate-300 hover:text-white transition-colors flex items-center py-2 min-h-[44px]">
                       {l.name}
                     </Link>
                   )}
@@ -134,10 +134,10 @@ export default function Footer() {
           {/* Legal */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-widest">Legal</h3>
-            <ul className="flex flex-col gap-2.5">
+            <ul className="flex flex-col gap-1">
               {legal.map(l => (
                 <li key={l.name}>
-                  <Link href={l.href} className="text-sm text-slate-300 hover:text-white transition-colors">
+                  <Link href={l.href} className="text-sm text-slate-300 hover:text-white transition-colors flex items-center py-2 min-h-[44px]">
                     {l.name}
                   </Link>
                 </li>

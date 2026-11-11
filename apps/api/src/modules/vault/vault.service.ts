@@ -44,16 +44,15 @@ export class VaultService {
 
   private getKey(): Buffer {
     if (this.derivedKey) return this.derivedKey;
-    const rawSecret =
-      this.config.get<string>('VAULT_MASTER_KEY') ||
-      this.config.get<string>('JWT_SECRET') ||
-      '';
-    if (rawSecret.length < 32) {
+    // Strictly require dedicated VAULT_MASTER_KEY. Eliminates JWT_SECRET fallback to enforce
+    // cryptographic key separation between session signing and AES data-at-rest encryption.
+    const masterKey = (this.config.get<string>('VAULT_MASTER_KEY') || '').trim();
+    if (!masterKey || masterKey.length < 32) {
       throw new InternalServerErrorException(
-        'Vault encryption key is not configured (minimum 32 characters required).',
+        'VAULT_MASTER_KEY is not configured or insufficient (minimum 32 characters required). Dedicated vault key is strictly required.',
       );
     }
-    this.derivedKey = scryptSync(rawSecret, 'bazionweb-vault-aes256gcm-v1', 32);
+    this.derivedKey = scryptSync(masterKey, 'bazionweb-vault-aes256gcm-v1', 32);
     return this.derivedKey;
   }
 

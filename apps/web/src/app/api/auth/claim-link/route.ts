@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       const claimLinkUrl = `${getTrustedSiteOrigin()}/portal/claim?token=${encodeURIComponent(claimToken)}&email=${encodeURIComponent(cleanEmail)}`;
       const sendResult = await sendClaimLinkEmail({ to: cleanEmail, claimLinkUrl });
 
-      if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' && process.env.SHOW_DEV_TOKEN_PREVIEW === '1') {
         return NextResponse.json(
           {
             ...GENERIC_RESPONSE,
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
         const magicLinkUrl = `${getTrustedSiteOrigin()}/portal/login/verify?token=${encodeURIComponent(magicToken)}`;
         const sendResult = await sendMagicLinkEmail({ to: cleanEmail, magicLinkUrl });
 
-        if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === 'development' && process.env.SHOW_DEV_TOKEN_PREVIEW === '1') {
           return NextResponse.json(
             {
               ...GENERIC_RESPONSE,

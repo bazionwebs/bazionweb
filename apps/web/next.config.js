@@ -60,6 +60,7 @@ function buildContentSecurityPolicy() {
 
 const nextConfig = {
   output: 'standalone',
+  outputFileTracingRoot: path.join(__dirname, '../../'),
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
@@ -67,7 +68,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts', 'date-fns'],
+    optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
   },
   images: {
     formats: ['image/avif', 'image/webp'],

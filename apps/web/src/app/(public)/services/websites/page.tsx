@@ -4,7 +4,7 @@ import { SERVICE_FAMILIES_DATA } from '@/lib/servicesFamilyData';
 import ServiceFamilyView from '@/components/services/ServiceFamilyView';
 
 export const metadata: Metadata = {
-  title: 'Website Design & Development Services | BazionWeb',
+  title: 'Website Design & Development Services',
   description:
     'Custom Next.js websites for startups, businesses, and corporations in Kenya and worldwide. Launch, Business, Professional, and Corporate packages.',
   alternates: { canonical: 'https://bazionweb.com/services/websites' },

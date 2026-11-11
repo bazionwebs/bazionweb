@@ -1,7 +1,7 @@
 /**
  * Utility script to create or promote a user to SUPER_ADMIN in the database.
- * Usage:
- *   node scripts/create-superadmin.js <email> <password> [firstName] [lastName]
+ * Usage (password never passed via argv):
+ *   SUPERADMIN_PASSWORD=*** node scripts/create-superadmin.js <email> [firstName] [lastName]
  */
 
 const path = require('path');
@@ -43,12 +43,19 @@ async function hashPassword(password) {
 async function main() {
   const args = process.argv.slice(2);
   const email = args[0]?.trim().toLowerCase();
-  const password = args[1]?.trim();
-  const firstName = args[2] || 'Super';
-  const lastName = args[3] || 'Admin';
+  const firstName = args[1] || 'Super';
+  const lastName = args[2] || 'Admin';
 
-  if (!email || !password) {
-    console.log('Usage: node scripts/create-superadmin.js <email> <password> [firstName] [lastName]');
+  // Prefer the env var; never take a password from argv (process-list leak).
+  const password = (process.env.SUPERADMIN_PASSWORD || '').trim();
+
+  if (!email) {
+    console.log('Usage: SUPERADMIN_PASSWORD=*** node scripts/create-superadmin.js <email> [firstName] [lastName]');
+    process.exit(1);
+  }
+
+  if (!password) {
+    console.error('Error: Set the SUPERADMIN_PASSWORD environment variable — argv passwords leak into shell history and process lists.');
     process.exit(1);
   }
 

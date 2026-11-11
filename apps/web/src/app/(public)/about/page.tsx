@@ -6,7 +6,7 @@ import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: 'About BazionWeb — Digital Systems & Web Engineering Partner',
+  title: 'About Us — Digital Systems & Web Engineering Partner',
   description: 'Learn about BazionWeb: our engineering mission, core values, leadership team, and track record in delivering high-converting websites and systems for SMEs worldwide.',
   alternates: { canonical: 'https://bazionweb.com/about' },
 };

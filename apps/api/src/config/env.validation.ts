@@ -21,7 +21,23 @@ export const envValidationSchema = Joi.object({
     .invalid('CHANGE_ME_256BIT_SECRET_KEY_FOR_LOCAL_DEV', 'secret', 'password'),
   JWT_EXPIRY: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRY: Joi.string().default('7d'),
-  INTERNAL_DISPATCH_SECRET: Joi.string().optional().allow(''),
+  // Dedicated AES-256-GCM vault encryption key for client credentials at rest (min 32 chars).
+  VAULT_MASTER_KEY: Joi.string().min(32).optional().allow(''),
+  // Dedicated BFF→API token-minting handoff secret. Must be ≥ 12 chars when
+  // provided; do NOT reuse PAYSTACK_SECRET_KEY or JWT_SECRET here.
+  INTERNAL_DISPATCH_SECRET: Joi.string().min(12).optional().allow(''),
+
+  // Reverse-proxy chain depth (Cloudflare → Traefik/Nginx → app). Express
+  // `trust proxy` is set from this so request IPs resolve correctly.
+  TRUST_PROXY: Joi.number().integer().positive().default(1),
+
+  // Rate limiting (ThrottlerModule) — bounded so a mis-set env var can't
+  // effectively disable throttling at boot.
+  RATE_LIMIT_TTL: Joi.number().integer().positive().max(3600).default(60),
+  RATE_LIMIT_MAX: Joi.number().integer().positive().min(1).max(10000).default(100),
+
+  // Redis (cache/session backend) — optional, but must be non-empty when set.
+  REDIS_URL: Joi.string().optional().allow(''),
 
   // Transactional Email (Resend HTTP API + SMTP fallback)
   RESEND_API_KEY: Joi.string().optional().allow(''),

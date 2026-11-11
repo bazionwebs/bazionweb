@@ -148,9 +148,10 @@ export function ManualClientCreateModal({
           </div>
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            className="min-h-[44px] min-w-[44px] p-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors flex items-center justify-center"
+            aria-label="Close modal"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -249,14 +250,14 @@ export function ManualClientCreateModal({
                 <button
                   type="button"
                   onClick={handleResetForm}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  className="min-h-[44px] px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50 inline-flex items-center justify-center"
                 >
                   Add Another Client
                 </button>
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm"
+                  className="min-h-[44px] px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm inline-flex items-center justify-center"
                 >
                   Done
                 </button>
@@ -400,14 +401,14 @@ export function ManualClientCreateModal({
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                  className="min-h-[44px] px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors inline-flex items-center justify-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={provisionMutation.isPending}
-                  className="px-5 py-2 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition-all"
+                  className="min-h-[44px] px-5 py-2 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50 transition-all"
                 >
                   {provisionMutation.isPending ? (
                     <>

@@ -46,7 +46,7 @@ describe('AuthService + AuthMailService Production Magic-Link Dispatch', () => {
     },
   });
 
-  it('canDispatchTokens accepts INTERNAL_DISPATCH_SECRET, PAYSTACK_SECRET_KEY, or JWT_SECRET in production and rejects placeholders', async () => {
+  it('canDispatchTokens strictly requires dedicated INTERNAL_DISPATCH_SECRET in production and rejects fallbacks and placeholders', async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -54,7 +54,7 @@ describe('AuthService + AuthMailService Production Magic-Link Dispatch', () => {
         {
           provide: ConfigService,
           useValue: makeConfig({
-            INTERNAL_DISPATCH_SECRET: 'CHANGE_ME_PLACEHOLDER_SECRET_VALUE',
+            INTERNAL_DISPATCH_SECRET: 'dedicated-dispatch-secret-12345',
           }),
         },
         { provide: PrismaService, useValue: makePrisma() },
@@ -66,8 +66,11 @@ describe('AuthService + AuthMailService Production Magic-Link Dispatch', () => {
     expect(auth.canDispatchTokens('CHANGE_ME_PLACEHOLDER_SECRET_VALUE')).toBe(false);
     expect(auth.canDispatchTokens('wrong-secret-value')).toBe(false);
     expect(auth.canDispatchTokens('')).toBe(false);
-    expect(auth.canDispatchTokens('sk_live_prod_paystack_secret_key')).toBe(true);
-    expect(auth.canDispatchTokens('prod-jwt-secret-minimum-32-characters-long')).toBe(true);
+    // Cryptographic key separation: PAYSTACK_SECRET_KEY and JWT_SECRET must NOT be accepted
+    expect(auth.canDispatchTokens('sk_live_prod_paystack_secret_key')).toBe(false);
+    expect(auth.canDispatchTokens('prod-jwt-secret-minimum-32-characters-long')).toBe(false);
+    // Dedicated secret succeeds
+    expect(auth.canDispatchTokens('dedicated-dispatch-secret-12345')).toBe(true);
   });
 
   it('self-dispatches magic-link email directly from API via Resend without requiring x-internal-dispatch and never leaks raw token', async () => {

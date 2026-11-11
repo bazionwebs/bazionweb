@@ -94,16 +94,30 @@ export function resolveApiV1Base(): string {
 /**
  * Resolves the shared internal BFF-to-API dispatch secret when present.
  * Matches AuthService.canDispatchTokens() candidate order.
+ *
+ * Security posture: a DEDICATED INTERNAL_DISPATCH_SECRET is the only correct
+ * cross-service credential. The legacy fallbacks (PAYSTACK_SECRET_KEY /
+ * JWT_SECRET) are cross-purpose key reuse — still accepted for continuity,
+ * but loudly warned about in production so the deployment fixes it.
  */
 export function resolveInternalDispatchSecret(): string {
+  const dedicated = (process.env.INTERNAL_DISPATCH_SECRET || '').trim();
+  if (dedicated.length >= 12 && !dedicated.includes('CHANGE_ME')) {
+    return dedicated;
+  }
+
   const candidates = [
-    process.env.INTERNAL_DISPATCH_SECRET,
     process.env.PAYSTACK_SECRET_KEY,
     process.env.JWT_SECRET,
   ];
   for (const raw of candidates) {
     const clean = (raw || '').trim();
     if (clean.length >= 12 && !clean.includes('CHANGE_ME')) {
+      if (process.env.NODE_ENV === 'production') {
+        console.warn(
+          '[Security] INTERNAL_DISPATCH_SECRET is not set — falling back to a shared-purpose secret (PAYSTACK_SECRET_KEY/JWT_SECRET). Set a dedicated INTERNAL_DISPATCH_SECRET to isolate the token-minting channel.',
+        );
+      }
       return clean;
     }
   }

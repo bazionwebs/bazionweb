@@ -17,13 +17,13 @@ export default function HomepagePricingPreview() {
           <span className="font-bold text-slate-800">{marketDef.currency} Pricing Schedule</span>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 max-w-5xl mx-auto">
         {WEBSITE_PACKAGES.slice(0, 3).map(pkg => {
           const price = market === 'kenya' ? pkg.kenyaPrice : pkg.intlPrice;
           return (
             <div
               key={pkg.id}
-              className={`relative bg-white rounded-2xl border-2 pt-9 pb-7 px-6 sm:px-8 flex flex-col transition-all hover:shadow-xl ${
+              className={`relative bg-white rounded-2xl border-2 pt-9 pb-7 px-5 sm:px-8 md:px-4 lg:px-8 flex flex-col transition-all hover:shadow-xl ${
                 pkg.popular
                   ? 'border-[#2563EB] shadow-[0_0_0_4px_rgba(37,99,235,0.08)]'
                   : 'border-slate-200/90'
@@ -45,7 +45,7 @@ export default function HomepagePricingPreview() {
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
                   {pkg.name}
                 </div>
-                <div className="text-3xl font-black text-[#0F172A] mb-2 tracking-tight">
+                <div className="text-2xl sm:text-3xl md:text-xl lg:text-3xl font-black text-[#0F172A] mb-2 tracking-tight whitespace-nowrap">
                   {price}
                 </div>
                 <p className="text-xs text-slate-500 leading-relaxed min-h-[2.5rem]">

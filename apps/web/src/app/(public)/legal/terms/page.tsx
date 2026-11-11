@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Terms of Service | BazionWeb',
+  title: 'Terms of Service',
   description: 'BazionWeb Master Terms of Service & Hosting Agreement — the contract that governs your use of our managed hosting and cloud platforms.',
   alternates: { canonical: 'https://bazionweb.com/legal/terms' },
 };

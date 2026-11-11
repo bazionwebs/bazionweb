@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useContext, useMemo } from 'react';
 import {
   MarketCode,
   LegacyMarket,
@@ -10,13 +10,14 @@ import {
   BAZION_MARKET_COOKIE,
   LEGACY_MARKET_COOKIE,
 } from '@/lib/marketEngine';
-import { resolveMarketFromClientHints } from '@/lib/geoDetection';
+import { resolveMarketFromClientHints, type CurrencyCode } from '@/lib/geoDetection';
+import { MarketContext } from '@/components/providers/MarketProvider';
 
 const MARKET_STORAGE_KEY = BAZION_MARKET_COOKIE;
 const LEGACY_STORAGE_KEY = LEGACY_MARKET_COOKIE;
 
 /**
- * Reads market code from document.cookie
+ * Reads market code from document.cookie synchronously.
  */
 export function readMarketCookie(): MarketCode | null {
   if (typeof document === 'undefined') return null;
@@ -47,6 +48,13 @@ export function setMarketCookie(market: MarketCode | LegacyMarket) {
 
     document.cookie = `${BAZION_MARKET_COOKIE}=${canonical}; expires=${expires}; path=/; SameSite=Lax`;
     document.cookie = `${LEGACY_MARKET_COOKIE}=${legacyVal}; expires=${expires}; path=/; SameSite=Lax`;
+
+    try {
+      window.localStorage.setItem(MARKET_STORAGE_KEY, canonical);
+      window.localStorage.setItem(LEGACY_STORAGE_KEY, legacyVal);
+    } catch {
+      /* ignore storage errors */
+    }
   } catch {
     /* ignore cookie writing errors */
   }
@@ -70,45 +78,62 @@ export interface UseMarketPreferenceReturn {
   marketCode: MarketCode;
   market: LegacyMarket;
   marketDef: MarketDefinition;
-  isLocked: true;
-  /** @deprecated Manual market switching disabled */
+  isLocked: true | boolean;
+  currency?: CurrencyCode;
+  formatPrice?: (amount: number, options?: Intl.NumberFormatOptions) => string;
+  setMarketPreference?: (market: MarketCode | LegacyMarket) => void;
   setMarket?: (market: MarketCode | LegacyMarket) => void;
-  /** @deprecated Manual market modal disabled */
   openModal?: () => void;
-  /** @deprecated Manual market modal disabled */
   closeModal?: () => void;
   isModalOpen?: boolean;
 }
 
 /**
  * React hook for market preference consumption.
- * Strictly auto-detected and read-only.
+ * Consumes MarketContext directly for zero-latency, zero-flash SSR hydration.
  */
 export function useMarketPreference(initialMarket?: MarketCode): UseMarketPreferenceReturn {
-  // Synchronous state initialization: Match SSR on initial render pass to prevent React #418/#425 hydration mismatches
-  const [marketCode, setMarketCode] = useState<MarketCode>(initialMarket || 'GLOBAL');
+  const context = useContext(MarketContext);
 
-  useEffect(() => {
-    // Re-verify cookie or client hints on mount and persist if not already saved
-    const resolved = detectMarket() || initialMarket || 'GLOBAL';
-    setMarketCode(resolved);
-    setMarketCookie(resolved);
+  if (context && !initialMarket) {
+    return {
+      marketCode: context.marketCode,
+      market: context.market,
+      marketDef: context.marketDef,
+      isLocked: context.isLocked,
+      currency: context.currency,
+      formatPrice: context.formatPrice,
+      setMarketPreference: context.setMarketPreference,
+      setMarket: context.setMarket,
+      openModal: context.openModal,
+      closeModal: context.closeModal,
+      isModalOpen: context.isModalOpen,
+    };
+  }
 
-    try {
-      window.localStorage.setItem(MARKET_STORAGE_KEY, resolved);
-      window.localStorage.setItem(LEGACY_STORAGE_KEY, resolved === 'KE' ? 'kenya' : 'international');
-    } catch {
-      /* ignore */
+  // Fallback / explicit override when outside Provider or when initialMarket is explicitly passed
+  const effectiveCode: MarketCode = initialMarket ? normalizeMarketCode(initialMarket) : (context?.marketCode ?? detectMarket());
+  const marketDef: MarketDefinition = MARKETS[effectiveCode] || MARKETS.GLOBAL;
+  const legacyMarket: LegacyMarket = effectiveCode === 'KE' ? 'kenya' : 'international';
+  const currency = (marketDef.currency ?? (effectiveCode === 'KE' ? 'KES' : 'USD')) as CurrencyCode;
+
+  const formatPrice = (amount: number, options?: Intl.NumberFormatOptions): string => {
+    const locale = marketDef.defaultLocale || (effectiveCode === 'KE' ? 'en-KE' : 'en-US');
+    const formatted = amount.toLocaleString(locale, options);
+    if (marketDef.currencySymbol === '$') {
+      return `$${formatted}`;
     }
-  }, [initialMarket]);
-
-  const marketDef: MarketDefinition = MARKETS[marketCode] || MARKETS.GLOBAL;
-  const legacyMarket: LegacyMarket = marketCode === 'KE' ? 'kenya' : 'international';
+    return `${marketDef.currencySymbol} ${formatted}`;
+  };
 
   return {
-    marketCode,
+    marketCode: effectiveCode,
     market: legacyMarket,
     marketDef,
     isLocked: true,
+    currency,
+    formatPrice,
+    setMarketPreference: context?.setMarketPreference ?? setMarketCookie,
+    setMarket: context?.setMarket ?? setMarketCookie,
   };
 }

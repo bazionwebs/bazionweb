@@ -29,6 +29,7 @@ import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QuerySta
 import { formatMoney, formatDate, shortId } from '@/lib/format';
 import { adminApi } from '@/lib/api';
 import { resolveApiV1Base } from '@/lib/api-base';
+import { getApiErrorMessage } from '@/lib/error-helpers';
 import {
   CANONICAL_SERVICE_CATALOG as SERVICE_CATALOG,
   BILLING_CYCLES_META,
@@ -546,8 +547,8 @@ export default function AdminInvoicesPage() {
       link.click();
       document.body.removeChild(link);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Could not download invoice PDF.';
-      alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message || msg);
+      const msg = getApiErrorMessage(err) || 'Could not download invoice PDF.';
+      setErrorMsg(msg);
     } finally {
       setDownloadingId(null);
     }

@@ -178,18 +178,19 @@ export async function generateStaticParams() {
   return Object.keys(posts).map(slug => ({ slug }));
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const post = posts[params.slug];
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const post = posts[slug];
   if (!post) return {};
   return {
     title: post.title,
     description: post.excerpt,
-    alternates: { canonical: `https://bazionweb.com/blog/${params.slug}` },
+    alternates: { canonical: `https://bazionweb.com/blog/${slug}` },
     openGraph: {
       title: post.title,
       description: post.excerpt,
       type: 'article',
-      url: `https://bazionweb.com/blog/${params.slug}`,
+      url: `https://bazionweb.com/blog/${slug}`,
       images: [{ url: '/og-image.png', width: 1200, height: 630, alt: post.title }],
     },
     twitter: {
@@ -201,8 +202,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default function BlogPostPage({ params }: { params: { slug: string } }) {
-  const post = posts[params.slug];
+export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const post = posts[slug];
   if (!post) notFound();
 
   // Simple markdown-to-HTML: convert ## headings and **bold**
@@ -238,7 +240,7 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
             url: 'https://bazionweb.com/',
             logo: 'https://bazionweb.com/brand/logo.png',
           },
-          mainEntityOfPage: `https://bazionweb.com/blog/${params.slug}`,
+          mainEntityOfPage: `https://bazionweb.com/blog/${slug}`,
           keywords: post.tags.join(', '),
         }}
       />

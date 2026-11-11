@@ -522,10 +522,9 @@ describe('Empirical Challenger: Quote API Anti-Tamper Security (Requirement R3)'
       });
 
       const res = await handleQuotePost(request);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
       const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.currency).toBe('USD');
+      expect(json.error).toBe('Name and email are required to save your proposal.');
     });
   });
 });

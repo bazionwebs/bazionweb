@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Tailored Digital Solutions by Industry | BazionWeb',
+  title: 'Tailored Digital Solutions by Industry',
   description:
     'Domain-engineered web architectures for SMEs, Churches, Educational Institutions, NGOs, Tech Startups, and Professional Practices in Kenya and globally.',
   alternates: { canonical: 'https://bazionweb.com/solutions' },

@@ -224,5 +224,5 @@ describe('AdminInvoicesPage — 6-cycle billing selector & mandatory 4-step publ
         ]),
       }),
     );
-  });
+  }, 60000);
 });

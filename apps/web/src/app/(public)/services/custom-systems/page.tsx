@@ -4,7 +4,7 @@ import { SERVICE_FAMILIES_DATA } from '@/lib/servicesFamilyData';
 import ServiceFamilyView from '@/components/services/ServiceFamilyView';
 
 export const metadata: Metadata = {
-  title: 'Custom Web Systems, Portals & Software Development | BazionWeb',
+  title: 'Custom Web Systems, Portals & Software Development',
   description:
     'Bespoke client portals, booking engines, LMS educational platforms, and CRMs. Discovery-first software engineering with zero per-seat SaaS taxes.',
   alternates: { canonical: 'https://bazionweb.com/services/custom-systems' },

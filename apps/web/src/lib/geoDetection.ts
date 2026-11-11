@@ -50,7 +50,7 @@ export const EAST_AFRICA_TIMEZONES = new Set([
  * @param headers - Web API standard Headers collection
  * @returns Resolved MarketCode, or null if no recognized geographic header is found
  */
-export function resolveMarketFromHeaders(headers: Headers): MarketCode | null {
+export function resolveMarketFromHeaders(headers: Headers | { get(name: string): string | null }): MarketCode | null {
   const rawCountry = (
     headers.get('cf-ipcountry') ||
     headers.get('x-vercel-ip-country') ||
@@ -107,36 +107,49 @@ export function resolveMarketFromClientHints(hints?: { timezone?: string }): Mar
  * Uses dynamic import of 'next/headers' to prevent webpack client bundling violations
  * when imported by shared utilities or isomorphic contexts.
  */
-export async function getServerMarket(): Promise<ServerMarketResult> {
-  let cookieVal: string | undefined;
-  let headerList: Headers | undefined;
+export async function getServerMarket(
+  customHeaders?: Headers | Record<string, string> | { get(name: string): string | null } | null,
+  customCookie?: string | null
+): Promise<ServerMarketResult> {
+  let cookieVal: string | undefined = customCookie ?? undefined;
+  let headerList: Headers | { get(name: string): string | null } | undefined =
+    (customHeaders as any) ?? undefined;
 
-  try {
-    const { cookies, headers } = await import('next/headers');
-    const cookieStore = cookies();
-    cookieVal =
-      cookieStore.get(BAZION_MARKET_COOKIE)?.value ||
-      cookieStore.get(LEGACY_MARKET_COOKIE)?.value;
-
-    headerList = headers();
-  } catch {
-    /* If executed outside Next.js request context (e.g. client bundle or standalone test), proceed gracefully */
+  if (cookieVal && cookieVal.includes('=')) {
+    const match = cookieVal.match(/(?:^|;\s*)(?:bazion_market|bw-market)=([^;]*)/);
+    if (match) {
+      cookieVal = decodeURIComponent(match[1]);
+    }
   }
 
-  // 1. Authoritative Edge / Proxy Headers
+  if (!cookieVal && !headerList) {
+    try {
+      const { cookies, headers } = await import('next/headers');
+      const cookieStore = await cookies();
+      cookieVal =
+        cookieStore.get(BAZION_MARKET_COOKIE)?.value ||
+        cookieStore.get(LEGACY_MARKET_COOKIE)?.value;
+
+      headerList = await headers();
+    } catch {
+      /* If executed outside Next.js request context (e.g. client bundle or standalone test), proceed gracefully */
+    }
+  }
+
+  // 1. Authoritative Cookie (User explicit preference or persistent session)
+  if (cookieVal) {
+    const market = normalizeMarketCode(cookieVal);
+    const currency = (MARKETS[market]?.currency ?? (market === 'KE' ? 'KES' : 'USD')) as CurrencyCode;
+    return { market, currency };
+  }
+
+  // 2. Authoritative Edge / Proxy Headers
   if (headerList) {
     const headerMarket = resolveMarketFromHeaders(headerList);
     if (headerMarket) {
       const currency = (MARKETS[headerMarket]?.currency ?? (headerMarket === 'KE' ? 'KES' : 'USD')) as CurrencyCode;
       return { market: headerMarket, currency };
     }
-  }
-
-  // 2. Authoritative Cookie
-  if (cookieVal) {
-    const market = normalizeMarketCode(cookieVal);
-    const currency = (MARKETS[market]?.currency ?? (market === 'KE' ? 'KES' : 'USD')) as CurrencyCode;
-    return { market, currency };
   }
 
   // 3. Fallback: on client inspect hints, on server default to GLOBAL

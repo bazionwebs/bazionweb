@@ -4,7 +4,7 @@ import { SERVICE_FAMILIES_DATA } from '@/lib/servicesFamilyData';
 import ServiceFamilyView from '@/components/services/ServiceFamilyView';
 
 export const metadata: Metadata = {
-  title: 'Managed Technology, Cloud Hosting & Care Retainers | BazionWeb',
+  title: 'Managed Technology, Cloud Hosting & Care Retainers',
   description:
     'Proactive website management: high-speed SSD NVMe hosting, weekly updates, daily off-site backups, firewall security, and included SLA support hours.',
   alternates: { canonical: 'https://bazionweb.com/services/managed-technology' },

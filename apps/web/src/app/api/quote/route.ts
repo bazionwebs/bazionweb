@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 import {
   resolveMarket,
   isCountryInMarket,
@@ -13,6 +14,7 @@ import {
 import { ADD_ON_RATE_CARD } from '@/lib/pricingData';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { sendQuoteSummaryEmail } from '@/lib/email';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import {
   saveProposalToLocalCache,
   getProposalFromLocalCache,
@@ -20,12 +22,41 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+/** Removes CR/LF and other control characters that could inject email headers. */
+function stripControlChars(value: string): string {
+  return value.replace(/[\r\n\u0000-\u001F]+/g, ' ');
+}
+
+const EMAIL_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,62})@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,62})\.[A-Za-z]{2,14}$/;
+
+/** Uniform, unguessable base-36 suffix from a CSPRNG (NOT Math.random). */
+function randomCode(length: number): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const bytes = randomBytes(length * 2);
+  let out = '';
+  for (let i = 0; i < bytes.length && out.length < length; i++) {
+    if (bytes[i] < 248) out += alphabet[bytes[i] % 36]; // 248/256 keeps modulo uniform
+  }
+  while (out.length < length) out += alphabet[randomBytes(1)[0] % 36];
+  return out;
+}
+
 /**
  * BFF GET Handler: Retrieve commercial proposal by reference code (?code=... or ?proposal=...).
  * Queries the authoritative NestJS API with resilient fallback to local in-memory cache.
  */
 export async function GET(request: NextRequest) {
   try {
+    // Unauthenticated proposal retrieval — cap enumeration attempts per IP.
+    const clientIp = getClientIp(request);
+    const rl = checkRateLimit(`quote:get:${clientIp}`, 60, 5 * 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Too many proposal lookups. Please wait a moment.' },
+        { status: 429 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const rawCode = searchParams.get('code') || searchParams.get('proposal');
 
@@ -106,6 +137,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Unauthenticated proposal creation triggers an outbound email dispatch —
+    // cap it aggressively per client IP so the endpoint can never be turned
+    // into a mail-relay abusing the team's sender reputation.
+    const clientIp = getClientIp(request);
+    const ipRl = checkRateLimit(`quote:post:${clientIp}`, 12, 10 * 60_000);
+    if (!ipRl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many quote submissions from this device. Please try again shortly.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const {
       billingCountry,
@@ -121,12 +164,54 @@ export async function POST(request: NextRequest) {
       couponCode,
     } = body;
 
-    if (typeof clientName !== 'string' || typeof clientEmail !== 'string' || !clientName.trim() || !clientEmail.trim()) {
-      return NextResponse.json({ error: 'Name and email are required to save your proposal.' }, { status: 400 });
-    }
+    // Sanitized field material: bounded length, no control characters.
+    const packageTypeSafe = typeof packageType === 'string' ? stripControlChars(packageType).slice(0, 40).trim() : 'business';
+    const cleanCare = typeof care === 'string' ? stripControlChars(care).slice(0, 40) : 'none';
+    const cleanHosting = typeof hosting === 'string' ? stripControlChars(hosting).slice(0, 40) : 'none';
+    const cleanCoupon =
+      typeof couponCode === 'string' ? stripControlChars(couponCode).slice(0, 64).trim() : undefined;
+    const billingCycleSafe =
+      typeof body.billingCycle === 'string' ? stripControlChars(body.billingCycle).toUpperCase().slice(0, 16) || 'ANNUAL' : 'ANNUAL';
+
+    // extraPages: integer, clamped 0..500 — no negative or huge values may
+    // influence upstream pricing math.
+    const extraPagesNormalized = Math.min(
+      500,
+      Math.max(0, Math.floor(Number(extraPages) || 0)),
+    );
 
     if (!Array.isArray(selectedAddOns) || selectedAddOns.some((id) => typeof id !== 'string')) {
       return NextResponse.json({ error: 'Invalid add-on selection.' }, { status: 400 });
+    }
+
+    const cleanAddOnIds: string[] = selectedAddOns
+      .slice(0, 20)
+      .map((id) => stripControlChars(id).slice(0, 64));
+
+    if (
+      typeof clientName !== 'string'
+      || typeof clientEmail !== 'string'
+      || !clientName.trim()
+      || !clientEmail.trim()
+      || clientName.length > 120
+      || !EMAIL_RE.test(clientEmail.trim())
+    ) {
+      return NextResponse.json({ error: 'Name and email are required to save your proposal.' }, { status: 400 });
+    }
+
+    const cleanName = stripControlChars(clientName).trim();
+    const cleanEmail = clientEmail.trim().toLowerCase();
+    const cleanCompany =
+      typeof clientCompany === 'string' ? stripControlChars(clientCompany).trim().slice(0, 160) : undefined;
+
+    // Mailbox-level cap: even with rotating source IPs, one recipient address
+    // can only receive a handful of quote emails per hour.
+    const emailRl = checkRateLimit(`quote:email:${cleanEmail}`, 5, 60 * 60_000);
+    if (!emailRl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many quote requests for this email address. Please try again later.' },
+        { status: 429 }
+      );
     }
 
     const rawCountry = typeof billingCountry === 'string' ? billingCountry.trim().toUpperCase() : '';
@@ -175,28 +260,32 @@ export async function POST(request: NextRequest) {
           marketCode,
           countryCode: countryCode || marketCode,
           sourceCountry: countryCode || undefined,
-          packageType,
-          extraPages: Number(extraPages) || 0,
-          selectedAddOns,
+          packageType: packageTypeSafe || 'business',
+          extraPages: extraPagesNormalized,
+          selectedAddOns: cleanAddOnIds,
           rushDelivery: Boolean(rushDelivery),
-          care,
-          hosting,
-          billingCycle: body.billingCycle || 'ANNUAL',
-          couponCode,
-          clientEmail: clientEmail.trim().toLowerCase(),
-          clientName: clientName.trim(),
-          clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : undefined,
-          service: `Website - ${String(packageType || 'project')}`,
+          care: cleanCare,
+          hosting: cleanHosting,
+          billingCycle: billingCycleSafe,
+          couponCode: cleanCoupon,
+          clientEmail: cleanEmail,
+          clientName: cleanName,
+          clientCompany: cleanCompany,
+          service: `Website - ${packageTypeSafe || 'project'}`,
           source: 'website_quote_calculator',
         }),
       });
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
+        console.warn(
+          '[Quote BFF] Upstream pricing service rejected proposal:',
+          response.status,
+          errBody?.message || errBody?.error,
+        );
         return NextResponse.json(
           {
             error: errBody?.message || errBody?.error || 'Pricing service rejected proposal creation',
-            details: errBody,
           },
           { status: response.status >= 500 ? 502 : response.status }
         );
@@ -214,9 +303,9 @@ export async function POST(request: NextRequest) {
 
           try {
             await sendQuoteSummaryEmail({
-              clientName: clientName.trim(),
-              clientEmail: clientEmail.trim().toLowerCase(),
-              clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : undefined,
+              clientName: cleanName,
+              clientEmail: cleanEmail,
+              clientCompany: cleanCompany,
               proposalId: quote.proposalId,
               proposalCode: quote.proposalCode,
               packageName: breakdown.package.name,
@@ -243,13 +332,13 @@ export async function POST(request: NextRequest) {
             depositAmount: Math.round(breakdown.totalBuildGross * 0.5 * 100) / 100,
             finalAmount: Math.round((breakdown.totalBuildGross - Math.round(breakdown.totalBuildGross * 0.5 * 100) / 100) * 100) / 100,
             status: 'LOCKED',
-            clientName: clientName.trim(),
-            clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : '',
-            clientEmail: clientEmail.trim().toLowerCase(),
+            clientName: cleanName,
+            clientCompany: cleanCompany || '',
+            clientEmail: cleanEmail,
             marketCode: quote.marketCode,
             lineItems: [
               { title: breakdown.package.name, subtitle: 'Core Website Build', price: breakdown.package.amount, quantity: 1 },
-              ...(Number(extraPages) > 0 ? [{ title: 'Additional Pages', subtitle: `${extraPages} page(s)`, price: breakdown.extraPages?.amount || 0, quantity: Number(extraPages) }] : []),
+              ...(extraPagesNormalized > 0 ? [{ title: 'Additional Pages', subtitle: `${extraPagesNormalized} page(s)`, price: breakdown.extraPages?.amount || 0, quantity: extraPagesNormalized }] : []),
               ...(Array.isArray(breakdown.addOns) ? breakdown.addOns.map((a: { name: string; amount: number }) => ({ title: a.name, subtitle: 'Add-on Module', price: a.amount, quantity: 1 })) : []),
             ],
             expiresAt: quote.expiresAt,
@@ -322,41 +411,39 @@ export async function POST(request: NextRequest) {
       ecommerce: 'ecommerce-starter',
       enterprise: 'website-enterprise',
     };
-    const packageKey = packageMap[packageType] || `website-${packageType}`;
+    const packageKey = packageMap[packageTypeSafe] || `website-${packageTypeSafe || 'business'}`;
     const packageItem = priceBook.items[packageKey] || priceBook.items['website-business'];
     const baseCost = packageItem ? packageItem.amount : (marketCode === 'KE' ? 90000 : 950);
 
     const extraPageItem = priceBook.items['rate-extra-page'];
     const pageRate = extraPageItem ? extraPageItem.amount : (marketCode === 'KE' ? 2000 : 40);
-    const extraPagesCount = Math.max(0, Number(extraPages) || 0);
+    const extraPagesCount = extraPagesNormalized;
     const extraPagesCost = extraPagesCount * pageRate;
 
     let addOnsCost = 0;
     const itemizedAddOns: Array<{ productId: string; name: string; amount: number; formatted: string }> = [];
 
-    if (Array.isArray(selectedAddOns)) {
-      for (const addonId of selectedAddOns) {
-        const canonicalId = normalizeCatalogProductId(addonId);
-        const addon = ADD_ON_RATE_CARD.find((a) => a.id === addonId || normalizeCatalogProductId(a.id) === canonicalId);
-        if (addon && (addon.rawKes > 0 || addon.rawUsd > 0)) {
-          const cost = marketCode === 'KE' ? addon.rawKes : addon.rawUsd;
-          addOnsCost += cost;
-          itemizedAddOns.push({
-            productId: canonicalId,
-            name: addon.name,
-            amount: cost,
-            formatted: formatCurrency(cost, currency),
-          });
-        } else if (priceBook.items[canonicalId] || priceBook.items[addonId]) {
-          const item = priceBook.items[canonicalId] || priceBook.items[addonId];
-          addOnsCost += item.amount;
-          itemizedAddOns.push({
-            productId: item.productId,
-            name: item.name,
-            amount: item.amount,
-            formatted: formatCurrency(item.amount, currency),
-          });
-        }
+    for (const addonId of cleanAddOnIds) {
+      const canonicalId = normalizeCatalogProductId(addonId);
+      const addon = ADD_ON_RATE_CARD.find((a) => a.id === addonId || normalizeCatalogProductId(a.id) === canonicalId);
+      if (addon && (addon.rawKes > 0 || addon.rawUsd > 0)) {
+        const cost = marketCode === 'KE' ? addon.rawKes : addon.rawUsd;
+        addOnsCost += cost;
+        itemizedAddOns.push({
+          productId: canonicalId,
+          name: addon.name,
+          amount: cost,
+          formatted: formatCurrency(cost, currency),
+        });
+      } else if (priceBook.items[canonicalId] || priceBook.items[addonId]) {
+        const item = priceBook.items[canonicalId] || priceBook.items[addonId];
+        addOnsCost += item.amount;
+        itemizedAddOns.push({
+          productId: item.productId,
+          name: item.name,
+          amount: item.amount,
+          formatted: formatCurrency(item.amount, currency),
+        });
       }
     }
 
@@ -366,42 +453,44 @@ export async function POST(request: NextRequest) {
     const totalBuild = subtotalBuild + rushCost;
 
     let monthlyCare = 0;
-    if (care !== 'none') {
-      const careItem = priceBook.items[care];
+    if (cleanCare !== 'none') {
+      const careItem = priceBook.items[cleanCare];
       if (careItem) {
         monthlyCare = careItem.amount;
       } else {
-        if (care === 'care-essential') monthlyCare = marketCode === 'KE' ? 5000 : 75;
-        if (care === 'care-business') monthlyCare = marketCode === 'KE' ? 10000 : 150;
-        if (care === 'care-professional') monthlyCare = marketCode === 'KE' ? 20000 : 300;
-        if (care === 'care-enterprise') monthlyCare = marketCode === 'KE' ? 40000 : 400;
+        if (cleanCare === 'care-essential') monthlyCare = marketCode === 'KE' ? 5000 : 75;
+        if (cleanCare === 'care-business') monthlyCare = marketCode === 'KE' ? 10000 : 150;
+        if (cleanCare === 'care-professional') monthlyCare = marketCode === 'KE' ? 20000 : 300;
+        if (cleanCare === 'care-enterprise') monthlyCare = marketCode === 'KE' ? 40000 : 400;
       }
     }
 
     let annualHosting = 0;
-    if (hosting !== 'none') {
-      const hostItem = priceBook.items[hosting];
+    if (cleanHosting !== 'none') {
+      const hostItem = priceBook.items[cleanHosting];
       if (hostItem) {
         annualHosting = hostItem.amount;
       } else {
-        if (hosting === 'host-essential') annualHosting = marketCode === 'KE' ? 4500 : 49;
-        if (hosting === 'host-business') annualHosting = marketCode === 'KE' ? 8500 : 99;
-        if (hosting === 'host-pro' || hosting === 'host-professional') annualHosting = marketCode === 'KE' ? 15000 : 189;
-        if (hosting === 'host-cloud') annualHosting = marketCode === 'KE' ? 30000 : 300;
+        if (cleanHosting === 'host-essential') annualHosting = marketCode === 'KE' ? 4500 : 49;
+        if (cleanHosting === 'host-business') annualHosting = marketCode === 'KE' ? 8500 : 99;
+        if (cleanHosting === 'host-pro' || cleanHosting === 'host-professional') annualHosting = marketCode === 'KE' ? 15000 : 189;
+        if (cleanHosting === 'host-cloud') annualHosting = marketCode === 'KE' ? 30000 : 300;
       }
     }
 
     const totalYearOne = totalBuild + annualHosting + monthlyCare * 12;
     const now = new Date();
     const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const randomSuffix = randomCode(8);
     const proposalCode = `BZ-${marketCode}-${now.getFullYear()}-${randomSuffix}`;
     const proposalId = `PROP-${marketCode}-${Date.now().toString(36).toUpperCase()}-${randomSuffix}`;
 
+    const packageLabel = packageItem?.name || packageTypeSafe || 'business';
+
     const breakdown = {
       package: {
-        productId: packageItem?.productId || `website-${packageType}`,
-        name: packageItem?.name || packageType,
+        productId: packageItem?.productId || `website-${packageTypeSafe || 'business'}`,
+        name: packageLabel,
         amount: baseCost,
       },
       extraPages: {
@@ -417,23 +506,23 @@ export async function POST(request: NextRequest) {
       subtotalBuild,
       totalBuildGross: totalBuild,
       careMonthly: {
-        productId: care,
+        productId: cleanCare,
         amount: monthlyCare,
       },
       hostingAnnual: {
-        productId: hosting,
+        productId: cleanHosting,
         amount: annualHosting,
       },
     };
 
     try {
       await sendQuoteSummaryEmail({
-        clientName: clientName.trim(),
-        clientEmail: clientEmail.trim().toLowerCase(),
-        clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : undefined,
+        clientName: cleanName,
+        clientEmail: cleanEmail,
+        clientCompany: cleanCompany,
         proposalId,
         proposalCode,
-        packageName: packageItem?.name || packageType,
+        packageName: packageLabel,
         currency,
         totalBuild,
         formattedTotalBuild: formatCurrency(totalBuild, currency),
@@ -457,13 +546,13 @@ export async function POST(request: NextRequest) {
       depositAmount: Math.round(totalBuild * 0.5 * 100) / 100,
       finalAmount: Math.round((totalBuild - Math.round(totalBuild * 0.5 * 100) / 100) * 100) / 100,
       status: 'LOCKED',
-      clientName: clientName.trim(),
-      clientCompany: typeof clientCompany === 'string' ? clientCompany.trim() : '',
-      clientEmail: clientEmail.trim().toLowerCase(),
+      clientName: cleanName,
+      clientCompany: cleanCompany || '',
+      clientEmail: cleanEmail,
       marketCode,
       lineItems: [
-        { title: packageItem?.name || packageType, subtitle: 'Core Website Build', price: baseCost, quantity: 1 },
-        ...(Number(extraPages) > 0 ? [{ title: 'Additional Pages', subtitle: `${extraPages} page(s)`, price: extraPagesCost, quantity: Number(extraPages) }] : []),
+        { title: packageLabel, subtitle: 'Core Website Build', price: baseCost, quantity: 1 },
+        ...(extraPagesCount > 0 ? [{ title: 'Additional Pages', subtitle: `${extraPagesCount} page(s)`, price: extraPagesCost, quantity: extraPagesCount }] : []),
         ...itemizedAddOns.map(a => ({ title: a.name, subtitle: 'Add-on Module', price: a.amount, quantity: 1 })),
       ],
       expiresAt: expires.toISOString(),
@@ -485,8 +574,8 @@ export async function POST(request: NextRequest) {
       createdAt: now.toISOString(),
       expiresAt: expires.toISOString(),
       package: {
-        id: packageType,
-        name: packageItem?.name || packageType,
+        id: packageTypeSafe || 'business',
+        name: packageLabel,
         baseCost,
         formattedBaseCost: formatCurrency(baseCost, currency),
       },

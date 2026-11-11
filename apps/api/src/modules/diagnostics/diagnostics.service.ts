@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  InternalServerErrorException,
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -1506,7 +1507,11 @@ export class AdminDiagnosticsService {
       },
     }).catch(() => undefined);
 
-    const secret = this.config.get<string>('JWT_SECRET') || 'dev-secret';
+    // Env validation makes JWT_SECRET required at boot — no silent fallback.
+    const secret = this.config.get<string>('JWT_SECRET') || '';
+    if (!secret) {
+      throw new InternalServerErrorException('JWT_SECRET is not configured.');
+    }
     const token = jwt.sign(
       {
         sub: client.user.id,

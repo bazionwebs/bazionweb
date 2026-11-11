@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Build. Launch. Manage. Grow. | BazionWeb Digital Engineering',
+  title: 'Build. Launch. Manage. Grow. — Digital Engineering',
   description:
     'Digital platforms, websites, and custom systems engineered for businesses, churches, schools, NGOs, and startups. Transparent pricing, 100% client asset ownership, and SLA care.',
   alternates: { canonical: 'https://bazionweb.com/' },

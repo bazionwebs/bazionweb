@@ -1,9 +1,7 @@
-'use client';
-
 import React from 'react';
 import Link from 'next/link';
 import { ServiceFamily } from '@/lib/servicesFamilyData';
-import { useMarketPreference } from '@/hooks/useMarketPreference';
+import MarketPriceText, { MarketPriceTag } from '@/components/market/MarketPrice';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 import JsonLd from '@/components/seo/JsonLd';
 import {
@@ -18,9 +16,12 @@ interface Props {
   family: ServiceFamily;
 }
 
+/**
+ * Server component — the market-aware price strings are injected by the tiny
+ * <MarketPriceText /> client island, so the page ships fully static HTML and
+ * only hydrates the price leaves (no GLOBAL→KE flash for Kenyan visitors).
+ */
 export default function ServiceFamilyView({ family }: Props) {
-  const { market, marketDef } = useMarketPreference();
-
   const faqSchema = {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -29,7 +30,7 @@ export default function ServiceFamilyView({ family }: Props) {
       name: f.question,
       acceptedAnswer: {
         '@type': 'Answer',
-        text: typeof f.answer === 'string' ? f.answer : (market === 'kenya' ? f.answer.KE : f.answer.GLOBAL),
+        text: typeof f.answer === 'string' ? f.answer : f.answer.GLOBAL,
       },
     })),
   };
@@ -110,7 +111,7 @@ export default function ServiceFamilyView({ family }: Props) {
                 <div className="pt-4 border-t border-slate-100 text-xs text-slate-700 font-semibold bg-teal-50/50 -mx-7 -mb-7 p-4 rounded-b-2xl">
                   {typeof item.fit === 'string'
                     ? item.fit
-                    : (market === 'kenya' ? item.fit.KE : item.fit.GLOBAL)}
+                    : <MarketPriceText ke={item.fit.KE} global={item.fit.GLOBAL} />}
                 </div>
               </div>
             ))}
@@ -131,14 +132,13 @@ export default function ServiceFamilyView({ family }: Props) {
             <div className="flex items-center justify-center gap-2 text-xs md:text-sm text-slate-500 mt-2">
               <span>Commercial Price Book:</span>
               <strong className="text-[#0F172A] font-bold">
-                {marketDef.flag} {marketDef.shortName} ({marketDef.currency})
+                <MarketPriceTag />
               </strong>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {family.packages.map(pkg => {
-              const price = market === 'kenya' ? pkg.priceKenya : pkg.priceIntl;
               return (
                 <div
                   key={pkg.id}
@@ -159,7 +159,9 @@ export default function ServiceFamilyView({ family }: Props) {
                       </span>
                     )}
                     <h3 className="font-bold text-[#0F172A] text-lg mb-1">{pkg.name}</h3>
-                    <div className="text-2xl font-black text-[#0F172A] mb-1">{price}</div>
+                    <div className="text-2xl font-black text-[#0F172A] mb-1">
+                      <MarketPriceText ke={pkg.priceKenya} global={pkg.priceIntl} />
+                    </div>
                     <div className="text-xs font-semibold text-[#0D9488] mb-1">{pkg.pagesOrScale}</div>
                     <div className="text-[11px] text-slate-400 mb-4">{pkg.timeline} · {pkg.warranty}</div>
                     <p className="text-xs text-slate-500 leading-relaxed mb-6 min-h-[2.5rem]">
@@ -232,14 +234,15 @@ export default function ServiceFamilyView({ family }: Props) {
               </h3>
               <div className="space-y-3">
                 {family.modularAddons.map((addon, i) => {
-                  const price = market === 'kenya' ? addon.priceKenya : addon.priceIntl;
                   return (
                     <div key={i} className="flex items-center justify-between text-xs p-3 rounded-xl bg-slate-50 border border-slate-100">
                       <div>
                         <div className="font-bold text-slate-800">{addon.name}</div>
                         <div className="text-slate-400">{addon.description}</div>
                       </div>
-                      <div className="font-black text-[#0D9488] shrink-0 ml-3">{price}</div>
+                      <div className="font-black text-[#0D9488] shrink-0 ml-3">
+                        <MarketPriceText ke={addon.priceKenya} global={addon.priceIntl} />
+                      </div>
                     </div>
                   );
                 })}
@@ -290,7 +293,7 @@ export default function ServiceFamilyView({ family }: Props) {
                     <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
                       {typeof faq.answer === 'string'
                         ? faq.answer
-                        : (market === 'kenya' ? faq.answer.KE : faq.answer.GLOBAL)}
+                        : <MarketPriceText ke={faq.answer.KE} global={faq.answer.GLOBAL} />}
                     </p>
                   </div>
                 </div>

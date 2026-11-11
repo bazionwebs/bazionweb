@@ -1,9 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
+import { z } from 'zod';
 import { resolveMarket } from '@/lib/marketEngine';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import { sendContactInquiryEmail } from '@/lib/email';
+
+/**
+ * Server-side schema for lead submission. Bounds every user-controlled field
+ * that flows into the CRM payload and HTML/subject email headers.
+ */
+const LEAD_SCHEMA = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(254)
+    .regex(/^[A-Za-z0-9](?:[A-Za-z0-9._%+-]+)@[A-Za-z0-9](?:[A-Za-z0-9.-]+)\.[A-Za-z]{2,14}$/),
+  company: z.string().trim().max(160).optional(),
+  phone: z.string().trim().max(32).optional(),
+  country: z.string().trim().max(64).default('KE'),
+  serviceInterest: z.string().trim().max(120).default('Website Development'),
+  source: z.string().trim().max(64).default('website_quote_calculator'),
+  proposalId: z.string().trim().max(64).optional(),
+  estimatedBudget: z.string().trim().max(64).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+/** Strips CR/LF/control chars so nothing can inject into email headers. */
+function sanitizeText(value: string | undefined): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const cleaned = String(value).replace(/[\r\n\u0000-\u001F]+/g, ' ');
+  return cleaned || undefined;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,27 +46,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const rawBody = await request.json().catch(() => null);
+    const parsed = LEAD_SCHEMA.safeParse(rawBody ?? {});
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Please provide a valid name and a valid email address.' },
+        { status: 400 },
+      );
+    }
+    const body = parsed.data;
     const {
       name,
       email,
       company,
       phone,
-      country = 'KE',
-      serviceInterest = 'Website Development',
-      source = 'website_quote_calculator',
+      country,
+      serviceInterest,
+      source,
       proposalId,
       estimatedBudget,
       notes,
     } = body;
 
-    if (typeof email !== 'string' || typeof name !== 'string' || !email.trim() || !name.trim()) {
-      return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
-    }
+    const countryLabel = isNonEmptyString(country) ? sanitizeText(country) : undefined;
 
     // Resolve commercial market identity
     const resolution = resolveMarket({
-      billingCountry: country,
+      billingCountry: countryLabel,
       ipCountry: request.headers.get('cf-ipcountry') || request.headers.get('x-vercel-ip-country'),
       marketCookie: request.cookies.get('bazion_market')?.value,
     });
@@ -52,17 +88,17 @@ export async function POST(request: NextRequest) {
         cache: 'no-store',
         signal: AbortSignal.timeout(5000),
         body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          company: company?.trim(),
-          phone: phone?.trim(),
-          country: country.trim().toUpperCase(),
-          service: serviceInterest || 'Website Development',
+          name: sanitizeText(name),
+          email,
+          company: sanitizeText(company),
+          phone: sanitizeText(phone),
+          country: (countryLabel || 'KE').toUpperCase(),
+          service: sanitizeText(serviceInterest) || 'Website Development',
           source,
           message: [
-            notes,
-            proposalId ? `Proposal: ${proposalId}` : null,
-            estimatedBudget ? `Estimated Budget: ${estimatedBudget}` : null,
+            sanitizeText(notes),
+            proposalId ? `Proposal: ${sanitizeText(proposalId)}` : null,
+            estimatedBudget ? `Estimated Budget: ${sanitizeText(estimatedBudget)}` : null,
           ]
             .filter(Boolean)
             .join(' | '),
@@ -86,20 +122,20 @@ export async function POST(request: NextRequest) {
     // Deliver team notification and customer acknowledgment via Resend email service
     try {
       await sendContactInquiryEmail({
-        clientName: name.trim(),
-        clientEmail: email.trim().toLowerCase(),
-        company: company?.trim(),
-        phone: phone?.trim(),
-        serviceInterest: serviceInterest || 'Website Development',
+        clientName: sanitizeText(name) ?? name ?? 'Prospective Client',
+        clientEmail: email,
+        company: sanitizeText(company),
+        phone: sanitizeText(phone),
+        serviceInterest: sanitizeText(serviceInterest) || 'Website Development',
         message: [
-          notes,
-          proposalId ? `Proposal: ${proposalId}` : null,
-          estimatedBudget ? `Estimated Budget: ${estimatedBudget}` : null,
+          sanitizeText(notes),
+          proposalId ? `Proposal: ${sanitizeText(proposalId)}` : null,
+          estimatedBudget ? `Estimated Budget: ${sanitizeText(estimatedBudget)}` : null,
         ]
           .filter(Boolean)
           .join(' | '),
         leadId: leadReference,
-        country: typeof country === 'string' ? country.trim().toUpperCase() : undefined,
+        country: (countryLabel || 'KE').toUpperCase(),
       });
     } catch (emailErr) {
       console.warn('[Leads API] Non-fatal email dispatch error:', emailErr);
@@ -119,19 +155,29 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** True only for plain string values with at least one non-whitespace char. */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 /**
  * GET /api/leads
  * PROTECTED: Prevents unauthorized customer PII disclosure.
+ * Failed secret attempts are themselves rate-limited so the static bearer
+ * credential cannot be probed at unlimited speed.
  */
 export async function GET(request: NextRequest) {
+  const clientIp = getClientIp(request);
   const authHeader = request.headers.get('authorization') || '';
   const providedSecret = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   const adminSecret = process.env.ADMIN_API_KEY || '';
+
   const provided = Buffer.from(providedSecret);
   const expected = Buffer.from(adminSecret);
   const authorized = expected.length > 0 && provided.length === expected.length && timingSafeEqual(provided, expected);
 
   if (!authorized) {
+    checkRateLimit(`leads:probe:${clientIp}`, 30, 5 * 60_000);
     return NextResponse.json(
       { error: 'Unauthorized: Access to customer leads requires administrative credentials.' },
       { status: 401 },

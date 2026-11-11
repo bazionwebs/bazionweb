@@ -354,7 +354,7 @@ function ClientDetailModal({
             <KeyRound className="w-3.5 h-3.5" />
             <span>Encrypted Vault</span>
             {secrets.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-100 text-purple-800">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800">
                 {secrets.length}
               </span>
             )}

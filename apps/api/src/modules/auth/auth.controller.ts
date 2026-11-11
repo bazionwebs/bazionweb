@@ -8,6 +8,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { Public, Roles, JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { MfaGuard } from '../../common/guards/mfa.guard';
 
 class LoginDto {
   @ApiProperty({ example: 'client@example.com' })
@@ -294,7 +295,7 @@ export class AuthController {
    * POST /api/v1/auth/admin/set-password
    */
   @Post('admin/set-password')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, MfaGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Admin — set a user local password' })

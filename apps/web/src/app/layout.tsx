@@ -1,7 +1,30 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter, Outfit } from 'next/font/google';
 import '../styles/globals.css';
 import CookieBanner from '@/components/ui/CookieBanner';
 import MicrosoftClarity from '@/components/analytics/MicrosoftClarity';
+import { getServerMarket } from '@/lib/geoDetection';
+import MarketProvider from '@/components/providers/MarketProvider';
+
+/**
+ * Self-hosted Google Fonts via next/font — the CSS is inlined in <head> by the
+ * Next compiler (no cross-origin CSS request blocking first paint), the font
+ * files are preloaded with subsetting, and layout-shift is eliminated via
+ * size-adjust fallback metrics.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+  preload: true,
+});
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  variable: '--font-outfit',
+  display: 'swap',
+  preload: true,
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://bazionweb.com'),
@@ -83,12 +106,12 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const serverMarket = await getServerMarket();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* Early synchronous cookie synchronization script to eliminate FOWC & hydration drift */}
         <script
           id="market-init-sync"
@@ -112,10 +135,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="min-h-screen bg-white antialiased font-sans">
-        {children}
-        <MicrosoftClarity />
-        <CookieBanner />
+      <body className={`${inter.variable} ${outfit.variable} min-h-screen bg-white antialiased font-sans`}>
+        <MarketProvider initialMarket={serverMarket.market}>
+          {children}
+          <MicrosoftClarity />
+          <CookieBanner />
+        </MarketProvider>
       </body>
     </html>
   );

@@ -4,7 +4,7 @@ import PortalGate from '@/components/auth/PortalGate';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Client Portal | BazionWeb',
+    default: 'Client Portal Dashboard',
     template: '%s | Portal — BazionWeb',
   },
   robots: { index: false, follow: false },

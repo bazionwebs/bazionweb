@@ -781,7 +781,7 @@ Please confirm availability and discuss next steps.`;
                             }`}
                           >
                             {meta.popular && (
-                              <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[#2563EB] text-white text-[8px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider whitespace-nowrap">
+                              <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[#2563EB] text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap">
                                 Best Value
                               </span>
                             )}

@@ -61,7 +61,7 @@ describe('API gateway: server-side API base & loop guard', () => {
 
       const res = await gatewayGet(
         gatewayRequest('plans', { 'cf-connecting-ip': '1.2.3.4', 'cf-ray': 'abc', authorization: 'Bearer t' }),
-        { params: { path: ['plans'] } },
+        { params: Promise.resolve({ path: ['plans'] }) },
       );
 
       expect(res.status).toBe(200);
@@ -78,7 +78,7 @@ describe('API gateway: server-side API base & loop guard', () => {
       const fetchMock = jest.fn();
       global.fetch = fetchMock as unknown as typeof fetch;
 
-      const res = await gatewayGet(gatewayRequest('plans'), { params: { path: ['plans'] } });
+      const res = await gatewayGet(gatewayRequest('plans'), { params: Promise.resolve({ path: ['plans'] }) });
 
       expect(res.status).toBe(503);
       expect(fetchMock).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe('API gateway: server-side API base & loop guard', () => {
       global.fetch = fetchMock as unknown as typeof fetch;
 
       const req = new Request('http://localhost:3000/api/v1/plans', { headers: { host: 'localhost:3000' } });
-      const res = await gatewayGet(req, { params: { path: ['plans'] } });
+      const res = await gatewayGet(req, { params: Promise.resolve({ path: ['plans'] }) });
 
       expect(res.status).toBe(200);
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -107,7 +107,7 @@ describe('API gateway: server-side API base & loop guard', () => {
         }),
       ) as unknown as typeof fetch;
 
-      const res = await gatewayGet(gatewayRequest('plans'), { params: { path: ['plans'] } });
+      const res = await gatewayGet(gatewayRequest('plans'), { params: Promise.resolve({ path: ['plans'] }) });
 
       expect(res.status).toBe(502);
       expect(res.headers.get('content-type')).toContain('application/json');
@@ -122,7 +122,7 @@ describe('API gateway: server-side API base & loop guard', () => {
         }),
       ) as unknown as typeof fetch;
 
-      const res = await gatewayGet(gatewayRequest('admin/x'), { params: { path: ['admin', 'x'] } });
+      const res = await gatewayGet(gatewayRequest('admin/x'), { params: Promise.resolve({ path: ['admin', 'x'] }) });
 
       expect(res.status).toBe(403);
       expect(await res.json()).toEqual({ message: 'Forbidden' });

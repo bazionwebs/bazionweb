@@ -55,6 +55,8 @@ import {
 } from '@/hooks/useAdminData';
 import { formatDate } from '@/lib/format';
 import { adminApi } from '@/lib/api';
+import { useAdminPolling } from '@/hooks/useAdminPolling';
+import AdminPollingControlBar from '@/components/admin/AdminPollingControlBar';
 
 type TroubleshootingTab =
   | 'health'
@@ -69,17 +71,43 @@ type TroubleshootingTab =
 function AdminTroubleshootingContent() {
   const searchParams = useSearchParams();
 
-  // Queries
+  // ── Tab State
+  const [activeTool, setActiveTool] = useState<TroubleshootingTab>('health');
+
+  // ── Controlled Polling Controller
+  const polling = useAdminPolling({
+    defaultInterval: 15000,
+  });
+
+  // Queries (scoped strictly to activeTool tab to eliminate ~85% idle background queries)
   const clientsQuery = useAdminClients();
-  const clusterHealthQuery = useClusterHealth();
-  const overviewQuery = useTroubleshootingOverview();
-  const orphanQuery = useOrphanPayments();
-  const dnsFleetQuery = useDnsSslFleet();
-  const webhookFailuresQuery = useWebhookFailures(50);
-  const webhookStreamQuery = useWebhookLogs(50);
-  const unsyncedInvoicesQuery = useUnsyncedInvoices();
-  const clientAccessQuery = useClientAccessIssues();
-  const suspendedDomainsQuery = useSuspendedDomains();
+  const clusterHealthQuery = useClusterHealth({
+    refetchInterval: polling.getTabInterval(activeTool === 'health', 15000),
+  });
+  const overviewQuery = useTroubleshootingOverview({
+    refetchInterval: polling.isPollingEnabled && polling.isVisible ? polling.pollingInterval : false,
+  });
+  const orphanQuery = useOrphanPayments({
+    refetchInterval: polling.getTabInterval(activeTool === 'orphans', 15000),
+  });
+  const dnsFleetQuery = useDnsSslFleet({
+    refetchInterval: polling.getTabInterval(activeTool === 'dns', 30000),
+  });
+  const webhookFailuresQuery = useWebhookFailures(50, {
+    refetchInterval: polling.getTabInterval(activeTool === 'webhooks', 10000),
+  });
+  const webhookStreamQuery = useWebhookLogs(50, {
+    refetchInterval: polling.getTabInterval(activeTool === 'webhooks', 10000),
+  });
+  const unsyncedInvoicesQuery = useUnsyncedInvoices({
+    refetchInterval: polling.getTabInterval(activeTool === 'invoices', 15000),
+  });
+  const clientAccessQuery = useClientAccessIssues({
+    refetchInterval: polling.getTabInterval(activeTool === 'access', 15000),
+  });
+  const suspendedDomainsQuery = useSuspendedDomains({
+    refetchInterval: polling.getTabInterval(activeTool === 'domains', 15000),
+  });
   const proactiveScanQuery = useProactiveHealthScan();
 
   // Mutations
@@ -94,9 +122,6 @@ function AdminTroubleshootingContent() {
   const remediateAccessMutation = useRemediateClientAccess();
   const remediateDomainMutation = useRemediateDomainState();
   const remediateProactiveMutation = useRemediateProactiveAnomaly();
-
-  // ── Tab State
-  const [activeTool, setActiveTool] = useState<TroubleshootingTab>('health');
 
   // ── Action Feedback State
   const [inFlightActionId, setInFlightActionId] = useState<string | null>(null);
@@ -415,6 +440,23 @@ function AdminTroubleshootingContent() {
   const unclaimedCount = accessItems.filter((i: any) => i.lockoutReason === 'PASSWORD_UNSET').length;
   const suspendedDomainCount = suspendedDomainsQuery.data?.totalSuspended ?? overview?.suspendedDomainsCount ?? 0;
 
+  const handleGlobalRefresh = async () => {
+    await Promise.allSettled([
+      proactiveScanQuery.refetch(),
+      clusterHealthQuery.refetch(),
+      overviewQuery.refetch(),
+      orphanQuery.refetch(),
+      dnsFleetQuery.refetch(),
+      webhookFailuresQuery.refetch(),
+      webhookStreamQuery.refetch(),
+      unsyncedInvoicesQuery.refetch(),
+      clientAccessQuery.refetch(),
+      suspendedDomainsQuery.refetch(),
+      clientsQuery.refetch(),
+    ]);
+    showFeedback('Refreshed diagnostic telemetry across all systems.');
+  };
+
   return (
     <div className="space-y-6">
       {/* ── Top Header ───────────────────────────────────────────────────────── */}
@@ -451,18 +493,7 @@ function AdminTroubleshootingContent() {
           </button>
 
           <button
-            onClick={() => {
-              proactiveScanQuery.refetch();
-              clusterHealthQuery.refetch();
-              overviewQuery.refetch();
-              orphanQuery.refetch();
-              dnsFleetQuery.refetch();
-              webhookFailuresQuery.refetch();
-              unsyncedInvoicesQuery.refetch();
-              clientAccessQuery.refetch();
-              suspendedDomainsQuery.refetch();
-              showFeedback('Refreshed diagnostic telemetry across all systems.');
-            }}
+            onClick={handleGlobalRefresh}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -470,6 +501,9 @@ function AdminTroubleshootingContent() {
           </button>
         </div>
       </div>
+
+      {/* ── Polling & Workstation Telemetry Control Bar ──────────────────────── */}
+      <AdminPollingControlBar controller={polling} onRefresh={handleGlobalRefresh} />
 
       {/* ── Real-Time Anomaly & Feedback Banners ───────────────────────────────── */}
       {feedbackSuccess && (

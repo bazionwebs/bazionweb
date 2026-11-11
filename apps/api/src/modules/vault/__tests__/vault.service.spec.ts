@@ -127,4 +127,30 @@ describe('VaultService', () => {
     expect(removed.data.deleted).toBe(true);
     await expect(service.reveal('secret-1', clientUser, reqMeta)).rejects.toThrow(NotFoundException);
   });
+
+  it('fails fast if VAULT_MASTER_KEY is not configured or too short without falling back to JWT_SECRET', async () => {
+    const unconfiguredModule = await Test.createTestingModule({
+      providers: [
+        VaultService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) =>
+              key === 'JWT_SECRET' ? 'legacy-jwt-secret-that-must-never-be-used-as-vault-fallback' : undefined,
+            ),
+          },
+        },
+      ],
+    }).compile();
+
+    const unconfiguredService = unconfiguredModule.get<VaultService>(VaultService);
+    await expect(
+      unconfiguredService.create(
+        { label: 'DB Password', category: 'DATABASE', value: 'secretPass123' },
+        clientUser,
+        reqMeta,
+      ),
+    ).rejects.toThrow(InternalServerErrorException);
+  });
 });

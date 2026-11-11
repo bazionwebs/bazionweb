@@ -38,7 +38,10 @@ export async function POST(req: Request) {
     const { email, redirect } = await req.json();
     const safeRedirect = sanitizeRedirectPath(redirect);
 
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
+    const isEmail = /^[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,62})@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,62})\.[A-Za-z]{2,14}$/.test(
+      String(email || '').trim(),
+    );
+    if (!email || typeof email !== 'string' || !isEmail) {
       return NextResponse.json({ error: 'Valid email address is required' }, { status: 400 });
     }
 
@@ -163,7 +166,7 @@ export async function POST(req: Request) {
       success: true,
       delivered: sendResult.delivered,
       provider: sendResult.provider,
-      ...(process.env.NODE_ENV === 'development' && !sendResult.delivered
+      ...(process.env.NODE_ENV === 'development' && process.env.SHOW_DEV_TOKEN_PREVIEW === '1' && !sendResult.delivered
         ? { previewUrl: magicLinkUrl }
         : {}),
       message: sendResult.delivered
@@ -173,7 +176,7 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     console.error('Magic link dispatch error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to generate sign-in link' },
+      { error: 'Could not generate a sign-in link right now. Please try again shortly.' },
       { status: 500 },
     );
   }

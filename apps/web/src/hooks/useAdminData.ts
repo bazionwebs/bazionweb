@@ -59,7 +59,12 @@ export function useRoles(): readonly string[] {
   return useAuthStore(s => s.user?.roles) ?? EMPTY_ROLES;
 }
 
-const opts = { staleTime: 30_000, retry: 1 as const, refetchOnWindowFocus: false };
+const opts = {
+  staleTime: 30_000,
+  retry: 1 as const,
+  refetchOnWindowFocus: false,
+  refetchIntervalInBackground: false,
+};
 
 /** MRR + SLA endpoints are ADMIN/SUPER_ADMIN-only; uptime allows SUPPORT. */
 export function useCanSeeBilling(): boolean {
@@ -216,24 +221,24 @@ export function useSystemHealth() {
   });
 }
 
-export function useClusterHealth() {
+export function useClusterHealth(options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'health'],
     queryFn: () => adminApi.getClusterHealth().then(r => r.data ?? r),
-    enabled: !!token,
-    refetchInterval: 15_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15_000,
     ...opts,
   });
 }
 
-export function useWebhookLogs(limit = 50) {
+export function useWebhookLogs(limit = 50, options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'webhooks', limit],
     queryFn: () => adminApi.getWebhookLogs(limit).then(r => (r.data ?? r) as any[]),
-    enabled: !!token,
-    refetchInterval: 10_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 10_000,
     ...opts,
   });
 }
@@ -320,23 +325,25 @@ export function useRevealClientVaultSecret() {
 
 // ── Troubleshooting Workstation Hooks ─────────────────────────────────────────
 
-export function useTroubleshootingOverview() {
+export function useTroubleshootingOverview(options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'overview'],
     queryFn: () => adminApi.getTroubleshootingOverview().then(r => r.data ?? r),
-    enabled: !!token,
-    refetchInterval: 15_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15_000,
+    ...opts,
   });
 }
 
-export function useOrphanPayments() {
+export function useOrphanPayments(options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'orphans'],
     queryFn: () => adminApi.getOrphanPayments().then(r => r.data ?? r),
-    enabled: !!token,
-    refetchInterval: 15_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15_000,
+    ...opts,
   });
 }
 
@@ -354,13 +361,14 @@ export function useRemediateOrphanPayment() {
   });
 }
 
-export function useDnsSslFleet() {
+export function useDnsSslFleet(options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'dns-ssl'],
     queryFn: () => adminApi.getDnsSslFleet().then(r => r.data ?? r),
-    enabled: !!token,
-    refetchInterval: 30_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 30_000,
+    ...opts,
   });
 }
 
@@ -377,13 +385,14 @@ export function useRemediateDnsSsl() {
   });
 }
 
-export function useWebhookFailures(limit = 50) {
+export function useWebhookFailures(limit = 50, options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'webhook-failures', limit],
     queryFn: () => adminApi.getWebhookFailures(limit).then(r => r.data ?? r),
-    enabled: !!token,
-    refetchInterval: 10_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 10_000,
+    ...opts,
   });
 }
 
@@ -401,13 +410,14 @@ export function useRetryWebhooksBatch() {
   });
 }
 
-export function useUnsyncedInvoices() {
+export function useUnsyncedInvoices(options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'invoices-unsynced'],
     queryFn: () => adminApi.getUnsyncedInvoices().then(r => r.data ?? r),
-    enabled: !!token,
-    refetchInterval: 15_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15_000,
+    ...opts,
   });
 }
 
@@ -425,13 +435,14 @@ export function useRemediateInvoiceSync() {
   });
 }
 
-export function useClientAccessIssues() {
+export function useClientAccessIssues(options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'client-access'],
     queryFn: () => adminApi.getClientAccessIssues().then(r => r.data ?? r),
-    enabled: !!token,
-    refetchInterval: 15_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15_000,
+    ...opts,
   });
 }
 
@@ -448,13 +459,14 @@ export function useRemediateClientAccess() {
   });
 }
 
-export function useSuspendedDomains() {
+export function useSuspendedDomains(options?: { refetchInterval?: number | false; enabled?: boolean }) {
   const token = useToken();
   return useQuery({
     queryKey: ['admin', 'diagnostics', 'domains-suspended'],
     queryFn: () => adminApi.getSuspendedDomains().then(r => r.data ?? r),
-    enabled: !!token,
-    refetchInterval: 15_000,
+    enabled: options?.enabled !== undefined ? options.enabled && !!token : !!token,
+    refetchInterval: options?.refetchInterval !== undefined ? options.refetchInterval : 15_000,
+    ...opts,
   });
 }
 

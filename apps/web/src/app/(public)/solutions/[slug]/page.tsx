@@ -13,21 +13,22 @@ import {
 } from 'lucide-react';
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export function generateStaticParams() {
   return Object.keys(SOLUTIONS_DATA).map(slug => ({ slug }));
 }
 
-export function generateMetadata({ params }: Props): Metadata {
-  const data = SOLUTIONS_DATA[params.slug];
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const data = SOLUTIONS_DATA[slug];
   if (!data) return {};
 
   return {
-    title: `${data.name} Digital Platforms & Systems | BazionWeb`,
+    title: `${data.name} Digital Platforms & Systems`,
     description: data.heroSubtitle,
-    alternates: { canonical: `https://bazionweb.com/solutions/${params.slug}` },
+    alternates: { canonical: `https://bazionweb.com/solutions/${slug}` },
     keywords: [
       `${data.name} website Kenya`,
       `${data.name} digital platform`,
@@ -37,8 +38,9 @@ export function generateMetadata({ params }: Props): Metadata {
   };
 }
 
-export default function SolutionDetailPage({ params }: Props) {
-  const data = SOLUTIONS_DATA[params.slug];
+export default async function SolutionDetailPage({ params }: Props) {
+  const { slug } = await params;
+  const data = SOLUTIONS_DATA[slug];
   if (!data) notFound();
 
   const faqSchema = {

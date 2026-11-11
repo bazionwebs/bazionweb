@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const isKe = market === 'KE';
 
   return {
-    title: 'Transparent Pricing — Websites, E-Commerce & Systems | BazionWeb',
+    title: 'Transparent Pricing — Websites, E-Commerce & Systems',
     description: isKe
       ? 'Clear 2026 pricing for websites, e-commerce, custom digital systems, and website care in Kenya (KES + M-Pesa). Transparent fixed deliverables, no hidden fees.'
       : 'Clear 2026 pricing for websites, e-commerce, custom digital systems, and website care worldwide (USD). Transparent fixed deliverables, no hidden fees.',

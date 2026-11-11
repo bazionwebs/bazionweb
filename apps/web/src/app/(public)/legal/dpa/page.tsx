@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Data Processing Agreement (DPA) | BazionWeb',
+  title: 'Data Processing Agreement (DPA)',
   description: 'BazionWeb Data Processing Agreement — compliant with Kenya Data Protection Act 2019 (Section 30) and GDPR Article 28.',
   alternates: { canonical: 'https://bazionweb.com/legal/dpa' },
 };

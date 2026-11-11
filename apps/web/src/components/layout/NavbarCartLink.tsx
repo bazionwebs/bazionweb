@@ -19,7 +19,7 @@ export default function NavbarCartLink() {
     <Link
       href="/cart"
       aria-label={`Shopping cart${count ? `, ${count} item${count === 1 ? '' : 's'}` : ' (empty)'}`}
-      className="relative p-2 rounded-xl text-slate-700 hover:text-[#0D9488] hover:bg-teal-50 transition-colors"
+      className="relative min-h-[44px] min-w-[44px] flex items-center justify-center p-2.5 rounded-xl text-slate-700 hover:text-[#0D9488] hover:bg-teal-50 transition-colors"
     >
       <ShoppingCart className="w-5 h-5" />
       {count > 0 && (

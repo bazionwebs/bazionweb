@@ -132,29 +132,22 @@ export class AuthService {
 
   /**
    * Raw claim/magic tokens are only returned to the Next.js mailer BFF,
-   * never to anonymous API callers. The BFF proves itself with a shared
-   * dispatch secret (INTERNAL_DISPATCH_SECRET, PAYSTACK_SECRET_KEY, or JWT_SECRET).
+   * never to anonymous API callers. The BFF proves itself strictly with the dedicated
+   * shared dispatch secret (INTERNAL_DISPATCH_SECRET).
+   * Cross-purpose reuse of payment provider or session signing secrets is strictly forbidden.
    */
   canDispatchTokens(header?: string): boolean {
     const candidate = (header || '').trim();
     if (!candidate) return false;
 
-    const secrets = [
-      this.config.get<string>('INTERNAL_DISPATCH_SECRET', ''),
-      this.config.get<string>('PAYSTACK_SECRET_KEY', ''),
-      this.config.get<string>('JWT_SECRET', ''),
-    ]
-      .map((s) => (s || '').trim())
-      .filter((s) => s.length >= 12 && !s.includes('CHANGE_ME'));
+    const dispatchSecret = (this.config.get<string>('INTERNAL_DISPATCH_SECRET', '') || '').trim();
+    if (dispatchSecret.length < 12 || dispatchSecret.includes('CHANGE_ME')) {
+      return false;
+    }
 
     const a = Buffer.from(candidate, 'utf8');
-    for (const expected of secrets) {
-      const b = Buffer.from(expected, 'utf8');
-      if (a.length === b.length && timingSafeEqual(a, b)) {
-        return true;
-      }
-    }
-    return false;
+    const b = Buffer.from(dispatchSecret, 'utf8');
+    return a.length === b.length && timingSafeEqual(a, b);
   }
 
   private jwtSecret(): string {
@@ -241,10 +234,31 @@ export class AuthService {
     // Local logout = revoke all refresh tokens for the token owner.
     // Never throws — logout should succeed even if revocation fails.
     try {
-      const decoded = jwt.verify(accessToken, this.jwtSecret(), {
-        algorithms: ['HS256'],
-        issuer: 'bazionweb',
-      }) as { sub?: string };
+      let decoded: { sub?: string } | null = null;
+      try {
+        decoded = jwt.verify(accessToken, this.jwtSecret(), {
+          algorithms: ['HS256'],
+          issuer: 'bazionweb',
+        }) as { sub?: string };
+      } catch (verifyErr: unknown) {
+        // An EXPIRED access token must still revoke the (still-valid) refresh
+        // session — otherwise a user leaving a tab open for >15m cannot log
+        // out. jwt.verify with ignoreExpiration returns the payload for
+        // well-formed tokens signed with the right key; everything else is a
+        // genuine failure (bad key/algorithm) and stays rejected.
+        if (
+          verifyErr instanceof jwt.TokenExpiredError ||
+          (verifyErr instanceof Error && verifyErr.name === 'TokenExpiredError')
+        ) {
+          decoded = jwt.verify(accessToken, this.jwtSecret(), {
+            algorithms: ['HS256'],
+            issuer: 'bazionweb',
+            ignoreExpiration: true,
+          }) as { sub?: string };
+        } else {
+          throw verifyErr;
+        }
+      }
       if (decoded?.sub) {
         await this.prisma.refreshToken.updateMany({
           where: { userId: decoded.sub, revokedAt: null },

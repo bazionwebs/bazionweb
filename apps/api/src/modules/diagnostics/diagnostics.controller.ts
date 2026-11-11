@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
+import { MfaGuard } from '../../common/guards/mfa.guard';
 import { AdminDiagnosticsService } from './diagnostics.service';
 import {
   DnsResolveDto,
@@ -25,7 +26,7 @@ import {
 
 @ApiTags('admin-diagnostics')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, MfaGuard)
 @Roles('ADMIN', 'SUPER_ADMIN')
 @Controller({ path: 'admin/diagnostics', version: '1' })
 export class AdminDiagnosticsController {

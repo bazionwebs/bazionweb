@@ -16,37 +16,52 @@ export async function POST(req: Request) {
     );
   }
 
-  // Enforce staff/admin authentication
+  // Enforce staff/admin authentication — no environment-based bypass.
   const authHeader = req.headers.get('authorization') || '';
-  if (!authHeader.startsWith('Bearer ') && process.env.NODE_ENV !== 'test') {
+  if (!authHeader.startsWith('Bearer ')) {
     return NextResponse.json(
       { error: 'Unauthorized: Admin authentication token is required.' },
       { status: 401 },
     );
   }
 
-  if (authHeader.startsWith('Bearer ') && process.env.NODE_ENV !== 'test') {
-    try {
-      const probe = await fetchInternalApi('/api/v1/clients?limit=1', {
-        headers: { Authorization: authHeader },
-        cache: 'no-store',
-      });
-      if (probe.status === 401 || probe.status === 403) {
-        return NextResponse.json(
-          { error: 'Forbidden: Insufficient administrative privileges.' },
-          { status: 403 },
-        );
-      }
-    } catch {
-      // If internal API verification fails due to connectivity, continue with origin check
+  // Authorization is fail-closed: if the upstream JWT verification probe
+  // cannot be completed, refuse to dispatch rather than assume innocence.
+  try {
+    const probe = await fetchInternalApi('/api/v1/clients?limit=1', {
+      headers: { Authorization: authHeader },
+      cache: 'no-store',
+    });
+    if (probe.status === 401 || probe.status === 403) {
+      return NextResponse.json(
+        { error: 'Forbidden: Insufficient administrative privileges.' },
+        { status: 403 },
+      );
     }
+    if (!probe.ok && probe.status < 500) {
+      return NextResponse.json(
+        { error: 'Authorization could not be verified. Please sign in again.' },
+        { status: 403 },
+      );
+    }
+  } catch {
+    return NextResponse.json(
+      { error: 'Authorization service is temporarily unreachable. Please retry shortly.' },
+      { status: 503 },
+    );
   }
 
   try {
     const body = await req.json();
     const { to, url, type } = body ?? {};
 
-    if (!to || typeof to !== 'string' || !to.includes('@') || !url || typeof url !== 'string') {
+    // Strict recipient validation — no CRLF/control characters may reach the
+    // email layer (header injection), no permissive "includes('@')" check.
+    const EMAIL_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,62})@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,62})\.[A-Za-z]{2,14}$/;
+    if (
+      !to || typeof to !== 'string' || !EMAIL_RE.test(to.trim()) || /[\r\n\u0000-\u001F]/.test(to)
+      || !url || typeof url !== 'string' || url.length > 1024
+    ) {
       return NextResponse.json(
         { error: 'Valid recipient email address and link URL are required.' },
         { status: 400 },
@@ -110,10 +125,10 @@ export async function POST(req: Request) {
         : sendResult.message || `Email queued for ${cleanEmail}`,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to dispatch email';
-    console.error('[Admin Dispatch Link API] Error:', message);
+    const detail = err instanceof Error ? err.message : 'unknown';
+    console.error('[Admin Dispatch Link API] Error:', detail);
     return NextResponse.json(
-      { error: message },
+      { error: 'Failed to dispatch the link email. Please verify the recipient and try again.' },
       { status: 500 },
     );
   }

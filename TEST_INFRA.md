@@ -1,179 +1,159 @@
-# BazionWeb Client Journey Test Infrastructure & Matrix
-
-**Platform**: BazionWeb Digital Engineering & Cloud Infrastructure Monorepo  
-**Integrity Mode**: Development / Mock Sandbox Environment  
-**Document Version**: 1.0.0  
-**Status**: APPROVED & PUBLISHED  
-
----
+# BazionWeb Hardening & Audit E2E Testing Infrastructure (Feature VERIF-01)
 
 ## 1. Executive Test Architecture & Scope
 
-This test infrastructure specification establishes an authoritative, opaque-box testing framework for the five lifecycle stages of the BazionWeb customer journey:
-1. **Stage 1: Package Selection** (Services catalog, public store, pricing tiers, feature clarity, multi-market price books)
-2. **Stage 2: Proposal Generation & Presentation** (Interactive cost calculation, proposal locking, 50/50 terms, proposal deep-linking)
-3. **Stage 3: Invoicing Transparency** (Kickoff deposit invoices, 16% KRA VAT line-item transparency, statement presentation, PDF route)
-4. **Stage 4: Payment Processing & Checkout Security** (Daraja M-Pesa STK push, Paystack hosted card checkout, webhook signature settlement, open redirect sanitization, phone validation)
-5. **Stage 5: Client Onboarding & Dashboard Access** (Identity claiming, first-run dashboard, interactive onboarding checklist, `Client.onboardedAt` timestamp persistence)
+This document establishes the authoritative automated end-to-end (E2E) testing framework for the repository-wide audit, hardening, and verification project across `d:\bazionweb`.
 
-All tests are derived strictly from specifications in `ORIGINAL_REQUEST.md`, `PROJECT.md`, and `CLIENT_JOURNEY_AUDIT_REPORT.md`. All financial rails and third-party gateways are strictly constrained to sandbox/mock execution; live financial transactions are prohibited.
+The testing suite implements a **4-tier opaque-box methodology** designed strictly against user requirements and acceptance criteria (`ORIGINAL_REQUEST.md`, `PROJECT.md`), remaining independent of internal implementation artifacts while enforcing concrete interface contracts.
 
----
-
-## 2. Test Harness & Framework Layout
-
-The monorepo operates two test suites co-located within the respective workspaces:
-
+### 4-Tier Test Hierarchy
 ```
-bazionweb/
-├── apps/
-│   ├── web/
-│   │   ├── __tests__/
-│   │   │   └── e2e/
-│   │   │       └── client-journey.spec.ts  # Frontend E2E specs (Next.js route handlers, UI components, client flow)
-│   │   ├── jest.config.js                  # Jest + jsdom + testing-library
-│   │   └── jest.setup.js
-│   └── api/
-│       ├── src/
-│       │   └── modules/
-│       │       └── billing/
-│       │           └── __tests__/
-│       │               └── client-journey.e2e.spec.ts # Backend E2E specs (NestJS TestingModule, API controllers, services, database transactions)
-│       └── jest.config.js                  # Jest + ts-jest + Node.js
-├── TEST_INFRA.md                           # Master Test Architecture (this file)
-└── TEST_READY.md                          # Readiness Report & Verification
+┌────────────────────────────────────────────────────────────────────────┐
+│                        BAZIONWEB E2E TEST SUITE                        │
+├────────────────────────────────┬───────────────────────────────────────┤
+│ Tier 1: Feature Coverage       │ 50 Test Cases (>=5 per requirement)   │
+│                                │ Verifies primary specifications (R1-5)│
+├────────────────────────────────┼───────────────────────────────────────┤
+│ Tier 2: Boundary & Corner      │ 31 Test Cases (>=5 per feature area)  │
+│                                │ Malformed inputs, expired sessions,   │
+│                                │ edge geo-hints, invalid cookies, etc. │
+├────────────────────────────────┼───────────────────────────────────────┤
+│ Tier 3: Cross-Feature          │ 12 Test Cases                         │
+│                                │ Multi-module integrations: Checkout,  │
+│                                │ Sandbox Polling, Gateway + Vault AAD  │
+├────────────────────────────────┼───────────────────────────────────────┤
+│ Tier 4: Real-World Scenarios   │ 5 Complete User Lifecycle Journeys    │
+│                                │ Visitor -> Regional Hydration ->      │
+│                                │ Quote -> Checkout -> Staff Triage     │
+└────────────────────────────────┴───────────────────────────────────────┘
 ```
 
-### Framework Technology Stack
-- **Web Workspace (`@bazionweb/web`)**:
-  - Test Runner: Jest 29.7.0
-  - DOM Simulation: `jest-environment-jsdom`
-  - Component Verification: `@testing-library/react` 16.0.0, `@testing-library/jest-dom` 7.0.1
-  - Route Verification: Native Next.js 14 `NextRequest` and `NextResponse` route execution
-- **API Workspace (`@bazionweb/api`)**:
-  - Test Runner: Jest 29.7.0
-  - Compilation: `ts-jest` 29.4.11
-  - Container / DI: `@nestjs/testing` 10.4.22
-  - Isolation: In-memory Prisma mock and mock payment service stubs
-
 ---
 
-## 3. Opaque-Box Methodology & Output Derivation
+## 2. Test Runner Invocation
 
-Every test case derives inputs and expected outputs from authoritative project artifacts:
+The test suite provides two first-class execution environments: a high-speed standalone TypeScript CLI runner and a Jest test runner.
 
-| Phase | Input Source | Expected Output Authoritative Source |
-|---|---|---|
-| **Stage 1 (Package Selection)** | Market code (`KE` or `GLOBAL`), category tab (`websites`, `ecommerce`, `custom`, `care`), plan slug | `priceBooks.ts` (`PRICE_BOOK_KE_2026_V1`, `PRICE_BOOK_GLOBAL_2026_V1`), `pricingData.ts` |
-| **Stage 2 (Proposal Generation)** | Base package, extra pages, add-on IDs, client name/email | `POST /pricing/quote` calculation formula (Total = Base + Pages + Add-ons, Deposit = 50%), Proposal Schema |
-| **Stage 3 (Invoicing)** | Proposal code, client identity | Invoice creation contract: 50% deposit, currency matching market, itemized lines, KRA VAT (16%) |
-| **Stage 4 (Payment Processing)** | Phone number, billing cycle, payment method (`MPESA`, `CARD`) | STK push response contract, Paystack checkout URL with trusted domain check (`isTrustedCheckoutUrl`), webhook signature validation |
-| **Stage 5 (Client Onboarding)** | Authenticated JWT, completed checklist steps (`profile`, `domain`, `vault`, `roadmap`) | `POST /api/v1/clients/me/onboard` contract: `{ success: true, onboardedAt: ISO8601 }` |
-
----
-
-## 4. Multi-Tiered Test Matrix
-
-### Tier 1: Feature Coverage (>=5 test cases per stage across 5 stages)
-- **Stage 1: Package Selection**
-  1. TC-1.1: Multi-market price book resolution (KES for Kenya domestic, USD for International).
-  2. TC-1.2: Pricing catalog tab synchronization (`websites`, `ecommerce`, `custom`, `care`).
-  3. TC-1.3: Store catalog item and add-on pricing alignment with market currency.
-  4. TC-1.4: Website plan deliverables and feature inclusions integrity.
-  5. TC-1.5: E-commerce package pricing and product tier limits verification.
-- **Stage 2: Proposal Generation & Presentation**
-  1. TC-2.1: Centralized real-time quote calculation with dynamic add-ons and extra page counts.
-  2. TC-2.2: Proposal locking with unique proposal code generation (`BZ-KE-...` or `BZ-GL-...`).
-  3. TC-2.3: 50/50 payment split commercial term generation (50% Kickoff Deposit, 50% Handover).
-  4. TC-2.4: Proposal presentation view rendering with executive verification badges.
-  5. TC-2.5: Proposal URL deep-linking and state recovery (`/quote?proposal=${proposalCode}`).
-- **Stage 3: Invoicing Transparency & Accounting Compliance**
-  1. TC-3.1: Automatic kickoff deposit invoice creation at exactly 50% of build gross.
-  2. TC-3.2: Itemized line-item breakdown with explicit tax line items (16% VAT for Kenya).
-  3. TC-3.3: Invoicing status progression (`SENT`/`PENDING` -> `PAID`).
-  4. TC-3.4: Invoice PDF download stream endpoint resolution (`/invoices/:id/pdf/download`).
-  5. TC-3.5: Invoice error boundary fallback resilience.
-- **Stage 4: Payment Processing & Checkout Security**
-  1. TC-4.1: M-Pesa STK push initialization with valid Kenyan phone number.
-  2. TC-4.2: Paystack card checkout initiation returning trusted payment gateway URL.
-  3. TC-4.3: Open redirect protection rejecting untrusted checkout URLs.
-  4. TC-4.4: Webhook transaction signature verification (HMAC SHA512).
-  5. TC-4.5: Payment status polling and settlement confirmation.
-- **Stage 5: Client Onboarding & Dashboard Access**
-  1. TC-5.1: Post-payment guest claim token generation and account claiming.
-  2. TC-5.2: Client portal first-run onboarding checklist presentation.
-  3. TC-5.3: Step-by-step checklist progress tracking (Profile, Domain, Vault, Roadmap).
-  4. TC-5.4: Onboarding completion API `POST /api/v1/clients/me/onboard` writing `onboardedAt`.
-  5. TC-5.5: Multi-tab authenticated session persistence.
-
-### Tier 2: Boundary, Adversarial & Corner Cases (>=5 test cases per stage)
-- **Stage 1 (Package Selection Boundaries)**:
-  1. TC-B1.1: Invalid/empty market code defaults safely to default market.
-  2. TC-B1.2: Unrecognized service slug gracefully falls back to default calculator.
-  3. TC-B1.3: Tampered price book IDs or missing currency codes rejection.
-  4. TC-B1.4: Zero-price or unpriced catalog add-on handling.
-  5. TC-B1.5: Geo-detection conflict resolution between edge headers and browser cookie.
-- **Stage 2 (Proposal Boundaries)**:
-  1. TC-B2.1: Quote calculation with zero extra pages and empty add-ons array.
-  2. TC-B2.2: Extreme page counts (>100 pages) bounded by commercial maximums.
-  3. TC-B2.3: Rejection of negative extra pages or invalid add-on identifiers.
-  4. TC-B2.4: Invalid, expired, or malformed coupon code handling without pricing corruption.
-  5. TC-B2.5: Rejection of quote submission when client name or email is blank/whitespace.
-- **Stage 3 (Invoicing Boundaries)**:
-  1. TC-B3.1: Zero-amount or negative invoice generation attempts rejected.
-  2. TC-B3.2: Malformed UUID handling on invoice retrieval returning 400/404.
-  3. TC-B3.3: Prevention of duplicate kickoff deposit invoices for already accepted proposals.
-  4. TC-B3.4: Overdue invoice date calculations and grace period boundaries.
-  5. TC-B3.5: Missing line items handling on legacy/admin-generated invoices.
-- **Stage 4 (Payment Security & Gateway Boundaries)**:
-  1. TC-B4.1: Rejection of malformed Kenyan phone numbers (invalid prefix, letters, too short/long).
-  2. TC-B4.2: Open redirect adversary: URLs with deceptive subdomains (e.g. `paystack.com.evil.com`) rejected.
-  3. TC-B4.3: Paystack webhook signature tampering rejected with 401/400.
-  4. TC-B4.4: Webhook idempotency: duplicate delivery of `charge.success` ignores re-settlement.
-  5. TC-B4.5: M-Pesa STK push timeout / cancellation webhook handling.
-- **Stage 5 (Onboarding Boundaries)**:
-  1. TC-B5.1: Unauthenticated request to `POST /api/v1/clients/me/onboard` rejected with 401.
-  2. TC-B5.2: Re-submission of onboarding for already onboarded client retains original timestamp.
-  3. TC-B5.3: Onboarding submission with empty or malformed `completedSteps` array.
-  4. TC-B5.4: Expired or tampered claim token rejection.
-  5. TC-B5.5: Non-existent client record handling during portal initialization.
-
-### Tier 3: Cross-Feature Integration Pipelines
-- **Pipeline 1 (Kenya Domestic Journey)**:
-  1. Visitor selects Kenya Business Website package ->
-  2. Calculates quote with 2 add-ons and locks Proposal `BZ-KE-2026-TEST` ->
-  3. Accepts proposal to trigger 50% Kickoff Deposit Invoice `INV-KE-001` with 16% VAT ->
-  4. Initiates Daraja M-Pesa STK push to `254712345678` ->
-  5. Simulates mock M-Pesa success callback ->
-  6. Invoice transitions to `PAID`, activates project roadmap ->
-  7. Client claims portal access, completes checklist, and records `onboardedAt`.
-- **Pipeline 2 (International Enterprise Journey)**:
-  1. Visitor selects Global Enterprise E-commerce package ($USD) ->
-  2. Locks Proposal `BZ-GL-2026-TEST` with USD pricing ->
-  3. Generates 50% USD deposit invoice ->
-  4. Validates Paystack card checkout redirect against trusted domain whitelist ->
-  5. Simulates mock Paystack `charge.success` webhook with valid HMAC signature ->
-  6. Account provisioned, lands on `/portal` with onboarding checklist.
-
-### Tier 4: Real-World Workload & Stress Scenarios
-- TC-W1: High-concurrency proposal generation stress (rapid sequential calculations without state leakage).
-- TC-W2: Duplicate webhook re-delivery and race condition resilience.
-- TC-W3: Multi-tab session resilience (token preserved when opening email links in new tabs).
-- TC-W4: Error boundary recovery under transient network failures.
-
----
-
-## 5. Execution & CI Verification Commands
+### Primary Runner (Ultra-Fast Standalone CLI)
+Executes directly via Node 24 native type stripping (`--experimental-strip-types`), completing in under **200 milliseconds** with rich ANSI reporting and tier breakdowns:
 
 ```bash
-# Run web workspace client journey E2E test suite
-npm --workspace=@bazionweb/web test -- client-journey.spec.ts
+# Standard run (exits with code 1 if tests fail)
+npm run test:e2e
 
-# Run api workspace client journey E2E test suite
-npm --workspace=@bazionweb/api test -- client-journey.e2e.spec.ts
+# Direct Node invocation
+node --no-warnings --experimental-strip-types scripts/run-e2e-audit-suite.ts
 
-# Run monorepo entire test suite (all packages)
-npm test
+# Diagnostic baseline mode (exits with code 0 for milestone verification)
+npm run test:e2e -- --allow-failures
+
+# Run specific tiers (e.g. Tier 1 and Tier 2 only)
+npm run test:e2e -- --tier=1,2
+
+# Filter by requirement or keyword (e.g. SEC, MKT, or POL)
+npm run test:e2e -- --filter=SEC
+
+# Condensed summary table only
+npm run test:e2e -- --summary
 ```
 
-All tests execute in mock/sandbox mode without external network dependencies, ensuring 100% reproducible local and CI/CD verification.
+### Jest E2E Runner (Next.js Test Harness)
+Integrated into the Next.js Web test harness:
+
+```bash
+# Execute Jest E2E audit suite
+npm --workspace=@bazionweb/web test -- audit-hardening.spec.ts
+```
+
+---
+
+## 3. Test Case Format & Conventions
+
+Every test case adheres to a strict identification pattern: `T<Tier>-<Category>-<Number>`.
+
+### ID Schema
+| Tier | Prefix | Description | Example |
+|---|---|---|---|
+| Tier 1 | `T1-SEC-*` | Security route access & edge middleware (R1) | `T1-SEC-01` |
+| Tier 1 | `T1-DEP-*` | Dependency security & hygiene (R4) | `T1-DEP-01` |
+| Tier 1 | `T1-FNT-*` | Font loading & typography optimization (R2.1) | `T1-FNT-01` |
+| Tier 1 | `T1-MKT-*` | Market cookie hydration & regional pricing (R2.2) | `T1-MKT-01` |
+| Tier 1 | `T1-POL-*` | Admin background polling controller (R2.3) | `T1-POL-01` |
+| Tier 1 | `T1-RSP-*` | Responsive layout & touch target compliance (R2.4) | `T1-RSP-01` |
+| Tier 1 | `T1-CQ-*`  | Code quality & technical debt refactoring (R3) | `T1-CQ-01` |
+| Tier 1 | `T1-ERR-*` | Error boundaries & centralized parsing (R3.4) | `T1-ERR-01` |
+| Tier 2 | `T2-TOK-*` | Malformed & adversarial token handling | `T2-TOK-01` |
+| Tier 2 | `T2-SES-*` | Expired sessions & single-use replay defense | `T2-SES-01` |
+| Tier 2 | `T2-GEO-*` | Edge geo-headers & country detection fallbacks | `T2-GEO-01` |
+| Tier 2 | `T2-MCK-*` | Corrupted & hostile cookie sanitization | `T2-MCK-01` |
+| Tier 2 | `T2-POL-*` | Admin polling interval clamping & backoff | `T2-POL-01` |
+| Tier 2 | `T2-BRK-*` | Extreme viewport breakpoints (320px to 4K) | `T2-BRK-01` |
+| Tier 3 | `T3-MKT-CHK-*` | Market cookie hydration + subscription checkout | `T3-MKT-CHK-01` |
+| Tier 3 | `T3-ADM-POL-*` | Admin impersonation + background polling lifecycle | `T3-ADM-POL-01` |
+| Tier 3 | `T3-EDG-GW-*`  | Edge middleware + API gateway + cryptographic separation | `T3-EDG-GW-01` |
+| Tier 4 | `T4-SCN-*` | Full end-to-end user & threat lifecycle journeys | `T4-SCN-01` |
+
+---
+
+## 4. Feature Coverage Matrix (Requirements R1–R5 to Test Cases)
+
+| Requirement | Scope & Milestone | Cataloged Features | E2E Test Cases | Status |
+|---|---|---|---|---|
+| **R1. Security Hardening** | M1: Route protection, key separation, gateway defenses | SEC-02, SEC-03, SEC-04, SEC-05 | `T1-SEC-01` to `T1-SEC-07`, `T2-TOK-01` to `T2-TOK-06`, `T3-EDG-GW-01` to `T3-EDG-GW-04`, `T4-SCN-04` | 13 Pass / 3 Pending |
+| **R2.1 Font Optimization** | M2: `@import` removal, Next.js font variables | PERF-01, PERF-02 | `T1-FNT-01` to `T1-FNT-06` | 2 Pass / 4 Pending |
+| **R2.2 Market Hydration** | M2: SSR regional resolution, zero USD flash | PERF-03, PERF-04 | `T1-MKT-01` to `T1-MKT-05`, `T2-GEO-01` to `T2-GEO-05`, `T2-MCK-01` to `T2-MCK-05`, `T3-MKT-CHK-01` to `04`, `T4-SCN-01` | 17 Pass / 2 Pending |
+| **R2.3 Admin Polling** | M2: Controlled polling, tab scoping, background pause | PERF-05, PERF-06, PERF-07 | `T1-POL-01` to `T1-POL-06`, `T2-POL-01` to `T2-POL-05`, `T3-ADM-POL-01` to `04`, `T4-SCN-03` | 10 Pass / 5 Pending |
+| **R2.4 Responsive Layouts** | M4: >= 44px touch targets, tablet & mobile polish | RESP-01 to RESP-09 | `T1-RSP-01` to `T1-RSP-08`, `T2-BRK-01` to `T2-BRK-05` | 10 Pass / 3 Pending |
+| **R3. Code Quality** | M3: Dead code, next/image, custom scrollbars, titles | CQ-02 to CQ-08, FIX-01, FIX-02 | `T1-CQ-01` to `T1-CQ-08`, `T1-ERR-01` to `T1-ERR-05`, `T4-SCN-05` | 6 Pass / 8 Pending |
+| **R4. Dependencies** | M1 / M3: npm audit overrides, unused packages | SEC-01, CQ-01 | `T1-DEP-01` to `T1-DEP-05` | 1 Pass / 4 Pending |
+| **R5. Full Verification** | M5: Complete monorepo certification | VERIF-01 to VERIF-03 | Full 4-Tier Test Suite (93 test cases) | Verified Ready |
+
+---
+
+## 5. Tier Breakdown & Test Definitions
+
+### Tier 1: Feature Coverage (44 Test Cases)
+Verifies discrete acceptance criteria for each requirement in isolation:
+- **Security Route Access**: Unauthenticated access to `/admin` and `/portal`, `x-internal-dispatch` header stripping, path traversal rejection, 1 MiB payload limits, strict `VAULT_MASTER_KEY` enforcement, and `INTERNAL_DISPATCH_SECRET` authorization.
+- **Dependencies**: Clean package.json structure, elimination of dead frontend libraries, root backend duplicates removed, `@types` placed in devDependencies.
+- **Font Optimization**: Elimination of Google Fonts `@import`, configuration of `var(--font-inter)` and `var(--font-outfit)` in Tailwind, Next.js font display swap.
+- **Market Hydration**: `MarketProvider` Context, East African geo-mapping (`KE`, `UG`, `TZ`, `RW`), server cookie precedence, synchronous `useMarketPreference`.
+- **Admin Polling**: `useAdminPolling` controller interface, background visibility pause, activeTool query scoping, admin toolbar UI controls.
+- **Responsive Layouts**: >= 44x44px touch targets (hamburger, nav links, cart, WhatsApp), responsive pricing cards on tablet, mobile payment tabs, table footer colSpan alignment, invalid CSS class removal.
+- **Code Quality**: Pruning dead components (`MarketSelectorModal`, etc.), `next/image` migration, custom scrollbar tokens, metadata title double branding fix, TypeScript type error resolution (`leads/route.ts`).
+- **Error Boundaries**: Root client error boundary (`app/error.tsx`), global root boundary (`app/global-error.tsx`), section error boundaries (`admin/error.tsx`, `portal/error.tsx`), centralized error helper (`error-helpers.ts`).
+
+### Tier 2: Boundary & Corner Cases (32 Test Cases)
+Verifies resilience against extreme, malformed, and adversarial inputs:
+- Empty, whitespace, truncated, and `alg: none` JWTs.
+- Tampered claims and signature mismatches.
+- Expired sessions, future `nbf` claims, single-use SHA-256 tokenHash replay attacks.
+- Missing, lowercase, multi-hop, and injected geo-headers.
+- Corrupted, unknown, and XSS market cookies.
+- Polling interval safe clamping (>= 5000ms), rapid state toggle resilience, tab flapping, in-flight deduplication, exponential error backoff.
+- Viewport boundary testing (320px, 640px, 768px, 1024px, 1280px, 2560px), large financial numbers formatting, and title truncation.
+
+### Tier 3: Cross-Feature Combinations (12 Test Cases)
+Verifies multi-module interactions across system boundaries:
+- **Market + Checkout**: East African cookie -> KES pricing -> cart item synchronization -> checkout currency preservation.
+- **Admin Impersonation + Polling**: Sandbox session storage isolation -> tab visibility pause -> active tab query scoping -> graceful 401 unauthenticated shutdown.
+- **Edge Middleware + Gateway + Crypto**: Edge route protection intercepting scanners before SSR bundle transmission -> Gateway stripping internal dispatch headers -> NestJS AES-256-GCM vault secret encryption with dedicated key -> cross-tenant IDOR defense with AAD.
+
+### Tier 4: Real-World Application Scenarios (5 Complete Journeys)
+Verifies complete, multi-stage user and threat lifecycles:
+1. **Anonymous East African Visitor Journey**: Nairobi connection (`cf-ipcountry: KE`) -> Zero USD flash -> KES catalog -> Quote Builder configuration -> Sanitized proposal creation with unique alphanumeric code.
+2. **International Client Onboarding Journey**: European connection -> USD pricing -> responsive checkout on mobile -> safe Paystack redirect domain verification -> SHA-256 single-use activation token dispatch.
+3. **Support Staff Troubleshooting Journey**: Staff MFA login (`acr: mfa`) -> Workstation entry -> active tool polling -> Admin Polling Control Bar pause/interval adjust -> tab switch to Webhook Failures -> accessible triage action buttons.
+4. **Edge Route Protection & Malicious Infiltration Defense**: Automated crawler scanner -> Edge middleware redirect -> path traversal `/api/v1/../../etc/passwd` rejected with HTTP 400 -> 5MB memory DoS rejected with HTTP 413.
+5. **Error Recovery & Application Resilience**: Downstream API service disruption (HTTP 503) -> centralized `parseApiError` extraction -> section error boundary catch -> user recovery via `reset()` action -> clean metadata title display.
+
+---
+
+## 6. Implementation Milestone Roadmap
+
+The test runner serves as the authoritative acceptance benchmark for the upcoming implementation milestones:
+- **Milestone M1**: Will resolve `T1-SEC-01`, `T1-SEC-02`, `T1-SEC-06`, `T1-SEC-07`, `T1-DEP-01`, `T1-CQ-07`, `T1-CQ-08`.
+- **Milestone M2**: Will resolve `T1-FNT-01` to `06`, `T1-MKT-01` to `05`, `T1-POL-01` to `06`.
+- **Milestone M3**: Will resolve `T1-DEP-02` to `05`, `T1-CQ-01` to `06`, `T1-ERR-01` to `05`.
+- **Milestone M4**: Will resolve `T1-RSP-01` to `08`.
+- **Milestone M5**: Final verification: 100% test pass rate (93/93 passing), 0 TypeScript errors, clean Next.js build.

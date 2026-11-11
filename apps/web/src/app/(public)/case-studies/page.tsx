@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Client Case Studies & Engineering Results | BazionWeb',
+  title: 'Client Case Studies & Engineering Results',
   description: 'Real client results: see how BazionWeb transformed website performance, online sales, and system reliability for healthcare networks, law firms, and NGOs.',
   alternates: { canonical: 'https://bazionweb.com/case-studies' },
 };

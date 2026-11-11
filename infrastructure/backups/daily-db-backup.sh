@@ -46,10 +46,12 @@ DUMP_SIZE=$(du -sh "$BACKUP_FILE" | cut -f1)
 log "Dump complete: ${DUMP_SIZE}"
 
 # ── Encrypt with AES-256 ─────────────────────────────────────────────────────
-openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 \
+# The key is piped to stdin (never a CLI argument), so it never appears in
+# shell history, `ps`, or child-process environments.
+printf '%s' "$ENCRYPTION_KEY" | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 \
   -in "$BACKUP_FILE" \
   -out "$ENCRYPTED_FILE" \
-  -k "$ENCRYPTION_KEY"
+  -pass stdin
 
 rm -f "$BACKUP_FILE"  # Remove unencrypted dump
 ENCRYPTED_SIZE=$(du -sh "$ENCRYPTED_FILE" | cut -f1)

@@ -1,7 +1,5 @@
-'use client';
-
 import Link from 'next/link';
-import { useMarketPreference } from '@/hooks/useMarketPreference';
+import MarketPriceText, { MarketPriceTag } from '@/components/market/MarketPrice';
 import { Check, ArrowRight, ShieldCheck } from 'lucide-react';
 import { SolutionAddonItem } from '@/lib/solutionsData';
 
@@ -18,11 +16,12 @@ interface BundleProps {
   addons: (string | SolutionAddonItem)[];
 }
 
+/**
+ * Server component — market-aware amounts are rendered by the tiny
+ * <MarketPriceText /> leaf island (no GLOBAL→KE price flash, no client
+ * re-render of the card). The surrounding page stays statically cacheable.
+ */
 export default function SolutionPricingCard({ bundle, addons }: BundleProps) {
-  const { market, marketDef } = useMarketPreference();
-  const buildPrice = market === 'kenya' ? bundle.packagePriceKenya : bundle.packagePriceIntl;
-  const carePrice = market === 'kenya' ? bundle.carePriceKenya : bundle.carePriceIntl;
-
   return (
     <div className="bg-white rounded-3xl border-2 border-[#0D9488]/40 shadow-xl overflow-hidden">
       <div className="bg-[#0F172A] text-white p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -36,12 +35,15 @@ export default function SolutionPricingCard({ bundle, addons }: BundleProps) {
 
         <div className="text-left md:text-right shrink-0">
           <div className="text-xs text-slate-400 font-medium">Build Investment</div>
-          <div className="text-3xl font-black text-white tracking-tight">{buildPrice}</div>
+          <div className="text-3xl font-black text-white tracking-tight">
+            <MarketPriceText ke={bundle.packagePriceKenya} global={bundle.packagePriceIntl} />
+          </div>
           <div className="text-xs text-teal-400 font-semibold mt-0.5">
-            + {bundle.carePlan} ({carePrice})
+            + {bundle.carePlan} (
+            <MarketPriceText ke={bundle.carePriceKenya} global={bundle.carePriceIntl} />)
           </div>
           <div className="flex items-center md:justify-end gap-1.5 text-[10px] text-slate-400 mt-1">
-            <span>{marketDef.flag} {marketDef.shortName} ({marketDef.currency})</span>
+            <span><MarketPriceTag /></span>
           </div>
         </div>
       </div>
@@ -74,13 +76,18 @@ export default function SolutionPricingCard({ bundle, addons }: BundleProps) {
           </h4>
           <div className="space-y-2 mb-6">
             {addons.map((addon, i) => {
-              const text = typeof addon === 'string'
+              const component = typeof addon === 'string'
                 ? addon
-                : `${addon.title} (${market === 'kenya' ? addon.priceKenya : addon.priceIntl})`;
+                : (
+                  <span>
+                    {addon.title} (
+                    <MarketPriceText ke={addon.priceKenya} global={addon.priceIntl} />)
+                  </span>
+                );
               return (
                 <div key={i} className="flex items-center gap-2 text-xs font-medium text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#0D9488]" />
-                  <span>{text}</span>
+                  <span>{component}</span>
                 </div>
               );
             })}
@@ -95,7 +102,7 @@ export default function SolutionPricingCard({ bundle, addons }: BundleProps) {
             </Link>
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-              <span>100% Client Asset & Data Ownership Guaranteed</span>
+              <span>100% Client Asset &amp; Data Ownership Guaranteed</span>
             </div>
           </div>
         </div>
