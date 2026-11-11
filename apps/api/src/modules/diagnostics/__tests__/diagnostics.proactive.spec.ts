@@ -1,3 +1,4 @@
+import * as dns from 'dns';
 import { ConfigService } from '@nestjs/config';
 import { AdminDiagnosticsService } from '../diagnostics.service';
 import { AdminDiagnosticsController } from '../diagnostics.controller';
@@ -170,6 +171,7 @@ describe('AdminDiagnosticsService - Proactive Intelligence & Anomaly Remediation
     });
 
     it('TC-PA-1.3: executes one-click SSL remediation (REFRESH_SSL & REISSUE_SSL)', async () => {
+      jest.spyOn(dns.promises, 'resolve4').mockResolvedValue(['198.51.100.1']);
       const mockAccount = {
         id: 'host-1',
         domain: 'renew-ssl.com',
