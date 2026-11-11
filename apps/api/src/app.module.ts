@@ -21,6 +21,7 @@ import { envValidationSchema } from './config/env.validation';
 import { PricingModule } from './modules/pricing/pricing.module';
 import { VaultModule } from './modules/vault/vault.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
+import { PlatformProvisioningModule } from './modules/platform-provisioning/platform-provisioning.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
     PricingModule,
     VaultModule,
     DiagnosticsModule,
+    PlatformProvisioningModule,
   ],
   providers: [AuditInterceptor, MfaGuard, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

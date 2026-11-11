@@ -72,4 +72,17 @@ export const envValidationSchema = Joi.object({
   BANK_ADDRESS_LINE: Joi.string().optional().allow(''),
   BANK_ADDRESS_CITY: Joi.string().optional().allow(''),
   BANK_ADDRESS_COUNTRY: Joi.string().optional().allow(''),
+
+  // Bazion Platform Provisioning Synchronization (Phase 3)
+  PLATFORM_API_BASE_URL: Joi.string().uri().optional().allow(''),
+  PLATFORM_PROVISIONING_COMMAND_SECRET: Joi.string().min(32).optional().allow(''),
+  PLATFORM_PROVISIONING_COMMAND_ISSUER: Joi.string().optional().default('bazionweb'),
+  PLATFORM_PROVISIONING_COMMAND_AUDIENCE: Joi.string().optional().default('bazion-platform:commercial-provisioning'),
+  PLATFORM_CALLBACK_SIGNING_SECRET: Joi.string().min(32).optional().allow(''),
+  PLATFORM_CALLBACK_BEARER_SECRET: Joi.string().min(32).optional().allow(''),
+  PLATFORM_CALLBACK_MAX_SKEW_SECONDS: Joi.number().integer().min(30).max(900).default(300),
+  PLATFORM_PROVISIONING_WORKER_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  PLATFORM_PROVISIONING_BATCH_SIZE: Joi.number().integer().min(1).max(50).default(10),
+  PLATFORM_PROVISIONING_LEASE_SECONDS: Joi.number().integer().min(30).max(900).default(120),
+  PLATFORM_PROVISIONING_TIMEOUT_MS: Joi.number().integer().min(500).max(30000).default(5000),
 });

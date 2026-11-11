@@ -1963,6 +1963,10 @@ export class AdminDiagnosticsService {
             lineItems: invoice.lineItems,
           }).catch(() => undefined);
 
+          if (typeof (this.settlement as any)?.enqueueProvisioningOutbox === 'function') {
+            await (this.settlement as any).enqueueProvisioningOutbox(tx, invoice);
+          }
+
           await tx.auditLog
             .create({
               data: {

@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
 import { provisionProjectFromProposalInvoice } from '../projects/project-provisioning.util';
+import { PlatformProvisioningOutboxService } from '../platform-provisioning/platform-provisioning-outbox.service';
 
 export type CheckoutPurpose = 'subscription' | 'invoice_payment';
 
@@ -91,7 +92,22 @@ export class PaymentSettlementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paystack: PaystackService,
+    private readonly provisioningOutbox: PlatformProvisioningOutboxService,
   ) {}
+
+  async enqueueProvisioningOutbox(
+    tx: any,
+    invoice: {
+      id: string;
+      clientId: string;
+      subscriptionId: string | null;
+      invoiceNumber?: string;
+      lineItems?: unknown;
+      client?: any;
+    },
+  ): Promise<void> {
+    await this.provisioningOutbox.enqueueForSettledInvoice(tx, invoice);
+  }
 
   /**
    * Idempotent subscription activation. Plan is taken from the invoice
@@ -144,6 +160,7 @@ export class PaymentSettlementService {
       }).catch((err: Error) =>
         this.logger.warn(`Proposal project provisioning failed for invoice ${invoice.id}: ${err.message}`),
       );
+      await this.enqueueProvisioningOutbox(tx, invoice);
       return;
     }
 
@@ -229,6 +246,8 @@ export class PaymentSettlementService {
       where: { id: invoice.clientId },
       data: { status: 'ACTIVE', ...(planId ? { planId } : {}) },
     }).catch((err: Error) => this.logger.warn(`Client status update failed: ${err.message}`));
+
+    await this.enqueueProvisioningOutbox(tx, invoice);
   }
 
   private amountsMatch(paid: number, expected: number, currency: string, invoiceCurrency: string): boolean {

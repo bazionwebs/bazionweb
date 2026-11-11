@@ -291,6 +291,8 @@ model Client {
   wiseReceivingAccounts WiseReceivingAccount[]
   paymentLogs          PaymentLog[]
   vaultSecrets         VaultSecret[]
+  platformOutboxEntries PlatformProvisioningOutbox[]
+  platformProvisioningProjections PlatformProvisioningProjection[]
 
   @@index([planId])
   @@index([status])
@@ -453,6 +455,7 @@ model Invoice {
   subscription         Subscription?         @relation(fields: [subscriptionId], references: [id])
   wiseReceivingAccount WiseReceivingAccount?
   paymentLogs          PaymentLog[]
+  platformOutboxEntries PlatformProvisioningOutbox[]
 
   @@index([clientId])
   @@index([subscriptionId])
@@ -833,5 +836,94 @@ model PricingAuditLog {
   @@index([changedBy])
   @@index([timestamp])
   @@map("pricing_audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLATFORM PROVISIONING OUTBOX & STATUS PROJECTION (Phase 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PlatformOutboxStatus {
+  PENDING
+  PROCESSING
+  ACCEPTED
+  DEAD
+}
+
+model PlatformProvisioningOutbox {
+  id                  String               @id @default(uuid())
+  invoiceId           String               @map("invoice_id")
+  clientId            String               @map("client_id")
+  subscriptionId      String?              @map("subscription_id")
+  lineIndex           Int                  @map("line_index")
+  schemaVersion       String               @default("1.0.0") @map("schema_version")
+  eventId             String               @unique @map("event_id")
+  correlationId       String               @map("correlation_id")
+  idempotencyKey      String               @unique @map("idempotency_key")
+  requestFingerprint  String               @map("request_fingerprint")
+  externalCustomerId  String               @map("external_customer_id")
+  externalOrderId     String               @unique @map("external_order_id")
+  payload             Json
+  status              PlatformOutboxStatus @default(PENDING)
+  attemptCount        Int                  @default(0) @map("attempt_count")
+  maxAttempts         Int                  @default(8) @map("max_attempts")
+  leaseToken          String?              @map("lease_token")
+  leaseExpiresAt      DateTime?            @map("lease_expires_at")
+  nextAttemptAt       DateTime             @default(now()) @map("next_attempt_at")
+  platformOperationId String?              @map("platform_operation_id")
+  lastHttpStatus      Int?                 @map("last_http_status")
+  lastErrorCode       String?              @map("last_error_code")
+  acceptedAt          DateTime?            @map("accepted_at")
+  deadLetteredAt      DateTime?            @map("dead_lettered_at")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  invoice             Invoice              @relation(fields: [invoiceId], references: [id])
+  client              Client               @relation(fields: [clientId], references: [id])
+  projection          PlatformProvisioningProjection?
+
+  @@unique([invoiceId, lineIndex])
+  @@index([status, nextAttemptAt])
+  @@index([clientId, createdAt])
+  @@map("platform_provisioning_outbox")
+}
+
+model PlatformProvisioningProjection {
+  id                 String   @id @default(uuid())
+  operationId        String   @unique @map("operation_id")
+  outboxId           String?  @unique @map("outbox_id")
+  clientId           String?  @map("client_id")
+  externalOrderId    String   @unique @map("external_order_id")
+  status             String
+  currentStep        String?  @map("current_step")
+  platformTenantId   String?  @map("platform_tenant_id")
+  installationId     String?  @map("installation_id")
+  failureCode        String?  @map("failure_code")
+  failureRetryable   Boolean? @map("failure_retryable")
+  lastEventId        String?  @map("last_event_id")
+  lastCorrelationId  String?  @map("last_correlation_id")
+  platformUpdatedAt  DateTime @map("platform_updated_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  outbox             PlatformProvisioningOutbox? @relation(fields: [outboxId], references: [id])
+  client             Client?                     @relation(fields: [clientId], references: [id])
+
+  @@index([clientId, status])
+  @@index([status, platformUpdatedAt])
+  @@map("platform_provisioning_projections")
+}
+
+model PlatformCallbackInbox {
+  id             String   @id @default(uuid())
+  eventId        String   @unique @map("event_id")
+  correlationId  String   @map("correlation_id")
+  operationId    String   @map("operation_id")
+  eventType      String   @map("event_type")
+  statusSnapshot String   @map("status_snapshot")
+  occurredAt     DateTime @map("occurred_at")
+  receivedAt     DateTime @default(now()) @map("received_at")
+
+  @@index([operationId, receivedAt])
+  @@map("platform_callback_inbox")
 }
 
