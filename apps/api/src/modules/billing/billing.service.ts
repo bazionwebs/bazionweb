@@ -40,6 +40,7 @@ import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { checkoutLineItem, PaymentSettlementService } from './payment-settlement.service';
 import { SubscriptionDunningService } from './subscription-dunning.service';
+import { PlatformProvisioningCatalogService } from '../platform-provisioning/provisioning-catalog.service';
 import {
   CANONICAL_CATALOG_PRICES,
   CanonicalCatalogEntry,
@@ -83,6 +84,7 @@ export class BillingService {
     private readonly settlement: PaymentSettlementService,
     private readonly config: ConfigService,
     @Optional() private readonly dunningService?: SubscriptionDunningService,
+    @Optional() private readonly platformCatalogService?: PlatformProvisioningCatalogService,
   ) {}
 
   private async resolveClient(user: any, fallback: { businessName: string; contactName: string; email: string; phone?: string; planId: string }) {
@@ -487,7 +489,7 @@ export class BillingService {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
 
-    const invoiceLineItems = [
+    const invoiceLineItems = await this.pinPlatformProvisioningBindings([
       ...(plan
         ? [
             checkoutLineItem({
@@ -501,7 +503,7 @@ export class BillingService {
           ]
         : []),
       ...extraItems,
-    ];
+    ]);
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -705,7 +707,7 @@ export class BillingService {
     dueDate.setDate(dueDate.getDate() + 3);
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
 
-    const invoiceLineItems = [
+    const invoiceLineItems = await this.pinPlatformProvisioningBindings([
       ...(plan
         ? [
             checkoutLineItem({
@@ -719,7 +721,7 @@ export class BillingService {
           ]
         : []),
       ...extraItems,
-    ];
+    ]);
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -937,7 +939,7 @@ export class BillingService {
     dueDate.setDate(dueDate.getDate() + 3);
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://bazionweb.com');
 
-    const invoiceLineItems = [
+    const invoiceLineItems = await this.pinPlatformProvisioningBindings([
       ...(plan
         ? [
             checkoutLineItem({
@@ -951,7 +953,7 @@ export class BillingService {
           ]
         : []),
       ...extraItems,
-    ];
+    ]);
 
     const invoice = await this.prisma.invoice.create({
       data: {
@@ -1107,7 +1109,7 @@ export class BillingService {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 14); // Net 14-day corporate payment terms
 
-    const invoiceLineItems = [
+    const invoiceLineItems = await this.pinPlatformProvisioningBindings([
       ...(plan
         ? [
             checkoutLineItem({
@@ -1121,7 +1123,7 @@ export class BillingService {
           ]
         : []),
       ...extraItems,
-    ];
+    ]);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.create({
@@ -1213,6 +1215,13 @@ export class BillingService {
    * The client only sends product IDs and quantities — amounts, descriptions,
    * and validity always come from the server so totals cannot be tampered with.
    */
+  private async pinPlatformProvisioningBindings<T extends { productId?: string | null; platformProvisioningBinding?: unknown }>(
+    lineItems: readonly T[],
+  ): Promise<any[]> {
+    return this.platformCatalogService
+      ? this.platformCatalogService.pinLineItems(lineItems)
+      : [...lineItems];
+  }
   private async priceCartExtras(
     currency: 'KES' | 'USD',
     extras?: CartExtraDto[],

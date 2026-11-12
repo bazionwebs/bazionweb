@@ -81,6 +81,23 @@ function signCallbackHeaders(
   };
 }
 
+function catalogSnapshot(offerId: string) {
+  return {
+    schemaVersion: '1.0.0' as const,
+    catalogGeneratedAt: '2026-11-12T00:00:00.000Z',
+    binding: {
+      offer: { id: offerId, version: '2026.1.0' },
+      composition: {
+        product: { id: 'bazion-site', version: '1.0.0' },
+        solution: { id: 'business-website', version: '1.0.0' },
+        template: { id: 'node-nextjs', version: '1.0.0' },
+      },
+      requiredModules: [{ id: 'website-content', version: '1.0.0' }],
+      optionalModules: [],
+      distributionMode: 'shared-managed' as const,
+    },
+  };
+}
 describePg('PostgreSQL Commercial Provisioning Outbox, Worker, Callback & Reconciliation', () => {
   jest.setTimeout(30_000);
 
@@ -172,6 +189,7 @@ describePg('PostgreSQL Commercial Provisioning Outbox, Worker, Callback & Reconc
             planId: plan.id,
             productId: 'website-business',
             purpose: 'subscription',
+            platformProvisioningBinding: catalogSnapshot('website-business'),
           }),
         ],
       },

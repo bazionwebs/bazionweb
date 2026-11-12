@@ -673,6 +673,25 @@ describe('BillingService', () => {
     });
 
     it('supports stack-only checkout (planId="none") with domain-com, website-launch, and host-business without forcing a Care Plan', async () => {
+      const platformBinding = {
+        schemaVersion: '1.0.0',
+        catalogGeneratedAt: '2026-11-12T00:00:00.000Z',
+        binding: {
+          offer: { id: 'website-launch', version: '1.0.0' },
+          composition: {
+            product: { id: 'bazion-site', version: '1.0.0' },
+            solution: { id: 'sme-website', version: '1.0.0' },
+            template: { id: 'church-ministry', version: '1.0.0' },
+          },
+          requiredModules: [{ id: 'website-content', version: '1.0.0' }],
+          optionalModules: [],
+          distributionMode: 'shared-managed',
+        },
+      };
+      const pinLineItems = jest.fn(async (items: any[]) => items.map((item) =>
+        item.productId === 'website-launch' ? { ...item, platformProvisioningBinding: platformBinding } : item,
+      ));
+      (service as any).platformCatalogService = { pinLineItems };
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'user-stack-1', email: guestDto.email });
       mockPrisma.client.findUnique.mockResolvedValue(null);
@@ -710,6 +729,12 @@ describe('BillingService', () => {
       const createdInvoice = mockPrisma.invoice.create.mock.calls[0][0].data;
       expect(createdInvoice.amount).toBe(569);
       expect(createdInvoice.lineItems).toHaveLength(3);
+      expect(pinLineItems).toHaveBeenCalledTimes(1);
+      expect(createdInvoice.lineItems[0]).toMatchObject({
+        productId: 'website-launch',
+        platformProvisioningBinding: platformBinding,
+      });
+      expect(createdInvoice.lineItems[1].platformProvisioningBinding).toBeUndefined();
     });
   });
 
