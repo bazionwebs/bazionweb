@@ -116,6 +116,19 @@ describe('Bazion platform provisioning & lifecycle contract v1 (Ajv strict parit
     },
   );
 
+  it('accepts an optional Platform hosting deployment UUID in operation snapshots and signed status events', () => {
+    const operation = fixtures.provisioningOperation.valid[0]?.payload as Record<string, unknown>;
+    const event = fixtures.provisioningStatusEvent.valid[0]?.payload as Record<string, unknown>;
+    const deploymentId = '22222222-2222-4222-8222-222222222222';
+    expect(validateProvisioningOperationV1Contract({ ...operation, hostingDeploymentId: deploymentId }).valid).toBe(true);
+    expect(validateProvisioningOperationV1Contract({ ...operation, hostingDeploymentId: 'not-a-uuid' }).valid).toBe(false);
+    const eventOperation = event.operation as Record<string, unknown>;
+    expect(validateProvisioningStatusEventV1Contract({
+      ...event,
+      operation: { ...eventOperation, hostingDeploymentId: deploymentId },
+    }).valid).toBe(true);
+  });
+
   it('normalizes mixed-case whitespace contact email before emission while wire validator stays strict', () => {
     const built = buildProvisioningRequestsForSettledInvoice({
       invoice: {

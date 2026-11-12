@@ -126,6 +126,8 @@ export interface ProvisioningOperationV1 {
   currentStep: string | null;
   tenantId: string | null;
   installationId: string | null;
+  requestedDomain?: string | null;
+  hostingDeploymentId?: string | null;
   failure: { code: string; retryable: boolean } | null;
   updatedAt: string;
 }

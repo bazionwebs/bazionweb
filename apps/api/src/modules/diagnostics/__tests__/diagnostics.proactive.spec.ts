@@ -86,6 +86,7 @@ describe('AdminDiagnosticsService - Proactive Intelligence & Anomaly Remediation
     };
 
     dokployMock = {
+      providerName: 'DokployProvider',
       bindDomain: jest.fn().mockResolvedValue({ domainId: 'dok-1', verified: true }),
     };
 

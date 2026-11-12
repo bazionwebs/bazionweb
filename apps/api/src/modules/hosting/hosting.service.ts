@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, Optional } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, ConflictException, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HostingStatus } from '@prisma/client';
@@ -12,6 +12,34 @@ import { resolveServerTopology } from './constants/server-topologies.config';
 import { EmailRoutingHelper, EmailDnsConfig } from './email/email-routing.helper';
 import { DatabaseTenancyHelper, TenantDatabaseConfig } from './database/database-tenancy.helper';
 import { RedisTenancyHelper, TenantRedisConfig } from './cache/redis-tenancy.helper';
+
+const deploymentMappingEvidencePattern = /^(?:CHG|INC|MIG|ROLLBACK|DRILL|TICKET)[-:/#][A-Za-z0-9][A-Za-z0-9._:/#-]{2,292}$/i;
+
+function toHostingReadModel(account: Record<string, any>): Record<string, any> {
+  const publicAccount = { ...account };
+  const isPlatformLinked = Boolean(account.platformDeploymentId);
+  const platformProjection = account.platformProjection;
+  delete publicAccount.platformDeploymentId;
+  delete publicAccount.platformDeploymentMappedAt;
+  delete publicAccount.platformDeploymentMappedBy;
+  delete publicAccount.platformDeploymentMappingEvidence;
+  delete publicAccount.platformProjection;
+  if (isPlatformLinked) {
+    delete publicAccount.deploymentProvider;
+    delete publicAccount.providerWorkloadId;
+  }
+
+  return {
+    ...publicAccount,
+    platformProvisioning: platformProjection
+      ? {
+          status: platformProjection.status,
+          currentStep: platformProjection.currentStep,
+          updatedAt: platformProjection.platformUpdatedAt,
+        }
+      : null,
+  };
+}
 
 export function isPrivateOrReservedIp(ip: string): boolean {
   const normalized = ip.toLowerCase().trim();
@@ -77,6 +105,7 @@ export class HostingService {
         where,
         include: {
           client: { select: { businessName: true, plan: true } },
+          platformProjection: { select: { status: true, currentStep: true, platformUpdatedAt: true } },
           _count: { select: { backups: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -86,7 +115,7 @@ export class HostingService {
     ]);
 
     return {
-      data: items,
+      data: items.map((account) => toHostingReadModel(account as any)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -98,6 +127,7 @@ export class HostingService {
     const accounts = await this.prisma.hostingAccount.findMany({
       where: { clientId: client.id, deletedAt: null },
       include: {
+        platformProjection: { select: { status: true, currentStep: true, platformUpdatedAt: true } },
         backups: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -105,7 +135,7 @@ export class HostingService {
       },
     });
 
-    return { data: accounts };
+    return { data: accounts.map((account) => toHostingReadModel(account as any)) };
   }
 
   async findOne(id: string, user: any) {
@@ -113,6 +143,7 @@ export class HostingService {
       where: { id },
       include: {
         client: { include: { plan: true } },
+        platformProjection: { select: { status: true, currentStep: true, platformUpdatedAt: true } },
         backups: { orderBy: { createdAt: 'desc' }, take: 10 },
       },
     });
@@ -121,7 +152,7 @@ export class HostingService {
     const isStaff = ['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].some(r => user.roles?.includes(r));
     if (!isStaff && account.client.userId !== user.id) throw new ForbiddenException('Access denied');
 
-    return { data: account };
+    return { data: toHostingReadModel(account as any) };
   }
 
   /**
@@ -457,6 +488,9 @@ export class HostingService {
   async updateAccount(id: string, dto: Record<string, unknown>) {
     const account = await this.prisma.hostingAccount.findUnique({ where: { id } });
     if (!account || account.deletedAt) throw new NotFoundException('Hosting account not found');
+    if (account.platformDeploymentId && dto.status !== undefined && dto.status !== account.status) {
+      throw new ConflictException('Platform-linked hosting status is read-only in Bazionweb; manage its deployment in Bazion Platform.');
+    }
 
     const updated = await this.prisma.hostingAccount.update({
       where: { id },
@@ -465,5 +499,173 @@ export class HostingService {
     });
 
     return { data: updated };
+  }
+
+  async linkPlatformDeployment(
+    id: string,
+    platformDeploymentId: string,
+    evidenceRef: string,
+    actor: { id?: string },
+  ) {
+    const cleanEvidenceRef = typeof evidenceRef === 'string' ? evidenceRef.trim() : '';
+    if (!deploymentMappingEvidencePattern.test(cleanEvidenceRef)) {
+      throw new BadRequestException('A valid change ticket or migration evidence reference is required.');
+    }
+    if (!actor?.id) throw new ForbiddenException('An authenticated operator is required to record a deployment mapping.');
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const account = await tx.hostingAccount.findUnique({
+          where: { id },
+          select: {
+            id: true,
+            clientId: true,
+            domain: true,
+            deletedAt: true,
+            platformDeploymentId: true,
+          },
+        });
+        if (!account || account.deletedAt) throw new NotFoundException('Hosting account not found');
+
+        const projection = await tx.platformProvisioningProjection.findUnique({
+          where: { platformDeploymentId },
+          select: {
+            id: true,
+            clientId: true,
+            platformTenantId: true,
+            requestedDomain: true,
+            platformDeploymentId: true,
+            status: true,
+            externalOrderId: true,
+          },
+        });
+        if (!projection) throw new NotFoundException('Platform deployment projection not found');
+        if (projection.status !== 'ready' || !projection.platformTenantId) {
+          throw new ConflictException('Only a ready Platform provisioning operation can be linked.');
+        }
+        if (!projection.clientId || projection.clientId !== account.clientId) {
+          throw new ConflictException('Hosting account and Platform deployment belong to different or unresolved clients.');
+        }
+        const normalizedAccountDomain = account.domain.trim().toLowerCase().replace(/\.$/, '');
+        const normalizedRequestedDomain = projection.requestedDomain?.trim().toLowerCase().replace(/\.$/, '');
+        if (!normalizedRequestedDomain || normalizedRequestedDomain !== normalizedAccountDomain) {
+          throw new ConflictException('The Platform order domain does not exactly match the legacy hosting account domain.');
+        }
+        if (account.platformDeploymentId) {
+          if (account.platformDeploymentId === platformDeploymentId) {
+            return { data: { hostingAccountId: account.id, platformDeploymentId, alreadyLinked: true } };
+          }
+          throw new ConflictException('This hosting account is already linked to a different Platform deployment.');
+        }
+
+        const now = new Date();
+        const linked = await tx.hostingAccount.updateMany({
+          where: { id: account.id, deletedAt: null, platformDeploymentId: null },
+          data: {
+            platformDeploymentId,
+            platformDeploymentMappedAt: now,
+            platformDeploymentMappedBy: actor.id,
+            platformDeploymentMappingEvidence: cleanEvidenceRef,
+          },
+        });
+        if (linked.count !== 1) {
+          throw new ConflictException('Hosting account mapping changed concurrently; reload and verify before retrying.');
+        }
+
+        await tx.auditLog.create({
+          data: {
+            userId: actor.id,
+            action: 'hosting.platform_deployment.link',
+            resourceType: 'HostingAccount',
+            resourceId: account.id,
+            oldValue: { platformDeploymentId: null },
+            newValue: {
+              platformDeploymentId,
+              externalOrderId: projection.externalOrderId,
+              domain: normalizedAccountDomain,
+              evidenceRef: cleanEvidenceRef,
+            },
+          },
+        });
+
+        return {
+          data: {
+            hostingAccountId: account.id,
+            platformDeploymentId,
+            alreadyLinked: false,
+            mappedAt: now.toISOString(),
+            evidenceRef: cleanEvidenceRef,
+          },
+        };
+      });
+    } catch (error) {
+      if (error instanceof ConflictException || error instanceof NotFoundException || error instanceof BadRequestException || error instanceof ForbiddenException) {
+        throw error;
+      }
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new ConflictException('This Platform deployment is already linked to another hosting account.');
+      }
+      throw error;
+    }
+  }
+
+  async unlinkPlatformDeployment(id: string, evidenceRef: string, actor: { id?: string }) {
+    const cleanEvidenceRef = typeof evidenceRef === 'string' ? evidenceRef.trim() : '';
+    if (!deploymentMappingEvidencePattern.test(cleanEvidenceRef)) {
+      throw new BadRequestException('A valid rollback change ticket or drill evidence reference is required.');
+    }
+    if (!actor?.id) throw new ForbiddenException('An authenticated operator is required to record a deployment rollback.');
+
+    return this.prisma.$transaction(async (tx) => {
+      const account = await tx.hostingAccount.findUnique({
+        where: { id },
+        select: { id: true, domain: true, deletedAt: true, platformDeploymentId: true, platformDeploymentMappingEvidence: true },
+      });
+      if (!account || account.deletedAt) throw new NotFoundException('Hosting account not found');
+      if (!account.platformDeploymentId) {
+        return { data: { hostingAccountId: account.id, platformDeploymentId: null, alreadyUnlinked: true } };
+      }
+
+      const deploymentId = account.platformDeploymentId;
+      const result = await tx.hostingAccount.updateMany({
+        where: { id: account.id, deletedAt: null, platformDeploymentId: deploymentId },
+        data: {
+          platformDeploymentId: null,
+          platformDeploymentMappedAt: null,
+          platformDeploymentMappedBy: null,
+          platformDeploymentMappingEvidence: null,
+        },
+      });
+      if (result.count !== 1) {
+        throw new ConflictException('Hosting account mapping changed concurrently; reload before retrying the rollback.');
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: actor.id,
+          action: 'hosting.platform_deployment.unlink',
+          resourceType: 'HostingAccount',
+          resourceId: account.id,
+          oldValue: {
+            platformDeploymentId: deploymentId,
+            mappingEvidenceRef: account.platformDeploymentMappingEvidence,
+          },
+          newValue: {
+            platformDeploymentId: null,
+            rollbackEvidenceRef: cleanEvidenceRef,
+            domain: account.domain.trim().toLowerCase().replace(/\.$/, ''),
+          },
+        },
+      });
+
+      return {
+        data: {
+          hostingAccountId: account.id,
+          platformDeploymentId: null,
+          alreadyUnlinked: false,
+          rollbackEvidenceRef: cleanEvidenceRef,
+        },
+      };
+    });
   }
 }

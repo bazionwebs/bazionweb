@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { HostingService } from './hosting.service';
-import { CreateHostingAccountDto, UpdateHostingAccountDto } from './dto/create-hosting-account.dto';
+import { CreateHostingAccountDto, MapPlatformHostingDeploymentDto, UnmapPlatformHostingDeploymentDto, UpdateHostingAccountDto } from './dto/create-hosting-account.dto';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
 import { SubscriptionGuard } from '../../common/guards/subscription.guard';
 
@@ -52,6 +52,30 @@ export class HostingController {
     @Body() dto: UpdateHostingAccountDto,
   ) {
     return this.svc.updateAccount(id, dto as Record<string, unknown>);
+  }
+
+  /** Admin: link a legacy hosting row to a confirmed Platform deployment for dual-read cutover review. */
+  @Post(':id/platform-deployment-link')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Map hosting account to a verified Platform deployment with audit evidence' })
+  linkPlatformDeployment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MapPlatformHostingDeploymentDto,
+    @Request() req: any,
+  ) {
+    return this.svc.linkPlatformDeployment(id, dto.platformDeploymentId, dto.evidenceRef, req.user);
+  }
+
+  /** Admin: restore the legacy read/mutation route during a documented rollback drill. */
+  @Post(':id/platform-deployment-unlink')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Unlink a Platform deployment with rollback evidence' })
+  unlinkPlatformDeployment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UnmapPlatformHostingDeploymentDto,
+    @Request() req: any,
+  ) {
+    return this.svc.unlinkPlatformDeployment(id, dto.evidenceRef, req.user);
   }
 
   /** Any authenticated user: get specific hosting account (scope-checked) */

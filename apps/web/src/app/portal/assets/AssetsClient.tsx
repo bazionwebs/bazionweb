@@ -130,6 +130,11 @@ export default function AssetsClient() {
                         <span className={cn('px-2.5 py-0.5 rounded-full text-[11px] font-bold border', badgeClass)}>
                           {titleCase(account.status)}
                         </span>
+                        {account.platformProvisioning && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-indigo-200 bg-indigo-50 text-indigo-700">
+                            Platform managed
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-slate-400 mt-0.5">
                         {account.plan} · Node: <span className="font-mono text-slate-600">{account.server}</span>
@@ -147,6 +152,19 @@ export default function AssetsClient() {
                     Visit Live Domain <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
+
+                {account.platformProvisioning && (
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-xs text-indigo-950">
+                    <span className="font-bold">Platform provisioning:</span>{' '}
+                    {titleCase(account.platformProvisioning.status)}
+                    {account.platformProvisioning.currentStep
+                      ? ` · ${titleCase(account.platformProvisioning.currentStep.replaceAll('_', ' '))}`
+                      : ''}
+                    {account.platformProvisioning.updatedAt
+                      ? ` · Updated ${formatDate(account.platformProvisioning.updatedAt)}`
+                      : ''}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100 text-xs">
                   <div className="p-3 rounded-xl bg-slate-50">

@@ -53,6 +53,10 @@ interface CartState {
   add: (item: Omit<CartItem, 'key'>) => void;
   remove: (key: string) => void;
   setQty: (key: string, qty: number) => void;
+  updateItem: (
+    key: string,
+    updates: Partial<Omit<CartItem, 'key'>> & { id?: string; cycle?: string; unitPrice?: number; name?: string }
+  ) => void;
   clear: () => void;
 }
 
@@ -104,6 +108,20 @@ export const useCartStore = create<CartState>()(
             i.key === key ? { ...i, qty: Math.max(1, Math.min(10, qty)) } : i,
           ),
         })),
+      updateItem: (key, updates) =>
+        set((state) => {
+          const existing = state.items.find((i) => i.key === key);
+          if (!existing) return state;
+          const nextItem: CartItem = {
+            ...existing,
+            ...updates,
+            key: '',
+          };
+          nextItem.key = makeKey(nextItem);
+          return {
+            items: state.items.map((i) => (i.key === key ? nextItem : i)),
+          };
+        }),
       clear: () => set({ items: [] }),
     }),
     { name: 'bazionweb-cart', storage: createJSONStorage(() => localStorage), version: 1 },

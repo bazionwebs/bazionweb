@@ -875,7 +875,30 @@ export default function SubscriptionCheckout({
                             <button
                               key={meta.enumValue}
                               type="button"
-                              onClick={() => setBillingCycle(meta.enumValue as CheckoutCycle)}
+                              onClick={() => {
+                                const newCycle = meta.enumValue as CheckoutCycle;
+                                setBillingCycle(newCycle);
+                                if (cartPlanItem && currentPlan) {
+                                  const baseMonthly = isKe
+                                    ? (currentPlan.priceMonthlyKes || currentPlan.priceMonthly * 130)
+                                    : currentPlan.priceMonthly;
+                                  const baseAnnual = isKe ? currentPlan.priceAnnualKes : currentPlan.priceAnnual;
+                                  const cyclePrice = calculatePlanCyclePrice(baseMonthly, newCycle, {
+                                    canonicalAnnualAmount: baseAnnual,
+                                    isKes: isKe,
+                                  });
+                                  const addFn = useCartStore.getState().add;
+                                  addFn({
+                                    kind: 'PLAN',
+                                    id: currentPlan.slug,
+                                    name: `${currentPlan.name} (${meta.label})`,
+                                    cycle: newCycle,
+                                    qty: 1,
+                                    unitPrice: cyclePrice.amount,
+                                    currency: isKe ? 'KES' : 'USD',
+                                  });
+                                }
+                              }}
                               className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
                                 isSelected
                                   ? 'bg-[#2563EB] text-white shadow-2xs'

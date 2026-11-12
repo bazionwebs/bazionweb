@@ -175,6 +175,11 @@ export interface ApiHostingAccount {
   plan: string;
   status: string;
   sslExpiry: string | null;
+  platformProvisioning?: {
+    status: string;
+    currentStep: string | null;
+    updatedAt: string | null;
+  } | null;
   createdAt?: string | null;
   backups?: ApiHostingBackup[];
 }
