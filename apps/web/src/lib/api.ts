@@ -208,6 +208,9 @@ export const adminApi = {
   listHosting: () =>
     api.get('/hosting', { params: { limit: 100 } }).then(r => r.data),
 
+  getHostingCutoverReport: (page = 1, limit = 50) =>
+    api.get('/admin/platform-provisioning/hosting-cutover', { params: { page, limit } }).then(r => r.data),
+
   listProjects: (params: { page?: number; limit?: number } = {}) =>
     api.get('/projects', { params: { limit: 50, ...params } }).then(r => r.data),
 

@@ -39,6 +39,50 @@ export interface AdminUptime {
   summary: UptimeSite[];
 }
 
+export type AdminHostingCutoverClassification =
+  | 'linked'
+  | 'linked_projection_missing'
+  | 'linked_client_mismatch'
+  | 'linked_domain_mismatch'
+  | 'linked_domain_collision'
+  | 'linked_ambiguous_claims'
+  | 'ready_to_map'
+  | 'ambiguous_platform_claims'
+  | 'domain_claimed_by_other_client'
+  | 'platform_claim_not_ready'
+  | 'legacy_only';
+
+export interface AdminHostingCutoverItem {
+  hostingAccountId: string;
+  clientId: string;
+  domain: string;
+  hostingStatus: string;
+  platformDeploymentId: string | null;
+  platformProjectionStatus: string | null;
+  domainClaimCount: number;
+  clientDomainClaimCount: number;
+  candidatePlatformDeploymentId: string | null;
+  platformClaimStatuses: string[];
+  classification: AdminHostingCutoverClassification;
+}
+
+export interface AdminHostingCutoverReport {
+  generatedAt: string;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  summary: {
+    activeHostingAccounts: number;
+    linked: number;
+    readyToMap: number;
+    ambiguousPlatformClaims: number;
+    domainClaimedByOtherClient: number;
+    platformClaimNotReady: number;
+    linkedConflicts: number;
+    legacyOnly: number;
+  };
+  items: AdminHostingCutoverItem[];
+}
 export interface AdminSla {
   period: string;
   totalTickets: number;
@@ -130,6 +174,16 @@ export function useAdminHosting() {
         total: (r.meta?.total as number) ?? 0,
       })),
     enabled: !!token,
+    ...opts,
+  });
+}
+export function useHostingCutover(page = 1, pageSize = 50) {
+  const token = useToken();
+  const allowed = useCanSeeBilling();
+  return useQuery({
+    queryKey: ['admin', 'hosting-cutover', page, pageSize],
+    queryFn: () => adminApi.getHostingCutoverReport(page, pageSize) as Promise<AdminHostingCutoverReport>,
+    enabled: !!token && allowed,
     ...opts,
   });
 }

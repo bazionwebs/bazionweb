@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Server,
   Shield,
@@ -110,6 +111,11 @@ export default function AdminHostingPage() {
           <h2 className="text-lg font-black text-slate-900">Hosting & Cloud Infrastructure</h2>
           <p className="text-xs text-slate-500">Managed isolated containers, DNS delegation, and automated backup nodes</p>
         </div>
+
+        <Link href="/admin/hosting/cutover" className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-blue-300 text-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-all">
+          <Activity className="w-4 h-4 text-blue-600" />
+          <span>Platform cutover review</span>
+        </Link>
 
         <button
           onClick={() => setShowProvisionModal(true)}
