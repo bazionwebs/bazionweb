@@ -5,6 +5,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PlatformOutboxStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  validateSubscriptionLifecycleCommandV1,
+  type SubscriptionLifecycleCommandV1,
+} from './provisioning-contract';
+import {
   DEFAULT_COMMAND_AUDIENCE,
   DEFAULT_COMMAND_ISSUER,
   deterministicUuidFromSeed,
@@ -158,7 +162,7 @@ export class SubscriptionLifecycleOutboxService {
       input.correlationId ?? deterministicUuidFromSeed(`lifecycle-corr:${input.subscriptionId}:${input.action}`);
     const occurredAt = new Date().toISOString();
 
-    const payload: Record<string, unknown> = {
+    const payloadCandidate: SubscriptionLifecycleCommandV1 = {
       schemaVersion: '1.0.0',
       eventId,
       correlationId,
@@ -173,6 +177,14 @@ export class SubscriptionLifecycleOutboxService {
       reasonCode: input.reasonCode,
       ...(input.graceEndsAt ? { graceEndsAt: input.graceEndsAt.toISOString() } : {}),
     };
+
+    const validation = validateSubscriptionLifecycleCommandV1(payloadCandidate);
+    if (validation.valid === false && 'issues' in validation) {
+      throw new Error(
+        `PROVISIONING_LIFECYCLE_CONTRACT_VALIDATION_FAILED:${validation.issues.map((i) => `${i.path}:${i.keyword}`).join(',')}`,
+      );
+    }
+    const payload = (validation as { valid: true; value: SubscriptionLifecycleCommandV1 }).value;
 
     try {
       return await db.subscriptionLifecycleOutbox.create({
