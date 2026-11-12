@@ -12,10 +12,16 @@ export async function lockProvisioningDomainClaim(tx: any, normalizedDomain: str
     throw new Error('PROVISIONING_DOMAIN_CLAIM_TRANSACTION_REQUIRED');
   }
 
-  await tx.$queryRaw`
-    SELECT pg_advisory_xact_lock(
-      hashtextextended('bazion.domain-claim:' || ${normalizedDomain}, 0)
+  // Return an integer from the outer query: Prisma cannot deserialize the
+  // PostgreSQL void value returned by pg_advisory_xact_lock.
+  await tx.$queryRaw<Array<{ locked: number }>>`
+    WITH lock_acquired AS MATERIALIZED (
+      SELECT pg_advisory_xact_lock(
+        hashtextextended('bazion.domain-claim:' || ${normalizedDomain}, 0)
+      )
     )
+    SELECT 1 AS locked
+      FROM lock_acquired
   `;
 }
 
