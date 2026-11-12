@@ -363,6 +363,56 @@ describePg('PostgreSQL Commercial Provisioning Outbox, Worker, Callback & Reconc
     expect(rollbackOutbox).toHaveLength(0);
   });
 
+  it('blocks Platform domain delivery and operator replay while a legacy hosting account still owns the domain', async () => {
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const fx = await seedCommercialFixture(`domain-${suffix}`);
+    const domain = `legacy-${suffix}.example.test`;
+    const legacy = await prisma.hostingAccount.create({
+      data: {
+        clientId: fx.client.id,
+        domain: `${domain}.`,
+        server: 'legacy-node',
+        plan: 'host-business',
+        status: 'ACTIVE',
+      },
+    });
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.invoice.update({
+          where: { id: fx.invoice.id },
+          data: { status: InvoiceStatus.PAID, paidAt: new Date() },
+        });
+        await outboxService.enqueueForSettledInvoice(tx, {
+          ...fx.invoice,
+          lineItems: [
+            {
+              productId: 'website-business',
+              requestedDomain: domain,
+              platformProvisioningBinding: catalogSnapshot('website-business'),
+            },
+          ],
+          client: { ...fx.client, plan: fx.plan },
+        });
+      });
+
+      const outbox = await prisma.platformProvisioningOutbox.findFirstOrThrow({
+        where: { invoiceId: fx.invoice.id },
+      });
+      expect(outbox.status).toBe(PlatformOutboxStatus.DEAD);
+      expect(outbox.lastErrorCode).toBe('PLATFORM_DOMAIN_CLAIM_CONFLICT');
+      await expect(worker.replayOutboxEntry(outbox.id)).rejects.toThrow(
+        'This order cannot be replayed while another Platform order or legacy hosting account claims its domain.',
+      );
+
+      await prisma.hostingAccount.delete({ where: { id: legacy.id } });
+      const replayed = await worker.replayOutboxEntry(outbox.id);
+      expect(replayed.status).toBe(PlatformOutboxStatus.PENDING);
+    } finally {
+      await prisma.hostingAccount.deleteMany({ where: { id: legacy.id } });
+    }
+  });
+
   it('claims once via FOR UPDATE SKIP LOCKED, survives HTTP 503 downtime to DEAD, and replays to ACCEPTED', async () => {
     const suffix = crypto.randomUUID().slice(0, 8);
     const fx = await seedCommercialFixture(suffix);

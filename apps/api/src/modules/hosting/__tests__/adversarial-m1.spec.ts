@@ -104,6 +104,7 @@ describe('Milestone 1 Adversarial Stress Tests', () => {
     let service: HostingService;
     let prisma: {
       $queryRaw: jest.Mock;
+      $transaction: jest.Mock;
       hostingAccount: {
         findMany: jest.Mock;
         findUnique: jest.Mock;
@@ -120,6 +121,10 @@ describe('Milestone 1 Adversarial Stress Tests', () => {
     beforeEach(async () => {
       prisma = {
         $queryRaw: jest.fn().mockResolvedValue([]),
+        $transaction: jest.fn(async (callback: (tx: any) => unknown) => callback({
+          $queryRaw: prisma.$queryRaw,
+          hostingAccount: { create: prisma.hostingAccount.create },
+        })),
         hostingAccount: {
           findMany: jest.fn(),
           findUnique: jest.fn(),
@@ -255,6 +260,7 @@ describe('Milestone 1 Adversarial Stress Tests', () => {
     let service: HostingService;
     let prisma: {
       $queryRaw: jest.Mock;
+      $transaction: jest.Mock;
       hostingAccount: {
         findMany: jest.Mock;
         findUnique: jest.Mock;
@@ -271,6 +277,10 @@ describe('Milestone 1 Adversarial Stress Tests', () => {
     beforeEach(async () => {
       prisma = {
         $queryRaw: jest.fn().mockResolvedValue([]),
+        $transaction: jest.fn(async (callback: (tx: any) => unknown) => callback({
+          $queryRaw: prisma.$queryRaw,
+          hostingAccount: { create: prisma.hostingAccount.create },
+        })),
         hostingAccount: {
           findMany: jest.fn(),
           findUnique: jest.fn(),

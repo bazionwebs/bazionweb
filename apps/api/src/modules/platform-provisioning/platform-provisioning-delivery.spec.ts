@@ -1,4 +1,4 @@
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
@@ -51,6 +51,112 @@ function catalogSnapshot(offerId: string) {
   };
 }
 describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
+  it('dead-letters a paid Platform order when a legacy hosting account already owns its requested domain', async () => {
+    const upsert = jest.fn(async ({ create }: any) => create);
+    const queryRaw = jest.fn()
+      .mockResolvedValueOnce([]) // advisory transaction lock
+      .mockResolvedValueOnce([{ id: 'legacy-hosting-1' }]);
+    const service = new PlatformProvisioningOutboxService();
+
+    await service.enqueueForSettledInvoice(
+      {
+        $queryRaw: queryRaw,
+        platformProvisioningOutbox: { upsert },
+      },
+      {
+        id: 'inv-domain-conflict',
+        invoiceNumber: 'INV-DOMAIN-CONFLICT',
+        clientId: 'client-domain-conflict',
+        lineItems: [
+          {
+            productId: 'website-business',
+            requestedDomain: 'Example.com',
+            platformProvisioningBinding: catalogSnapshot('website-business'),
+          },
+        ],
+        client: {
+          id: 'client-domain-conflict',
+          businessName: 'Domain Conflict Co',
+          contactName: 'Amina',
+          email: 'amina@example.test',
+        },
+      },
+    );
+
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        status: PlatformOutboxStatus.DEAD,
+        lastErrorCode: 'PLATFORM_DOMAIN_CLAIM_CONFLICT',
+        deadLetteredAt: expect.any(Date),
+        payload: expect.objectContaining({ requestedDomain: 'example.com' }),
+      }),
+    }));
+  });
+
+  it('reserves a requested domain against a different Platform order', async () => {
+    const upsert = jest.fn(async ({ create }: any) => create);
+    const queryRaw = jest.fn()
+      .mockResolvedValueOnce([]) // advisory transaction lock
+      .mockResolvedValueOnce([{ claimId: 'another-order', source: 'outbox', externalOrderId: 'another-order' }]);
+    const service = new PlatformProvisioningOutboxService();
+
+    await service.enqueueForSettledInvoice(
+      { $queryRaw: queryRaw, platformProvisioningOutbox: { upsert } },
+      {
+        id: 'inv-platform-domain-conflict',
+        invoiceNumber: 'INV-PLATFORM-DOMAIN-CONFLICT',
+        clientId: 'client-platform-domain-conflict',
+        lineItems: [
+          {
+            productId: 'website-business',
+            requestedDomain: 'example.com',
+            platformProvisioningBinding: catalogSnapshot('website-business'),
+          },
+        ],
+        client: {
+          id: 'client-platform-domain-conflict',
+          businessName: 'Second Domain Co',
+          contactName: 'Samuel',
+          email: 'samuel@example.test',
+        },
+      },
+    );
+
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        status: PlatformOutboxStatus.DEAD,
+        lastErrorCode: 'PLATFORM_DOMAIN_CLAIM_CONFLICT',
+      }),
+    }));
+  });
+
+  it('refuses operator replay while another order or legacy account owns the requested domain', async () => {
+    const update = jest.fn();
+    const tx = {
+      $queryRaw: jest.fn()
+        .mockResolvedValueOnce([]) // advisory transaction lock
+        .mockResolvedValueOnce([{ claimId: 'legacy-hosting-1', source: 'legacy_hosting', externalOrderId: null }]),
+      platformProvisioningOutbox: { update },
+    };
+    const prisma: any = {
+      platformProvisioningOutbox: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'outbox-domain-1',
+          externalOrderId: 'order-domain-1',
+          payload: { requestedDomain: 'example.com' },
+          maxAttempts: 8,
+          attemptCount: 1,
+        }),
+      },
+      $transaction: jest.fn((callback: (transaction: any) => unknown) => callback(tx)),
+    };
+    const worker = new PlatformProvisioningWorkerService(prisma);
+
+    await expect(worker.replayOutboxEntry('outbox-domain-1')).rejects.toThrow(ConflictException);
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('builds commands only for settled lines pinned to Platform catalog releases', () => {
     const commands = buildProvisioningRequestsForSettledInvoice({
       invoice: {

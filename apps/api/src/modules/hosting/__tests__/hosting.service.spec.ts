@@ -32,6 +32,12 @@ const otherUser  = { id: 'other-uuid', roles: ['CLIENT'] };
 
 const mockPrisma = {
   $queryRaw: jest.fn(),
+  $transaction: jest.fn(async (callback: (tx: any) => unknown) => callback({
+    $queryRaw: mockPrisma.$queryRaw,
+    hostingAccount: {
+      create: (args: unknown) => mockPrisma.hostingAccount.create(args),
+    },
+  })),
   hostingAccount: {
     findMany:   jest.fn(),
     findFirst:  jest.fn(),
@@ -242,7 +248,7 @@ describe('HostingService', () => {
 
       await expect(guardedService.create({ ...createDto, domain: ' Example.COM. ' })).rejects.toThrow(ConflictException);
 
-      expect(mockPrisma.$queryRaw.mock.calls[0]?.[1]).toBe('example.com');
+      expect(mockPrisma.$queryRaw.mock.calls.some((call) => call.includes('example.com'))).toBe(true);
       expect(mockPrisma.hostingAccount.create).not.toHaveBeenCalled();
       expect(mockProvider.createWorkload).not.toHaveBeenCalled();
     });

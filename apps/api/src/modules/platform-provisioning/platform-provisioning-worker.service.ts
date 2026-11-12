@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { PlatformOutboxStatus } from '@prisma/client';
@@ -9,6 +9,11 @@ import {
   DEFAULT_COMMAND_ISSUER,
   signCommercialCommandToken,
 } from './provisioning-crypto';
+import {
+  findProvisioningDomainClaims,
+  lockProvisioningDomainClaim,
+  normalizeProvisioningDomain,
+} from './domain-claim-lock';
 
 export interface ClaimedCommercialOutboxRow {
   id: string;
@@ -370,6 +375,28 @@ export class PlatformProvisioningWorkerService {
     }
 
     return this.prisma.$transaction(async (tx: any) => {
+      const existingPayload =
+        existing.payload && typeof existing.payload === 'object' && !Array.isArray(existing.payload)
+          ? (existing.payload as Record<string, unknown>)
+          : {};
+      const requestedDomain =
+        typeof existingPayload.requestedDomain === 'string'
+          ? normalizeProvisioningDomain(existingPayload.requestedDomain)
+          : null;
+      if (requestedDomain) {
+        await lockProvisioningDomainClaim(tx, requestedDomain);
+        const domainClaims = await findProvisioningDomainClaims(
+          tx,
+          requestedDomain,
+          existing.externalOrderId,
+        );
+        if (domainClaims.length > 0) {
+          throw new ConflictException(
+            'This order cannot be replayed while another Platform order or legacy hosting account claims its domain. Resolve the competing workload and ownership record, then replay the order.',
+          );
+        }
+      }
+
       const updated = await tx.platformProvisioningOutbox.update({
         where: { id },
         data: {
@@ -378,6 +405,8 @@ export class PlatformProvisioningWorkerService {
           leaseToken: null,
           leaseExpiresAt: null,
           deadLetteredAt: null,
+          lastErrorCode: null,
+          lastHttpStatus: null,
           maxAttempts: Math.max(existing.maxAttempts, existing.attemptCount + 3),
         },
       });

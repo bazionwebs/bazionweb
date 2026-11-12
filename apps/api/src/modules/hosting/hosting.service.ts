@@ -12,11 +12,16 @@ import { resolveServerTopology } from './constants/server-topologies.config';
 import { EmailRoutingHelper, EmailDnsConfig } from './email/email-routing.helper';
 import { DatabaseTenancyHelper, TenantDatabaseConfig } from './database/database-tenancy.helper';
 import { RedisTenancyHelper, TenantRedisConfig } from './cache/redis-tenancy.helper';
+import {
+  findProvisioningDomainClaims,
+  lockProvisioningDomainClaim,
+  normalizeProvisioningDomain,
+} from '../platform-provisioning/domain-claim-lock';
 
 const deploymentMappingEvidencePattern = /^(?:CHG|INC|MIG|ROLLBACK|DRILL|TICKET)[-:/#][A-Za-z0-9][A-Za-z0-9._:/#-]{2,292}$/i;
 
 function normalizeHostingDomain(domain: string): string {
-  return domain.trim().toLowerCase().replace(/\.$/, '');
+  return normalizeProvisioningDomain(domain);
 }
 
 function toHostingReadModel(account: Record<string, any>): Record<string, any> {
@@ -271,21 +276,6 @@ export class HostingService {
     emailAliases?: string[];
   }) {
     const normalizedDomain = normalizeHostingDomain(dto.domain);
-    const platformDomainClaims = await this.prisma.$queryRaw<Array<{ externalOrderId: string; source: string }>>`
-      SELECT "external_order_id" AS "externalOrderId", 'projection' AS source
-        FROM "platform_provisioning_projections"
-       WHERE lower("requested_domain") = ${normalizedDomain}
-      UNION ALL
-      SELECT "external_order_id" AS "externalOrderId", 'outbox' AS source
-        FROM "platform_provisioning_outbox"
-       WHERE lower("payload" ->> 'requestedDomain') = ${normalizedDomain}
-       LIMIT 1
-    `;
-    if (platformDomainClaims.length > 0) {
-      throw new ConflictException(
-        'This domain belongs to a Platform provisioning order. Resolve that order or use the audited Platform hosting mapping flow instead of direct Dokploy provisioning.',
-      );
-    }
 
     // 1. Validate and resolve plan to canonical tier profile
     const tierProfile = resolveHostingTier(dto.plan);
@@ -374,17 +364,27 @@ export class HostingService {
     }
 
     // 7. Persist HostingAccount in database
-    const account = await this.prisma.hostingAccount.create({
-      data: {
-        clientId: dto.clientId,
-        domain: dto.domain,
-        server: targetNode.nodeId,
-        plan: tierProfile.tierId,
-        status: 'PROVISIONING',
-        ipAddress: dto.ipAddress,
-        serverOs: dto.serverOs,
-      },
-      include: { client: { select: { businessName: true } } },
+    const account = await this.prisma.$transaction(async (tx: any) => {
+      await lockProvisioningDomainClaim(tx, normalizedDomain);
+      const domainClaims = await findProvisioningDomainClaims(tx, normalizedDomain);
+      if (domainClaims.length > 0) {
+        throw new ConflictException(
+          'This domain belongs to a Platform provisioning order. Resolve that order or use the audited Platform hosting mapping flow instead of direct Dokploy provisioning.',
+        );
+      }
+
+      return tx.hostingAccount.create({
+        data: {
+          clientId: dto.clientId,
+          domain: normalizedDomain,
+          server: targetNode.nodeId,
+          plan: tierProfile.tierId,
+          status: 'PROVISIONING',
+          ipAddress: dto.ipAddress,
+          serverOs: dto.serverOs,
+        },
+        include: { client: { select: { businessName: true } } },
+      });
     });
 
     // 8. Inject Environment Variables into container workload

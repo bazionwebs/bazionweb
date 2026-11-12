@@ -5,6 +5,11 @@ import {
   type SettledClientSource,
   type SettledInvoiceLineSource,
 } from './provisioning-request-builder';
+import {
+  findProvisioningDomainClaims,
+  lockProvisioningDomainClaim,
+  normalizeProvisioningDomain,
+} from './domain-claim-lock';
 
 /**
  * Enqueues provisioning commands atomically inside the active Prisma billing settlement transaction.
@@ -64,6 +69,20 @@ export class PlatformProvisioningOutboxService {
       );
     }
     for (const command of commands) {
+      const requestedDomain = command.payload.requestedDomain
+        ? normalizeProvisioningDomain(command.payload.requestedDomain)
+        : null;
+      let domainConflict = false;
+      if (requestedDomain) {
+        await lockProvisioningDomainClaim(tx, requestedDomain);
+        const domainClaims = await findProvisioningDomainClaims(
+          tx,
+          requestedDomain,
+          command.payload.order.externalOrderId,
+        );
+        domainConflict = domainClaims.length > 0;
+      }
+
       await tx.platformProvisioningOutbox.upsert({
         where: {
           invoiceId_lineIndex: {
@@ -85,6 +104,13 @@ export class PlatformProvisioningOutboxService {
           externalCustomerId: command.externalCustomerId,
           externalOrderId: command.externalOrderId,
           payload: command.payload,
+          ...(domainConflict
+            ? {
+                status: 'DEAD',
+                lastErrorCode: 'PLATFORM_DOMAIN_CLAIM_CONFLICT',
+                deadLetteredAt: new Date(),
+              }
+            : {}),
           nextAttemptAt: new Date(),
         },
       });
