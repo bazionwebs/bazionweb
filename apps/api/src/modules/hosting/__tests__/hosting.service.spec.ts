@@ -264,6 +264,7 @@ describe('HostingService', () => {
         createWorkload: jest.fn().mockResolvedValue({
           workloadId: 'dok-workload-99',
           applicationId: 'dok-workload-99',
+          providerId: 'dokploy',
           domain: 'newclient.co.ke',
           status: 'PENDING',
           url: 'https://newclient.co.ke',
@@ -291,6 +292,13 @@ describe('HostingService', () => {
       );
       expect(result.provisionResult).toBeDefined();
       expect(result.provisionResult?.workloadId).toBe('dok-workload-99');
+      expect(mockPrisma.hostingAccount.update).toHaveBeenCalledWith({
+        where: { id: 'new-hosting-uuid' },
+        data: {
+          deploymentProvider: 'dokploy',
+          providerWorkloadId: 'dok-workload-99',
+        },
+      });
     });
 
     it('handles deploymentProvider error gracefully without failing database creation', async () => {

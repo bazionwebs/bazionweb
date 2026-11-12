@@ -396,6 +396,16 @@ export class HostingService {
               : undefined,
           },
         });
+        if (!provisionResult.workloadId) {
+          throw new Error('Deployment provider did not return a workload reference');
+        }
+        await this.prisma.hostingAccount.update({
+          where: { id: account.id },
+          data: {
+            deploymentProvider: provisionResult.providerId ?? this.deploymentProvider.providerName,
+            providerWorkloadId: provisionResult.workloadId,
+          },
+        });
         this.logger.log(
           `Workload provisioned on ${this.deploymentProvider.providerName} for ${dto.domain} (ID: ${provisionResult.workloadId})`,
         );

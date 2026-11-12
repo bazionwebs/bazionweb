@@ -4,6 +4,8 @@ import {
   NotFoundException,
   BadRequestException,
   InternalServerErrorException,
+  ConflictException,
+  ServiceUnavailableException,
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -376,16 +378,34 @@ export class AdminDiagnosticsService {
     }
 
     if (dto.action === 'REISSUE_SSL') {
-      if (this.dokploy) {
-        await this.dokploy
-          .bindDomain({
-            domain: account.domain,
-            https: true,
-            certificateType: 'letsencrypt',
-          })
-          .catch((err) => {
-            this.logger.warn(`Dokploy bindDomain fallback: ${err.message}`);
-          });
+      const provider = account.deploymentProvider?.trim().toLowerCase().replace(/provider$/, '');
+      if (provider !== 'dokploy' || !account.providerWorkloadId) {
+        throw new ConflictException(
+          'Cannot reissue SSL until this hosting account has a verified Dokploy workload reference.',
+        );
+      }
+      if (!this.dokploy) {
+        throw new ServiceUnavailableException('Dokploy is unavailable for SSL remediation.');
+      }
+
+      try {
+        const binding = await this.dokploy.bindDomain({
+          applicationId: account.providerWorkloadId,
+          domain: account.domain,
+          https: true,
+          certificateType: 'letsencrypt',
+        });
+        if (!binding.verified) {
+          throw new Error('Dokploy did not verify the domain binding');
+        }
+      } catch (err) {
+        this.logger.warn(
+          'Dokploy bindDomain failed for ' + account.domain + ': ' +
+            (err instanceof Error ? err.message : 'unknown error'),
+        );
+        throw new ServiceUnavailableException(
+          'Dokploy could not reissue the SSL certificate; hosting status was not changed.',
+        );
       }
 
       // Refresh status in database

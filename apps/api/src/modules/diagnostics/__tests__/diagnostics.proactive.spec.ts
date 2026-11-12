@@ -86,7 +86,7 @@ describe('AdminDiagnosticsService - Proactive Intelligence & Anomaly Remediation
     };
 
     dokployMock = {
-      bindDomain: jest.fn().mockResolvedValue({ success: true }),
+      bindDomain: jest.fn().mockResolvedValue({ domainId: 'dok-1', verified: true }),
     };
 
     diagnosticsService = new AdminDiagnosticsService(
@@ -176,6 +176,8 @@ describe('AdminDiagnosticsService - Proactive Intelligence & Anomaly Remediation
         id: 'host-1',
         domain: 'renew-ssl.com',
         ipAddress: '198.51.100.1',
+        deploymentProvider: 'dokploy',
+        providerWorkloadId: 'app-renew-ssl',
         status: 'ACTIVE',
       };
       prismaMock.hostingAccount.findFirst.mockResolvedValue(mockAccount);
@@ -214,6 +216,7 @@ describe('AdminDiagnosticsService - Proactive Intelligence & Anomaly Remediation
       expect(reissueRes.success).toBe(true);
       expect(reissueRes.action).toBe('REISSUE_SSL');
       expect(dokployMock.bindDomain).toHaveBeenCalledWith({
+        applicationId: 'app-renew-ssl',
         domain: 'renew-ssl.com',
         certificateType: 'letsencrypt',
         https: true,

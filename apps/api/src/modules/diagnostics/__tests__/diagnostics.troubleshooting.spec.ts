@@ -100,7 +100,7 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
     };
 
     dokployMock = {
-      bindDomain: jest.fn().mockResolvedValue({ domainId: 'dok-1', sslActive: true }),
+      bindDomain: jest.fn().mockResolvedValue({ domainId: 'dok-1', sslActive: true, verified: true }),
       restartWorkload: jest.fn().mockResolvedValue(true),
     };
 
@@ -297,6 +297,8 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
       prismaMock.hostingAccount.findFirst.mockResolvedValue({
         id: 'host-reissue-1',
         domain: 'portal.acacia.co.ke',
+        deploymentProvider: 'dokploy',
+        providerWorkloadId: 'app-portal-1',
         status: 'ACTIVE',
       });
 
@@ -308,6 +310,7 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
       expect(res.success).toBe(true);
       expect(res.action).toBe('REISSUE_SSL');
       expect(dokployMock.bindDomain).toHaveBeenCalledWith({
+        applicationId: 'app-portal-1',
         domain: 'portal.acacia.co.ke',
         https: true,
         certificateType: 'letsencrypt',
@@ -319,6 +322,45 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
         }),
       );
       expect(prismaMock.auditLog.create).toHaveBeenCalled();
+    });
+
+    it('fails closed when a legacy hosting account has no verified Dokploy workload reference', async () => {
+      prismaMock.hostingAccount.findFirst.mockResolvedValue({
+        id: 'host-legacy-1',
+        domain: 'legacy.acacia.co.ke',
+        status: 'ACTIVE',
+      });
+
+      await expect(
+        diagnosticsService.remediateDnsSsl(
+          { domain: 'legacy.acacia.co.ke', action: 'REISSUE_SSL' },
+          { id: 'admin-1', email: 'admin@bazionweb.com' },
+        ),
+      ).rejects.toThrow('verified Dokploy workload reference');
+
+      expect(dokployMock.bindDomain).not.toHaveBeenCalled();
+      expect(prismaMock.hostingAccount.update).not.toHaveBeenCalled();
+    });
+
+    it('does not report SSL reissue success or activate the account when Dokploy binding fails', async () => {
+      prismaMock.hostingAccount.findFirst.mockResolvedValue({
+        id: 'host-provider-error-1',
+        domain: 'portal.acacia.co.ke',
+        deploymentProvider: 'dokploy',
+        providerWorkloadId: 'app-portal-1',
+        status: 'PROVISIONING',
+      });
+      dokployMock.bindDomain.mockRejectedValueOnce(new Error('provider unavailable'));
+
+      await expect(
+        diagnosticsService.remediateDnsSsl(
+          { domain: 'portal.acacia.co.ke', action: 'REISSUE_SSL' },
+          { id: 'admin-1', email: 'admin@bazionweb.com' },
+        ),
+      ).rejects.toThrow('could not reissue the SSL certificate');
+
+      expect(prismaMock.hostingAccount.update).not.toHaveBeenCalled();
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
     });
 
     it('TC-SSRF-SSL-1: remediateDnsSsl REFRESH_SSL blocks private/reserved IPs with BadRequestException', async () => {
