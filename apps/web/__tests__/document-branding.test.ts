@@ -8,12 +8,12 @@ import {
 } from '../src/lib/document-branding';
 
 describe('document-branding corporate SSOT', () => {
-  it('uses official KRA PIN A006926734I and official BazionWeb logo asset', () => {
+  it('uses official KRA PIN A006926734I and a self-contained BazionWeb logo fallback', () => {
     expect(BAZION_CORPORATE_DETAILS.taxPin).toBe('A006926734I');
     expect(BAZION_CORPORATE_DETAILS.logoPath).toBe('/brand/logo-with-background.png');
 
     const logoHtml = renderBrandLogoSvg(72);
-    expect(logoHtml).toContain('/brand/logo-with-background.png');
+    expect(logoHtml).toContain('<svg');
 
     const letterhead = renderDocumentLetterheadHtml({
       docType: 'OFFICIAL INVOICE',
@@ -21,7 +21,19 @@ describe('document-branding corporate SSOT', () => {
     });
     expect(letterhead).toContain('A006926734I');
     expect(letterhead).not.toContain('P052198745M');
-    expect(letterhead).toContain('/brand/logo-with-background.png');
+    expect(letterhead).toContain('<svg');
+    expect(letterhead).not.toContain('bazionweb.com/brand/');
+  });
+
+  it('embeds an approved PNG logo in standalone print documents without remote asset requests', () => {
+    const letterhead = renderDocumentLetterheadHtml({
+      docType: 'PAYMENT RECEIPT',
+      docNumber: 'REC-TEST-001',
+      logoDataUri: 'data:image/png;base64,AA==',
+    });
+
+    expect(letterhead).toContain('src="data:image/png;base64,AA=="');
+    expect(letterhead).not.toContain('bazionweb.com/brand/');
   });
 
   it('renders official Lipa Na M-Pesa Paybill and Co-operative Bank payment channels', () => {
@@ -36,7 +48,7 @@ describe('document-branding corporate SSOT', () => {
     expect(paymentHtml).toContain('KCOOKENA');
   });
 
-  it('renders a high-contrast ISO/IEC 15417 Code-128 Auto B/C security barcode without QR code in verification block', () => {
+  it('renders a branded document-reference barcode and registry link without client-generated signatures', () => {
     expect(BAZION_CORPORATE_DETAILS.registryUrl).toBe('https://bazionweb.com/verify');
 
     const barcodeSvg = generateCode128BarcodeSvg('INV-MAN-40770343-3099D6');
@@ -52,10 +64,11 @@ describe('document-branding corporate SSOT', () => {
       recipientEmail: 'globalmissionfc@gmail.com',
       issueDate: '2026-11-07T08:50:00.000Z',
     });
-    expect(securityHtml).toContain('Security Barcode (Code-128B)');
+    expect(securityHtml).toContain('Document reference');
     expect(securityHtml).toContain('https://bazionweb.com/verify?ref=INV-MAN-40770343-3099D6');
-    expect(securityHtml).toContain('A006926734I');
-    expect(securityHtml).not.toContain('Scan via smartphone camera');
+    expect(securityHtml).toContain('check the current registry record');
+    expect(securityHtml).not.toContain('SHA256');
+    expect(securityHtml).not.toContain('Cryptographic Fingerprint');
   });
 });
 

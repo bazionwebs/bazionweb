@@ -1,9 +1,27 @@
 import { NextResponse } from 'next/server';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { generateErrorReceiptHtml, generateReceiptHtml } from './receipt-template';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+let cachedBrandLogoDataUri: string | null | undefined;
+
+function getBrandLogoDataUri(): string | undefined {
+  if (cachedBrandLogoDataUri !== undefined) return cachedBrandLogoDataUri || undefined;
+  const candidates = [
+    join(process.cwd(), 'public', 'brand', 'logo-mark.png'),
+    join(process.cwd(), 'apps', 'web', 'public', 'brand', 'logo-mark.png'),
+  ];
+  const assetPath = candidates.find((candidate) => existsSync(candidate));
+  cachedBrandLogoDataUri = assetPath
+    ? `data:image/png;base64,${readFileSync(assetPath).toString('base64')}`
+    : null;
+  return cachedBrandLogoDataUri || undefined;
+}
 
 export async function GET(req: Request) {
   const clientIp = getClientIp(req);
@@ -50,6 +68,8 @@ export async function GET(req: Request) {
       paidAt: payment.paidAt,
       description: payment.description,
       customer: { email: payment.email },
+      invoiceNumber: payment.invoiceNumber,
+      brandLogoDataUri: getBrandLogoDataUri(),
     };
 
     if (wantReceipt) {

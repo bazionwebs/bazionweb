@@ -1,12 +1,14 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import {
   CheckCircle2,
   Download,
 } from 'lucide-react';
 import { useSla, useUptime, useCanSeeBilling } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
+import { BAZION_CORPORATE_DETAILS } from '@/lib/document-branding';
 
 export default function AdminReportsPage() {
   const slaQuery = useSla();
@@ -15,11 +17,33 @@ export default function AdminReportsPage() {
 
   const sla = slaQuery.data;
   const uptime = uptimeQuery.data;
+  const [generatedAt, setGeneratedAt] = React.useState('');
+  React.useEffect(() => {
+    setGeneratedAt(new Intl.DateTimeFormat('en-KE', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Africa/Nairobi',
+    }).format(new Date()));
+  }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="admin-report-document space-y-6">
+      <div className="admin-report-print-header items-center justify-between gap-6 border-b-2 border-slate-900 pb-4">
+        <div className="flex items-center gap-3">
+          <Image src="/brand/logo-mark.png" alt="BazionWeb" width={48} height={48} priority />
+          <div>
+            <div className="text-sm font-black tracking-wide text-slate-900">{BAZION_CORPORATE_DETAILS.legalName}</div>
+            <div className="text-xs text-slate-500">Service reliability report</div>
+          </div>
+        </div>
+        <div className="text-right text-xs text-slate-500">
+          <div className="font-bold uppercase tracking-wider">Generated</div>
+          <time>{generatedAt} EAT</time>
+        </div>
+      </div>
+
       {/* ── Top Header ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="admin-report-screen-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-black text-slate-900">Reports, SLA & Service Telemetry</h2>
           <p className="text-xs text-slate-500">Service Level Agreement compliance rates, uptime verification, and operational health</p>
@@ -27,7 +51,7 @@ export default function AdminReportsPage() {
 
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+          className="admin-report-no-print flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
         >
           <Download className="w-3.5 h-3.5" />
           <span>Export Report</span>

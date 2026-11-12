@@ -30,6 +30,7 @@ describe('InvoicePdfGenerator', () => {
         amount: 8500,
       },
     ],
+    documentFingerprint: `HMAC-SHA256: ${'A'.repeat(64)}`,
     breakdown: {
       subtotal: 8500,
       vatRate: 0,
@@ -60,11 +61,11 @@ describe('InvoicePdfGenerator', () => {
     const encoded = encodeCode128Bars('INV-MAN-40770343-3099D6');
     expect(encoded.encodedText).toBe('INV-MAN-40770343-3099D6');
     // Subset C compresses the 8-digit block 40770343 into 4 symbol pairs (+ switch symbols),
-    // reducing total module width from 365 down to 266 modules for Grade-A optical scannability.
+    // reducing the encoded width from 365 to 266 modules for this numeric reference.
     expect(encoded.totalModules).toBe(266);
     expect(encoded.bars.length).toBeGreaterThan(60);
 
-    // Round-trip optical bar-and-space decoder + Modulo-103 checksum verification
+    // Round-trip decoder and Modulo-103 checksum verification
     const decoded = decodeCode128Bars(encoded.bars, encoded.totalModules);
     expect(decoded).toBe('INV-MAN-40770343-3099D6');
 
@@ -76,18 +77,96 @@ describe('InvoicePdfGenerator', () => {
     expect(numericEncoded.totalModules).toBe(79);
   });
 
-  it('computes deterministic SHA-256 document fingerprint', () => {
+  it('computes a deterministic server-keyed HMAC document signature', () => {
     const fp = computeDocumentFingerprint({
       docNumber: sampleData.invoiceNumber,
       currency: sampleData.currency,
       totalAmount: sampleData.breakdown.total,
       recipientEmail: sampleData.client.email,
       issueDate: sampleData.createdAt,
-    });
+    }, 'test-document-signing-key-that-is-at-least-32-characters');
     expect(fp.hashHex).toMatch(/^[0-9A-F]{64}$/);
-    expect(fp.formatted).toMatch(/^SHA256: ([0-9A-F]{4}-){7}[0-9A-F]{4}$/);
+    expect(fp.formatted).toMatch(/^HMAC-SHA256: [0-9A-F]{64}$/);
+    const contentA = { status: 'SENT', lineItems: [{ description: 'Hosting', amount: 50 }] };
+    const contentAReordered = { lineItems: [{ amount: 50, description: 'Hosting' }], status: 'SENT' };
+    const contentB = { status: 'SENT', lineItems: [{ description: 'Hosting', amount: 51 }] };
+    const fingerprint = (documentContent: unknown) => computeDocumentFingerprint({
+      docNumber: sampleData.invoiceNumber,
+      currency: sampleData.currency,
+      totalAmount: sampleData.breakdown.total,
+      recipientEmail: sampleData.client.email,
+      issueDate: sampleData.createdAt,
+      documentContent,
+    }, 'test-document-signing-key-that-is-at-least-32-characters').hashHex;
+    expect(fingerprint(contentA)).toBe(fingerprint(contentAReordered));
+    expect(fingerprint(contentA)).not.toBe(fingerprint(contentB));
+    expect(() => computeDocumentFingerprint({
+      docNumber: sampleData.invoiceNumber,
+      currency: sampleData.currency,
+      totalAmount: sampleData.breakdown.total,
+      recipientEmail: sampleData.client.email,
+      issueDate: sampleData.createdAt,
+    }, 'public')).toThrow(/at least 32 characters/);
   });
 
+  it('prints the invoice-specific international bank details and mandatory reference', () => {
+    const pdf = InvoicePdfGenerator.generate({
+      ...sampleData,
+      currency: 'USD',
+      bankTransferDetails: {
+        currency: 'USD',
+        beneficiary: 'BAZION WEB',
+        accountNumber: '01103361465001',
+        swiftBic: 'KCOOKENA',
+        bankName: 'Co-operative Bank of Kenya',
+        paymentReference: 'BW-BAZ-A8E2E',
+      },
+    }).toString('latin1');
+
+    expect(pdf).toContain('BANK TRANSFER IN USD');
+    expect(pdf).toContain('Account / IBAN: 01103361465001');
+    expect(pdf).toContain('SWIFT / BIC: KCOOKENA');
+    expect(pdf).toContain('Payment reference: BW-BAZ-A8E2E');
+    expect(pdf).not.toContain('400200');
+  });
+
+  it('shows settlement confirmation instead of transfer instructions on paid invoices', () => {
+    const pdf = InvoicePdfGenerator.generate({
+      ...sampleData,
+      status: 'PAID',
+      paymentRef: 'PSK-SETTLED-123',
+      bankTransferDetails: {
+        currency: 'USD',
+        beneficiary: 'BAZION WEB',
+        accountNumber: '01103361465001',
+        paymentReference: 'BW-BAZ-A8E2E',
+      },
+    }).toString('latin1');
+
+    expect(pdf).toContain('PAYMENT CONFIRMED');
+    expect(pdf).toContain('Settlement reference: PSK-SETTLED-123');
+    expect(pdf).not.toContain('BANK TRANSFER IN USD');
+    expect(pdf).not.toContain('Account / IBAN: 01103361465001');
+  });
+
+  it('wraps long service descriptions without truncating invoice content', () => {
+    const description =
+      'Managed cloud security, data protection, scheduled backups, workload migrations, and annual support package for production services';
+    const pdf = InvoicePdfGenerator.generate({
+      ...sampleData,
+      lineItems: [{ description, quantity: 1, amount: 8500 }],
+    }).toString('latin1');
+
+    expect(pdf).toContain('and annual support package for production');
+    expect(pdf).toContain('(services) Tj');
+    expect(pdf).toContain('1 0 0 1 71');
+    expect(pdf).toContain('0 -9 Td');
+  });
+  it('keeps the document verification panel compact on A4 invoices', () => {
+    const pdf = InvoicePdfGenerator.generate(sampleData).toString('latin1');
+    expect(pdf).toContain('515 120 re f');
+    expect(pdf).toMatch(/40 \d+ 515 120 re S/);
+  });
   it('embeds the official BazionWeb raster logo XObject, KRA PIN, payment info, and Code-128B barcode', () => {
     const pdfBuf = InvoicePdfGenerator.generate({
       ...sampleData,
@@ -111,11 +190,15 @@ describe('InvoicePdfGenerator', () => {
     expect(latin1).toContain(OFFICIAL_BAZION_PAYMENT_DETAILS.bankAccountNumber);
     expect(latin1).toContain(OFFICIAL_BAZION_PAYMENT_DETAILS.bankSwiftCode);
 
-    // Code-128 Security Barcode present with pure black bars (0 0 0 rg), public /verify URL, no QR code
-    expect(latin1).toContain('SECURITY BARCODE \\(CODE-128B\\): INV-MAN-40770343-3099D6');
+    // Code-128 reference barcode present with pure black bars (0 0 0 rg), public /verify URL, no QR code
+    expect(latin1).toContain('REFERENCE BARCODE \\(CODE-128\\): INV-MAN-40770343-3099D6');
     expect(latin1).toContain('Verify: bazionweb.com/verify?ref=INV-MAN-40770343-3099D6');
     expect(latin1).toContain('0 0 0 rg\n');
     expect(latin1.toUpperCase()).not.toContain('QR CODE');
+    expect(latin1).toContain('HMAC-SHA256:');
+    expect(latin1).toContain('BAZION WEB DOCUMENT RECORD');
+    expect(latin1).not.toContain('ISO 14533');
+    expect(latin1).not.toContain('VERIFIED: AUTHENTICATED');
 
     // Official Document Titling & Clean Summary (No VAT line or mention when not VAT-registered)
     expect(latin1).toContain('OFFICIAL INVOICE');

@@ -290,10 +290,65 @@
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ─── Print Styles ───────────────────────────────────────────────────── */
+@page {
+  size: A4 portrait;
+  margin: 12mm 14mm;
+}
+
 @media print {
   nav, footer, .no-print { display: none !important; }
   body { @apply text-black bg-white; }
+  body:has(.admin-report-document) aside,
+  body:has(.admin-report-document) header:not(.admin-report-print-header) {
+    display: none !important;
+  }
+  body:has(.admin-report-document) main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  .admin-report-document { color: #0F172A; }
+  .admin-report-print-header { display: flex !important; }
+  .admin-report-no-print,
+  .admin-report-screen-header { display: none !important; }
+  .admin-report-document .overflow-x-auto { overflow: visible !important; }
+  .admin-report-document table { width: 100%; border-collapse: collapse; }
+  .admin-report-document thead { display: table-header-group; }
+  .admin-report-document tr { break-inside: avoid; page-break-inside: avoid; }
+  .admin-report-document th,
+  .admin-report-document td { border-bottom: 1px solid #CBD5E1; }
+  .admin-report-document .shadow-sm { box-shadow: none !important; }
+  .admin-report-document .rounded-2xl { border-radius: 0.5rem !important; }
+  .proposal-document {
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    color: #0F172A;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .proposal-document table { width: 100%; border-collapse: collapse; }
+  .proposal-document thead { display: table-header-group; }
+  .proposal-document tfoot { display: table-footer-group; }
+  .proposal-document tr,
+  .proposal-document img,
+  .proposal-document svg,
+  .proposal-document .proposal-keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .proposal-document h1,
+  .proposal-document h2,
+  .proposal-document h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .proposal-document p,
+  .proposal-document li { orphans: 3; widows: 3; }
 }
+
 
 /* ─── Mobile Form & Viewport Tweaks ─────────────────────────────────── */
 @media screen and (max-width: 639px) {

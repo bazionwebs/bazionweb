@@ -19,6 +19,9 @@ export const envValidationSchema = Joi.object({
     .min(32)
     .required()
     .invalid('CHANGE_ME_256BIT_SECRET_KEY_FOR_LOCAL_DEV', 'secret', 'password'),
+  // Optional dedicated document key; the billing service falls back to JWT_SECRET.
+  DOCUMENT_SIGNING_SECRET: Joi.string().min(32).optional().allow(''),
+  DOCUMENT_SIGNING_PREVIOUS_SECRET: Joi.string().min(32).optional().allow(''),
   JWT_EXPIRY: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRY: Joi.string().default('7d'),
   // Dedicated AES-256-GCM vault encryption key for client credentials at rest (min 32 chars).

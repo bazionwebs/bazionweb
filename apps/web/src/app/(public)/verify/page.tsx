@@ -21,7 +21,6 @@ import {
 import { resolveApiV1Base } from '@/lib/api-base';
 import { formatMoney, formatDate } from '@/lib/format';
 import {
-  BAZION_CORPORATE_DETAILS,
   generateCode128BarcodeSvg,
   renderDigitalStampSvg,
 } from '@/lib/document-branding';
@@ -245,10 +244,11 @@ function VerifyPortalContent() {
   const stampSvg = useMemo(() => {
     if (!result?.found) return '';
     const isPaid = result.status === 'PAID';
+    const signatureVerified = result.signatureVerified === true;
     return renderDigitalStampSvg({
       docNumber: result.referenceNumber,
-      status: isPaid ? 'PAID' : 'AUTHENTICATED',
-      tone: isPaid ? 'emerald' : 'blue',
+      status: isPaid ? 'PAID' : signatureVerified ? 'VERIFIED' : 'RECORD',
+      tone: isPaid ? 'emerald' : signatureVerified ? 'blue' : 'navy',
       size: 132,
     });
   }, [result]);
@@ -260,13 +260,13 @@ function VerifyPortalContent() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-extrabold uppercase tracking-wider mb-4">
             <ShieldCheck className="w-4 h-4" />
-            SSOT Cryptographic Document &amp; Barcode Registry
+            BazionWeb Document Verification
           </div>
           <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
-            Verify Official Invoice or Receipt
+            Verify a BazionWeb Document
           </h1>
           <p className="mt-2 text-sm text-slate-400 max-w-2xl mx-auto">
-            Validate the authenticity, KRA tax registration (<span className="font-mono text-slate-200">{BAZION_CORPORATE_DETAILS.taxPin}</span>), and SHA-256 cryptographic seal of any system-generated BazionWeb invoice, receipt, or commercial proposal.
+            Look up an invoice, payment receipt, or proposal in the BazionWeb registry. The result shows the current record; when you provide a complete server HMAC signature, we compare it with the signed record fields.
           </p>
         </div>
 
@@ -406,14 +406,18 @@ function VerifyPortalContent() {
                 <div>
                   <div className="text-[11px] font-extrabold uppercase tracking-widest opacity-90">
                     {result.verified && result.found
-                      ? 'Official SSOT Cryptographic Verification Certificate'
+                      ? result.signatureVerified === true
+                        ? 'Official record and document signature confirmed'
+                        : 'Official registry record located'
                       : 'Verification Alert — Unverified Reference'}
                   </div>
                   <h2 className="text-lg sm:text-xl font-black">
                     {result.verified && result.found
-                      ? `AUTHENTICATED: ${result.documentType}`
+                      ? result.signatureVerified === true
+                        ? `SIGNATURE VERIFIED: ${result.documentType}`
+                        : `RECORD LOCATED: ${result.documentType}`
                       : result.found && result.signatureVerified === false
-                        ? 'CRYPTOGRAPHIC CHECKSUM MISMATCH'
+                        ? 'DOCUMENT SIGNATURE DOES NOT MATCH'
                         : 'RECORD NOT FOUND IN OFFICIAL REGISTRY'}
                   </h2>
                 </div>
@@ -431,7 +435,7 @@ function VerifyPortalContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-slate-200">
                   <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
                     <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
-                      Verified Issuing Entity
+                      Issuing Entity on Record
                     </div>
                     <div className="font-black text-base text-slate-900 flex items-center gap-2">
                       <Building2 className="w-4 h-4 text-blue-600" />
@@ -440,7 +444,7 @@ function VerifyPortalContent() {
                     <div className="text-xs text-slate-600 mt-1 space-y-0.5">
                       <div>Proprietor: <strong>{result.issuer.proprietor}</strong></div>
                       <div>BRS Reg No: <strong className="font-mono">{result.issuer.regNumber}</strong> (Cap 499, Sec 14)</div>
-                      <div>Official KRA PIN: <strong className="font-mono text-blue-700">{result.issuer.taxPin}</strong></div>
+                      <div>Supplier KRA PIN: <strong className="font-mono text-blue-700">{result.issuer.taxPin}</strong></div>
                     </div>
                   </div>
 
@@ -518,14 +522,14 @@ function VerifyPortalContent() {
                       </div>
                       <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5">
                         <div className="text-[10px] font-bold uppercase text-slate-400">
-                          {result.vatLabel || '16% KRA VAT'}
+                          {result.vatLabel || 'No VAT recorded'}
                         </div>
                         <div className="text-sm font-extrabold text-slate-800 mt-0.5">
                           {formatMoney(result.vatAmount ?? 0, result.currency || 'KES')}
                         </div>
                       </div>
                       <div className="rounded-xl bg-blue-50 border border-blue-200 p-3.5">
-                        <div className="text-[10px] font-bold uppercase text-blue-700">Total Verified Amount</div>
+                        <div className="text-[10px] font-bold uppercase text-blue-700">Official Record Amount</div>
                         <div className="text-base font-black text-slate-900 mt-0.5">
                           {formatMoney(result.totalAmount ?? 0, result.currency || 'KES')}
                         </div>
@@ -534,12 +538,12 @@ function VerifyPortalContent() {
                   </div>
                 )}
 
-                {/* Barcode, Cryptographic Fingerprint & Digital Seal */}
+                {/* Document reference, HMAC signature, and brand mark */}
                 <div className="pt-6 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6">
                   <div className="space-y-3 flex-1">
                     <div className="text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                       <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                      ISO/IEC 15417 Code-128 Security Barcode &amp; SHA-256 Digest
+                      Code-128 document reference &amp; HMAC-SHA256 signature
                     </div>
                     {barcodeSvg && (
                       <div
@@ -551,7 +555,11 @@ function VerifyPortalContent() {
                       {result.cryptographicFingerprint}
                     </div>
                     <p className="text-[11px] text-slate-500">
-                      Pursuant to Kenya KICA Cap 411A &amp; Registration of Business Names Act (Cap 499, Sec 14), this system-generated record is valid without wet-ink signature. Official BRS check: SMS &ldquo;BRS&rdquo; to 21546.
+                      {result.signatureVerified === true
+                        ? 'The submitted HMAC signature matches a trusted BazionWeb signing key.'
+                        : result.signatureVerified === false
+                          ? 'The record exists, but the submitted signature did not match. Do not rely on this copy.'
+                          : 'The reference exists in the BazionWeb registry. No signature was supplied for cryptographic comparison.'}
                     </p>
                   </div>
 

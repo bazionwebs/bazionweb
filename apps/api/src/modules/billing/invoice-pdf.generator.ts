@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHmac } from 'crypto';
 import { BAZION_LOGO_PDF_ASSET } from './brand-logo.asset';
 
 export const OFFICIAL_BAZION_KRA_PIN = 'A006926734I';
@@ -65,7 +65,7 @@ function countDigitsAt(str: string, pos: number): number {
  * ISO/IEC 15417 Annex E compliant Code 128 Auto-Subset (B/C) encoder.
  * Automatically switches into double-density numeric Subset C (Code 99 / Start 105)
  * for runs of 4+ digits (e.g. `40770343` in `INV-MAN-40770343-3099D6`), maximizing
- * X-dimension bar width and optical contrast for Grade-A camera and laser scanning.
+ * X-dimension bar width for numeric references while preserving the encoded value.
  */
 export function encodeCode128Bars(rawText: string): {
   codes: number[];
@@ -139,7 +139,7 @@ export function encodeCode128Bars(rawText: string): {
 
 /**
  * Decodes Code 128 bar segments back into ASCII text and verifies the ISO/IEC 15417
- * Modulo-103 checksum and Stop symbol. Used by unit tests to prove 100% scannability.
+ * Modulo-103 checksum and Stop symbol. Used by tests to validate the encoded sequence.
  */
 export function decodeCode128Bars(
   bars: Array<{ offset: number; width: number }>,
@@ -193,30 +193,47 @@ export function decodeCode128Bars(
 }
 
 /**
- * Computes the deterministic SHA-256 document security fingerprint.
- * Shared between InvoicePdfGenerator and BillingService.verifyDocumentPublic.
+ * Creates a server-keyed document signature. A plain checksum is not an
+ * authenticity control because document fields and browser code are public.
  */
-export function computeDocumentFingerprint(params: {
-  docNumber: string;
-  totalAmount: number | string;
-  currency: string;
-  recipientEmail: string;
-  issueDate: Date | string;
-}): { hashHex: string; formatted: string } {
-  const checksumRaw = [
+function canonicalizeDocumentValue(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(canonicalizeDocumentValue);
+  if (!value || typeof value !== 'object') return value ?? null;
+  const candidate = value as Record<string, unknown> & { toJSON?: () => unknown };
+  if (typeof candidate.toJSON === 'function') {
+    const jsonValue = candidate.toJSON();
+    if (jsonValue !== value) return canonicalizeDocumentValue(jsonValue);
+  }
+  return Object.fromEntries(
+    Object.keys(candidate).sort().map((key) => [key, canonicalizeDocumentValue(candidate[key])]),
+  );
+}
+export function computeDocumentFingerprint(
+  params: {
+    docNumber: string;
+    totalAmount: number | string;
+    currency: string;
+    recipientEmail: string;
+    issueDate: Date | string;
+    documentContent?: unknown;
+  },
+  signingKey: string,
+): { hashHex: string; formatted: string } {
+  if (!signingKey || signingKey.length < 32) {
+    throw new Error('A document signing key of at least 32 characters is required.');
+  }
+  const canonicalPayload = JSON.stringify([
+    'bazionweb-document-v2',
     String(params.docNumber || '').trim().toUpperCase(),
     String(params.totalAmount ?? 0),
     String(params.currency || 'USD').toUpperCase(),
     String(params.recipientEmail || '').trim().toLowerCase(),
     new Date(params.issueDate).toISOString().slice(0, 10),
-    'BAZION_SECURE_DOCUMENT_INTEGRITY_SALT_V1',
-  ].join('|');
-  const hashHex = createHash('sha256').update(checksumRaw).digest('hex').toUpperCase();
-  const chunks = hashHex.slice(0, 32).match(/.{1,4}/g) || [hashHex.slice(0, 32)];
-  return {
-    hashHex,
-    formatted: `SHA256: ${chunks.join('-')}`,
-  };
+    canonicalizeDocumentValue(params.documentContent ?? null),
+  ]);
+  const hashHex = createHmac('sha256', signingKey).update(canonicalPayload).digest('hex').toUpperCase();
+  return { hashHex, formatted: `HMAC-SHA256: ${hashHex}` };
 }
 
 export function resolveSupplierTaxPin(configuredPin?: string | null): string {
@@ -242,6 +259,33 @@ export function sanitizePdfText(raw: string): string {
     .replace(/[^\x20-\x7E\xA1-\xFF]/g, '');
 }
 
+function wrapPdfTextLines(text: string, maxCharacters: number): string[] {
+  const words = String(text ?? '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [''];
+
+  const lines: string[] = [];
+  let line = '';
+  for (let word of words) {
+    while (word.length > maxCharacters) {
+      if (line) {
+        lines.push(line);
+        line = '';
+      }
+      lines.push(word.slice(0, maxCharacters));
+      word = word.slice(maxCharacters);
+    }
+    if (!word) continue;
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length > maxCharacters) {
+      if (line) lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
 export interface InvoicePdfData {
   invoiceNumber: string;
   currency: string;
@@ -277,6 +321,20 @@ export interface InvoicePdfData {
     vatRegistered?: boolean;
   };
   paymentRef?: string | null;
+  /** Per-invoice bank details created by the billing service. */
+  bankTransferDetails?: {
+    currency?: string;
+    beneficiary?: string | null;
+    accountNumber?: string | null;
+    iban?: string | null;
+    routingNumber?: string | null;
+    swiftBic?: string | null;
+    bankName?: string | null;
+    bankAddress?: string | null;
+    paymentReference?: string | null;
+  };
+  /** Server-generated HMAC signature; never generate this in browser code. */
+  documentFingerprint?: string;
   /** Issuer details from configuration; omitted fields fall back to official corporate defaults. */
   supplier?: {
     address?: string | null;
@@ -289,8 +347,8 @@ export class InvoicePdfGenerator {
    * Generates a compliant PDF 1.4 binary buffer.
    * Embeds the official BazionWeb brand logo as a 300-DPI /FlateDecode RGB XObject (/Im1),
    * official Co-operative Bank & M-Pesa Paybill payment instructions,
-   * ISO/IEC 15417 Grade-A Code-128 Auto (B/C) vector security barcode (pure black on white, >=12X quiet zone),
-   * BRS & KRA corporate credentials, and SHA-256 cryptographic tamper-evident seal.
+   * Code-128 document-reference barcode, BRS/KRA corporate credentials, and the
+   * server-generated HMAC signature for independent record verification.
    */
   static generate(data: InvoicePdfData): Buffer {
     const isPaid = data.status === 'PAID';
@@ -499,7 +557,7 @@ export class InvoicePdfGenerator {
     contentLines.push('ET');
 
     // ── 5. Standout Zebra-Striped & Framed Line Items Rendering ──
-    const rowH = 21;
+    const baseRowH = 21;
     let rowTopY = headerBottomY;
     const items =
       data.lineItems && data.lineItems.length > 0
@@ -513,11 +571,14 @@ export class InvoicePdfGenerator {
           ];
 
     items.forEach((item, idx) => {
-      const rowBottomY = rowTopY - rowH;
-      const textY = rowBottomY + 7;
       const desc = sanitizePdfText(
         item.description || 'Cloud & Hosting Infrastructure Service',
       );
+      const descriptionLines = wrapPdfTextLines(desc, 42);
+      const rowH = Math.max(baseRowH, descriptionLines.length * 9 + 12);
+      const rowBottomY = rowTopY - rowH;
+      const descriptionFirstLineY = rowBottomY + rowH - 14;
+      const valueTextY = rowBottomY + (rowH - 8) / 2;
       const isTaxRow = isTaxLineItem(desc);
       const qty = Math.max(1, Number(item.quantity ?? 1));
       const amtVal = Number(item.amount ?? data.amount ?? 0);
@@ -550,7 +611,7 @@ export class InvoicePdfGenerator {
       contentLines.push(`40 ${rowBottomY} 3 ${rowH} re f`);
 
       contentLines.push(isTaxRow ? '0.86 0.95 0.93 rg' : '0.918 0.945 0.996 rg');
-      contentLines.push(`342 ${rowBottomY + 4} 24 13 re f`);
+      contentLines.push(`342 ${rowBottomY + (rowH - 13) / 2} 24 13 re f`);
 
       contentLines.push('0.84 0.88 0.93 RG 0.6 w');
       contentLines.push(`40 ${rowBottomY} m 555 ${rowBottomY} l S`);
@@ -559,33 +620,35 @@ export class InvoicePdfGenerator {
       contentLines.push('BT');
       contentLines.push('/F2 7.8 Tf');
       contentLines.push(isTaxRow ? '0.051 0.580 0.533 rg' : '0.145 0.388 0.921 rg');
-      contentLines.push(`48 ${textY} Td`);
+      contentLines.push(`48 ${valueTextY} Td`);
       contentLines.push(`(${esc(rowNumStr)}) Tj`);
 
       contentLines.push('/F2 7.8 Tf');
       contentLines.push(isTaxRow ? '0.08 0.28 0.36 rg' : '0.06 0.09 0.16 rg');
-      contentLines.push('23 0 Td');
-      contentLines.push(`(${esc(desc.slice(0, 60))}) Tj`);
+      contentLines.push(`1 0 0 1 71 ${descriptionFirstLineY} Tm`);
+      descriptionLines.forEach((line, lineIndex) => {
+        contentLines.push(`(${esc(line)}) Tj`);
+        if (lineIndex < descriptionLines.length - 1) contentLines.push('0 -9 Td');
+      });
 
       contentLines.push('/F2 7.8 Tf');
       contentLines.push(isTaxRow ? '0.04 0.45 0.40 rg' : '0.11 0.30 0.85 rg');
-      contentLines.push('280 0 Td');
+      contentLines.push(`1 0 0 1 351 ${valueTextY} Tm`);
       contentLines.push(`(${esc(String(qty))}) Tj`);
 
       contentLines.push('/F1 7.8 Tf');
       contentLines.push('0.30 0.36 0.44 rg');
-      contentLines.push('34 0 Td');
+      contentLines.push(`1 0 0 1 385 ${valueTextY} Tm`);
       contentLines.push(`(${esc(unitStr)}) Tj`);
 
       contentLines.push('/F2 8.4 Tf');
       contentLines.push(isTaxRow ? '0.05 0.38 0.35 rg' : '0.059 0.090 0.165 rg');
-      contentLines.push('85 0 Td');
+      contentLines.push(`1 0 0 1 470 ${valueTextY} Tm`);
       contentLines.push(`(${esc(amtStr)}) Tj`);
       contentLines.push('ET');
 
       rowTopY = rowBottomY;
     });
-
     const tableBottomY = rowTopY;
     const totalTableH = tableTopY - tableBottomY;
     contentLines.push('q');
@@ -621,41 +684,64 @@ export class InvoicePdfGenerator {
     contentLines.push('ET');
 
     const p = OFFICIAL_BAZION_PAYMENT_DETAILS;
+    const bank = data.bankTransferDetails;
     contentLines.push('BT');
-    contentLines.push('/F2 7.8 Tf');
+    contentLines.push('/F2 7.2 Tf');
     contentLines.push('0.05 0.45 0.25 rg');
     contentLines.push(`48 ${boxY - 10} Td`);
-    contentLines.push(`(${esc('1. LIPA NA M-PESA (CO-OP BANK PAYBILL):')}) Tj`);
-    contentLines.push('/F2 8 Tf');
-    contentLines.push('0.08 0.12 0.20 rg');
-    contentLines.push('0 -11 Td');
-    contentLines.push(
-      `(${esc(`Paybill No: ${p.mpesaPaybill}   |   Account No: ${p.mpesaAccountNumber}`)}) Tj`,
-    );
-    contentLines.push('/F1 7.2 Tf');
-    contentLines.push('0.32 0.38 0.46 rg');
-    contentLines.push('0 -10 Td');
-    contentLines.push(`(${esc(`Business Name: ${p.mpesaAccountName}`)}) Tj`);
-
-    contentLines.push('/F2 7.8 Tf');
-    contentLines.push('0.10 0.30 0.78 rg');
-    contentLines.push('0 -14 Td');
-    contentLines.push(`(${esc('2. BANK TRANSFER (EFT / RTGS / SWIFT):')}) Tj`);
-    contentLines.push('/F1 7.5 Tf');
-    contentLines.push('0.12 0.16 0.24 rg');
-    contentLines.push('0 -10.5 Td');
-    contentLines.push(`(${esc(`Bank: ${p.bankName} (${p.bankBranch})`)}) Tj`);
-    contentLines.push('/F2 7.6 Tf');
-    contentLines.push('0 -10.5 Td');
-    contentLines.push(
-      `(${esc(`A/C Name: ${p.bankAccountName}  |  A/C: ${p.bankAccountNumber}`)}) Tj`,
-    );
-    contentLines.push('/F1 7.2 Tf');
-    contentLines.push('0.32 0.38 0.46 rg');
-    contentLines.push('0 -10 Td');
-    contentLines.push(
-      `(${esc(`SWIFT / BIC: ${p.bankSwiftCode}  |  Card / STK: bazionweb.com/portal/invoices`)}) Tj`,
-    );
+    if (bank && !isPaid) {
+      contentLines.push(`(${esc(`BANK TRANSFER IN ${bank.currency || data.currency} | USE THE REFERENCE BELOW`)}) Tj`);
+      contentLines.push('/F1 7.1 Tf');
+      contentLines.push('0.08 0.12 0.20 rg');
+      contentLines.push('0 -11 Td');
+      contentLines.push(`(${esc(`Beneficiary: ${bank.beneficiary || 'BAZION WEB'}`)}) Tj`);
+      contentLines.push('0 -10 Td');
+      contentLines.push(`(${esc(`Account / IBAN: ${bank.iban || bank.accountNumber || 'Contact billing'}`)}) Tj`);
+      if (bank.routingNumber) {
+        contentLines.push('0 -10 Td');
+        contentLines.push(`(${esc(`Routing / ABA: ${bank.routingNumber}`)}) Tj`);
+      }
+      if (bank.swiftBic) {
+        contentLines.push('0 -10 Td');
+        contentLines.push(`(${esc(`SWIFT / BIC: ${bank.swiftBic}`)}) Tj`);
+      }
+      if (bank.bankName || bank.bankAddress) {
+        contentLines.push('0 -10 Td');
+        contentLines.push(`(${esc(`Bank: ${bank.bankName || bank.bankAddress}`)}) Tj`);
+      }
+      contentLines.push('/F2 7.4 Tf');
+      contentLines.push('0.10 0.30 0.78 rg');
+      contentLines.push('0 -12 Td');
+      contentLines.push(`(${esc(`Payment reference: ${bank.paymentReference || data.paymentRef || data.invoiceNumber}`)}) Tj`);
+      contentLines.push('/F1 6.7 Tf');
+      contentLines.push('0.32 0.38 0.46 rg');
+      contentLines.push('0 -10 Td');
+      contentLines.push(`(${esc('Confirm receipt with billing@bazionweb.com')}) Tj`);
+    } else if (isPaid) {
+      contentLines.push(`(${esc('PAYMENT CONFIRMED')}) Tj`);
+      contentLines.push('/F1 7.2 Tf');
+      contentLines.push('0.32 0.38 0.46 rg');
+      contentLines.push('0 -12 Td');
+      contentLines.push(`(${esc(`Settlement reference: ${data.paymentRef || 'On record'}`)}) Tj`);
+      contentLines.push('0 -10 Td');
+      contentLines.push(`(${esc('View your current billing record at bazionweb.com/portal/invoices')}) Tj`);
+    } else {
+      contentLines.push(`(${esc('LIPA NA M-PESA (CO-OP BANK PAYBILL)')}) Tj`);
+      contentLines.push('/F1 7.2 Tf');
+      contentLines.push('0.08 0.12 0.20 rg');
+      contentLines.push('0 -11 Td');
+      contentLines.push(`(${esc(`Paybill: ${p.mpesaPaybill} | Account: ${p.mpesaAccountNumber} | Name: ${p.mpesaAccountName}`)}) Tj`);
+      contentLines.push('/F2 7.2 Tf');
+      contentLines.push('0.10 0.30 0.78 rg');
+      contentLines.push('0 -13 Td');
+      contentLines.push(`(${esc(`BANK TRANSFER (${p.bankName} - ${p.bankBranch})`)}) Tj`);
+      contentLines.push('/F1 7 Tf');
+      contentLines.push('0.12 0.16 0.24 rg');
+      contentLines.push('0 -10 Td');
+      contentLines.push(`(${esc(`Beneficiary: ${p.bankAccountName} | Account: ${p.bankAccountNumber}`)}) Tj`);
+      contentLines.push('0 -10 Td');
+      contentLines.push(`(${esc(`SWIFT / BIC: ${p.bankSwiftCode} | Portal: bazionweb.com/portal/invoices`)}) Tj`);
+    }
     contentLines.push('ET');
 
     // 6B. Financial Breakdown Box (Right: x=330..555, w=225, h=125)
@@ -706,85 +792,71 @@ export class InvoicePdfGenerator {
     contentLines.push(`(${esc(fmt(data.breakdown.balanceDue))}) Tj`);
     contentLines.push('ET');
 
-    // ── 7. Cryptographic SHA-256 Tamper-Evident Digest ──
-    const fp = computeDocumentFingerprint({
-      docNumber: data.invoiceNumber,
-      totalAmount: data.breakdown.total ?? data.amount ?? 0,
-      currency: data.currency || 'USD',
-      recipientEmail: data.client.email || '',
-      issueDate: data.createdAt,
-    });
-    const checksumStr = fp.formatted;
+    // ── 7. Document reference and server-keyed HMAC verification panel ──
+    // Keep a compact footer and balance whitespace around it.
+    const securityPanelHeight = 120;
+    // Balance whitespace above and below this compact verification block.
+    // Longer invoices retain a 22pt bottom margin beneath the verification block.
+    // Center the compact verification block within the space after the payment card.
+    // Keep at least 22pt of bottom margin on invoices that use most of the page.
+    const securityPanelBottomY = Math.max(
+      22,
+      Math.round((boxBottomY - 16 - securityPanelHeight) / 2),
+    );
+    const securityPanelTopY = securityPanelBottomY + securityPanelHeight;
 
-    // ── 8. Digital Authentication, ISO/IEC 15417 Grade-A Code-128 Barcode & Official Seal ──
-    // Spans y=22..142 (height 120pt)
     contentLines.push('q');
     contentLines.push('0.96 0.97 0.99 rg');
-    contentLines.push('40 22 515 120 re f');
+    contentLines.push(`40 ${securityPanelBottomY} 515 ${securityPanelHeight} re f`);
     contentLines.push('0.85 0.88 0.92 RG 0.75 w');
-    contentLines.push('40 22 515 120 re S');
-    // Top microprint ribbon inside block
+    contentLines.push(`40 ${securityPanelBottomY} 515 ${securityPanelHeight} re S`);
     contentLines.push('0.059 0.090 0.165 rg');
-    contentLines.push('40 130 515 12 re f');
-    // Borderless high-contrast Pure White (#FFFFFF) barcode quiet-zone plate (x=46..402, y=27..76)
-    // NO vertical stroke around the barcode plate so scanners never mistake a border line for a bar!
+    contentLines.push(`40 ${securityPanelTopY - 12} 515 12 re f`);
     contentLines.push('1 1 1 rg');
-    contentLines.push('46 27 356 49 re f');
-    // Official Digital Seal box on right (x=408..549, y=27..124)
+    contentLines.push(`46 ${securityPanelBottomY + 5} 356 49 re f`);
     contentLines.push('0.82 0.86 0.92 RG 0.75 w');
-    contentLines.push('408 27 141 97 re S');
+    contentLines.push(`408 ${securityPanelBottomY + 5} 141 88 re S`);
     contentLines.push('Q');
 
-    // Microprint text
     contentLines.push('BT');
     contentLines.push('/F2 5.8 Tf');
     contentLines.push('0.9 0.95 1 rg');
-    contentLines.push('48 133.5 Td');
+    contentLines.push(`48 ${securityPanelTopY - 8.5} Td`);
     contentLines.push(
-      `(${esc(`*** BAZION WEB (REG: BN-DLSZOZ6O | KRA PIN: ${supplierTaxPin}) *** OFFICIAL SYSTEM-GENERATED RECORD *** ISO 14533 ***`)}) Tj`,
+      `(${esc(`BAZION WEB | REG: BN-DLSZOZ6O | KRA PIN: ${supplierTaxPin} | SYSTEM-GENERATED DOCUMENT`)}) Tj`,
     );
     contentLines.push('ET');
 
-    // Main compliance statement (Top-Left of security block, y=80..120)
     contentLines.push('BT');
     contentLines.push('/F2 7.3 Tf');
     contentLines.push('0.1 0.15 0.25 rg');
-    contentLines.push('48 119 Td');
-    contentLines.push(
-      `(${esc(`AUTHENTICATED SSOT ENGINE RECORD  |  REF: ${data.invoiceNumber}`)}) Tj`,
-    );
+    contentLines.push(`48 ${securityPanelTopY - 23} Td`);
+    contentLines.push(`(${esc(`DOCUMENT RECORD | REF: ${data.invoiceNumber}`)}) Tj`);
     contentLines.push('/F1 6.1 Tf');
     contentLines.push('0.35 0.4 0.48 rg');
     contentLines.push('0 -9 Td');
-    contentLines.push(
-      `(${esc(`Issued electronically by BAZION WEB (Proprietor: Joseph Mburu Kiai | KRA PIN: ${supplierTaxPin}).`)}) Tj`,
-    );
+    contentLines.push(`(${esc(`Issued by BAZION WEB | KRA PIN: ${supplierTaxPin}`)}) Tj`);
     contentLines.push('0 -8.5 Td');
-    contentLines.push(
-      `(${esc('Business Reg: BN-DLSZOZ6O (SMS "BRS" to 21546) | Valid without wet-ink signature (KICA Cap 411A).')}) Tj`,
-    );
-    contentLines.push('0 -8.5 Td');
-    contentLines.push(
-      `(${esc(`Cryptographic Fingerprint: ${checksumStr}`)}) Tj`,
-    );
+    contentLines.push(`(${esc('Business Reg: BN-DLSZOZ6O | Verify at bazionweb.com/verify')}) Tj`);
+    if (data.documentFingerprint) {
+      contentLines.push('0 -8.5 Td');
+      contentLines.push(`(${esc(data.documentFingerprint)}) Tj`);
+    }
     contentLines.push('ET');
 
-    // ISO/IEC 15417 Grade-A Code-128 Auto (B/C) Security Barcode:
-    // - Encodes canonical invoice reference (e.g. INV-MAN-40770343-3099D6) with Subset C digit compression
-    // - Exact binary-fraction module width (1.2pt = >0.42mm X-dimension)
-    // - 100% Pure Black (0 0 0 rg) bars on 100% Pure White (1 1 1 rg) background
-    // - >= 15pt clear borderless white quiet zones on both left and right
+    // Code-128 encodes the public invoice reference for registry lookup. It is
+    // an identifier, not an authenticity signature; the HMAC above is the proof.
     const cleanRef = sanitizePdfText(data.invoiceNumber).toUpperCase().slice(0, 26);
     const barcode = encodeCode128Bars(cleanRef);
-    const maxActiveW = 320; // leaves >=18pt pure white quiet zone on left and right inside 356pt white plate
+    const maxActiveW = 320;
     const modulePt = Math.min(1.4, Math.floor((maxActiveW / barcode.totalModules) * 20) / 20);
     const actualBarcodeW = barcode.totalModules * modulePt;
     const barStartX = Math.round(46 + (356 - actualBarcodeW) / 2);
-    const barBottomY = 42;
+    const barBottomY = securityPanelBottomY + 20;
     const barHeight = 29;
 
     contentLines.push('q');
-    contentLines.push('0 0 0 rg'); // 100% Pure Black for maximum ISO/IEC 15416 symbol contrast
+    contentLines.push('0 0 0 rg');
     for (const bar of barcode.bars) {
       const bx = (barStartX + bar.offset * modulePt).toFixed(2);
       const bw = (bar.width * modulePt).toFixed(2);
@@ -792,22 +864,20 @@ export class InvoicePdfGenerator {
     }
     contentLines.push('Q');
 
-    // Human-readable security barcode text & live verification URL cleanly below bars (11pt gap below barBottomY)
     contentLines.push('BT');
     contentLines.push('/F2 6 Tf');
     contentLines.push('0.12 0.16 0.24 rg');
-    contentLines.push('54 31 Td');
+    contentLines.push(`54 ${securityPanelBottomY + 9} Td`);
     contentLines.push(
-      `(${esc(`SECURITY BARCODE (CODE-128B): ${barcode.encodedText}  |  Verify: bazionweb.com/verify?ref=${barcode.encodedText}`)}) Tj`,
+      `(${esc(`REFERENCE BARCODE (CODE-128): ${barcode.encodedText}  |  Verify: bazionweb.com/verify?ref=${barcode.encodedText}`)}) Tj`,
     );
     contentLines.push('ET');
 
-    // Seal Box text (Right: x=416)
     contentLines.push('BT');
     contentLines.push('/F2 7 Tf');
     contentLines.push(isPaid ? '0.05 0.5 0.3 rg' : '0.1 0.3 0.8 rg');
-    contentLines.push('416 111 Td');
-    contentLines.push(`(${esc('[ OFFICIAL DIGITAL SEAL ]')}) Tj`);
+    contentLines.push(`416 ${securityPanelTopY - 31} Td`);
+    contentLines.push(`(${esc('BAZION WEB DOCUMENT RECORD')}) Tj`);
     contentLines.push('/F2 7.8 Tf');
     contentLines.push('0.06 0.09 0.16 rg');
     contentLines.push('0 -12 Td');
@@ -823,11 +893,11 @@ export class InvoicePdfGenerator {
     contentLines.push('/F2 6.8 Tf');
     contentLines.push(isPaid ? '0.05 0.5 0.3 rg' : '0.1 0.3 0.8 rg');
     contentLines.push('0 -11.5 Td');
-    contentLines.push(`(${esc(isPaid ? 'VERIFIED: PAID IN FULL' : 'VERIFIED: AUTHENTICATED')}) Tj`);
+    contentLines.push(`(${esc(isPaid ? 'STATUS: PAID IN FULL' : `STATUS: ${data.status}`)}) Tj`);
     contentLines.push('/F1 5.4 Tf');
     contentLines.push('0.4 0.45 0.55 rg');
     contentLines.push('0 -9.5 Td');
-    contentLines.push(`(${esc('SSOT ENGINE | SMS BRS TO 21546')}) Tj`);
+    contentLines.push(`(${esc('DOCUMENT REFERENCE | bazionweb.com/verify')}) Tj`);
     contentLines.push('ET');
 
     const streamBody = contentLines.join('\n');

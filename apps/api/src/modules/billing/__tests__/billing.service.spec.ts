@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BillingService } from '../billing.service';
+import { computeDocumentFingerprint } from '../invoice-pdf.generator';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 const mockInvoice = {
@@ -74,6 +75,7 @@ const mockDarajaService = {
 const mockConfigService = {
   get: jest.fn((key: string, def?: any) => {
     if (key === 'FRONTEND_URL') return 'https://bazionweb.com';
+      if (key === 'JWT_SECRET') return 'unit-test-jwt-secret-that-is-long-enough-for-hmac-signing';
     if (key === 'BANK_BENEFICIARY') return 'BazionWeb Technologies Ltd';
     if (key === 'BANK_ACCOUNT_NUMBER') return 'TEST123';
     if (key === 'BANK_SWIFT_BIC') return 'TESTBIC';
@@ -102,6 +104,7 @@ describe('BillingService', () => {
     jest.clearAllMocks();
     mockConfigService.get.mockImplementation((key: string, def?: any) => {
       if (key === 'FRONTEND_URL') return 'https://bazionweb.com';
+      if (key === 'JWT_SECRET') return 'unit-test-jwt-secret-that-is-long-enough-for-hmac-signing';
       if (key === 'BANK_BENEFICIARY') return 'BazionWeb Technologies Ltd';
       if (key === 'BANK_ACCOUNT_NUMBER') return 'TEST123';
       if (key === 'BANK_SWIFT_BIC') return 'TESTBIC';
@@ -471,6 +474,9 @@ describe('BillingService', () => {
       expect(result.status).toBe('INVOICE_GENERATED');
       expect(result.provider).toBe('MANUAL_BANK_TRANSFER');
       expect(result.bankTransferDetails.accountNumber).toBe('TEST123');
+      expect(result.invoiceId).toBe('inv-corp-1');
+      expect(result.invoicePdfDownloadUrl).toMatch(/^\/api\/v1\/invoices\/inv-corp-1\/pdf\/download\?token=/);
+      expect(result.invoicePdfLinkExpiresAt).toBeTruthy();
     });
   });
 
@@ -606,6 +612,7 @@ describe('BillingService', () => {
       mockConfigService.get.mockImplementation((key: string, def?: any) => {
         if (key === 'PAYSTACK_SETTLEMENT_CURRENCY') return 'KES';
         if (key === 'FRONTEND_URL') return 'https://bazionweb.com';
+        if (key === 'JWT_SECRET') return 'unit-test-jwt-secret-that-is-long-enough-for-hmac-signing';
         if (key === 'BANK_BENEFICIARY') return 'BazionWeb Technologies Ltd';
         if (key === 'BANK_ACCOUNT_NUMBER') return 'TEST123';
         if (key === 'BANK_SWIFT_BIC') return 'TESTBIC';
@@ -861,6 +868,8 @@ describe('BillingService', () => {
       expect(result.status).toBe('INVOICE_GENERATED');
       expect(result.provider).toBe('MANUAL_BANK_TRANSFER');
       expect(result.bankTransferDetails.accountNumber).toBe('TEST123');
+      expect(result.invoiceId).toBe('inv-corp-guest');
+      expect(result.invoicePdfDownloadUrl).toMatch(/^\/api\/v1\/invoices\/inv-corp-guest\/pdf\/download\?token=/);
       const createdUser = mockPrisma.user.create.mock.calls[0][0].data;
       expect(createdUser.email).toBe('billing@acmecorp.com');
       expect(createdUser.firstName).toBe('Corporate'); // default placeholder
@@ -892,7 +901,7 @@ describe('BillingService', () => {
       paymentLogs: [],
     };
 
-    it('verifies an authentic invoice reference and computes SHA-256 fingerprint', async () => {
+    it('finds an invoice reference and returns its server-keyed HMAC signature', async () => {
       mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
 
       const res = await service.verifyDocumentPublic('INV-MAN-40770343-3099D6');
@@ -903,15 +912,15 @@ describe('BillingService', () => {
       expect(res.referenceNumber).toBe('INV-MAN-40770343-3099D6');
       expect(res.issuer.taxPin).toBe('A006926734I');
       expect(res.recipient?.emailMasked).toBe('gl***c@gmail.com');
-      expect(res.cryptographicFingerprint).toMatch(/^SHA256: ([0-9A-F]{4}-){7}[0-9A-F]{4}$/);
+      expect(res.cryptographicFingerprint).toMatch(/^HMAC-SHA256: [0-9A-F]{64}$/);
       expect(res.signatureVerified).toBeNull();
     });
 
-    it('matches legacy barcode scans that include the 6-char trailing SHA-256 checksum suffix', async () => {
+    it('finds legacy barcode references but rejects their short, forgeable checksum suffix', async () => {
       // Compute expected fingerprint snippet first
       mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
       const baseRes = await service.verifyDocumentPublic('INV-MAN-40770343-3099D6');
-      const shortHex = baseRes.cryptographicFingerprint!.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 6);
+      const shortHex = baseRes.cryptographicFingerprint!.replace(/^HMAC-SHA256:\s*/i, '').replace(/-/g, '').slice(0, 6);
 
       // First query (exact with suffix) returns null; second query (stripped base reference) returns the invoice
       mockPrisma.invoice.findFirst
@@ -919,11 +928,44 @@ describe('BillingService', () => {
         .mockResolvedValueOnce(mockVerifiableInvoice);
 
       const legacyScanRes = await service.verifyDocumentPublic(`INV-MAN-40770343-3099D6-${shortHex}`);
-      expect(legacyScanRes.verified).toBe(true);
+      expect(legacyScanRes.verified).toBe(false);
+      expect(legacyScanRes.found).toBe(true);
       expect(legacyScanRes.referenceNumber).toBe('INV-MAN-40770343-3099D6');
-      expect(legacyScanRes.signatureVerified).toBe(true);
+      expect(legacyScanRes.signatureVerified).toBe(false);
     });
 
+    it('accepts an exact HMAC signature and rejects a matching prefix', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
+      const record = await service.verifyDocumentPublic(mockVerifiableInvoice.invoiceNumber);
+      const signature = record.cryptographicFingerprint!.replace(/^HMAC-SHA256:\s*/i, '');
+      const reference = mockVerifiableInvoice.invoiceNumber;
+
+      mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
+      const valid = await service.verifyDocumentPublic(reference, signature);
+      expect(valid.signatureVerified).toBe(true);
+      expect(valid.cryptographicFingerprint).toBe(record.cryptographicFingerprint);
+
+      mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
+      const partial = await service.verifyDocumentPublic(reference, signature.slice(0, 12));
+      expect(partial.signatureVerified).toBe(false);
+      expect(partial.verified).toBe(false);
+    });
+
+    it('rejects a valid invoice signature when a signed line item has changed', async () => {
+      mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
+      const record = await service.verifyDocumentPublic(mockVerifiableInvoice.invoiceNumber);
+      const signature = record.cryptographicFingerprint!.replace(/^HMAC-SHA256:\s*/i, '');
+      const alteredInvoice = {
+        ...mockVerifiableInvoice,
+        lineItems: [{ description: 'Altered service description', quantity: 1, amount: 267960 }],
+      };
+      mockPrisma.invoice.findFirst.mockResolvedValueOnce(alteredInvoice);
+
+      const result = await service.verifyDocumentPublic(mockVerifiableInvoice.invoiceNumber, signature);
+      expect(result.found).toBe(true);
+      expect(result.signatureVerified).toBe(false);
+      expect(result.verified).toBe(false);
+    });
     it('flags a tampered checksum signature while still identifying the ledger record', async () => {
       mockPrisma.invoice.findFirst.mockResolvedValueOnce(mockVerifiableInvoice);
 
@@ -933,6 +975,35 @@ describe('BillingService', () => {
       expect(tamperedRes.signatureVerified).toBe(false);
     });
 
+    it('rejects a proposal signature after signed deliverable content changes', async () => {
+      const proposal = {
+        proposalCode: 'BZ-KE-2026-PROPTEST',
+        currency: 'KES',
+        totalAmount: 125000,
+        status: 'LOCKED',
+        clientEmail: 'owner@example.org',
+        clientName: 'Test Owner',
+        clientCompany: 'Test Company',
+        billingCountry: 'KE',
+        createdAt: new Date('2026-11-07T08:50:00.000Z'),
+        expiresAt: new Date('2026-12-07T08:50:00.000Z'),
+        lineItems: [{ description: 'Website implementation', quantity: 1, amount: 125000 }],
+      };
+      mockPrisma.invoice.findFirst.mockResolvedValue(null);
+      mockPrisma.proposal.findFirst.mockResolvedValueOnce(proposal);
+      const record = await service.verifyDocumentPublic(proposal.proposalCode);
+      const signature = record.cryptographicFingerprint!.replace(/^HMAC-SHA256:\s*/i, '');
+
+      mockPrisma.invoice.findFirst.mockResolvedValue(null);
+      mockPrisma.proposal.findFirst.mockResolvedValueOnce({
+        ...proposal,
+        lineItems: [{ description: 'Changed deliverable', quantity: 1, amount: 125000 }],
+      });
+      const altered = await service.verifyDocumentPublic(proposal.proposalCode, signature);
+      expect(altered.found).toBe(true);
+      expect(altered.signatureVerified).toBe(false);
+      expect(altered.verified).toBe(false);
+    });
     it('returns verified: false when reference does not exist in any ledger', async () => {
       mockPrisma.invoice.findFirst.mockResolvedValue(null);
       mockPrisma.proposal.findFirst.mockResolvedValue(null);

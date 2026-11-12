@@ -57,6 +57,7 @@ import {
 
 /** JWT audience for short-lived invoice PDF download links. */
 const INVOICE_DOWNLOAD_AUDIENCE = 'bazionweb:invoice-download';
+const DEVELOPMENT_DOCUMENT_SIGNING_SECRET = crypto.randomBytes(32).toString('hex');
 
 export interface InvoiceBreakdown {
   subtotal: number;
@@ -1176,9 +1177,13 @@ export class BillingService {
 
     this.events.emit('invoice.created', { invoice: result.invoice });
 
+    const pdfLink = this.createInvoicePdfDownloadLink(result.invoice.id);
     return {
       status: 'INVOICE_GENERATED',
       provider: 'MANUAL_BANK_TRANSFER',
+      invoiceId: result.invoice.id,
+      invoicePdfDownloadUrl: pdfLink.downloadUrlWithToken,
+      invoicePdfLinkExpiresAt: pdfLink.expiresAt,
       invoiceNumber: result.invoice.invoiceNumber,
       amount: result.invoice.amount,
       currency: result.invoice.currency,
@@ -1990,6 +1995,7 @@ export class BillingService {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
+        wiseReceivingAccount: true,
       },
     });
 
@@ -2005,8 +2011,8 @@ export class BillingService {
       }
     }
 
-    // Path 2: Short-lived signed download token minted by the authenticated
-    // GET /invoices/:id/pdf endpoint (ownership is checked when it is minted).
+    // Path 2: Short-lived, invoice-bound bearer token minted only by an
+    // authenticated owner or the creator of a newly issued guest invoice.
     if (options.token) {
       try {
         const decoded = jwt.verify(options.token, this.invoiceDownloadSecret(), {
@@ -2032,10 +2038,94 @@ export class BillingService {
     throw new ForbiddenException('Access denied to this invoice statement');
   }
 
+  /** Build the invoice fields shared by PDF rendering and HMAC verification. */
+  private invoiceDocumentSignatureData(invoice: any, breakdown: InvoiceBreakdown) {
+    const client = {
+      businessName: invoice.client?.businessName || 'Valued Client',
+      contactName:
+        invoice.client?.contactName ||
+        (invoice.client?.user
+          ? `${invoice.client.user.firstName || ''} ${invoice.client.user.lastName || ''}`.trim()
+          : null),
+      email: invoice.client?.email || invoice.client?.user?.email || 'billing@bazionweb.com',
+      address: invoice.client?.address || null,
+      country: invoice.client?.country || null,
+      taxPin: invoice.client?.taxPin || null,
+    };
+    const sourceItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+    const lineItems = sourceItems.length
+      ? sourceItems.map((item: any) => {
+          const quantity = Number(item?.quantity ?? 1);
+          const amount = Number(item?.amount ?? invoice.amount ?? 0);
+          const unitPrice = Number(item?.unitPrice ?? 0);
+          return {
+            description: String(item?.description || 'Cloud & Hosting Infrastructure Service'),
+            quantity: Number.isFinite(quantity) ? Math.max(1, quantity) : 1,
+            amount: Number.isFinite(amount) ? amount : 0,
+            ...(Number.isFinite(unitPrice) && unitPrice > 0 ? { unitPrice } : {}),
+          };
+        })
+      : [{
+          description: String(invoice.notes || 'Engineering Services'),
+          quantity: 1,
+          amount: Number.isFinite(Number(invoice.amount)) ? Number(invoice.amount) : 0,
+        }];
+    const paymentRef = invoice.paymentLogs?.[0]?.providerRef || null;
+    const receivingAccount = invoice.wiseReceivingAccount;
+    const bankTransferDetails = receivingAccount
+      ? {
+          currency: receivingAccount.currency,
+          beneficiary: receivingAccount.accountHolder,
+          accountNumber: receivingAccount.accountNumber,
+          routingNumber: receivingAccount.routingNumber,
+          iban: receivingAccount.iban,
+          swiftBic: receivingAccount.swiftBic,
+          bankAddress: (receivingAccount.bankAddress as any)?.addressFirstLine,
+          paymentReference: receivingAccount.paymentReference,
+        }
+      : undefined;
+    const supplier = {
+      address: this.config.get<string>('COMPANY_POSTAL_ADDRESS') || 'Mwiki, Gituamba, Embakasi District, Nairobi',
+      taxPin: resolveSupplierTaxPin(this.config.get<string>('COMPANY_KRA_PIN')),
+    };
+    const paymentInstructions = invoice.status === InvoiceStatus.PAID
+      ? {
+          status: 'PAYMENT CONFIRMED',
+          settlementReference: paymentRef || 'On record',
+          portalUrl: 'https://bazionweb.com/portal/invoices',
+        }
+      : bankTransferDetails ?? OFFICIAL_BAZION_PAYMENT_DETAILS;
+    const fingerprintParams = {
+      docNumber: invoice.invoiceNumber,
+      totalAmount: breakdown.total ?? Number(invoice.amount),
+      currency: invoice.currency,
+      recipientEmail: client.email,
+      issueDate: invoice.createdAt,
+      documentContent: {
+        status: invoice.status,
+        dueDate: invoice.dueDate || null,
+        paidAt: invoice.paidAt || null,
+        client,
+        lineItems,
+        breakdown,
+        paymentRef,
+        paymentInstructions,
+        supplier: {
+          legalName: 'BAZION WEB',
+          proprietor: 'Joseph Mburu Kiai',
+          registrationNumber: 'BN-DLSZOZ6O (Cap 499, Sec 14)',
+          address: supplier.address,
+          postalAddress: 'P.O. Box 46376, 00100 - G.P.O Nairobi, Kenya',
+          taxPin: supplier.taxPin,
+          billingEmail: 'billing@bazionweb.com',
+          website: 'www.bazionweb.com',
+        },
+      },
+    };
+    return { client, lineItems, paymentRef, bankTransferDetails, supplier, fingerprintParams };
+  }
   /**
-   * Download tokens are signed with a key derived from JWT_SECRET (never a
-   * hardcoded fallback) and carry a dedicated audience and no `iss`, so they
-   * can never be replayed as API access tokens by JwtAuthGuard.
+   * Download tokens use a separate audience and cannot be replayed as API tokens.
    */
   private invoiceDownloadSecret(): string {
     const configured = this.config.get<string>('JWT_SECRET');
@@ -2055,8 +2145,11 @@ export class BillingService {
     const invoice = await this.verifyInvoiceAccess(id, accessOptions);
     const breakdown = this.calculateInvoiceBreakdown(invoice, await this.resolveInvoiceTax(invoice.currency));
 
-    const rawLineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
-    const paymentLog = invoice.paymentLogs?.[0];
+    const document = this.invoiceDocumentSignatureData(invoice, breakdown);
+    const documentFingerprint = computeDocumentFingerprint(
+      document.fingerprintParams,
+      this.documentSigningSecrets()[0],
+    ).formatted;
 
     const pdfBuffer = InvoicePdfGenerator.generate({
       invoiceNumber: invoice.invoiceNumber,
@@ -2067,27 +2160,14 @@ export class BillingService {
       dueDate: invoice.dueDate,
       paidAt: invoice.paidAt,
       notes: invoice.notes,
-      client: {
-        businessName: invoice.client?.businessName || 'Valued Client',
-        contactName:
-          invoice.client?.contactName ||
-          (invoice.client?.user
-            ? `${invoice.client.user.firstName || ''} ${invoice.client.user.lastName || ''}`.trim()
-            : null),
-        email: invoice.client?.email || invoice.client?.user?.email || 'billing@bazionweb.com',
-        address: invoice.client?.address,
-        country: invoice.client?.country,
-        taxPin: invoice.client?.taxPin,
-      },
-      lineItems: rawLineItems as any[],
+      client: document.client,
+      lineItems: document.lineItems,
       breakdown,
-      paymentRef: paymentLog?.providerRef,
-      supplier: {
-        address: this.config.get<string>('COMPANY_POSTAL_ADDRESS') || null,
-        taxPin: resolveSupplierTaxPin(this.config.get<string>('COMPANY_KRA_PIN')),
-      },
+      paymentRef: document.paymentRef || undefined,
+      bankTransferDetails: document.bankTransferDetails,
+      documentFingerprint,
+      supplier: document.supplier,
     });
-
     return {
       stream: pdfBuffer,
       filename: `invoice-${invoice.invoiceNumber}.pdf`,
@@ -2096,18 +2176,53 @@ export class BillingService {
 
   async getPdfUrl(id: string, user: any) {
     await this.findOne(id, user);
-    const downloadToken = jwt.sign({ sub: user?.id, invoiceId: id }, this.invoiceDownloadSecret(), {
+    return { data: this.createInvoicePdfDownloadLink(id) };
+  }
+
+  /**
+   * Document signatures have a dedicated key with JWT_SECRET as a deployment
+   * fallback. Keep the previous key during planned rotations so existing PDFs
+   * remain verifiable; never accept short or public client-side checksums.
+   */
+  private documentSigningSecrets(): string[] {
+    const current = this.config.get<string>('DOCUMENT_SIGNING_SECRET') || this.config.get<string>('JWT_SECRET');
+    const previous = this.config.get<string>('DOCUMENT_SIGNING_PREVIOUS_SECRET');
+    if (process.env.NODE_ENV === 'production' && (!current || current.length < 32)) {
+      throw new ForbiddenException('Document verification requires a current signing key of at least 32 characters.');
+    }
+    if (process.env.NODE_ENV === 'production' && previous && previous.length < 32) {
+      throw new ForbiddenException('The previous document signing key is invalid.');
+    }
+    const active = current && current.length >= 32
+      ? current
+      : DEVELOPMENT_DOCUMENT_SIGNING_SECRET;
+    const keys = [active, ...(previous && previous.length >= 32 ? [previous] : [])];
+    return Array.from(new Set(keys.map((value) => `bazionweb:document-signing:v2:${value}`)));
+  }
+
+  private isDocumentSignatureValid(
+    params: Parameters<typeof computeDocumentFingerprint>[0],
+    suppliedHex: string,
+  ): boolean {
+    if (!/^[0-9A-F]{64}$/.test(suppliedHex)) return false;
+    const supplied = Buffer.from(suppliedHex, 'hex');
+    return this.documentSigningSecrets().reduce((matched, secret) => {
+      const expected = Buffer.from(computeDocumentFingerprint(params, secret).hashHex, 'hex');
+      const candidateMatches = expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
+      return matched || candidateMatches;
+    }, false);
+  }
+
+  private createInvoicePdfDownloadLink(id: string) {
+    const downloadToken = jwt.sign({ invoiceId: id }, this.invoiceDownloadSecret(), {
       algorithm: 'HS256',
       audience: INVOICE_DOWNLOAD_AUDIENCE,
-      expiresIn: '5m',
+      expiresIn: '15m',
     });
-
     return {
-      data: {
-        url: `/api/v1/invoices/${id}/pdf/download`,
-        downloadUrlWithToken: `/api/v1/invoices/${id}/pdf/download?token=${encodeURIComponent(downloadToken)}`,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      },
+      url: `/api/v1/invoices/${id}/pdf/download`,
+      downloadUrlWithToken: `/api/v1/invoices/${id}/pdf/download?token=${encodeURIComponent(downloadToken)}`,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     };
   }
 
@@ -2125,9 +2240,8 @@ export class BillingService {
   }
 
   /**
-   * Public SSOT cryptographic verification for scanned Code-128 barcodes & reference lookups.
-   * Supports exact invoice numbers (`INV-MAN-40770343-3099D6`), legacy barcode strings with a
-   * trailing 6-hex checksum suffix (`INV-MAN-40770343-3099D6-62F583`), and proposal codes.
+   * Public registry lookup for invoice references and proposal codes. Optional document
+   * signatures are accepted only as full HMAC-SHA256 values and compared in constant time.
    */
   async verifyDocumentPublic(rawReference: string, checksumQuery?: string) {
     const cleaned = String(rawReference || '')
@@ -2137,9 +2251,9 @@ export class BillingService {
       throw new BadRequestException('A valid document reference or barcode is required.');
     }
 
-    // Extract optional trailing 6-char hex checksum suffix if present from a legacy barcode scan
-    // (Note: standard invoice numbers end with 1 random 6-hex block like INV-MAN-12345678-3099D6;
-    // a legacy barcode appended a SECOND 6-hex block like INV-MAN-12345678-3099D6-62F583).
+    // Extract an optional legacy barcode suffix so its reference can still be located
+    // Legacy suffixes are never accepted as signatures; only a complete HMAC
+    // supplied through the signature field can authenticate a document.
     const parts = cleaned.split('-');
     let embeddedSig = '';
     const candidateRefs = [cleaned];
@@ -2152,10 +2266,13 @@ export class BillingService {
       candidateRefs.push(parts.slice(0, -1).join('-'));
     }
 
-    const effectiveSig = String(checksumQuery || embeddedSig || '')
-      .replace(/^SHA256:\s*/i, '')
-      .replace(/[^0-9A-F]/gi, '')
+    const rawSignature = String(checksumQuery || embeddedSig || '').trim();
+    const signatureProvided = rawSignature.length > 0;
+    const effectiveSig = rawSignature
+      .replace(/^HMAC-SHA256:\s*/i, '')
+      .replace(/[\s-]/g, '')
       .toUpperCase();
+    const signatureIsWellFormed = /^[0-9A-F]{64}$/.test(effectiveSig);
 
     // 1. Check Invoices table
     let invoice: any = null;
@@ -2175,6 +2292,7 @@ export class BillingService {
             orderBy: { createdAt: 'desc' },
             take: 1,
           },
+          wiseReceivingAccount: true,
         },
       });
       if (invoice) break;
@@ -2183,39 +2301,16 @@ export class BillingService {
     if (invoice) {
       const tax = await this.resolveInvoiceTax(invoice.currency);
       const breakdown = this.calculateInvoiceBreakdown(invoice, tax);
-      const clientEmail =
-        invoice.client?.email ||
-        invoice.client?.user?.email ||
-        'billing@bazionweb.com';
-      const fp = computeDocumentFingerprint({
-        docNumber: invoice.invoiceNumber,
-        totalAmount: breakdown.total ?? Number(invoice.amount),
-        currency: invoice.currency,
-        recipientEmail: clientEmail,
-        issueDate: invoice.createdAt,
-      });
-
-      const signatureVerified =
-        effectiveSig.length >= 4
-          ? fp.hashHex.startsWith(effectiveSig) || fp.hashHex.includes(effectiveSig)
-          : null;
-
-      const rawItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
-      const lineItems =
-        rawItems.length > 0
-          ? rawItems.map((it: any) => ({
-              description: String(it?.description || 'Service Deliverable'),
-              quantity: Math.max(1, Number(it?.quantity ?? 1)),
-              amount: Number(it?.amount ?? invoice.amount ?? 0),
-            }))
-          : [
-              {
-                description: String(invoice.notes || 'Engineering & Managed Cloud Services'),
-                quantity: 1,
-                amount: Number(invoice.amount || 0),
-              },
-            ];
-
+      const document = this.invoiceDocumentSignatureData(invoice, breakdown);
+      const fingerprintParams = document.fingerprintParams;
+      const fp = computeDocumentFingerprint(fingerprintParams, this.documentSigningSecrets()[0]);
+      const signatureVerified = signatureProvided
+        ? signatureIsWellFormed && this.isDocumentSignatureValid(fingerprintParams, effectiveSig)
+        : null;
+      const verificationFingerprint = signatureVerified === true
+        ? `HMAC-SHA256: ${effectiveSig}`
+        : fp.formatted;
+      const lineItems = document.lineItems;
       return {
         verified: signatureVerified !== false,
         found: true,
@@ -2240,8 +2335,8 @@ export class BillingService {
         paidAt: invoice.paidAt ? new Date(invoice.paidAt).toISOString() : null,
         settlementRef: invoice.paymentLogs?.[0]?.providerRef || null,
         recipient: {
-          businessName: invoice.client?.businessName || 'Valued Client',
-          emailMasked: this.maskEmailAddress(clientEmail),
+          businessName: document.client.businessName,
+          emailMasked: this.maskEmailAddress(document.client.email),
         },
         issuer: {
           legalName: 'BAZION WEB',
@@ -2251,7 +2346,7 @@ export class BillingService {
           brsValidation: 'SMS "BRS" to 21546',
         },
         paymentChannels: OFFICIAL_BAZION_PAYMENT_DETAILS,
-        cryptographicFingerprint: fp.formatted,
+        cryptographicFingerprint: verificationFingerprint,
         lineItems,
         verifiedAt: new Date().toISOString(),
       };
@@ -2265,17 +2360,43 @@ export class BillingService {
         },
       });
       if (proposal) {
-        const fp = computeDocumentFingerprint({
+        const proposalLineItems = Array.isArray(proposal.lineItems) && proposal.lineItems.length > 0
+          ? (proposal.lineItems as any[]).map((item: any) => {
+              const quantity = Number(item?.quantity ?? 1);
+              const amount = Number(item?.amount ?? item?.price ?? 0);
+              return {
+                description: String(item?.description || item?.name || 'Commercial Proposal Deliverable'),
+                quantity: Number.isFinite(quantity) ? Math.max(1, quantity) : 1,
+                amount: Number.isFinite(amount) ? amount : 0,
+              };
+            })
+          : [{
+              description: 'Turnkey Web Engineering & Managed Cloud Proposal',
+              quantity: 1,
+              amount: Number(proposal.totalAmount || 0),
+            }];
+        const fingerprintParams = {
           docNumber: proposal.proposalCode,
           totalAmount: Number(proposal.totalAmount || 0),
           currency: proposal.currency || 'KES',
           recipientEmail: proposal.clientEmail || '',
           issueDate: proposal.createdAt,
-        });
-        const signatureVerified =
-          effectiveSig.length >= 4
-            ? fp.hashHex.startsWith(effectiveSig) || fp.hashHex.includes(effectiveSig)
-            : null;
+          documentContent: {
+            status: proposal.status,
+            expiresAt: proposal.expiresAt,
+            billingCountry: proposal.billingCountry,
+            clientName: proposal.clientName,
+            clientCompany: proposal.clientCompany,
+            lineItems: proposalLineItems,
+          },
+        };
+        const fp = computeDocumentFingerprint(fingerprintParams, this.documentSigningSecrets()[0]);
+        const signatureVerified = signatureProvided
+          ? signatureIsWellFormed && this.isDocumentSignatureValid(fingerprintParams, effectiveSig)
+          : null;
+        const verificationFingerprint = signatureVerified === true
+          ? `HMAC-SHA256: ${effectiveSig}`
+          : fp.formatted;
         return {
           verified: signatureVerified !== false,
           found: true,
@@ -2306,20 +2427,8 @@ export class BillingService {
             brsValidation: 'SMS "BRS" to 21546',
           },
           paymentChannels: OFFICIAL_BAZION_PAYMENT_DETAILS,
-          cryptographicFingerprint: fp.formatted,
-          lineItems: Array.isArray(proposal.lineItems) && proposal.lineItems.length > 0
-            ? (proposal.lineItems as any[]).map((it: any) => ({
-                description: String(it?.description || it?.name || 'Commercial Proposal Deliverable'),
-                quantity: Math.max(1, Number(it?.quantity ?? 1)),
-                amount: Number(it?.amount ?? it?.price ?? 0),
-              }))
-            : [
-                {
-                  description: 'Turnkey Web Engineering & Managed Cloud Proposal',
-                  quantity: 1,
-                  amount: Number(proposal.totalAmount || 0),
-                },
-              ],
+          cryptographicFingerprint: verificationFingerprint,
+          lineItems: proposalLineItems,
           verifiedAt: new Date().toISOString(),
         };
       }

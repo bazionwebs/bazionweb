@@ -69,14 +69,14 @@ export class BillingController {
   }
 
   /**
-   * Public: Cryptographic Document & Barcode Verification Registry.
-   * Verifies any BazionWeb Invoice, Payment Receipt, or Commercial Proposal
-   * by its reference number / scanned Code-128 barcode and optional SHA-256 checksum snippet.
+   * Public: BazionWeb document registry.
+   * Looks up an invoice, payment receipt, or commercial proposal record and optionally compares an HMAC signature.
+   * by its reference number / scanned Code-128 barcode and optional complete HMAC-SHA256 signature.
    */
   @Get('verify/:reference')
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  @ApiOperation({ summary: 'Verify invoice, receipt, or proposal authenticity by reference or barcode (public)' })
+  @ApiOperation({ summary: 'Look up a document record and optionally compare its HMAC signature (public)' })
   async verifyDocumentPublic(
     @Param('reference') reference: string,
     @Query('checksum') checksum?: string,

@@ -6,19 +6,16 @@ import {
 
 export interface ReceiptData {
   reference: string;
+  invoiceNumber?: string;
   status: string;
   amount: number;
   currency: string;
   channel?: string;
   paidAt?: string;
   description?: string;
-  customer?: {
-    email?: string;
-    first_name?: string | null;
-    last_name?: string | null;
-    customer_code?: string;
-    phone?: string | null;
-  };
+  customer?: { email?: string; };
+  /** Server-read, self-contained logo image for reliable printing without remote assets. */
+  brandLogoDataUri?: string;
   metadata?: {
     planSlug?: string;
     phone?: string;
@@ -51,6 +48,16 @@ const PLAN_LOOKUP: Record<string, { title: string; subtitle: string; period: str
   },
 };
 
+
+function maskEmail(rawEmail: string): string {
+  const email = String(rawEmail || '').trim();
+  const at = email.indexOf('@');
+  if (at <= 0) return 'Customer';
+  const local = email.slice(0, at);
+  const visible = local.length <= 2 ? `${local[0] || '*'}***` : `${local.slice(0, 2)}***`;
+  return `${visible}${email.slice(at)}`;
+}
+
 function formatCurrency(amount: number, currency: string): string {
   const cur = currency ? currency.toUpperCase() : 'KES';
   return `${escapeHtml(cur)} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -75,14 +82,15 @@ export function generateReceiptHtml(data: ReceiptData): string {
 
   const formattedAmount = formatCurrency(data.amount, data.currency);
   const channelDisplay = formatChannel(data.channel);
-  const customerEmail = data.customer?.email || 'billing-customer@bazionweb.com';
-  const customerPhone = data.metadata?.phone || data.customer?.phone || 'On file';
-  const customerName = [data.customer?.first_name, data.customer?.last_name].filter(Boolean).join(' ') || customerEmail.split('@')[0];
+  const rawCustomerEmail = data.customer?.email || '';
+  const customerEmail = maskEmail(rawCustomerEmail);
+  const customerName = 'Customer';
   const receiptNumber = `REC-${data.reference.toUpperCase()}`;
 
   const letterheadHtml = renderDocumentLetterheadHtml({
     docType: 'PAYMENT RECEIPT',
     docNumber: receiptNumber,
+    logoDataUri: data.brandLogoDataUri,
     statusTone: 'emerald',
     statusBadgeText: 'PAYMENT CONFIRMED',
     issueDate: data.paidAt,
@@ -91,7 +99,9 @@ export function generateReceiptHtml(data: ReceiptData): string {
   });
 
   const securitySectionHtml = renderSecurityVerificationSectionHtml({
-    docNumber: receiptNumber,
+    // Keep the receipt number on its letterhead and link the barcode to the
+    // invoice ledger record, which is the canonical source for receipt status.
+    docNumber: data.invoiceNumber || receiptNumber,
     docType: 'PAYMENT RECEIPT',
     totalAmount: data.amount,
     currency: data.currency,
@@ -107,9 +117,6 @@ export function generateReceiptHtml(data: ReceiptData): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payment Receipt – ${escapeHtml(receiptNumber)} | BazionWeb</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     ${getAntiFraudWatermarkCss()}
     * {
@@ -457,6 +464,8 @@ export function generateReceiptHtml(data: ReceiptData): string {
         margin: 12mm 15mm;
       }
       body {
+        display: block !important;
+        min-height: 0 !important;
         background: #FFFFFF !important;
         padding: 0 !important;
         color: #000000 !important;
@@ -465,10 +474,12 @@ export function generateReceiptHtml(data: ReceiptData): string {
         display: none !important;
       }
       .receipt-card {
+        width: 100% !important;
         box-shadow: none !important;
         border: none !important;
         padding: 0 !important;
         max-width: 100% !important;
+        overflow: visible !important;
       }
       .receipt-card::before {
         display: none;
@@ -486,6 +497,13 @@ export function generateReceiptHtml(data: ReceiptData): string {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
+      .info-grid, .summary-section, .stamp-section, .receipt-footer {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .table-container { overflow: visible !important; }
+      thead { display: table-header-group; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
       th {
         background: #F1F5F9 !important;
         -webkit-print-color-adjust: exact !important;
@@ -506,7 +524,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
         <line x1="16" y1="17" x2="8" y2="17"></line>
         <polyline points="10 9 9 9 8 9"></polyline>
       </svg>
-      <span>Official Payment Receipt &bull; <strong>Verified by Paystack</strong></span>
+      <span>Payment receipt &bull; <strong>Confirmed by BazionWeb</strong></span>
     </div>
     <div class="action-buttons">
       <a href="/portal" class="btn btn-secondary">
@@ -536,15 +554,14 @@ export function generateReceiptHtml(data: ReceiptData): string {
         <h3>Billed To</h3>
         <p><strong>${escapeHtml(customerName)}</strong></p>
         <p>${escapeHtml(customerEmail)}</p>
-        <div class="sub">Phone: ${escapeHtml(customerPhone)}</div>
-        ${data.customer?.customer_code ? `<div class="sub">Customer Ref: ${escapeHtml(data.customer.customer_code)}</div>` : ''}
       </div>
       <div class="info-col">
         <h3>Payment Breakdown</h3>
         <p><strong>Channel:</strong> ${escapeHtml(channelDisplay)}</p>
           <p><strong>Status:</strong> Payment confirmed</p>
+        ${data.invoiceNumber ? `<div class="sub">BazionWeb Invoice: ${escapeHtml(data.invoiceNumber)}</div>` : ''}
         <div class="sub">Paystack Ref: ${escapeHtml(data.reference)}</div>
-        <div class="sub">Gateway: Secured 256-bit SSL</div>
+        <div class="sub">Confirmation: Matched to BazionWeb billing record</div>
       </div>
     </div>
 
@@ -609,8 +626,6 @@ export function generateErrorReceiptHtml(reference: string, message: string): st
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Receipt Not Found | BazionWeb</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: 'Inter', sans-serif;

@@ -36,113 +36,6 @@ export const BAZION_CORPORATE_DETAILS = {
   },
 };
 
-// ─── Pure TypeScript SHA-256 (Zero Node/Browser Dependency) ──────────────────
-function sha256Hex(ascii: string): string {
-  function rightRotate(v: number, a: number): number {
-    return (v >>> a) | (v << (32 - a));
-  }
-  const maxWord = Math.pow(2, 32);
-  let result = '';
-  const words: number[] = [];
-  const asciiBitLength = ascii.length * 8;
-  const hash: number[] = [];
-  const k: number[] = [];
-  let primeCounter = 0;
-  const isComp: Record<number, boolean> = {};
-
-  for (let c = 2; primeCounter < 64; c++) {
-    if (!isComp[c]) {
-      for (let i = 0; i < 313; i += c) isComp[i] = true;
-      hash[primeCounter] = (Math.pow(c, 0.5) * maxWord) | 0;
-      k[primeCounter++] = (Math.pow(c, 1 / 3) * maxWord) | 0;
-    }
-  }
-
-  let padded = ascii + '\x80';
-  while ((padded.length % 64) - 56) padded += '\x00';
-  for (let i = 0; i < padded.length; i++) {
-    const j = padded.charCodeAt(i);
-    words[i >> 2] |= j << (((3 - i) % 4) * 8);
-  }
-  words[words.length] = (asciiBitLength / maxWord) | 0;
-  words[words.length] = asciiBitLength;
-
-  for (let j = 0; j < words.length; ) {
-    const w = words.slice(j, (j += 16));
-    const oldHash = [...hash];
-    for (let i = 0; i < 64; i++) {
-      const w15 = w[i - 15] || 0;
-      const w2 = w[i - 2] || 0;
-      const a = hash[0];
-      const e = hash[4];
-      const temp1 =
-        ((hash[7] +
-          (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
-          ((e & hash[5]) ^ (~e & hash[6])) +
-          k[i] +
-          (w[i] =
-            i < 16
-              ? w[i] || 0
-              : ((w[i - 16] || 0) +
-                  (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) +
-                  (w[i - 7] || 0) +
-                  (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) |
-                0)) |
-          0) >>>
-        0;
-      const temp2 =
-        ((rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
-          ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]))) |
-        0;
-      hash[7] = hash[6];
-      hash[6] = hash[5];
-      hash[5] = hash[4];
-      hash[4] = (oldHash[4] + temp1) | 0;
-      hash[3] = hash[2];
-      hash[2] = hash[1];
-      hash[1] = hash[0];
-      hash[0] = (temp1 + temp2) | 0;
-    }
-    for (let i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
-  }
-
-  for (let i = 0; i < 8; i++) {
-    for (let j = 3; j >= 0; j--) {
-      const b = (hash[i] >> (j * 8)) & 255;
-      result += (b < 16 ? '0' : '') + b.toString(16);
-    }
-  }
-  return result;
-}
-
-// ─── Cryptographic Security Fingerprint (Anti-Fake Checksum) ────────────────
-export interface ChecksumPayload {
-  docNumber: string;
-  amount?: number | string;
-  currency?: string;
-  recipientEmail?: string;
-  issueDate?: string | Date | null;
-}
-
-/**
- * Computes a deterministic SHA-256 security digest formatted as an
- * official banking/tax-grade fingerprint (e.g. SHA256: 8867-4673-B413-...).
- */
-export function generateDocumentChecksum(payload: ChecksumPayload): string {
-  const parts = [
-    String(payload.docNumber || '').trim().toUpperCase(),
-    String(payload.amount ?? 0),
-    String(payload.currency || 'USD').toUpperCase(),
-    String(payload.recipientEmail || '').trim().toLowerCase(),
-    payload.issueDate ? new Date(payload.issueDate).toISOString().slice(0, 10) : '2026-01-01',
-    'BAZION_SECURE_DOCUMENT_INTEGRITY_SALT_V1',
-  ];
-  const hash = sha256Hex(parts.join('|')).toUpperCase();
-  // Format as 8 hyphenated 4-character blocks (32 hex chars)
-  const chunks = hash.slice(0, 32).match(/.{1,4}/g) || [hash.slice(0, 32)];
-  return `SHA256: ${chunks.join('-')}`;
-}
-
 // ─── Zero-Dependency Pure TypeScript QR Code SVG Generator ───────────────────
 // Galois Field GF(256) arithmetic & Reed-Solomon polynomial math
 const GF_EXP = new Uint8Array(256);
@@ -449,7 +342,7 @@ export function generateQrCodeSvg(
 </svg>`;
 }
 
-// ─── Corporate Digital E-Stamp (Official Digital Seal) ───────────────────────
+// ─── BazionWeb Document Reference Mark ─────────────────────────────────────
 export interface DigitalStampOptions {
   docNumber?: string;
   status?: string;
@@ -459,16 +352,15 @@ export interface DigitalStampOptions {
 }
 
 /**
- * Generates an executive corporate digital e-stamp / company seal SVG.
- * Features double concentric rings, serrated border, curved legal entity text,
- * security shield emblem, certified checkmark, and authorization reference.
+ * Generates a decorative BazionWeb document-reference mark. It is branding,
+ * not an electronic signature, approval, or authenticity proof.
  */
 export function renderDigitalStampSvg(options: DigitalStampOptions = {}): string {
-  const tone = options.tone ?? (options.status === 'PAID' ? 'emerald' : 'blue');
+  const tone = options.tone ?? (options.status === 'PAID' || options.status === 'ACCEPTED' ? 'emerald' : 'blue');
   const size = options.size ?? 136;
   const color = tone === 'emerald' ? '#047857' : tone === 'navy' ? '#0F172A' : '#1D4ED8';
   const lightBg = tone === 'emerald' ? '#ECFDF5' : tone === 'navy' ? '#F1F5F9' : '#EFF6FF';
-  const labelText = options.status === 'PAID' ? 'PAID &amp; VERIFIED' : 'AUTHENTICATED';
+  const labelText = options.status === 'PAID' ? 'PAID' : options.status === 'ACCEPTED' ? 'ACCEPTED' : 'DOCUMENT';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="${size}" height="${size}" style="transform: rotate(-7deg); display: inline-block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.06));">
   <defs>
@@ -485,14 +377,14 @@ export function renderDigitalStampSvg(options: DigitalStampOptions = {}): string
     <textPath href="#seal-top-arc" startOffset="50%" text-anchor="middle">★ BAZION WEB · BN-DLSZOZ6O ★</textPath>
   </text>
   <text font-family="'Inter', -apple-system, sans-serif" font-size="8.5" font-weight="800" fill="${color}" letter-spacing="1.3">
-    <textPath href="#seal-bot-arc" startOffset="50%" text-anchor="middle">OFFICIAL DIGITAL SEAL · NAIROBI, KENYA</textPath>
+    <textPath href="#seal-bot-arc" startOffset="50%" text-anchor="middle">DOCUMENT REFERENCE · NAIROBI, KENYA</textPath>
   </text>
   <!-- Security Shield Emblem -->
   <path d="M 80,72 L 120,72 L 126,98 L 100,122 L 74,98 Z" fill="${lightBg}" stroke="${color}" stroke-width="2" />
   <!-- Security text inside shield -->
   <text x="100" y="83" text-anchor="middle" font-family="'Inter', -apple-system, sans-serif" font-size="7" font-weight="900" fill="${color}" letter-spacing="0.8">${labelText}</text>
-  <text x="100" y="99" text-anchor="middle" font-family="'Inter', -apple-system, sans-serif" font-size="13" font-weight="900" fill="${color}">✓</text>
-  <text x="100" y="112" text-anchor="middle" font-family="'Inter', -apple-system, sans-serif" font-size="6.5" font-weight="800" fill="${color}" letter-spacing="0.5">SSOT ENGINE</text>
+  <text x="100" y="99" text-anchor="middle" font-family="'Inter', -apple-system, sans-serif" font-size="13" font-weight="900" fill="${color}">BW</text>
+  <text x="100" y="112" text-anchor="middle" font-family="'Inter', -apple-system, sans-serif" font-size="6.5" font-weight="800" fill="${color}" letter-spacing="0.5">BAZION WEB</text>
   <!-- Precision star anchors -->
   <circle cx="32" cy="100" r="2.5" fill="${color}" />
   <circle cx="168" cy="100" r="2.5" fill="${color}" />
@@ -605,22 +497,26 @@ export function generateCode128BarcodeSvg(
 </svg>`;
 }
 
-function resolveBrandAssetOrigin(): string {
-  if (typeof window !== 'undefined' && window.location?.origin && window.location.origin.startsWith('http')) {
-    return window.location.origin;
-  }
-  return BAZION_CORPORATE_DETAILS.website;
-}
-
 // ─── Official Brand Logo Markup ──────────────────────────────────────────────
 /**
- * Renders the official BazionWeb brand logo (from /brand/logo-with-background.png)
- * with absolute origin resolution so blob: print windows and standalone receipts render crisply.
+ * Renders the approved embedded brand image when supplied. The self-contained
+ * vector mark is a resilient fallback for documents rendered outside the site.
  */
-export function renderBrandLogoSvg(size = 64): string {
-  const logoUrl = `${resolveBrandAssetOrigin()}${BAZION_CORPORATE_DETAILS.logoPath}`;
+export function renderBrandLogoSvg(size = 64, logoDataUri?: string): string {
   const heightPx = Math.max(56, size);
-  return `<img src="${logoUrl}" alt="BazionWeb – Build, Host n Grow" style="height: ${heightPx}px; width: auto; display: block; border-radius: 8px; border: 1px solid #CBD5E1; object-fit: contain; background: #EBEBEB;" />`;
+  const safeLogoDataUri = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(logoDataUri || '')
+    ? logoDataUri
+    : null;
+  if (safeLogoDataUri) {
+    return `<img src="${safeLogoDataUri}" alt="BazionWeb brand mark" style="height: ${heightPx}px; width: auto; display: block; object-fit: contain;" />`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${heightPx}" height="${heightPx}" viewBox="0 0 64 64" role="img" aria-label="BazionWeb brand mark">
+    <rect width="64" height="64" rx="12" fill="#0F172A" />
+    <path d="M14 48V16h21c9 0 14 4 14 11 0 5-3 8-7 9 6 1 9 4 9 10 0 8-6 12-16 12H14Z" fill="#2563EB" />
+    <path d="M24 25h10c3 0 5 1 5 4s-2 4-5 4H24v-8Zm0 16h12c3 0 5 1 5 4s-2 4-5 4H24v-8Z" fill="#FFFFFF" />
+    <path d="M9 52c13-1 27-5 44-21" fill="none" stroke="#14B8A6" stroke-width="3" stroke-linecap="round" />
+    <path d="m48 28 8-2-2 8" fill="none" stroke="#14B8A6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>`;
 }
 
 // ─── Official Payment Channels HTML Block ────────────────────────────────────
@@ -663,6 +559,8 @@ export function renderPaymentInstructionsHtml(options: { docNumber?: string; isP
 export interface LetterheadOptions {
   docType: 'OFFICIAL INVOICE' | 'PAYMENT RECEIPT' | 'PROJECT PROPOSAL' | 'ACCOUNT STATEMENT';
   docNumber: string;
+  /** Optional server-embedded approved brand asset for standalone/printable documents. */
+  logoDataUri?: string;
   statusBadgeText?: string;
   statusTone?: 'emerald' | 'amber' | 'blue' | 'slate';
   issueDate?: string | Date | null;
@@ -692,7 +590,7 @@ export function renderDocumentLetterheadHtml(options: LetterheadOptions): string
     <!-- Left: Brand Logo & Full Registered Corporate Identity -->
     <div style="display: flex; align-items: flex-start; gap: 16px; max-width: 500px;">
       <div style="flex-shrink: 0;">
-        ${renderBrandLogoSvg(74)}
+        ${renderBrandLogoSvg(74, options.logoDataUri)}
       </div>
       <div>
         <div style="font-size: 13px; font-weight: 900; color: #0F172A; letter-spacing: 0.02em;">
@@ -724,7 +622,7 @@ export function renderDocumentLetterheadHtml(options: LetterheadOptions): string
 </header>`;
 }
 
-// ─── Anti-Fake Security & Authenticity Verification Block ───────────────────
+// ─── Document Reference Verification Block ────────────────────────────────
 export interface SecuritySectionOptions {
   docNumber: string;
   docType: string;
@@ -737,64 +635,32 @@ export interface SecuritySectionOptions {
 }
 
 /**
- * Builds the comprehensive Anti-Fake Security Section featuring:
- * 1. Dynamic QR Code linking to official verification URL
- * 2. SHA-256 Tamper-Evident Cryptographic Checksum
- * 3. Corporate E-Stamp / Official Digital Seal
- * 4. Microprint security ribbon
- * 5. Kenya Cap 411A & UNCITRAL statutory electronic validity notice
+ * Renders a branded document-reference panel. Cryptographic signatures are
+ * issued and verified by the API; browser code must never manufacture them.
  */
 export function renderSecurityVerificationSectionHtml(options: SecuritySectionOptions): string {
   const isPaid = options.isPaid ?? options.status === 'PAID';
-  const checksum = generateDocumentChecksum({
-    docNumber: options.docNumber,
-    amount: options.totalAmount,
-    currency: options.currency,
-    recipientEmail: options.recipientEmail,
-    issueDate: options.issueDate,
-  });
-
-  const cleanHashSuffix = checksum.replace(/^SHA256:\s*/, '').replace(/-/g, '').slice(0, 8);
   const barcodeValue = String(options.docNumber || 'BAZION').trim().toUpperCase();
-  const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?ref=${encodeURIComponent(barcodeValue)}&sig=${encodeURIComponent(cleanHashSuffix)}`;
-  const barcodeSvg = generateCode128BarcodeSvg(barcodeValue, { width: 320, height: 46, darkColor: '#000000' });
+  const verifyUrl = `${BAZION_CORPORATE_DETAILS.registryUrl}?ref=${encodeURIComponent(barcodeValue)}`;
+  const barcodeSvg = generateCode128BarcodeSvg(barcodeValue, { width: 300, height: 42, darkColor: '#000000' });
   const stampSvg = renderDigitalStampSvg({
     docNumber: options.docNumber,
-    status: isPaid ? 'PAID' : 'AUTHENTICATED',
+    status: isPaid ? 'PAID' : 'DOCUMENT',
     tone: isPaid ? 'emerald' : 'blue',
-    size: 124,
+    size: 104,
   });
 
-  return `<!-- Anti-Fake Document Security & Electronic Authenticity Center -->
-<section style="margin-top: 36px; border: 1px solid #CBD5E1; border-radius: 16px; background: #F8FAFC; overflow: hidden; page-break-inside: avoid;">
-  <!-- Security Microprint Ribbon -->
-  <div style="background: #0F172A; color: #94A3B8; font-size: 9px; font-family: 'JetBrains Mono', monospace, Courier; text-transform: uppercase; letter-spacing: 0.12em; padding: 6px 14px; text-align: center; border-bottom: 1px solid #1E293B;">
-    ••• BAZION WEB (REG: BN-DLSZOZ6O | KRA PIN: ${BAZION_CORPORATE_DETAILS.taxPin}) ••• OFFICIAL SYSTEM-GENERATED RECORD ••• ISO 14533 ALIGNED •••
-  </div>
-
-  <div style="padding: 18px 22px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;">
-      <!-- Left: Linear ISO Code-128B Security Barcode & Cryptographic Checksum -->
-      <div style="flex: 1; min-width: 280px;">
-        <div style="font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #0F172A;">
-          Security Barcode (Code-128B) &amp; Cryptographic Fingerprint
-        </div>
-        <div style="background: #FFFFFF; padding: 8px 10px; border-radius: 10px; border: 1px solid #CBD5E1; display: inline-block; margin-top: 6px;">
-          ${barcodeSvg}
-        </div>
-        <div style="font-family: 'JetBrains Mono', monospace, Courier; font-size: 10px; font-weight: 800; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 5px 8px; border-radius: 6px; margin-top: 8px; word-break: break-all;">
-          ${checksum}
-        </div>
-        <p style="font-size: 9.5px; color: #475569; margin-top: 6px; line-height: 1.45;">
-          <strong>Statutory Validity:</strong> Pursuant to Cap 499 Sec 14, Kenya KICA Cap 411A &amp; UNCITRAL Model Law, this computer-generated record (KRA PIN: <strong>${BAZION_CORPORATE_DETAILS.taxPin}</strong>) is legally valid without a wet-ink signature. <a href="${verifyUrl}" target="_blank" rel="noopener noreferrer" style="color: #2563EB; font-weight: 700; text-decoration: none;">Verify online &rarr;</a>
-        </p>
-      </div>
-
-      <!-- Right: Official Corporate Digital E-Stamp -->
-      <div style="flex-shrink: 0; text-align: center;">
-        ${stampSvg}
-      </div>
+  return `<!-- BazionWeb document reference -->
+<section style="margin-top: 24px; border: 1px solid #CBD5E1; border-radius: 12px; background: #F8FAFC; overflow: hidden; page-break-inside: avoid;">
+  <div style="height: 4px; background: linear-gradient(90deg, #0F172A 0%, #2563EB 62%, #14B8A6 100%);"></div>
+  <div style="padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 260px;">
+      <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #0F172A;">Document reference</div>
+      <div style="font-family: 'JetBrains Mono', monospace, Courier; font-size: 12px; font-weight: 700; color: #1E293B; margin-top: 4px;">${barcodeValue}</div>
+      <div style="background: #FFFFFF; padding: 6px 8px; border-radius: 8px; border: 1px solid #CBD5E1; display: inline-block; margin-top: 8px;">${barcodeSvg}</div>
+      <p style="font-size: 10px; color: #475569; margin: 6px 0 0; line-height: 1.45;">Scan or enter this reference at <a href="${verifyUrl}" target="_blank" rel="noopener noreferrer" style="color: #2563EB; font-weight: 700; text-decoration: none;">BazionWeb document verification</a> to check the current registry record.</p>
     </div>
+    <div style="flex: 0 0 auto; text-align: center;">${stampSvg}<div style="font-size: 9px; font-weight: 700; color: #475569; text-transform: uppercase;">${isPaid ? 'Payment confirmed' : 'Document record'}</div></div>
   </div>
 </section>`;
 }
@@ -817,8 +683,12 @@ export function getAntiFraudWatermarkCss(): string {
       text-transform: uppercase;
       pointer-events: none;
       user-select: none;
-      z-index: 1;
+      z-index: 0;
       white-space: nowrap;
+    }
+    .receipt-card > :not(.security-watermark-overlay) {
+      position: relative;
+      z-index: 1;
     }
     @media print {
       .security-watermark-overlay {

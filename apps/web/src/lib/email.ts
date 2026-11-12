@@ -82,20 +82,20 @@ function renderEmailHeaderHtml(badge: string, subtitle = 'Managed Website Lifecy
 }
 
 function renderEmailSecuritySealHtml(docRef?: string): string {
-  return `<!-- Corporate E-Stamp & Digital Seal Block -->
+  return `<!-- BazionWeb document reference -->
   <div style="margin-top: 26px; background: #0F172A; border: 1px solid #334155; border-radius: 12px; padding: 14px 16px; text-align: left;">
     <div style="display: table; width: 100%;">
       <div style="display: table-cell; vertical-align: middle; width: 40px;">
         <div style="width: 34px; height: 34px; border-radius: 50%; border: 2px dashed #2563EB; background: #1E293B; color: #34D399; text-align: center; line-height: 32px; font-size: 15px; font-weight: 900;">
-          ✓
+          BW
         </div>
       </div>
       <div style="display: table-cell; vertical-align: middle; padding-left: 12px;">
         <div style="font-size: 10.5px; font-weight: 800; color: #F8FAFC; letter-spacing: 0.04em;">
-          ★ BAZION WEB (BN-DLSZOZ6O) ★ OFFICIAL SYSTEM-GENERATED RECORD
+          BAZION WEB &bull; DOCUMENT RECORD
         </div>
         <div style="font-size: 9.5px; color: #94A3B8; margin-top: 2px; line-height: 1.4;">
-          Authenticated via SSOT Engine. ${docRef ? `Ref: <span style="font-family: monospace; color: #38BDF8;">${escapeHtml(docRef)}</span> &bull; ` : ''}Pursuant to Kenya KICA Cap 411A, legally valid without wet signature.
+          Check the current BazionWeb registry record. ${docRef ? `Reference: <span style="font-family: monospace; color: #38BDF8;">${escapeHtml(docRef)}</span>` : ''}
         </div>
       </div>
     </div>
@@ -104,7 +104,7 @@ function renderEmailSecuritySealHtml(docRef?: string): string {
 
 function renderEmailCorporateFooterHtml(): string {
   const year = new Date().getFullYear();
-  return `<!-- Corporate Single Source of Truth Footer -->
+  return `<!-- BazionWeb corporate footer -->
   <div style="font-size: 11px; color: #64748B; text-align: center; line-height: 1.6; margin-top: 24px;">
     &copy; ${year} BAZION WEB &bull; Mwiki, Gituamba, Embakasi, Nairobi (P.O. Box 46376, 00100 - G.P.O Nairobi).<br>
     <strong>BRS Reg:</strong> BN-DLSZOZ6O (Cap 499) &bull; <strong>KRA PIN:</strong> A006926734I<br>

@@ -149,6 +149,7 @@ describe('Milestone 1 Frontend Components & Journey Flows', () => {
     it('renders proposal header with reference code and client info', () => {
       render(<ProposalPresentationView proposal={mockProposal} />);
 
+      expect(screen.getByRole('article')).toHaveClass('proposal-document', 'print:overflow-visible');
       expect(screen.getAllByText('BZ-KE-2026-TESTPROPOSAL').length).toBeGreaterThan(0);
       expect(screen.getByText('Dr. Mwangi')).toBeInTheDocument();
       expect(screen.getByText('Nairobi Health Clinic')).toBeInTheDocument();
@@ -207,12 +208,12 @@ describe('Milestone 1 Frontend Components & Journey Flows', () => {
       expect(screen.getByText(/Guaranteed Fixed Pricing/i)).toBeInTheDocument();
     });
 
-    it('renders system-generated digital authentication block without wet-ink signature lines', () => {
+    it('renders the proposal reference panel without cryptographic claims', () => {
       render(<ProposalPresentationView proposal={mockProposal} />);
 
-      expect(screen.getByText(/Electronic Document Authentication & Execution Record/i)).toBeInTheDocument();
-      expect(screen.getByText(/Valid Without Physical Signature/i)).toBeInTheDocument();
-      expect(screen.getByText(/AUTH-BZ-KE-2026-TESTPROPOSAL/i)).toBeInTheDocument();
+      expect(screen.getByText(/Proposal reference and registry record/i)).toBeInTheDocument();
+      expect(screen.getByText(/Verify by reference/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/BZ-KE-2026-TESTPROPOSAL/i).length).toBeGreaterThan(0);
       expect(screen.queryByText(/Signature:\s*_+/i)).not.toBeInTheDocument();
     });
   });

@@ -60,6 +60,8 @@ type PaymentTab = 'MPESA' | 'CARD' | 'WISE';
 export interface WiseBankAccount {
   status?: string;
   invoiceNumber: string;
+  invoicePdfDownloadUrl?: string;
+  invoicePdfLinkExpiresAt?: string;
   amount?: number;
   currency?: string;
   dueDate?: string;
@@ -1483,12 +1485,25 @@ export default function SubscriptionCheckout({
                     </div>
                     <button
                       type="button"
-                      onClick={() => window.print()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800"
+                      onClick={() => {
+                        if (!wiseAccount.invoicePdfDownloadUrl) {
+                          setFeedback({ type: 'error', message: 'The official invoice PDF link is missing. Please regenerate the invoice.' });
+                          return;
+                        }
+                        const pdfUrl = new URL(wiseAccount.invoicePdfDownloadUrl, apiBase).toString();
+                        const invoiceWindow = window.open(pdfUrl, '_blank');
+                        if (invoiceWindow) invoiceWindow.opener = null;
+                        if (!invoiceWindow) {
+                          setFeedback({ type: 'error', message: 'Allow pop-ups for BazionWeb to download your invoice PDF.' });
+                        }
+                      }}
+                      disabled={!wiseAccount.invoicePdfDownloadUrl}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 disabled:opacity-50"
                     >
-                      <Download className="w-3.5 h-3.5 text-purple-600" /> Print PDF Invoice
+                      <Download className="w-3.5 h-3.5 text-purple-600" /> Download PDF Invoice
                     </button>
                   </div>
+                  <p className="text-[11px] text-slate-500 text-right">Secure PDF link valid for 15 minutes.</p>
 
                   {/* Wire Routing Details Card */}
                   <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">

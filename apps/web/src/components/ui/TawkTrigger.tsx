@@ -68,7 +68,9 @@ export default function TawkTrigger({
     // 3. Desktop Exit Intent Trigger
     function handleMouseLeave(e: MouseEvent) {
       if (hasTriggeredRef.current || !exitIntent) return;
-      if ('ontouchstart' in window) return; // Ignore mobile touch devices
+      const supportsTouchInput = typeof window.ontouchstart === 'function';
+      const isTouchOnlyPointer = window.matchMedia?.('(hover: none) and (pointer: coarse)').matches ?? false;
+      if (supportsTouchInput || isTouchOnlyPointer) return; // Ignore touch-enabled devices.
 
       if (e.clientY <= 0) {
         hasTriggeredRef.current = true;

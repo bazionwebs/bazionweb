@@ -78,4 +78,27 @@ describe('TawkTrigger component (apps/web/src/components/ui/TawkTrigger.tsx)', (
       expect.any(Function)
     );
   });
+
+  it('does not trigger exit intent on touch-only devices', () => {
+    const originalMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: jest.fn().mockReturnValue({ matches: true }),
+    });
+
+    try {
+      render(<TawkTrigger exitIntent />);
+      act(() => {
+        fireEvent.mouseLeave(document, { clientY: -5 });
+      });
+
+      expect((window as any).Tawk_API.maximize).not.toHaveBeenCalled();
+      expect((window as any).Tawk_API.addEvent).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      });
+    }
+  });
 });
