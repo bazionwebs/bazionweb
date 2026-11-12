@@ -27,7 +27,7 @@
     "@nestjs/schedule": "^4.0.0",
     "@nestjs/swagger": "^7.3.0",
     "@nestjs/terminus": "^10.2.0",
-    "@nestjs/throttler": "^5.1.0",
+    "@nestjs/throttler": "^6.7.1",
     "@prisma/client": "5.22.0",
     "ajv": "8.20.0",
     "ajv-formats": "2.1.1",
