@@ -16,6 +16,7 @@ import { PlatformOutboxStatus } from '@prisma/client';
 import { JwtAuthGuard, Roles } from '../../common/guards/jwt-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformProvisioningReconciliationService } from './platform-provisioning-reconciliation.service';
+import { PlatformHostingCutoverService } from './platform-hosting-cutover.service';
 import { PlatformProvisioningWorkerService } from './platform-provisioning-worker.service';
 
 @ApiTags('admin-platform-provisioning')
@@ -28,6 +29,7 @@ export class PlatformProvisioningAdminController {
     private readonly prisma: PrismaService,
     private readonly worker: PlatformProvisioningWorkerService,
     private readonly reconciliation: PlatformProvisioningReconciliationService,
+    private readonly hostingCutover: PlatformHostingCutoverService,
   ) {}
 
   @Get('outbox')
@@ -100,6 +102,15 @@ export class PlatformProvisioningAdminController {
     @Query('staleMinutes', new ParseIntPipe({ optional: true })) staleMinutes = 5,
   ) {
     return this.reconciliation.pollLaggingOperations({ staleMinutes });
+  }
+
+  @Get('hosting-cutover')
+  @ApiOperation({ summary: 'Compare legacy hosting rows with Platform domain claims before cutover' })
+  async hostingCutoverReport(
+    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 50,
+  ) {
+    return this.hostingCutover.getReport(page, limit);
   }
 }
 

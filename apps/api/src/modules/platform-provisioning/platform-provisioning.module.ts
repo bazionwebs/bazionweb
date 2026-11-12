@@ -7,6 +7,7 @@ import { PlatformProvisioningAdminController } from './platform-provisioning-adm
 import { PlatformProvisioningCatalogService } from './provisioning-catalog.service';
 import { PlatformProvisioningOutboxService } from './platform-provisioning-outbox.service';
 import { PlatformProvisioningReconciliationService } from './platform-provisioning-reconciliation.service';
+import { PlatformHostingCutoverService } from './platform-hosting-cutover.service';
 import { PlatformProvisioningWorkerService } from './platform-provisioning-worker.service';
 import { SubscriptionLifecycleOutboxService } from './subscription-lifecycle-outbox.service';
 
@@ -20,6 +21,7 @@ import { SubscriptionLifecycleOutboxService } from './subscription-lifecycle-out
     SubscriptionLifecycleOutboxService,
     PlatformCallbackProjectionService,
     PlatformProvisioningReconciliationService,
+    PlatformHostingCutoverService,
   ],
   exports: [
     PlatformProvisioningOutboxService,
@@ -28,6 +30,7 @@ import { SubscriptionLifecycleOutboxService } from './subscription-lifecycle-out
     SubscriptionLifecycleOutboxService,
     PlatformCallbackProjectionService,
     PlatformProvisioningReconciliationService,
+    PlatformHostingCutoverService,
   ],
 })
 export class PlatformProvisioningModule {}

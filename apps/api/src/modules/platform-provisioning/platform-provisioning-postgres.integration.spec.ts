@@ -25,6 +25,7 @@ import { PlatformCallbacksController } from './platform-callbacks.controller';
 import { PlatformProvisioningAdminController } from './platform-provisioning-admin.controller';
 import { PlatformProvisioningOutboxService } from './platform-provisioning-outbox.service';
 import { PlatformProvisioningReconciliationService } from './platform-provisioning-reconciliation.service';
+import { PlatformHostingCutoverService } from './platform-hosting-cutover.service';
 import { PlatformProvisioningWorkerService } from './platform-provisioning-worker.service';
 import {
   DEFAULT_CALLBACK_AUDIENCE,
@@ -234,6 +235,7 @@ describePg('PostgreSQL Commercial Provisioning Outbox, Worker, Callback & Reconc
         PlatformProvisioningWorkerService,
         PlatformCallbackProjectionService,
         PlatformProvisioningReconciliationService,
+        PlatformHostingCutoverService,
         PaymentSettlementService,
         { provide: PrismaService, useValue: prisma },
         { provide: PaystackService, useValue: {} },
