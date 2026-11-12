@@ -388,7 +388,7 @@ export class PlatformProvisioningWorkerService {
         const domainClaims = await findProvisioningDomainClaims(
           tx,
           requestedDomain,
-          existing.externalOrderId,
+          { excludeExternalOrderId: existing.externalOrderId },
         );
         if (domainClaims.length > 0) {
           throw new ConflictException(

@@ -7,7 +7,11 @@ const clientId = '22222222-2222-4222-8222-222222222222';
 const deploymentId = '33333333-3333-4333-8333-333333333333';
 const operatorId = '44444444-4444-4444-8444-444444444444';
 
-function makeService(overrides: { account?: Record<string, unknown>; projection?: Record<string, unknown> } = {}) {
+function makeService(overrides: {
+  account?: Record<string, unknown>;
+  projection?: Record<string, unknown>;
+  domainClaims?: Array<{ claimId: string; source: string; externalOrderId: string | null }>;
+} = {}) {
   const account: Record<string, unknown> = {
     id: accountId,
     clientId,
@@ -27,6 +31,9 @@ function makeService(overrides: { account?: Record<string, unknown>; projection?
     ...overrides.projection,
   };
   const tx = {
+    $queryRaw: jest.fn()
+      .mockResolvedValueOnce([]) // advisory transaction lock
+      .mockResolvedValueOnce(overrides.domainClaims ?? []),
     hostingAccount: {
       findUnique: jest.fn(async () => account),
       updateMany: jest.fn(async () => ({ count: 1 })),
@@ -88,6 +95,17 @@ describe('Platform hosting deployment mapping', () => {
 
     await expect(service.linkPlatformDeployment(accountId, deploymentId, 'CHG-2026-0042', { id: operatorId }))
       .rejects.toBeInstanceOf(ConflictException);
+    expect(tx.hostingAccount.updateMany).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects mapping when another legacy or Platform claim owns the normalized domain', async () => {
+    const { service, tx } = makeService({
+      domainClaims: [{ claimId: 'INV-OTHER:line:0', source: 'outbox', externalOrderId: 'INV-OTHER:line:0' }],
+    });
+
+    await expect(service.linkPlatformDeployment(accountId, deploymentId, 'CHG-2026-0042', { id: operatorId }))
+      .rejects.toThrow('another legacy hosting account or Platform provisioning claim');
     expect(tx.hostingAccount.updateMany).not.toHaveBeenCalled();
     expect(tx.auditLog.create).not.toHaveBeenCalled();
   });

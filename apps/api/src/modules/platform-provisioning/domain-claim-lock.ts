@@ -23,17 +23,19 @@ export async function lockProvisioningDomainClaim(tx: any, normalizedDomain: str
 export async function findProvisioningDomainClaims(
   tx: any,
   normalizedDomain: string,
-  excludeExternalOrderId?: string,
+  options: { excludeExternalOrderId?: string; excludeHostingAccountId?: string } = {},
 ): Promise<Array<{ claimId: string; source: string; externalOrderId: string | null }>> {
   if (typeof tx?.$queryRaw !== 'function') {
     throw new Error('PROVISIONING_DOMAIN_CLAIM_TRANSACTION_REQUIRED');
   }
 
-  const excludedOrder = excludeExternalOrderId ?? '';
+  const excludedOrder = options.excludeExternalOrderId ?? '';
+  const excludedHostingAccount = options.excludeHostingAccountId ?? '';
   return tx.$queryRaw<Array<{ claimId: string; source: string; externalOrderId: string | null }>>`
     SELECT h.id::text AS "claimId", 'legacy_hosting' AS source, NULL::text AS "externalOrderId"
       FROM "hosting_accounts" h
      WHERE lower(regexp_replace(trim(h.domain), '\\.$', '')) = ${normalizedDomain}
+       AND (${excludedHostingAccount} = '' OR h.id::text <> ${excludedHostingAccount})
     UNION ALL
     SELECT p.external_order_id AS "claimId", 'projection' AS source, p.external_order_id AS "externalOrderId"
       FROM "platform_provisioning_projections" p

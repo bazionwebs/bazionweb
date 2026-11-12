@@ -369,7 +369,7 @@ export class HostingService {
       const domainClaims = await findProvisioningDomainClaims(tx, normalizedDomain);
       if (domainClaims.length > 0) {
         throw new ConflictException(
-          'This domain belongs to a Platform provisioning order. Resolve that order or use the audited Platform hosting mapping flow instead of direct Dokploy provisioning.',
+          'This normalized domain is already claimed by another hosting account or Platform provisioning order. Resolve ownership before direct Dokploy provisioning.',
         );
       }
 
@@ -567,8 +567,10 @@ export class HostingService {
         if (!projection.clientId || projection.clientId !== account.clientId) {
           throw new ConflictException('Hosting account and Platform deployment belong to different or unresolved clients.');
         }
-        const normalizedAccountDomain = account.domain.trim().toLowerCase().replace(/\.$/, '');
-        const normalizedRequestedDomain = projection.requestedDomain?.trim().toLowerCase().replace(/\.$/, '');
+        const normalizedAccountDomain = normalizeProvisioningDomain(account.domain);
+        const normalizedRequestedDomain = projection.requestedDomain
+          ? normalizeProvisioningDomain(projection.requestedDomain)
+          : null;
         if (!normalizedRequestedDomain || normalizedRequestedDomain !== normalizedAccountDomain) {
           throw new ConflictException('The Platform order domain does not exactly match the legacy hosting account domain.');
         }
@@ -577,6 +579,21 @@ export class HostingService {
             return { data: { hostingAccountId: account.id, platformDeploymentId, alreadyLinked: true } };
           }
           throw new ConflictException('This hosting account is already linked to a different Platform deployment.');
+        }
+
+        await lockProvisioningDomainClaim(tx, normalizedAccountDomain);
+        const competingDomainClaims = await findProvisioningDomainClaims(
+          tx,
+          normalizedAccountDomain,
+          {
+            excludeExternalOrderId: projection.externalOrderId,
+            excludeHostingAccountId: account.id,
+          },
+        );
+        if (competingDomainClaims.length > 0) {
+          throw new ConflictException(
+            'The domain has another legacy hosting account or Platform provisioning claim. Review the cutover inventory and resolve all competing claims before mapping.',
+          );
         }
 
         const now = new Date();

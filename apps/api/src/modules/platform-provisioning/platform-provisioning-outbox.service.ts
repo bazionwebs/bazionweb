@@ -78,7 +78,7 @@ export class PlatformProvisioningOutboxService {
         const domainClaims = await findProvisioningDomainClaims(
           tx,
           requestedDomain,
-          command.payload.order.externalOrderId,
+          { excludeExternalOrderId: command.payload.order.externalOrderId },
         );
         domainConflict = domainClaims.length > 0;
       }
