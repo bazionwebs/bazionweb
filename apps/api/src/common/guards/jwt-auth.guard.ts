@@ -8,8 +8,14 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import * as jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import {
+  assertSandboxReadOnly,
+  createKeycloakJwksClient,
+  extractBearerToken,
+  hasSandboxClaims,
+  verifyBearerTokenForRequest,
+} from './sandbox-readonly.guard';
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
@@ -23,22 +29,17 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly config: ConfigService,
   ) {
-    this.jwks = jwksClient({
-      jwksUri: `${config.get('KEYCLOAK_URL')}/realms/${config.get('KEYCLOAK_REALM')}/protocol/openid-connect/certs`,
-      cache: true,
-      cacheMaxEntries: 5,
-      cacheMaxAge: 600_000,
-    });
+    this.jwks = createKeycloakJwksClient(config);
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
     const isPublic = this.reflector.getAllAndOverride<boolean>('isPublic', [
       context.getHandler(),
       context.getClass(),
     ]);
     if (isPublic) {
       // Optional authentication: populate request.user if Bearer token is provided
-      const request = context.switchToHttp().getRequest();
       const token = this.extractToken(request);
       if (token) {
         try {
@@ -51,10 +52,10 @@ export class JwtAuthGuard implements CanActivate {
           // Optional bearer token verification error is safely ignored on public endpoints
         }
       }
+      assertSandboxReadOnly(request, context, this.reflector);
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
     const token = this.extractToken(request);
     if (!token) throw new UnauthorizedException('Missing authentication token');
 
@@ -67,6 +68,8 @@ export class JwtAuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }
+
+    assertSandboxReadOnly(request, context, this.reflector);
 
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
       context.getHandler(),
@@ -84,44 +87,11 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   private extractToken(request: any): string | null {
-    const auth = request.headers?.authorization;
-    return auth?.startsWith('Bearer ') ? auth.slice(7) : null;
+    return extractBearerToken(request);
   }
 
   private verifyToken(token: string): Promise<any> {
-    // Local BazionWeb tokens (HS256) first; Keycloak RS256 only when configured.
-    const unverified = jwt.decode(token) as { iss?: string } | null;
-    if (unverified?.iss === 'bazionweb') {
-      return new Promise((resolve, reject) => {
-        jwt.verify(
-          token,
-          this.config.get<string>('JWT_SECRET') ?? '',
-          { algorithms: ['HS256'], issuer: 'bazionweb' },
-          (err, decoded) => (err ? reject(err) : resolve(decoded)),
-        );
-      });
-    }
-
-    const keycloakUrl = this.config.get<string>('KEYCLOAK_URL');
-    if (!keycloakUrl) {
-      return Promise.reject(new Error('No local issuer and Keycloak is not configured'));
-    }
-    return new Promise((resolve, reject) => {
-      jwt.verify(
-        token,
-        (header, callback) => {
-          this.jwks.getSigningKey(header.kid, (err, key) => {
-            if (err) return callback(err as Error);
-            callback(null, key?.getPublicKey());
-          });
-        },
-        {
-          algorithms: ['RS256'],
-          issuer: `${this.config.get('KEYCLOAK_URL')}/realms/${this.config.get('KEYCLOAK_REALM')}`,
-        },
-        (err, decoded) => (err ? reject(err) : resolve(decoded)),
-      );
-    });
+    return verifyBearerTokenForRequest(token, this.config, this.jwks);
   }
 
   private mapLocalUser(decoded: any) {
@@ -135,7 +105,7 @@ export class JwtAuthGuard implements CanActivate {
       clientId: decoded.clientId,
       clientBusinessName: decoded.clientBusinessName,
       impersonatedBy: decoded.impersonatedBy,
-      isSandbox: Boolean(decoded.isSandbox || decoded.impersonatedBy),
+      isSandbox: hasSandboxClaims(decoded),
     };
   }
 
@@ -147,6 +117,8 @@ export class JwtAuthGuard implements CanActivate {
       lastName: decoded.family_name,
       roles: decoded.realm_access?.roles ?? [],
       keycloakId: decoded.sub,
+      impersonatedBy: decoded.impersonatedBy,
+      isSandbox: hasSandboxClaims(decoded),
     };
   }
 }

@@ -19,7 +19,8 @@
     "prisma:seed": "npm --workspace=@bazionweb/api run prisma:seed",
     "admin:create": "node scripts/create-superadmin.js",
     "test:e2e": "node --no-warnings --experimental-strip-types scripts/run-e2e-audit-suite.ts",
-    "verify:feature14": "npm --workspace=@bazionweb/api run verify:feature14"
+    "verify:feature14": "npm --workspace=@bazionweb/api run verify:feature14",
+    "check:invariants": "node scripts/check-workspace-invariants.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",

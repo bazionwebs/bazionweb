@@ -17,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { MfaGuard } from './common/guards/mfa.guard';
+import { SandboxReadOnlyGuard } from './common/guards/sandbox-readonly.guard';
 import { envValidationSchema } from './config/env.validation';
 import { PricingModule } from './modules/pricing/pricing.module';
 import { VaultModule } from './modules/vault/vault.module';
@@ -72,6 +73,11 @@ import { PlatformProvisioningModule } from './modules/platform-provisioning/plat
     DiagnosticsModule,
     PlatformProvisioningModule,
   ],
-  providers: [AuditInterceptor, MfaGuard, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    AuditInterceptor,
+    MfaGuard,
+    { provide: APP_GUARD, useClass: SandboxReadOnlyGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

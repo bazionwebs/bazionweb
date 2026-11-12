@@ -1,29 +1,23 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# BazionWeb — Standalone Next.js Multi-Stage Dockerfile
+# BazionWeb — Standalone Next.js Multi-Stage Dockerfile (monorepo root context `.`)
 # Base: Node 20 Alpine (Minimal Attack Surface & Resource Efficiency)
-# Architecture: 3-Stage Multi-Build (deps -> builder -> runner)
+# Architecture: 2-Stage Multi-Build (builder -> runner; standalone traces runtime deps)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Stage 1: Dependency Resolution ───────────────────────────────────────────
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
-WORKDIR /app
-
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --ignore-scripts || npm install --omit=dev --ignore-scripts
-
-# ── Stage 2: Application Build ───────────────────────────────────────────────
+# ── Stage 1: Deterministic Workspace Install & Build ──────────────────────────
 FROM node:20-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts || npm install --ignore-scripts
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/web/package.json ./apps/web/package.json
+RUN npm ci --ignore-scripts
 
-COPY . .
+COPY apps/web ./apps/web
 
 # Ensure public/ exists — Next.js standalone build expects it
-RUN mkdir -p ./public
+RUN mkdir -p ./apps/web/public
 
 # Build-time public env vars (non-secret)
 ARG NEXT_PUBLIC_API_URL
@@ -36,9 +30,9 @@ ENV NEXT_PUBLIC_GA_MEASUREMENT_ID=$NEXT_PUBLIC_GA_MEASUREMENT_ID
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-RUN npm run build
+RUN npm --workspace=@bazionweb/web run build
 
-# ── Stage 3: Minimal Production Runner ───────────────────────────────────────
+# ── Stage 2: Minimal Production Runner ───────────────────────────────────────
 FROM node:20-alpine AS runner
 # Patch-level OS upgrade: ship a base with current advisory fixes
 RUN apk update && apk upgrade --no-cache && apk add --no-cache curl \
@@ -57,10 +51,10 @@ ENV HOSTNAME="0.0.0.0"
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
 
-# Copy static assets and traced standalone server output
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy traced standalone server output and static/public assets for monorepo tracing root
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 
 USER nextjs
 
@@ -70,5 +64,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
-# Execute standalone Node server (supports both monorepo-root and sub-workspace traces)
-CMD ["sh", "-c", "if [ -f apps/web/server.js ]; then node apps/web/server.js; else node server.js; fi"]
+CMD ["node", "apps/web/server.js"]

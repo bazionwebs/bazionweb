@@ -8,6 +8,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { Public, Roles, JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { AllowSandboxMutation } from '../../common/guards/sandbox-readonly.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
 
 class LoginDto {
@@ -145,6 +146,7 @@ export class AuthController {
    * POST /api/v1/auth/logout
    */
   @Post('logout')
+  @AllowSandboxMutation()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Logout — revoke refresh token' })
   async logout(@Headers('authorization') auth: string) {

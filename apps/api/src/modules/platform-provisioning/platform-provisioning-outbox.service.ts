@@ -58,6 +58,11 @@ export class PlatformProvisioningOutboxService {
       occurredAt: opts?.occurredAt,
     });
 
+    if (commands.length === 0) {
+      this.logger.warn(
+        `Invoice ${invoice.invoiceNumber ?? invoice.id} has no quote-time Platform catalog binding; no provisioning command was created.`,
+      );
+    }
     for (const command of commands) {
       await tx.platformProvisioningOutbox.upsert({
         where: {
@@ -92,4 +97,3 @@ export class PlatformProvisioningOutboxService {
     return commands;
   }
 }
-

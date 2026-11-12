@@ -12,6 +12,7 @@ import { PaystackService } from './paystack.service';
 import { provisionProjectFromProposalInvoice } from '../projects/project-provisioning.util';
 import { PlatformProvisioningOutboxService } from '../platform-provisioning/platform-provisioning-outbox.service';
 import { SubscriptionLifecycleOutboxService } from '../platform-provisioning/subscription-lifecycle-outbox.service';
+import type { PlatformProvisioningBindingSnapshot } from '../platform-provisioning/provisioning-catalog.service';
 
 export type CheckoutPurpose = 'subscription' | 'invoice_payment';
 
@@ -31,7 +32,8 @@ export function checkoutLineItem(args: {
   qty?: number;
   billingCycle?: string;
   purpose?: CheckoutPurpose;
-}) {
+  platformProvisioningBinding?: PlatformProvisioningBindingSnapshot;
+}): Record<string, any> {
   return {
     description: args.description,
     amount: args.amount,
@@ -41,6 +43,7 @@ export function checkoutLineItem(args: {
     productId: args.productId,
     billingCycle: args.billingCycle,
     purpose: args.purpose ?? 'subscription',
+    ...(args.platformProvisioningBinding ? { platformProvisioningBinding: args.platformProvisioningBinding } : {}),
   };
 }
 

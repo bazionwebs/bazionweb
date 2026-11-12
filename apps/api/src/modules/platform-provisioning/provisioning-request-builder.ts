@@ -39,7 +39,6 @@ export interface BuiltProvisioningOutboxCommand {
   payload: ProvisionProductRequestV1;
 }
 
-const SLUG_NON_ALNUM = /[^a-z0-9]+/g;
 const HOSTNAME_REGEX = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 function sanitizeExternalId(raw: string, fallbackPrefix = 'ord'): string {
@@ -48,21 +47,79 @@ function sanitizeExternalId(raw: string, fallbackPrefix = 'ord'): string {
   return /^[A-Za-z0-9]/.test(cleaned) ? cleaned : `${fallbackPrefix}-${cleaned}`;
 }
 
-function toSlug(raw: unknown, fallback: string): string {
-  if (typeof raw !== 'string') return fallback;
-  const cleaned = raw
-    .trim()
-    .toLowerCase()
-    .replace(SLUG_NON_ALNUM, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleaned) ? cleaned : fallback;
+interface CatalogReleaseReference {
+  id: string;
+  version: string;
 }
 
-function resolveVersion(raw: unknown, fallback = '1.0.0'): string {
-  if (typeof raw !== 'string') return fallback;
-  const trimmed = raw.trim();
-  return /^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.-]+)?$/i.test(trimmed) ? trimmed : fallback;
+interface PinnedCatalogTuple {
+  offerId: string;
+  offerVersion: string;
+  product: CatalogReleaseReference;
+  solution: CatalogReleaseReference;
+  template: CatalogReleaseReference;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
+function parseReleaseReference(value: unknown): CatalogReleaseReference | null {
+  if (!isRecord(value) || !hasExactKeys(value, ['id', 'version'])) return null;
+  if (typeof value.id !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,119}$/.test(value.id)) return null;
+  if (typeof value.version !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/.test(value.version)) return null;
+  return { id: value.id, version: value.version };
+}
+
+function parseCatalogReferences(value: unknown, minimum: number): CatalogReleaseReference[] | null {
+  if (!Array.isArray(value) || value.length < minimum || value.length > 100) return null;
+  const references = value.map(parseReleaseReference);
+  if (references.some((reference) => reference === null)) return null;
+  const parsed = references as CatalogReleaseReference[];
+  return new Set(parsed.map((reference) => reference.id)).size === parsed.length ? parsed : null;
+}
+
+function resolveCatalogTuple(line: Record<string, unknown>): PinnedCatalogTuple | null {
+  const snapshot = line.platformProvisioningBinding;
+  if (!isRecord(snapshot) || !hasExactKeys(snapshot, ['schemaVersion', 'catalogGeneratedAt', 'binding'])) return null;
+  if (
+    snapshot.schemaVersion !== '1.0.0'
+    || typeof snapshot.catalogGeneratedAt !== 'string'
+    || !Number.isFinite(Date.parse(snapshot.catalogGeneratedAt))
+  ) return null;
+
+  const binding = snapshot.binding;
+  if (!isRecord(binding) || !hasExactKeys(binding, [
+    'offer', 'composition', 'requiredModules', 'optionalModules', 'distributionMode',
+  ])) return null;
+  if (binding.distributionMode !== 'shared-managed' || !isRecord(binding.composition)) return null;
+  if (!hasExactKeys(binding.composition, ['product', 'solution', 'template'])) return null;
+
+  const offer = parseReleaseReference(binding.offer);
+  const product = parseReleaseReference(binding.composition.product);
+  const solution = parseReleaseReference(binding.composition.solution);
+  const template = parseReleaseReference(binding.composition.template);
+  const requiredModules = parseCatalogReferences(binding.requiredModules, 1);
+  const optionalModules = parseCatalogReferences(binding.optionalModules, 0);
+  if (!offer || !product || !solution || !template || !requiredModules || !optionalModules) return null;
+  if (new Set([...requiredModules, ...optionalModules].map((module) => module.id)).size !== requiredModules.length + optionalModules.length) {
+    return null;
+  }
+  if (typeof line.productId !== 'string' || line.productId !== offer.id) return null;
+
+  return {
+    offerId: offer.id,
+    offerVersion: offer.version,
+    product,
+    solution,
+    template,
+  };
 }
 
 function safeDomain(raw: unknown): string | undefined {
@@ -70,79 +127,6 @@ function safeDomain(raw: unknown): string | undefined {
   const normalized = raw.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0]?.split(':')[0] ?? '';
   return HOSTNAME_REGEX.test(normalized) ? normalized : undefined;
 }
-
-function resolveCatalogTuple(
-  line: Record<string, unknown> | null,
-  client: SettledClientSource,
-): {
-  offerId: string;
-  offerVersion: string;
-  product: { id: string; version: string };
-  solution: { id: string; version: string };
-  template: { id: string; version: string };
-} {
-  const tier = typeof client.plan?.tier === 'string' ? client.plan.tier.toLowerCase() : '';
-  const tierOfferMap: Record<string, string> = {
-    starter: 'website-launch',
-    growth: 'website-business',
-    business: 'website-business',
-    professional: 'website-professional',
-    enterprise: 'website-enterprise',
-  };
-
-  const explicitOffer =
-    line?.offerId ??
-    line?.productId ??
-    tierOfferMap[tier] ??
-    client.plan?.name ??
-    line?.planId ??
-    client.planId ??
-    'website-business';
-
-  const offerId = toSlug(explicitOffer, 'website-business');
-  const offerVersion = resolveVersion(line?.offerVersion, '1.0.0');
-
-  const isEcommerce = offerId.includes('ecommerce') || offerId.includes('shop') || offerId.includes('store');
-  const isChurch = offerId.includes('church') || offerId.includes('ministry');
-
-  const defaultProductId = isChurch
-    ? 'church-ministry'
-    : isEcommerce
-      ? 'bazion-commerce'
-      : offerId.startsWith('addon-')
-        ? 'bazion-addon'
-        : 'bazion-site';
-
-  const defaultSolutionId = isChurch
-    ? 'church-ministry'
-    : isEcommerce
-      ? 'ecommerce-storefront'
-      : offerId;
-
-  const defaultTemplateId = isChurch
-    ? 'church-ministry'
-    : isEcommerce
-      ? 'ecommerce'
-      : 'node-nextjs';
-
-  return {
-    offerId,
-    offerVersion,
-    product: {
-      id: toSlug(line?.catalogProductId ?? line?.platformProductId, defaultProductId),
-      version: resolveVersion(line?.productVersion, '1.0.0'),
-    },
-    solution: {
-      id: toSlug(line?.solutionId, defaultSolutionId),
-      version: resolveVersion(line?.solutionVersion, '1.0.0'),
-    },
-    template: {
-      id: toSlug(line?.templateId, defaultTemplateId),
-      version: resolveVersion(line?.templateVersion, '1.0.0'),
-    },
-  };
-}
-
 /**
  * Derive 1 validated, deterministic ProvisionProductRequestV1 outbox command per settled invoice line.
  * Never includes prices, invoice amounts, payment secrets, or credentials.
@@ -157,7 +141,11 @@ export function buildProvisioningRequestsForSettledInvoice(input: {
     ? invoice.lineItems.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
     : [];
 
-  const effectiveLines: Array<Record<string, unknown> | null> = rawLines.length > 0 ? rawLines : [null];
+  const effectiveLines = rawLines.flatMap((line, lineIndex) => {
+    const compositionTuple = resolveCatalogTuple(line);
+    return compositionTuple ? [{ line, lineIndex, compositionTuple }] : [];
+  });
+  if (effectiveLines.length === 0) return [];
   const occurredAtIso = (input.occurredAt ?? new Date()).toISOString();
 
   const normalizedEmail = (client.email ?? '').trim().toLowerCase();
@@ -171,11 +159,10 @@ export function buildProvisioningRequestsForSettledInvoice(input: {
   const customerExternalId = sanitizeExternalId(client.id, 'cust');
   const correlationId = deterministicUuidFromSeed(`bazionweb:correlation:${invoice.id}`);
 
-  return effectiveLines.map((line, lineIndex) => {
+  return effectiveLines.map(({ line, lineIndex, compositionTuple }) => {
     const idempotencyKey = `bazionweb:order:${invoice.id}:line:${lineIndex}:v1`;
     const externalOrderId = `${orderBase}:line:${lineIndex}`;
     const eventId = deterministicUuidFromSeed(`bazionweb:event:${invoice.id}:line:${lineIndex}`);
-    const compositionTuple = resolveCatalogTuple(line, client);
     const requestedDomain = safeDomain(line?.requestedDomain ?? line?.domain);
 
     const candidate: ProvisionProductRequestV1 = {

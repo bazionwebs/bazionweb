@@ -33,8 +33,25 @@ function signWebhookHeader(rawBody: string, secret: string, tsSec: number): stri
   return `t=${tsSec},v1=${digest}`;
 }
 
+function catalogSnapshot(offerId: string) {
+  return {
+    schemaVersion: '1.0.0' as const,
+    catalogGeneratedAt: '2026-11-12T00:00:00.000Z',
+    binding: {
+      offer: { id: offerId, version: '2026.1.0' },
+      composition: {
+        product: { id: 'bazion-site', version: '1.0.0' },
+        solution: { id: 'business-website', version: '1.0.0' },
+        template: { id: 'node-nextjs', version: '1.0.0' },
+      },
+      requiredModules: [{ id: 'website-content', version: '1.0.0' }],
+      optionalModules: [],
+      distributionMode: 'shared-managed' as const,
+    },
+  };
+}
 describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
-  it('builds one validated contract command per settled order line without prices or secrets', () => {
+  it('builds commands only for settled lines pinned to Platform catalog releases', () => {
     const commands = buildProvisioningRequestsForSettledInvoice({
       invoice: {
         id: 'inv-1001',
@@ -48,6 +65,7 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
             currency: 'KES',
             productId: 'website-business',
             billingCycle: 'MONTHLY',
+            platformProvisioningBinding: catalogSnapshot('website-business'),
           }),
           checkoutLineItem({
             description: 'Blog Engine Add-on',
@@ -68,14 +86,11 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
       occurredAt: new Date('2026-11-11T20:00:00.000Z'),
     });
 
-    expect(commands).toHaveLength(2);
+    expect(commands).toHaveLength(1);
     expect(commands[0]?.idempotencyKey).toBe('bazionweb:order:inv-1001:line:0:v1');
     expect(commands[0]?.externalOrderId).toBe('INV-2026-1001:line:0');
     expect(commands[0]?.payload.customer.primaryContact.email).toBe('grace@savannah.example');
     expect(commands[0]?.payload.order.offerId).toBe('website-business');
-    expect(commands[1]?.idempotencyKey).toBe('bazionweb:order:inv-1001:line:1:v1');
-    expect(commands[1]?.externalOrderId).toBe('INV-2026-1001:line:1');
-    expect(commands[1]?.payload.order.offerId).toBe('addon-blog-news');
 
     const serialized = JSON.stringify(commands);
     expect(serialized).not.toContain('90000');
@@ -83,6 +98,23 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
     expect(commands[0]?.requestFingerprint).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it('does not infer offers or releases from plan names when an invoice lacks a quote-time catalog pin', () => {
+    const commands = buildProvisioningRequestsForSettledInvoice({
+      invoice: {
+        id: 'inv-unpinned',
+        clientId: 'client-unpinned',
+        lineItems: [checkoutLineItem({
+          description: 'Website Business subscription',
+          amount: 90000,
+          currency: 'KES',
+          planId: 'plan-business',
+          productId: 'website-business',
+        })],
+      },
+      client: { id: 'client-unpinned', planId: 'plan-business', plan: { name: 'Business Website', tier: 'BUSINESS' } },
+    });
+    expect(commands).toEqual([]);
+  });
   it('enqueues outbox commands inside the same settlement transaction and aborts on failure', async () => {
     const outboxRows: any[] = [];
     const invoiceUpdate = jest.fn().mockResolvedValue({});
@@ -113,6 +145,7 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
               currency: 'KES',
               productId: 'website-launch',
               billingCycle: 'MONTHLY',
+              platformProvisioningBinding: catalogSnapshot('website-launch'),
             }),
           ],
           client: {
@@ -190,6 +223,7 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
             currency: 'KES',
             productId: 'website-enterprise',
             purpose: 'invoice_payment',
+            platformProvisioningBinding: catalogSnapshot('website-enterprise'),
           }),
         ],
         client: {
