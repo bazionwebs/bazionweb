@@ -135,12 +135,18 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
 
+      - name: Apply migrations to isolated API test database
+        run: npm --workspace=@bazionweb/api run prisma:migrate
+        env:
+          DATABASE_URL: postgresql://bazionweb:testpassword@localhost:5432/bazionweb_test
+
       - name: Generate Prisma client & run API tests
         run: |
           npm --workspace=@bazionweb/api run prisma:generate
           npm --workspace=@bazionweb/api run test:cov -- --passWithNoTests
         env:
           DATABASE_URL: postgresql://bazionweb:testpassword@localhost:5432/bazionweb_test
+          BAZIONWEB_TEST_DATABASE_URL: postgresql://bazionweb:testpassword@localhost:5432/bazionweb_test
           REDIS_URL: redis://localhost:6379
           JWT_SECRET: test-jwt-secret-minimum-32-characters
           NODE_ENV: test
