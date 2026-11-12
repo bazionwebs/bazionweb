@@ -189,6 +189,25 @@ export function useHostingCutover(page = 1, pageSize = 50) {
   });
 }
 
+export function useLinkHostingPlatformDeployment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      hostingAccountId,
+      platformDeploymentId,
+      evidenceRef,
+    }: {
+      hostingAccountId: string;
+      platformDeploymentId: string;
+      evidenceRef: string;
+    }) => adminApi.linkHostingPlatformDeployment(hostingAccountId, { platformDeploymentId, evidenceRef }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'hosting-cutover'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'hosting'] });
+    },
+  });
+}
+
 export function useAdminInvoices() {
   const token = useToken();
   const allowed = useCanSeeBilling();

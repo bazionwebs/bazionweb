@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -13,10 +14,11 @@ import {
   RefreshCw,
   Server,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import { EmptyState, QueryError, SectionLoading } from '@/components/ui/QueryState';
-import { useCanSeeBilling, useHostingCutover } from '@/hooks/useAdminData';
-import type { AdminHostingCutoverClassification } from '@/hooks/useAdminData';
+import { useCanSeeBilling, useHostingCutover, useLinkHostingPlatformDeployment } from '@/hooks/useAdminData';
+import type { AdminHostingCutoverClassification, AdminHostingCutoverItem } from '@/hooks/useAdminData';
 
 const classificationLabels: Record<AdminHostingCutoverClassification, string> = {
   linked: 'Linked and consistent',
@@ -65,9 +67,14 @@ function summaryCards(summary: {
 
 export default function HostingCutoverPage() {
   const [page, setPage] = useState(1);
+  const [mappingItem, setMappingItem] = useState<AdminHostingCutoverItem | null>(null);
+  const [mappingEvidence, setMappingEvidence] = useState('');
+  const [mappingConfirmed, setMappingConfirmed] = useState(false);
   const allowed = useCanSeeBilling();
   const reportQuery = useHostingCutover(page, 50);
+  const mapDeploymentMutation = useLinkHostingPlatformDeployment();
   const report = reportQuery.data;
+  const evidencePattern = /^(?:CHG|INC|MIG|ROLLBACK|DRILL|TICKET)[-:/#][A-Za-z0-9][A-Za-z0-9._:/#-]{2,292}$/i;
 
   if (!allowed) {
     return (
@@ -86,6 +93,34 @@ export default function HostingCutoverPage() {
   const reviewCount = summary
     ? summary.readyToMap + summary.ambiguousPlatformClaims + summary.domainClaimedByOtherClient + summary.platformClaimNotReady + summary.linkedConflicts
     : 0;
+  const openMappingReview = (item: AdminHostingCutoverItem) => {
+    mapDeploymentMutation.reset();
+    setMappingItem(item);
+    setMappingEvidence('');
+    setMappingConfirmed(false);
+  };
+  const closeMappingReview = () => {
+    if (mapDeploymentMutation.isPending) return;
+    setMappingItem(null);
+    setMappingEvidence('');
+    setMappingConfirmed(false);
+  };
+  const submitMapping = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!mappingItem?.candidatePlatformDeploymentId || !mappingConfirmed || !evidencePattern.test(mappingEvidence.trim())) return;
+    try {
+      await mapDeploymentMutation.mutateAsync({
+        hostingAccountId: mappingItem.hostingAccountId,
+        platformDeploymentId: mappingItem.candidatePlatformDeploymentId,
+        evidenceRef: mappingEvidence.trim(),
+      });
+      setMappingItem(null);
+      setMappingEvidence('');
+      setMappingConfirmed(false);
+    } catch {
+      // React Query exposes the mutation error below without leaking server details.
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -114,9 +149,62 @@ export default function HostingCutoverPage() {
       <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" />
         <p>
-          This report is read-only. It never links accounts or changes provider resources. Map only a manually verified “Ready to map” row through the evidence-backed hosting mapping flow.
+          The report is read-only and never changes provider resources. For a uniquely verified “Ready to map” row, an administrator can record a separate evidence-backed link after confirming the client and domain.
         </p>
       </div>
+
+      {mappingItem && mappingItem.candidatePlatformDeploymentId && (
+        <section className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm" aria-labelledby="mapping-review-title">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 id="mapping-review-title" className="text-sm font-bold text-slate-900">Review hosting mapping</h2>
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600">
+                This links the legacy account to the ready Platform deployment and records your evidence. It does not create, stop, or modify a provider workload.
+              </p>
+            </div>
+            <button type="button" onClick={closeMappingReview} disabled={mapDeploymentMutation.isPending} aria-label="Close mapping review" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <dl className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-4 text-xs sm:grid-cols-3">
+            <div><dt className="text-slate-500">Normalized domain</dt><dd className="mt-1 font-mono font-semibold text-slate-900">{mappingItem.domain}</dd></div>
+            <div><dt className="text-slate-500">Client ID</dt><dd className="mt-1 break-all font-mono font-semibold text-slate-900">{mappingItem.clientId}</dd></div>
+            <div><dt className="text-slate-500">Platform deployment ID</dt><dd className="mt-1 break-all font-mono font-semibold text-slate-900">{mappingItem.candidatePlatformDeploymentId}</dd></div>
+          </dl>
+          <form className="mt-4 space-y-4" onSubmit={submitMapping}>
+            <label className="block max-w-xl text-xs font-semibold text-slate-700">
+              Change or migration evidence reference
+              <input
+                value={mappingEvidence}
+                onChange={event => setMappingEvidence(event.target.value)}
+                maxLength={300}
+                required
+                placeholder="CHG-2026-0042"
+                aria-describedby="mapping-evidence-help"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-mono text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              />
+              <span id="mapping-evidence-help" className="mt-1 block font-normal text-slate-500">Use a ticket, change, incident, migration, drill, or rollback reference. Do not enter secrets or customer details.</span>
+            </label>
+            <label className="flex max-w-3xl items-start gap-2 text-xs leading-5 text-slate-700">
+              <input type="checkbox" checked={mappingConfirmed} onChange={event => setMappingConfirmed(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+              I manually verified this exact client and normalized domain against the ready Platform order and reviewed the ownership report.
+            </label>
+            {mapDeploymentMutation.isError && (
+              <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">
+                The mapping was rejected. Refresh the report and resolve any competing claims before trying again.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button type="submit" disabled={
+                mapDeploymentMutation.isPending || !mappingConfirmed || !evidencePattern.test(mappingEvidence.trim())
+              } className="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
+                {mapDeploymentMutation.isPending ? 'Recording mapping…' : 'Record audited mapping'}
+              </button>
+              <button type="button" onClick={closeMappingReview} disabled={mapDeploymentMutation.isPending} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Cutover summary">
         {summaryCards(report?.summary ?? {
@@ -154,7 +242,7 @@ export default function HostingCutoverPage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-[980px] divide-y divide-slate-100 text-left text-xs">
+            <table className="min-w-[1120px] divide-y divide-slate-100 text-left text-xs">
               <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Domain / client</th>
@@ -162,6 +250,7 @@ export default function HostingCutoverPage() {
                   <th className="px-4 py-3">Platform state</th>
                   <th className="px-4 py-3">Cutover classification</th>
                   <th className="px-4 py-3">Platform deployment ID</th>
+                  <th className="px-4 py-3">Operator action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -191,6 +280,13 @@ export default function HostingCutoverPage() {
                         </span>
                       </td>
                       <td className="max-w-[240px] break-all px-4 py-3 font-mono text-[10px] text-slate-500">{deploymentId || '—'}</td>
+                      <td className="px-4 py-3">
+                        {item.classification === 'ready_to_map' && item.candidatePlatformDeploymentId ? (
+                          <button type="button" onClick={() => openMappingReview(item)} className="whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-bold text-blue-800 hover:bg-blue-100">
+                            Review mapping
+                          </button>
+                        ) : <span className="text-slate-400">—</span>}
+                      </td>
                     </tr>
                   );
                 })}

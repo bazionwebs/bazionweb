@@ -211,6 +211,11 @@ export const adminApi = {
   getHostingCutoverReport: (page = 1, limit = 50) =>
     api.get('/admin/platform-provisioning/hosting-cutover', { params: { page, limit } }).then(r => r.data),
 
+  linkHostingPlatformDeployment: (
+    hostingAccountId: string,
+    data: { platformDeploymentId: string; evidenceRef: string },
+  ) => api.post(`/hosting/${hostingAccountId}/platform-deployment-link`, data).then(r => r.data),
+
   listProjects: (params: { page?: number; limit?: number } = {}) =>
     api.get('/projects', { params: { limit: 50, ...params } }).then(r => r.data),
 
