@@ -24,6 +24,7 @@ import {
   isCarePlanItem,
   isAddOnItem,
 } from '@/lib/cart';
+import { BILLING_CYCLES_META, getBillingCycleMeta } from '@/lib/priceBooks';
 
 export interface StoreOrderSummaryProps {
   items: CartItem[];
@@ -278,7 +279,18 @@ export default function StoreOrderSummary({
                     )}
                     <div className="min-w-0">
                       <p className="font-bold text-slate-900">{item.name}</p>
-                      <p className="text-[11px] text-slate-500">{groupName(item)}</p>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span>{groupName(item)}</span>
+                        {isHostingItem(item) && item.cycle && item.cycle !== 'one-time' && (
+                          <span className="font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">
+                            {item.cycle === 'year'
+                              ? 'Billed annually'
+                              : item.cycle === 'month'
+                                ? 'Billed monthly'
+                                : `Billed ${item.cycle}`}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <span className="font-bold text-slate-900 whitespace-nowrap">{money(item)}</span>
@@ -329,9 +341,28 @@ export default function StoreOrderSummary({
                     <Wrench className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
                     <div className="min-w-0">
                       <p className="font-bold text-slate-900">{planItem.name}</p>
-                      <p className="text-[11px] text-slate-500">
-                        Step 4 · Care Plan ({planItem.cycle === 'ANNUAL' ? 'billed yearly' : 'billed monthly'})
-                      </p>
+                      {(() => {
+                        const cycleMeta =
+                          BILLING_CYCLES_META.find(
+                            (m) =>
+                              m.enumValue === planItem.cycle ||
+                              m.cycle === (planItem.cycle || '').toLowerCase()
+                          ) ||
+                          (planItem.cycle === 'ANNUAL' ? BILLING_CYCLES_META[3] : BILLING_CYCLES_META[0]);
+                        return (
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span>Step 4 · Care Plan</span>
+                            <span className="font-bold text-[#2563EB] bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">
+                              {cycleMeta.label}
+                            </span>
+                            {cycleMeta.discountPct > 0 && (
+                              <span className="font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">
+                                Save {cycleMeta.discountPct}%
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                   <span className="font-bold text-slate-900 whitespace-nowrap">{money(planItem)}</span>

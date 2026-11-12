@@ -36,12 +36,16 @@ import {
   calculatePlanCyclePrice,
   getPriceBookForMarket,
   normalizeCatalogProductId,
+  CommitmentCycle,
+  getBillingCycleMeta,
+  resolveHostingCycleProductId,
 } from '@/lib/priceBooks';
 import {
   EXISTING_WEBSITE_PACKAGE,
   WEBSITE_PACKAGES,
   ECOMMERCE_PACKAGES,
   DOMAIN_PACKAGES,
+  MANAGED_HOSTING_PLANS,
   ADD_ON_RATE_CARD,
   COMMERCIAL_FLOW_STEPS,
 } from '@/lib/pricingData';
@@ -285,6 +289,8 @@ export default function StoreView() {
   const [activeNavStep, setActiveNavStep] = useState<string>('websites');
   const [websiteSubTab, setWebsiteSubTab] = useState<WebsiteSubCategory>('existing');
   const [domainNameInput, setDomainNameInput] = useState<string>('');
+  const [hostingCycle, setHostingCycle] = useState<CommitmentCycle>('annually');
+  const [careCycle, setCareCycle] = useState<CommitmentCycle>('monthly');
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     websites: true,
     addons: false,
@@ -358,6 +364,19 @@ export default function StoreView() {
     setTimeout(() => setAddedKey(null), 1500);
   };
 
+  // Synchronize commitment cycle states when items exist in cart
+  useEffect(() => {
+    if (cartPlanItem?.cycle) {
+      const norm = cartPlanItem.cycle.toLowerCase().replace(/_/g, '-');
+      const matched = BILLING_CYCLES_META.find(
+        (m) => m.cycle === norm || m.enumValue.toLowerCase() === norm
+      );
+      if (matched && matched.cycle !== careCycle) {
+        setCareCycle(matched.cycle as CommitmentCycle);
+      }
+    }
+  }, [cartPlanItem?.cycle]);
+
   // Deep-link support: /store?add=<plan-slug|productId>
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -414,10 +433,74 @@ export default function StoreView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addParam, plans, plansLoading, catalog.data, catalog.isLoading, add, router, isKenya, activeCurrency]);
 
-  const hostingItems = useMemo(
-    () => (catalog.data?.prices ?? []).filter((p) => p.productId.startsWith('host-')),
-    [catalog.data],
-  );
+  const hostingItems = useMemo(() => {
+    const apiHosting = (catalog.data?.prices ?? []).filter((p) => p.productId.startsWith('host-'));
+    if (apiHosting.length > 0) return apiHosting;
+    // Authoritative fallback: ensures hosting packages ALWAYS render on mobile and desktop
+    return MANAGED_HOSTING_PLANS.map((plan) => {
+      const bookItem = priceBook.items[plan.id];
+      const opt = bookItem?.billingOptions?.find((o) => o.cycle === hostingCycle);
+      const unitPrice = opt ? opt.amount : (bookItem ? bookItem.amount : (isKenya ? 4500 : 49));
+      const cycleProductId = resolveHostingCycleProductId(plan.id, hostingCycle);
+      return {
+        id: cycleProductId,
+        productId: cycleProductId,
+        amount: unitPrice,
+        billingPeriod: opt ? (hostingCycle === 'monthly' ? 'month' : 'year') : 'year',
+      };
+    });
+  }, [catalog.data, priceBook, isKenya, hostingCycle]);
+
+  const handleUpdateHostingCycle = (newCycle: CommitmentCycle) => {
+    setHostingCycle(newCycle);
+    if (selectedHostingItem) {
+      const baseSlug =
+        ['host-essential', 'host-business', 'host-pro', 'host-professional', 'host-cloud'].find((b) =>
+          selectedHostingItem.id.startsWith(b)
+        ) || selectedHostingItem.id;
+      const bookItem = priceBook.items[baseSlug];
+      const opt = bookItem?.billingOptions?.find((o) => o.cycle === newCycle);
+      const unitPrice = opt ? opt.amount : (bookItem ? bookItem.amount : (isKenya ? 4500 : 49));
+      const cycleProductId = resolveHostingCycleProductId(baseSlug, newCycle);
+      const baseName = bookItem?.name || selectedHostingItem.name.replace(/\s*\([^)]*\)$/, '');
+      add({
+        kind: 'CATALOG',
+        id: cycleProductId,
+        name: `${baseName} (${opt?.label || 'Annual'})`,
+        cycle: newCycle === 'monthly' ? 'month' : 'year',
+        qty: 1,
+        unitPrice,
+        currency: activeCurrency,
+      });
+    }
+  };
+
+  const handleUpdateCareCycle = (newCycle: CommitmentCycle) => {
+    setCareCycle(newCycle);
+    if (cartPlanItem) {
+      const slug = cartPlanItem.id;
+      const plan = (plans ?? []).find((p) => p.slug === slug);
+      const cycleMeta = getBillingCycleMeta(newCycle);
+      const baseMonthly = plan
+        ? (isKenya ? plan.priceMonthlyKes : plan.priceMonthly)
+        : (priceBook.items[slug]?.amount || 5000);
+      const baseAnnual = plan ? (isKenya ? plan.priceAnnualKes : plan.priceAnnual) : undefined;
+      const cyclePrice = calculatePlanCyclePrice(baseMonthly, cycleMeta.enumValue, {
+        canonicalAnnualAmount: baseAnnual,
+        isKes: isKenya,
+      });
+      const baseName = plan?.name || priceBook.items[slug]?.name || cartPlanItem.name.replace(/\s*\([^)]*\)$/, '');
+      add({
+        kind: 'PLAN',
+        id: slug,
+        name: `${baseName} (${cycleMeta.label})`,
+        cycle: cycleMeta.enumValue,
+        qty: 1,
+        unitPrice: cyclePrice.amount,
+        currency: isKenya ? 'KES' : activeCurrency,
+      });
+    }
+  };
 
   const addonItems = useMemo(() => {
     const apiAddons = (catalog.data?.prices ?? []).filter(
@@ -1398,7 +1481,39 @@ export default function StoreView() {
                     Choose a managed cloud hosting package for fast online visibility, automated SSL, and daily offsite
                     R2 backups.
                   </p>
-                  {catalog.isLoading ? (
+
+                  {/* Interactive Commitment Cycle Selector for Hosting */}
+                  <div className="flex flex-col items-center justify-center gap-2 pt-1 pb-2">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      Select Hosting Commitment Term &amp; Unlock Progressive Discounts
+                    </div>
+                    <div className="inline-flex flex-wrap items-center justify-center p-1.5 bg-slate-100 rounded-2xl border border-slate-200 gap-1 shadow-inner">
+                      {BILLING_CYCLES_META.map((meta) => {
+                        const isSelected = hostingCycle === meta.cycle;
+                        return (
+                          <button
+                            key={meta.cycle}
+                            type="button"
+                            onClick={() => handleUpdateHostingCycle(meta.cycle)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-[#2563EB] text-white shadow-sm'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                          >
+                            <span>{meta.pillLabel}</span>
+                            {meta.popular && !isSelected && (
+                              <span className="text-[9px] bg-blue-100 text-[#2563EB] px-1.5 py-0.5 rounded-full font-extrabold">
+                                Popular
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {catalog.isLoading && hostingItems.length === 0 ? (
                     <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
                       <Loader2 className="h-5 w-5 animate-spin" /> Loading hosting packages…
                     </div>
@@ -1553,6 +1668,37 @@ export default function StoreView() {
                     )}
                   </div>
 
+                  {/* Interactive Commitment Cycle Selector for Care Plans */}
+                  <div className="flex flex-col items-center justify-center gap-2 pt-1 pb-2">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      Select Care Commitment Term &amp; Unlock Progressive Discounts
+                    </div>
+                    <div className="inline-flex flex-wrap items-center justify-center p-1.5 bg-slate-100 rounded-2xl border border-slate-200 gap-1 shadow-inner">
+                      {BILLING_CYCLES_META.map((meta) => {
+                        const isSelected = careCycle === meta.cycle;
+                        return (
+                          <button
+                            key={meta.cycle}
+                            type="button"
+                            onClick={() => handleUpdateCareCycle(meta.cycle)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-[#2563EB] text-white shadow-sm'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                          >
+                            <span>{meta.pillLabel}</span>
+                            {meta.popular && !isSelected && (
+                              <span className="text-[9px] bg-blue-100 text-[#2563EB] px-1.5 py-0.5 rounded-full font-extrabold">
+                                Popular
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {plansLoading ? (
                     <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
                       <Loader2 className="h-5 w-5 animate-spin" /> Loading care plans…
@@ -1563,7 +1709,18 @@ export default function StoreView() {
                         .filter((p) => PLAN_MARKETING[p.slug])
                         .map((plan) => {
                           const marketing = PLAN_MARKETING[plan.slug];
-                          const key = `PLAN:${plan.slug}:MONTHLY`;
+                          const cycleMeta = getBillingCycleMeta(careCycle);
+                          const baseMonthly = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
+                          const baseAnnual = isKenya ? plan.priceAnnualKes : plan.priceAnnual;
+                          const cyclePrice = calculatePlanCyclePrice(baseMonthly, cycleMeta.enumValue, {
+                            canonicalAnnualAmount: baseAnnual,
+                            isKes: isKenya,
+                          });
+                          const key = `PLAN:${plan.slug}:${cycleMeta.enumValue}`;
+                          const isPlanSelected =
+                            addedKey === key ||
+                            inCart(key) ||
+                            (cartPlanItem?.id === plan.slug && cartPlanItem?.cycle === cycleMeta.enumValue);
                           const headerStyle = PLAN_HEADER_STYLES[plan.slug] ?? 'bg-slate-800 text-white';
                           const displayName =
                             plan.name ||
@@ -1572,9 +1729,11 @@ export default function StoreView() {
                             <article
                               key={plan.id}
                               className={`rounded-2xl border overflow-hidden bg-white shadow-sm flex flex-col transition-shadow hover:shadow-md ${
-                                plan.tier === 'RECOMMENDED'
-                                  ? 'border-[#2563EB] ring-1 ring-[#2563EB]/30'
-                                  : 'border-slate-200'
+                                isPlanSelected
+                                  ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+                                  : plan.tier === 'RECOMMENDED'
+                                    ? 'border-[#2563EB] ring-1 ring-[#2563EB]/30'
+                                    : 'border-slate-200'
                               }`}
                             >
                               <div className={`px-5 py-4 flex items-center justify-between ${headerStyle}`}>
@@ -1596,39 +1755,46 @@ export default function StoreView() {
                                     </li>
                                   ))}
                                 </ul>
-                                <div className="flex items-end justify-between mb-4">
-                                  <div>
+                                <div className="flex flex-col mb-4">
+                                  <div className="flex items-baseline gap-1.5">
                                     <span className="text-2xl font-extrabold text-slate-900">
-                                      {formatMoney(isKenya ? plan.priceMonthlyKes : plan.priceMonthly, symbol)}
+                                      {formatMoney(cyclePrice.amount, symbol)}
                                     </span>
-                                    <span className="text-xs text-slate-500"> /month</span>
+                                    <span className="text-xs text-slate-500">
+                                      /{cycleMeta.label.toLowerCase()}
+                                    </span>
                                   </div>
+                                  {cycleMeta.durationMonths > 1 && (
+                                    <span className="text-[11px] font-semibold text-emerald-600">
+                                      {formatMoney(cyclePrice.monthlyEquivalent, symbol)}/mo equivalent
+                                      {cyclePrice.discountPct > 0 ? ` (-${cyclePrice.discountPct}%)` : ''}
+                                    </span>
+                                  )}
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const planPrice = isKenya ? plan.priceMonthlyKes : plan.priceMonthly;
                                     const planCurrency = isKenya ? 'KES' : activeCurrency;
                                     handleAdd(
                                       {
                                         kind: 'PLAN',
                                         id: plan.slug,
-                                        name: plan.name,
-                                        cycle: 'MONTHLY',
+                                        name: `${displayName} (${cycleMeta.label})`,
+                                        cycle: cycleMeta.enumValue,
                                         qty: 1,
-                                        unitPrice: planPrice,
+                                        unitPrice: cyclePrice.amount,
                                         currency: planCurrency,
                                       },
                                       key
                                     );
                                   }}
                                   className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
-                                    addedKey === key || inCart(key)
+                                    isPlanSelected
                                       ? 'bg-emerald-600 text-white'
                                       : 'bg-[#2563EB] text-white hover:bg-blue-700'
                                   }`}
                                 >
-                                  {addedKey === key || inCart(key) ? (
+                                  {isPlanSelected ? (
                                     <>
                                       <Check className="h-4 w-4" /> In Cart
                                     </>

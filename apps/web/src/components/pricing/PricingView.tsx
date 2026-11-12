@@ -34,6 +34,8 @@ import {
   CommitmentCycle,
   normalizeCatalogProductId,
   resolveHostingCycleProductId,
+  getBillingCycleMeta,
+  calculatePlanCyclePrice,
 } from '@/lib/priceBooks';
 import {
   Check,
@@ -132,6 +134,18 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
     }
   }, [searchParams, activeTab]);
 
+  useEffect(() => {
+    if (selectedCare?.cycle) {
+      const norm = selectedCare.cycle.toLowerCase().replace(/_/g, '-');
+      const matched = BILLING_CYCLES_META.find(
+        (m) => m.cycle === norm || m.enumValue.toLowerCase() === norm
+      );
+      if (matched && matched.cycle !== careCycle) {
+        setCareCycle(matched.cycle as CommitmentCycle);
+      }
+    }
+  }, [selectedCare?.cycle]);
+
   const handleTabChange = (newTab: TabKey) => {
     setActiveTab(newTab);
     setExpandedStep(getStepForTab(newTab));
@@ -228,6 +242,58 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
     setActiveTab('care');
   };
 
+  const handleUpdateHostingCycle = (newCycle: CommitmentCycle) => {
+    setHostingCycle(newCycle);
+    if (selectedHosting) {
+      const baseSlug =
+        ['host-essential', 'host-business', 'host-pro', 'host-professional', 'host-cloud'].find((b) =>
+          selectedHosting.id.startsWith(b)
+        ) || selectedHosting.id;
+      const bookItem = priceBook.items[baseSlug];
+      const opt = bookItem?.billingOptions?.find((o) => o.cycle === newCycle);
+      const unitPrice = opt ? opt.amount : resolveBookAmount(baseSlug, 15000, 189);
+      const cycleProductId = resolveHostingCycleProductId(baseSlug, newCycle);
+      const baseName = bookItem?.name || selectedHosting.name.replace(/\s*\([^)]*\)$/, '');
+      addToCart({
+        kind: 'CATALOG',
+        id: cycleProductId,
+        name: `${baseName} (${opt?.label || 'Annual'})`,
+        cycle: newCycle === 'monthly' ? 'month' : 'year',
+        qty: 1,
+        unitPrice,
+        currency: marketDef.currency,
+      });
+    }
+  };
+
+  const handleUpdateCareCycle = (newCycle: CommitmentCycle) => {
+    setCareCycle(newCycle);
+    if (selectedCare) {
+      const slug = selectedCare.id;
+      const bookItem = priceBook.items[slug];
+      const opt = bookItem?.billingOptions?.find((o) => o.cycle === newCycle);
+      const cycleMeta = getBillingCycleMeta(newCycle);
+      let unitPrice = opt ? opt.amount : 0;
+      if (!unitPrice && bookItem) {
+        const isKes = marketCode === 'KE';
+        unitPrice = calculatePlanCyclePrice(bookItem.amount, cycleMeta.enumValue, {
+          isKes,
+          currency: marketDef.currency,
+        }).amount;
+      }
+      const baseName = bookItem?.name || selectedCare.name.replace(/\s*\([^)]*\)$/, '');
+      addToCart({
+        kind: 'PLAN',
+        id: slug,
+        name: `${baseName} (${opt?.label || cycleMeta.label})`,
+        cycle: cycleMeta.enumValue,
+        qty: 1,
+        unitPrice: unitPrice || selectedCare.unitPrice,
+        currency: marketDef.currency,
+      });
+    }
+  };
+
   const handleSelectCarePlan = (
     slug: string,
     name: string,
@@ -236,12 +302,20 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
   ) => {
     const bookItem = priceBook.items[slug];
     const opt = bookItem?.billingOptions?.find((o) => o.cycle === careCycle);
-    const unitPrice = opt ? opt.amount : resolveBookAmount(slug, fallbackKes, fallbackUsd);
+    const cycleMeta = getBillingCycleMeta(careCycle);
+    let unitPrice = opt ? opt.amount : resolveBookAmount(slug, fallbackKes, fallbackUsd);
+    if (!opt && unitPrice) {
+      const isKes = marketCode === 'KE';
+      unitPrice = calculatePlanCyclePrice(unitPrice, cycleMeta.enumValue, {
+        isKes,
+        currency: marketDef.currency,
+      }).amount;
+    }
     addToCart({
       kind: 'PLAN',
       id: slug,
-      name: `${name} (${opt?.label || 'Monthly'})`,
-      cycle: careCycle === 'monthly' ? 'MONTHLY' : 'ANNUAL',
+      name: `${name} (${opt?.label || cycleMeta.label})`,
+      cycle: cycleMeta.enumValue,
       qty: 1,
       unitPrice,
       currency: marketDef.currency,
@@ -1311,7 +1385,7 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                               <button
                                 key={meta.cycle}
                                 type="button"
-                                onClick={() => setHostingCycle(meta.cycle)}
+                                onClick={() => handleUpdateHostingCycle(meta.cycle)}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                                   isSelected
                                     ? 'bg-[#2563EB] text-white shadow-sm'
@@ -1517,7 +1591,7 @@ export default function PricingView({ initialMarket }: PricingViewProps = {}) {
                               <button
                                 key={meta.cycle}
                                 type="button"
-                                onClick={() => setCareCycle(meta.cycle)}
+                                onClick={() => handleUpdateCareCycle(meta.cycle)}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                                   isSelected
                                     ? 'bg-[#2563EB] text-white shadow-sm'
