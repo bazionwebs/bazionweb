@@ -103,6 +103,7 @@ describe('Milestone 1 Adversarial Stress Tests', () => {
   describe('Vector 3: maxTenantCount Density Boundaries in HostingService', () => {
     let service: HostingService;
     let prisma: {
+      $queryRaw: jest.Mock;
       hostingAccount: {
         findMany: jest.Mock;
         findUnique: jest.Mock;
@@ -118,6 +119,7 @@ describe('Milestone 1 Adversarial Stress Tests', () => {
 
     beforeEach(async () => {
       prisma = {
+        $queryRaw: jest.fn().mockResolvedValue([]),
         hostingAccount: {
           findMany: jest.fn(),
           findUnique: jest.fn(),
@@ -252,6 +254,7 @@ describe('Milestone 1 Adversarial Stress Tests', () => {
   describe('Vector 4: usableMemoryMb Headroom Boundaries in HostingService', () => {
     let service: HostingService;
     let prisma: {
+      $queryRaw: jest.Mock;
       hostingAccount: {
         findMany: jest.Mock;
         findUnique: jest.Mock;
@@ -267,6 +270,7 @@ describe('Milestone 1 Adversarial Stress Tests', () => {
 
     beforeEach(async () => {
       prisma = {
+        $queryRaw: jest.fn().mockResolvedValue([]),
         hostingAccount: {
           findMany: jest.fn(),
           findUnique: jest.fn(),

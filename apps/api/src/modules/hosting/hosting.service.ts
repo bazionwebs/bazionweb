@@ -15,6 +15,10 @@ import { RedisTenancyHelper, TenantRedisConfig } from './cache/redis-tenancy.hel
 
 const deploymentMappingEvidencePattern = /^(?:CHG|INC|MIG|ROLLBACK|DRILL|TICKET)[-:/#][A-Za-z0-9][A-Za-z0-9._:/#-]{2,292}$/i;
 
+function normalizeHostingDomain(domain: string): string {
+  return domain.trim().toLowerCase().replace(/\.$/, '');
+}
+
 function toHostingReadModel(account: Record<string, any>): Record<string, any> {
   const publicAccount = { ...account };
   const isPlatformLinked = Boolean(account.platformDeploymentId);
@@ -266,6 +270,23 @@ export class HostingService {
     emailProvider?: string;
     emailAliases?: string[];
   }) {
+    const normalizedDomain = normalizeHostingDomain(dto.domain);
+    const platformDomainClaims = await this.prisma.$queryRaw<Array<{ externalOrderId: string; source: string }>>`
+      SELECT "external_order_id" AS "externalOrderId", 'projection' AS source
+        FROM "platform_provisioning_projections"
+       WHERE lower("requested_domain") = ${normalizedDomain}
+      UNION ALL
+      SELECT "external_order_id" AS "externalOrderId", 'outbox' AS source
+        FROM "platform_provisioning_outbox"
+       WHERE lower("payload" ->> 'requestedDomain') = ${normalizedDomain}
+       LIMIT 1
+    `;
+    if (platformDomainClaims.length > 0) {
+      throw new ConflictException(
+        'This domain belongs to a Platform provisioning order. Resolve that order or use the audited Platform hosting mapping flow instead of direct Dokploy provisioning.',
+      );
+    }
+
     // 1. Validate and resolve plan to canonical tier profile
     const tierProfile = resolveHostingTier(dto.plan);
     if (!tierProfile) {

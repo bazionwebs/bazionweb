@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HostingService } from '../hosting.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -31,6 +31,7 @@ const clientUser = { id: 'user-uuid-1', roles: ['CLIENT'] };
 const otherUser  = { id: 'other-uuid', roles: ['CLIENT'] };
 
 const mockPrisma = {
+  $queryRaw: jest.fn(),
   hostingAccount: {
     findMany:   jest.fn(),
     findFirst:  jest.fn(),
@@ -59,6 +60,7 @@ describe('HostingService', () => {
     }).compile();
     service = module.get<HostingService>(HostingService);
     jest.clearAllMocks();
+    mockPrisma.$queryRaw.mockResolvedValue([]);
     mockPrisma.hostingAccount.findMany.mockResolvedValue([]);
   });
 
@@ -229,6 +231,21 @@ describe('HostingService', () => {
       serverOs: 'Ubuntu 24.04',
     };
 
+    it.each(['projection', 'outbox'])('blocks legacy provisioning when a Platform %s claims the domain', async (source) => {
+      mockPrisma.$queryRaw.mockResolvedValue([{ externalOrderId: 'order-123:line:0', source }]);
+      mockPrisma.hostingAccount.create = jest.fn();
+      const mockProvider = {
+        isConfigured: jest.fn().mockReturnValue(true),
+        createWorkload: jest.fn(),
+      };
+      const guardedService = new HostingService(mockPrisma as any, mockEvents as any, mockProvider as any);
+
+      await expect(guardedService.create({ ...createDto, domain: ' Example.COM. ' })).rejects.toThrow(ConflictException);
+
+      expect(mockPrisma.$queryRaw.mock.calls[0]?.[1]).toBe('example.com');
+      expect(mockPrisma.hostingAccount.create).not.toHaveBeenCalled();
+      expect(mockProvider.createWorkload).not.toHaveBeenCalled();
+    });
     it('creates hosting account in database and emits hosting.provisioned event', async () => {
       mockPrisma.hostingAccount.create = jest.fn().mockResolvedValue({
         id: 'new-hosting-uuid',
