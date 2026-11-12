@@ -13,6 +13,26 @@ export const CONTRACT_COMPATIBILITY_V1 = {
   minimumSupportedVersion: '1.0.0',
   supportedVersions: ['1.0.0'] as const,
   deprecationWindowDays: 90,
+  upgradeIdentificationRule: {
+    orderLineKeyFormat: '<orderId>:line:<index>',
+    targetIdentifierField: 'installationId',
+    compatibilityField: 'targetConfigurationSchemaVersion',
+    mutatePinnedCompositionInPlace: false,
+  },
+  piiBoundaryPolicy: {
+    transientCustomerFields: ['customer.displayName', 'customer.primaryContact'] as const,
+    persistedInPlatformDeliveryTables: false,
+    redactedInStructuredLogs: true,
+    normalizePrimaryContactOnEmission: true,
+  },
+  evolutionRules: {
+    additiveChanges:
+      'Backward-compatible optional response/event fields increment minor version (1.x.0) without breaking existing 1.0.0 consumers; strict command/event requests remain reject-unknown-fields until an explicit minor/major bump is negotiated.',
+    breakingChanges:
+      'Field removals, required-field tightening, enum narrowing, or semantic redefinitions require a major version (2.0.0) and a minimum 90-day dual-version deprecation window.',
+    unsupportedVersionBehavior:
+      'Reject unsupported or below-minimum schemaVersion with 400 validation failure before starting any provisioning workflow or database mutation.',
+  },
 } as const;
 
 export const PROVISIONING_OPERATION_STATUSES = [

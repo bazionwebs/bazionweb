@@ -40,7 +40,52 @@ describe('Bazion platform provisioning & lifecycle contract v1 (Ajv strict parit
       currentVersion: '1.0.0',
       minimumSupportedVersion: '1.0.0',
       deprecationWindowDays: 90,
+      upgradeIdentificationRule: {
+        orderLineKeyFormat: '<orderId>:line:<index>',
+        targetIdentifierField: 'installationId',
+        compatibilityField: 'targetConfigurationSchemaVersion',
+        mutatePinnedCompositionInPlace: false,
+      },
+      piiBoundaryPolicy: {
+        transientCustomerFields: ['customer.displayName', 'customer.primaryContact'],
+        persistedInPlatformDeliveryTables: false,
+        redactedInStructuredLogs: true,
+        normalizePrimaryContactOnEmission: true,
+      },
     });
+    expect(CONTRACT_COMPATIBILITY_V1.evolutionRules.unsupportedVersionBehavior).toContain('400');
+
+    const baseProvisioningValid = fixtures.provisionProductRequest.valid[0]?.payload as Record<string, unknown>;
+    expect(
+      validateProvisionProductRequestV1({
+        ...baseProvisioningValid,
+        installationId: '4954ba5a-6c50-4881-a3bc-c43076c7abc8',
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateProvisionProductRequestV1({
+        ...baseProvisioningValid,
+        targetInstallationId: '4954ba5a-6c50-4881-a3bc-c43076c7abc8',
+      }).valid,
+    ).toBe(false);
+    expect(
+      validateSubscriptionLifecycleCommandV1({
+        schemaVersion: '1.0.0',
+        eventId: '33333333-3333-4333-8333-333333333333',
+        correlationId: '44444444-4444-4444-8444-444444444444',
+        idempotencyKey: 'bazionweb:sub:sub-100:reactivate:v1',
+        occurredAt: '2026-11-12T08:00:00.000Z',
+        effectiveAt: '2026-11-12T08:00:00.000Z',
+        source: 'bazionweb',
+        action: 'reactivate',
+        subscriptionId: 'sub-100',
+        externalCustomerId: 'customer-1008',
+        externalOrderId: 'order-2026-0042:line:0',
+        installationId: '4954ba5a-6c50-4881-a3bc-c43076c7abc8',
+        reasonCode: 'INVOICE_SETTLED',
+        targetConfigurationSchemaVersion: '1.0.0',
+      }).valid,
+    ).toBe(true);
   });
 
   const validatorEntries: Array<[keyof Omit<typeof fixtures, 'schemaVersion'>, (v: unknown) => ProvisioningContractResult<unknown>]> = [
