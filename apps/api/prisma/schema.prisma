@@ -356,6 +356,10 @@ model HostingAccount {
   plan               String
   deploymentProvider String?       @map("deployment_provider")
   providerWorkloadId String?       @map("provider_workload_id")
+  platformDeploymentId String? @unique(map: "hosting_accounts_platform_deployment_id_key") @map("platform_deployment_id")
+  platformDeploymentMappedAt DateTime? @map("platform_deployment_mapped_at") @db.Timestamptz(6)
+  platformDeploymentMappedBy String? @map("platform_deployment_mapped_by") @db.Uuid
+  platformDeploymentMappingEvidence String? @map("platform_deployment_mapping_evidence") @db.VarChar(300)
   sslExpiry          DateTime?     @map("ssl_expiry")
   sslIssuer          String?       @map("ssl_issuer")
   status             HostingStatus @default(PROVISIONING)
@@ -370,6 +374,7 @@ model HostingAccount {
 
   client  Client   @relation(fields: [clientId], references: [id])
   backups Backup[]
+  platformProjection PlatformProvisioningProjection? @relation(fields: [platformDeploymentId], references: [platformDeploymentId], onDelete: Restrict)
 
   @@unique([deploymentProvider, providerWorkloadId], map: "hosting_accounts_provider_workload_uq")
   @@index([clientId])
@@ -902,6 +907,8 @@ model PlatformProvisioningProjection {
   currentStep       String?  @map("current_step")
   platformTenantId  String?  @map("platform_tenant_id")
   installationId    String?  @map("installation_id")
+  requestedDomain   String?  @map("requested_domain")
+  platformDeploymentId String? @map("platform_deployment_id")
   failureCode       String?  @map("failure_code")
   failureRetryable  Boolean? @map("failure_retryable")
   lastEventId           String?   @map("last_event_id")
@@ -916,9 +923,11 @@ model PlatformProvisioningProjection {
 
   outbox PlatformProvisioningOutbox? @relation(fields: [outboxId], references: [id])
   client Client?                     @relation(fields: [clientId], references: [id])
+  hostingAccount HostingAccount?
 
   @@index([clientId, status])
   @@index([status, platformUpdatedAt])
+  @@unique([platformDeploymentId], map: "platform_provisioning_projections_platform_deployment_id_key")
   @@map("platform_provisioning_projections")
 }
 

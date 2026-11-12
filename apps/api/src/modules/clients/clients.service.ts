@@ -23,6 +23,8 @@ const CLIENT_INCLUDE = {
       id: true,
       externalOrderId: true,
       status: true,
+      requestedDomain: true,
+      platformDeploymentId: true,
       subscriptionStatus: true,
       graceEndsAt: true,
       lifecycleReasonCode: true,

@@ -100,6 +100,7 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
     };
 
     dokployMock = {
+      providerName: 'DokployProvider',
       bindDomain: jest.fn().mockResolvedValue({ domainId: 'dok-1', sslActive: true, verified: true }),
       restartWorkload: jest.fn().mockResolvedValue(true),
     };
@@ -336,7 +337,26 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
           { domain: 'legacy.acacia.co.ke', action: 'REISSUE_SSL' },
           { id: 'admin-1', email: 'admin@bazionweb.com' },
         ),
-      ).rejects.toThrow('verified Dokploy workload reference');
+      ).rejects.toThrow('verified workload reference');
+
+      expect(dokployMock.bindDomain).not.toHaveBeenCalled();
+      expect(prismaMock.hostingAccount.update).not.toHaveBeenCalled();
+    });
+
+    it('does not call a legacy provider for a Platform-linked hosting row', async () => {
+      prismaMock.hostingAccount.findFirst.mockResolvedValue({
+        id: 'host-platform-linked-1',
+        domain: 'platform.acacia.co.ke',
+        deploymentProvider: 'dokploy',
+        providerWorkloadId: 'legacy-provider-id',
+        platformDeploymentId: '33333333-3333-4333-8333-333333333333',
+        status: 'ACTIVE',
+      });
+
+      await expect(diagnosticsService.remediateDnsSsl(
+        { domain: 'platform.acacia.co.ke', action: 'REISSUE_SSL' },
+        { id: 'admin-1', email: 'admin@bazionweb.com' },
+      )).rejects.toThrow('linked to Bazion Platform');
 
       expect(dokployMock.bindDomain).not.toHaveBeenCalled();
       expect(prismaMock.hostingAccount.update).not.toHaveBeenCalled();
@@ -718,6 +738,8 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
       prismaMock.hostingAccount.findUnique.mockResolvedValue({
         id: 'host-unsusp-1',
         domain: 'restored-domain.com',
+        deploymentProvider: 'dokploy',
+        providerWorkloadId: 'provider-workload-1',
         status: 'SUSPENDED',
       });
 
@@ -734,7 +756,63 @@ describe('Admin Diagnostics & Troubleshooting Suite', () => {
           data: { status: 'ACTIVE' },
         }),
       );
-      expect(dokployMock.restartWorkload).toHaveBeenCalledWith('host-unsusp-1');
+      expect(dokployMock.restartWorkload).toHaveBeenCalledWith('provider-workload-1');
+    });
+
+    it('does not reactivate a hosting account if the configured provider cannot restart its workload', async () => {
+      prismaMock.hostingAccount.findUnique.mockResolvedValue({
+        id: 'host-restart-failure-1',
+        domain: 'restart-failure.example',
+        deploymentProvider: 'dokploy',
+        providerWorkloadId: 'provider-workload-2',
+        status: 'SUSPENDED',
+      });
+      dokployMock.restartWorkload.mockRejectedValueOnce(new Error('provider unavailable'));
+
+      await expect(diagnosticsService.remediateDomainState(
+        { hostingAccountId: 'host-restart-failure-1', action: 'UNSUSPEND' },
+        { id: 'admin-1', email: 'admin@bazionweb.com' },
+      )).rejects.toThrow('could not restart the hosting workload');
+
+      expect(dokployMock.restartWorkload).toHaveBeenCalledWith('provider-workload-2');
+      expect(prismaMock.hostingAccount.update).not.toHaveBeenCalled();
+    });
+
+    it('does not mutate provider state for an account without a verified workload reference', async () => {
+      prismaMock.hostingAccount.findUnique.mockResolvedValue({
+        id: 'host-unmapped-1',
+        domain: 'unmapped.example',
+        deploymentProvider: 'dokploy',
+        providerWorkloadId: null,
+        status: 'SUSPENDED',
+      });
+
+      await expect(diagnosticsService.remediateDomainState(
+        { hostingAccountId: 'host-unmapped-1', action: 'UNSUSPEND' },
+        { id: 'admin-1', email: 'admin@bazionweb.com' },
+      )).rejects.toThrow('verified workload reference');
+
+      expect(dokployMock.restartWorkload).not.toHaveBeenCalled();
+      expect(prismaMock.hostingAccount.update).not.toHaveBeenCalled();
+    });
+
+    it('does not unsuspend a Platform-linked hosting row through the legacy provider', async () => {
+      prismaMock.hostingAccount.findUnique.mockResolvedValue({
+        id: 'host-platform-linked-2',
+        domain: 'platform-suspended.example',
+        deploymentProvider: 'dokploy',
+        providerWorkloadId: 'legacy-provider-id',
+        platformDeploymentId: '33333333-3333-4333-8333-333333333333',
+        status: 'SUSPENDED',
+      });
+
+      await expect(diagnosticsService.remediateDomainState(
+        { hostingAccountId: 'host-platform-linked-2', action: 'UNSUSPEND' },
+        { id: 'admin-1', email: 'admin@bazionweb.com' },
+      )).rejects.toThrow('linked to Bazion Platform');
+
+      expect(dokployMock.restartWorkload).not.toHaveBeenCalled();
+      expect(prismaMock.hostingAccount.update).not.toHaveBeenCalled();
     });
   });
 

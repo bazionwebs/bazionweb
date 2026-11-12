@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsFQDN, IsIP, IsInt, Min, MaxLength, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsFQDN, IsIP, IsInt, Min, MaxLength, IsUUID, Matches, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HostingStatus } from '@prisma/client';
 
@@ -76,4 +76,26 @@ export class UpdateHostingAccountDto {
   @IsInt()
   @Min(0)
   diskUsageMb?: number;
+}
+
+export class MapPlatformHostingDeploymentDto {
+  @ApiProperty({ description: 'Opaque UUID returned by Bazion Platform; never a provider resource ID.' })
+  @IsUUID()
+  platformDeploymentId: string;
+
+  @ApiProperty({ description: 'Auditable change ticket or migration evidence reference; no secrets or customer data.' })
+  @IsString()
+  @MinLength(7)
+  @MaxLength(300)
+  @Matches(/^(?:CHG|INC|MIG|ROLLBACK|DRILL|TICKET)[-:/#][A-Za-z0-9][A-Za-z0-9._:/#-]{2,292}$/i)
+  evidenceRef: string;
+}
+
+export class UnmapPlatformHostingDeploymentDto {
+  @ApiProperty({ description: 'Auditable rollback change ticket or drill reference; no secrets or customer data.' })
+  @IsString()
+  @MinLength(7)
+  @MaxLength(300)
+  @Matches(/^(?:CHG|INC|MIG|ROLLBACK|DRILL|TICKET)[-:/#][A-Za-z0-9][A-Za-z0-9._:/#-]{2,292}$/i)
+  evidenceRef: string;
 }

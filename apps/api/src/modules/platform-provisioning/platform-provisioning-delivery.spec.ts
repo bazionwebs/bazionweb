@@ -429,6 +429,8 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
         currentStep: 'complete',
         tenantId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
         installationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        requestedDomain: 'example.com',
+        hostingDeploymentId: '22222222-2222-4222-8222-222222222222',
         failure: null,
         updatedAt: '2026-11-11T20:01:00.000Z',
       },
@@ -470,6 +472,8 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
       signWebhookHeader(raw1, signingSecret, nowSec),
       `Bearer ${validBearer}`,
     );
+    expect(projection.platformDeploymentId).toBe('22222222-2222-4222-8222-222222222222');
+    expect(projection.requestedDomain).toBe('example.com');
     expect(first).toEqual({
       received: true,
       deduplicated: false,

@@ -1,6 +1,28 @@
 import { UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
-import type { ProvisionProductRequestV1 } from './provisioning-contract';
+import {
+  PROVISIONING_OPERATION_STATUSES,
+  validateProvisioningOperationV1Contract,
+  validateProvisioningStatusEventV1Contract,
+  validateSubscriptionLifecycleStatusEventV1Contract,
+  type ProvisionProductRequestV1,
+  type ProvisioningOperationStatus,
+  type ProvisioningOperationV1,
+  type ProvisioningStatusEventV1,
+  type SubscriptionLifecycleAction,
+  type SubscriptionLifecycleInstallationStatus,
+  type SubscriptionLifecycleStatusEventV1,
+} from './provisioning-contract';
+
+export {
+  PROVISIONING_OPERATION_STATUSES,
+  type ProvisioningOperationStatus,
+  type ProvisioningOperationV1,
+  type ProvisioningStatusEventV1,
+  type SubscriptionLifecycleAction,
+  type SubscriptionLifecycleInstallationStatus,
+  type SubscriptionLifecycleStatusEventV1,
+};
 
 export const DEFAULT_COMMAND_ISSUER = 'bazionweb';
 export const DEFAULT_COMMAND_AUDIENCE = 'bazion-platform:commercial-provisioning';
@@ -8,48 +30,6 @@ export const DEFAULT_CALLBACK_ISSUER = 'bazion-platform';
 export const DEFAULT_CALLBACK_AUDIENCE = 'bazionweb:provisioning-status';
 export const DEFAULT_MAX_TOKEN_TTL_SECONDS = 600;
 export const DEFAULT_CALLBACK_MAX_SKEW_SECONDS = 300;
-
-export const PROVISIONING_OPERATION_STATUSES = [
-  'accepted',
-  'validating',
-  'provisioning_tenant',
-  'configuring_installation',
-  'provisioning_hosting',
-  'ready',
-  'compensating',
-  'compensation_required',
-  'compensated',
-  'failed',
-] as const;
-
-export type ProvisioningOperationStatus = (typeof PROVISIONING_OPERATION_STATUSES)[number];
-
-export interface ProvisioningOperationV1 {
-  schemaVersion: '1.0.0';
-  operationId: string;
-  correlationId: string;
-  externalOrderId: string;
-  status: ProvisioningOperationStatus;
-  currentStep: string | null;
-  tenantId: string | null;
-  installationId: string | null;
-  failure: { code: string; retryable: boolean } | null;
-  updatedAt: string;
-}
-
-export interface ProvisioningStatusEventV1 {
-  schemaVersion: '1.0.0';
-  eventType: 'product.provisioning.status.v1';
-  eventId: string;
-  correlationId: string;
-  occurredAt: string;
-  source: 'bazion-platform';
-  operation: ProvisioningOperationV1;
-}
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SAFE_STEP_REGEX = /^[a-z][a-z0-9_]{0,79}$/;
-const SAFE_CODE_REGEX = /^[A-Z][A-Z0-9_]{0,79}$/;
 
 /** Deterministically derive an RFC-4122 UUID string from a stable domain seed. */
 export function deterministicUuidFromSeed(seed: string): string {
@@ -265,206 +245,22 @@ export function verifyPlatformStatusWebhook(input: {
   }
 }
 
-function isIsoDateTime(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  const ms = Date.parse(value);
-  return Number.isFinite(ms);
-}
-
-/** Validate strict ProvisioningOperationV1 wire shape without trusting arbitrary extra fields. */
+/** Validate strict ProvisioningOperationV1 wire shape against the published JSON Schema. */
 export function validateProvisioningOperationV1(value: unknown): ProvisioningOperationV1 | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const op = value as Record<string, unknown>;
-  const allowedKeys = new Set([
-    'schemaVersion',
-    'operationId',
-    'correlationId',
-    'externalOrderId',
-    'status',
-    'currentStep',
-    'tenantId',
-    'installationId',
-    'failure',
-    'updatedAt',
-  ]);
-  if (Object.keys(op).length !== allowedKeys.size || Object.keys(op).some((k) => !allowedKeys.has(k))) {
-    return null;
-  }
-  if (op.schemaVersion !== '1.0.0') return null;
-  if (typeof op.operationId !== 'string' || !UUID_REGEX.test(op.operationId)) return null;
-  if (typeof op.correlationId !== 'string' || !UUID_REGEX.test(op.correlationId)) return null;
-  if (typeof op.externalOrderId !== 'string' || !op.externalOrderId.trim() || op.externalOrderId.length > 128) return null;
-  if (
-    typeof op.status !== 'string' ||
-    !PROVISIONING_OPERATION_STATUSES.includes(op.status as ProvisioningOperationStatus)
-  ) {
-    return null;
-  }
-  if (op.currentStep !== null && (typeof op.currentStep !== 'string' || !SAFE_STEP_REGEX.test(op.currentStep))) {
-    return null;
-  }
-  if (op.tenantId !== null && (typeof op.tenantId !== 'string' || !UUID_REGEX.test(op.tenantId))) return null;
-  if (op.installationId !== null && (typeof op.installationId !== 'string' || !UUID_REGEX.test(op.installationId))) return null;
-  if (!isIsoDateTime(op.updatedAt)) return null;
-
-  if (op.failure !== null) {
-    if (!op.failure || typeof op.failure !== 'object' || Array.isArray(op.failure)) return null;
-    const f = op.failure as Record<string, unknown>;
-    if (Object.keys(f).length !== 2 || typeof f.code !== 'string' || !SAFE_CODE_REGEX.test(f.code) || typeof f.retryable !== 'boolean') {
-      return null;
-    }
-  }
-  if (op.status === 'ready' && (!op.tenantId || !op.installationId)) return null;
-  if ((op.status === 'failed' || op.status === 'compensation_required') && !op.failure) return null;
-
-  return value as ProvisioningOperationV1;
+  const result = validateProvisioningOperationV1Contract(value);
+  return result.valid ? result.value : null;
 }
 
-/** Validate strict ProvisioningStatusEventV1 webhook event payload. */
+/** Validate strict ProvisioningStatusEventV1 webhook event payload against the published JSON Schema. */
 export function validateProvisioningStatusEventV1(value: unknown): ProvisioningStatusEventV1 | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const evt = value as Record<string, unknown>;
-  const allowedTopKeys = new Set([
-    'schemaVersion',
-    'eventType',
-    'eventId',
-    'correlationId',
-    'occurredAt',
-    'source',
-    'operation',
-  ]);
-  if (Object.keys(evt).length !== allowedTopKeys.size || Object.keys(evt).some((k) => !allowedTopKeys.has(k))) {
-    return null;
-  }
-  if (evt.schemaVersion !== '1.0.0') return null;
-  if (evt.eventType !== 'product.provisioning.status.v1') return null;
-  if (evt.source !== 'bazion-platform') return null;
-  if (typeof evt.eventId !== 'string' || !UUID_REGEX.test(evt.eventId)) return null;
-  if (typeof evt.correlationId !== 'string' || !UUID_REGEX.test(evt.correlationId)) return null;
-  if (!isIsoDateTime(evt.occurredAt)) return null;
-
-  const operation = validateProvisioningOperationV1(evt.operation);
-  if (!operation || operation.correlationId !== evt.correlationId) return null;
-
-  return evt as unknown as ProvisioningStatusEventV1;
+  const result = validateProvisioningStatusEventV1Contract(value);
+  return result.valid ? result.value : null;
 }
 
-
-
-export type SubscriptionLifecycleAction =
-  | 'activate'
-  | 'grace'
-  | 'suspend'
-  | 'reactivate'
-  | 'cancel';
-
-export interface SubscriptionLifecycleStatusEventV1 {
-  schemaVersion: '1.0.0';
-  eventType: 'product.subscription.lifecycle.status.v1';
-  eventId: string;
-  correlationId: string;
-  occurredAt: string;
-  source: 'bazion-platform';
-  lifecycle: {
-    schemaVersion: '1.0.0';
-    commandId: string;
-    action: SubscriptionLifecycleAction;
-    subscriptionId: string;
-    externalOrderId: string;
-    tenantId: string | null;
-    installationId: string | null;
-    installationStatus: 'ready' | 'suspended' | 'offboarding' | 'offboarded' | null;
-    applied: boolean;
-    reasonCode: string;
-    effectiveAt: string;
-    updatedAt: string;
-  };
-}
-
-const VALID_LIFECYCLE_ACTIONS = new Set<SubscriptionLifecycleAction>([
-  'activate',
-  'grace',
-  'suspend',
-  'reactivate',
-  'cancel',
-]);
-
-const VALID_INSTALLATION_STATUSES = new Set([
-  'ready',
-  'suspended',
-  'offboarding',
-  'offboarded',
-]);
-
+/** Validate strict SubscriptionLifecycleStatusEventV1 callback payload against the published JSON Schema. */
 export function validateSubscriptionLifecycleStatusEventV1(
   value: unknown,
 ): SubscriptionLifecycleStatusEventV1 | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const raw = value as Record<string, unknown>;
-  if (
-    raw.schemaVersion !== '1.0.0' ||
-    raw.eventType !== 'product.subscription.lifecycle.status.v1' ||
-    raw.source !== 'bazion-platform'
-  ) {
-    return null;
-  }
-  if (
-    typeof raw.eventId !== 'string' ||
-    typeof raw.correlationId !== 'string' ||
-    typeof raw.occurredAt !== 'string' ||
-    Number.isNaN(Date.parse(raw.occurredAt))
-  ) {
-    return null;
-  }
-  if (!raw.lifecycle || typeof raw.lifecycle !== 'object' || Array.isArray(raw.lifecycle)) {
-    return null;
-  }
-  const lc = raw.lifecycle as Record<string, unknown>;
-  if (
-    lc.schemaVersion !== '1.0.0' ||
-    typeof lc.commandId !== 'string' ||
-    typeof lc.action !== 'string' ||
-    !VALID_LIFECYCLE_ACTIONS.has(lc.action as SubscriptionLifecycleAction) ||
-    typeof lc.subscriptionId !== 'string' ||
-    typeof lc.externalOrderId !== 'string' ||
-    typeof lc.applied !== 'boolean' ||
-    typeof lc.reasonCode !== 'string' ||
-    typeof lc.effectiveAt !== 'string' ||
-    Number.isNaN(Date.parse(lc.effectiveAt)) ||
-    typeof lc.updatedAt !== 'string' ||
-    Number.isNaN(Date.parse(lc.updatedAt))
-  ) {
-    return null;
-  }
-  if (lc.tenantId !== null && typeof lc.tenantId !== 'string') return null;
-  if (lc.installationId !== null && typeof lc.installationId !== 'string') return null;
-  if (
-    lc.installationStatus !== null &&
-    (typeof lc.installationStatus !== 'string' || !VALID_INSTALLATION_STATUSES.has(lc.installationStatus))
-  ) {
-    return null;
-  }
-
-  return {
-    schemaVersion: '1.0.0',
-    eventType: 'product.subscription.lifecycle.status.v1',
-    eventId: raw.eventId,
-    correlationId: raw.correlationId,
-    occurredAt: raw.occurredAt,
-    source: 'bazion-platform',
-    lifecycle: {
-      schemaVersion: '1.0.0',
-      commandId: lc.commandId,
-      action: lc.action as SubscriptionLifecycleAction,
-      subscriptionId: lc.subscriptionId,
-      externalOrderId: lc.externalOrderId,
-      tenantId: (lc.tenantId as string | null) ?? null,
-      installationId: (lc.installationId as string | null) ?? null,
-      installationStatus: lc.installationStatus as SubscriptionLifecycleStatusEventV1['lifecycle']['installationStatus'],
-      applied: lc.applied,
-      reasonCode: lc.reasonCode,
-      effectiveAt: lc.effectiveAt,
-      updatedAt: lc.updatedAt,
-    },
-  };
+  const result = validateSubscriptionLifecycleStatusEventV1Contract(value);
+  return result.valid ? result.value : null;
 }

@@ -18,7 +18,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentSettlementService } from '../billing/payment-settlement.service';
 import { PaystackService } from '../billing/paystack.service';
 import { DarajaService } from '../billing/daraja.service';
-import { DokployProvider } from '../hosting/providers/dokploy.provider';
+import { DeploymentProvider } from '../hosting/providers/deployment-provider.interface';
 import { AuthService } from '../auth/auth.service';
 import { isPrivateOrReservedIp } from '../hosting/hosting.service';
 import { PaymentProvider, PaymentStatus } from '@prisma/client';
@@ -57,7 +57,7 @@ export class AdminDiagnosticsService {
     private readonly settlement: PaymentSettlementService,
     private readonly paystack: PaystackService,
     private readonly daraja: DarajaService,
-    @Optional() private readonly dokploy?: DokployProvider,
+    @Optional() private readonly deploymentProvider?: DeploymentProvider,
     @Optional() private readonly auth?: AuthService,
   ) {}
 
@@ -378,33 +378,35 @@ export class AdminDiagnosticsService {
     }
 
     if (dto.action === 'REISSUE_SSL') {
-      const provider = account.deploymentProvider?.trim().toLowerCase().replace(/provider$/, '');
-      if (provider !== 'dokploy' || !account.providerWorkloadId) {
-        throw new ConflictException(
-          'Cannot reissue SSL until this hosting account has a verified Dokploy workload reference.',
-        );
+      if (account.platformDeploymentId) {
+        throw new ConflictException('This hosting account is linked to Bazion Platform; Bazionweb cannot mutate its provider workload.');
       }
-      if (!this.dokploy) {
-        throw new ServiceUnavailableException('Dokploy is unavailable for SSL remediation.');
+      const provider = account.deploymentProvider?.trim().toLowerCase().replace(/provider$/, '');
+      const deploymentProvider = this.deploymentProvider;
+      const configuredProvider = deploymentProvider?.providerName?.trim().toLowerCase().replace(/provider$/, '');
+      if (!deploymentProvider || !configuredProvider || provider !== configuredProvider || !account.providerWorkloadId) {
+        throw new ConflictException(
+          'Cannot reissue SSL until this hosting account has a verified workload reference for the configured deployment provider.',
+        );
       }
 
       try {
-        const binding = await this.dokploy.bindDomain({
+        const binding = await deploymentProvider.bindDomain({
           applicationId: account.providerWorkloadId,
           domain: account.domain,
           https: true,
           certificateType: 'letsencrypt',
         });
-        if (!binding.verified) {
+        if (!binding || typeof binding !== 'object' || !binding.verified) {
           throw new Error('Dokploy did not verify the domain binding');
         }
       } catch (err) {
         this.logger.warn(
-          'Dokploy bindDomain failed for ' + account.domain + ': ' +
+          'Deployment provider bindDomain failed for ' + account.domain + ': ' +
             (err instanceof Error ? err.message : 'unknown error'),
         );
         throw new ServiceUnavailableException(
-          'Dokploy could not reissue the SSL certificate; hosting status was not changed.',
+          'The deployment provider could not reissue the SSL certificate; hosting status was not changed.',
         );
       }
 
@@ -1262,15 +1264,33 @@ export class AdminDiagnosticsService {
     });
     if (!account) throw new NotFoundException('Hosting domain record not found');
 
+    if (account.platformDeploymentId && (dto.action === 'UNSUSPEND' || dto.action === 'NORMALIZE_STATUS')) {
+      throw new ConflictException('This hosting account is linked to Bazion Platform; its deployment lifecycle is managed there.');
+    }
+
+    if (dto.action === 'UNSUSPEND' && account.status !== 'ACTIVE') {
+      const provider = account.deploymentProvider?.trim().toLowerCase().replace(/provider$/, '');
+      const deploymentProvider = this.deploymentProvider;
+      const configuredProvider = deploymentProvider?.providerName?.trim().toLowerCase().replace(/provider$/, '');
+      if (!deploymentProvider || !configuredProvider || provider !== configuredProvider || !account.providerWorkloadId) {
+        throw new ConflictException(
+          'Cannot unsuspend hosting until a verified workload reference for the configured deployment provider is available.',
+        );
+      }
+      try {
+        const restarted = await deploymentProvider.restartWorkload(account.providerWorkloadId);
+        if (restarted === false) throw new Error('Provider did not confirm workload restart');
+      } catch {
+        throw new ServiceUnavailableException('The deployment provider could not restart the hosting workload.');
+      }
+    }
+
     if (dto.action === 'UNSUSPEND' || dto.action === 'NORMALIZE_STATUS') {
       await this.prisma.hostingAccount.update({
         where: { id: account.id },
         data: { status: 'ACTIVE' },
       });
 
-      if (this.dokploy) {
-        await this.dokploy.restartWorkload(account.id).catch(() => undefined);
-      }
 
       await this.prisma.auditLog.create({
         data: {
@@ -1287,7 +1307,9 @@ export class AdminDiagnosticsService {
         action: dto.action,
         domain: account.domain,
         status: 'ACTIVE',
-        message: `Domain ${account.domain} has been restored to ACTIVE status and workload resumed.`,
+        message: dto.action === 'UNSUSPEND'
+          ? 'Domain ' + account.domain + ' has been restored to ACTIVE status and its verified workload was resumed.'
+          : 'Domain ' + account.domain + ' status was normalized to ACTIVE.',
       };
     }
 
