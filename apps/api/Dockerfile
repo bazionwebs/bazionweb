@@ -2,7 +2,7 @@
 # Stage 1 — builder (monorepo root context `.`)
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apk add --no-cache libc6-compat openssl python3 make g++
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -14,7 +14,8 @@ COPY prisma ./prisma
 COPY apps/api ./apps/api
 
 # Generate Prisma client (fail closed — broken schema must break the image)
-RUN npx --workspace=@bazionweb/api prisma generate --schema ./apps/api/prisma/schema.prisma
+# Uses ./prisma/schema.prisma (or ./apps/api/prisma/schema.prisma)
+RUN npx prisma generate --schema=./prisma/schema.prisma
 
 # Build NestJS
 RUN npm --workspace=@bazionweb/api run build
@@ -59,7 +60,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.j
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
 # Prisma schema needed for runtime metadata
-COPY --chown=nestjs:nodejs apps/api/prisma/schema.prisma ./prisma/schema.prisma
+COPY --chown=nestjs:nodejs prisma/schema.prisma ./prisma/schema.prisma
 
 USER nestjs
 
