@@ -44,12 +44,14 @@ RUN apk update && apk upgrade --no-cache && apk add --no-cache curl openssl \
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NODE_PATH=/app/apps/api/node_modules:/app/node_modules
 
 # Non-root user
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nestjs
 
 COPY --from=deps    --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=deps    --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
 
