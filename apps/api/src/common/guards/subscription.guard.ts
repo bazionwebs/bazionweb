@@ -30,7 +30,16 @@ export class SubscriptionGuard implements CanActivate {
 
     const isStaff = STAFF_ROLES.some(role => user.roles?.includes(role));
     const isImpersonated = Boolean(user.impersonatedBy || user.isSandbox);
-    if (isStaff || isImpersonated) return true;
+    if (isImpersonated && !isStaff) {
+      const method = String(request?.method ?? 'GET').toUpperCase();
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        throw new ForbiddenException(
+          'Sandbox impersonation sessions are read-only; mutations are prohibited.',
+        );
+      }
+      return true;
+    }
+    if (isStaff) return true;
 
     const now = new Date();
     const client = await this.prisma.client.findUnique({

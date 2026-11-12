@@ -13,4 +13,3 @@ CREATE INDEX IF NOT EXISTS "ticket_comments_ticket_id_is_internal_created_at_idx
 CREATE INDEX IF NOT EXISTS "notifications_user_id_read_idx" ON "notifications"("user_id", "read");
 CREATE INDEX IF NOT EXISTS "notifications_user_id_created_at_idx" ON "notifications"("user_id", "created_at");
 CREATE INDEX IF NOT EXISTS "vault_secrets_client_id_deleted_at_idx" ON "vault_secrets"("client_id", "deleted_at");
-

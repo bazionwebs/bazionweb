@@ -1,31 +1,35 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 1 — builder
+# Stage 1 — builder (monorepo root context `.`)
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-# npm ci requires lock in sync; fall back to npm install on drift (monorepo locks)
-RUN npm ci --ignore-scripts || npm install --ignore-scripts
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/web/package.json ./apps/web/package.json
+RUN npm ci --ignore-scripts
 
-COPY . .
+COPY prisma ./prisma
+COPY apps/api ./apps/api
 
 # Generate Prisma client (fail closed — broken schema must break the image)
-RUN npx prisma generate --schema ./prisma/schema.prisma
+RUN npx --workspace=@bazionweb/api prisma generate --schema ./apps/api/prisma/schema.prisma
 
 # Build NestJS
-RUN npm run build
+RUN npm --workspace=@bazionweb/api run build
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 2 — production deps only
+# Stage 2 — production deps only (strict root workspace lockfile)
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --ignore-scripts || npm install --omit=dev --ignore-scripts
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/web/package.json ./apps/web/package.json
+RUN npm ci --omit=dev --workspace=@bazionweb/api --include-workspace-root --ignore-scripts
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 3 — runner
@@ -45,7 +49,8 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nestjs
 
 COPY --from=deps    --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/dist         ./dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
 
 # Generated Prisma Client — `prisma generate` runs in the builder stage, but
 # the production-only node_modules above comes from deps (no generate there
@@ -53,8 +58,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/dist         ./dist
 # at boot with "Cannot find module '.prisma/client/default'".
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
-# Prisma schema needed for migrations at runtime
-COPY --chown=nestjs:nodejs prisma/schema.prisma ./prisma/schema.prisma
+# Prisma schema needed for runtime metadata
+COPY --chown=nestjs:nodejs apps/api/prisma/schema.prisma ./prisma/schema.prisma
 
 USER nestjs
 

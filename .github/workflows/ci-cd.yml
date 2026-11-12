@@ -70,28 +70,25 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install frontend deps
-        run: |
-          cd apps/web
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Install workspace dependencies
+        run: npm ci --ignore-scripts
 
       - name: Lint frontend
-        run: npm run lint --prefix apps/web
+        run: npm --workspace=@bazionweb/web run lint
 
       - name: TypeScript check (frontend)
-        run: npm run tsc --prefix apps/web
+        run: npm --workspace=@bazionweb/web run tsc
 
-      - name: Install API deps
+      - name: Generate Prisma client & check workspace invariants
         run: |
-          cd apps/api
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-          npm run prisma:generate
+          npm --workspace=@bazionweb/api run prisma:generate
+          npm run check:invariants
 
       - name: Lint API
-        run: npm run lint --prefix apps/api
+        run: npm --workspace=@bazionweb/api run lint
 
       - name: TypeScript check (API)
-        run: npm run tsc --prefix apps/api
+        run: npm --workspace=@bazionweb/api run tsc
 
   # ─── Stage 2: Unit Tests ────────────────────────────────────────────────────
   unit-tests:
@@ -130,20 +127,18 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install & run frontend tests
-        run: |
-          cd apps/web
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-          npm test -- --coverage --passWithNoTests
+      - name: Install workspace dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run frontend tests
+        run: npm --workspace=@bazionweb/web test -- --coverage --passWithNoTests
         env:
           NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
 
-      - name: Install & run API tests
+      - name: Generate Prisma client & run API tests
         run: |
-          cd apps/api
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-          npm run prisma:generate
-          npm run test:cov -- --passWithNoTests
+          npm --workspace=@bazionweb/api run prisma:generate
+          npm --workspace=@bazionweb/api run test:cov -- --passWithNoTests
         env:
           DATABASE_URL: postgresql://bazionweb:testpassword@localhost:5432/bazionweb_test
           REDIS_URL: redis://localhost:6379
@@ -196,7 +191,8 @@ jobs:
       - name: Build & push web image
         uses: docker/build-push-action@v6
         with:
-          context: ./apps/web
+          context: .
+          file: ./apps/web/Dockerfile
           push: true
           # `latest` on main is what docker-compose.dokploy.yml pulls by default.
           tags: |
@@ -213,7 +209,8 @@ jobs:
       - name: Build & push API image
         uses: docker/build-push-action@v6
         with:
-          context: ./apps/api
+          context: .
+          file: ./apps/api/Dockerfile
           push: true
           tags: |
             ${{ env.API_IMAGE }}:${{ steps.meta.outputs.version }}
@@ -297,15 +294,8 @@ jobs:
           sarif_file: "trivy-api.sarif"
           category: "trivy-api"
 
-      - name: npm audit (frontend, informational)
-        run: |
-          cd apps/web
-          npm audit --omit=dev --audit-level=high || true
-
-      - name: npm audit (API, informational)
-        run: |
-          cd apps/api
-          if [ -f package-lock.json ]; then npm audit --omit=dev --audit-level=high || true; else echo "No lockfile — skipping audit"; fi
+      - name: npm audit (workspace, informational)
+        run: npm audit --omit=dev --audit-level=high || true
 
   # ─── Stage 4b: Database Migrations (Neon Postgres) ────────────────────────────
   # Runs Prisma migrations from CI because the API's production image excludes
@@ -331,11 +321,10 @@ jobs:
             echo "DATABASE_URL secret not set — skipping migrations (set it to the Neon pooled connection string)"
             exit 0
           fi
-          cd apps/api
-          npm ci
-          npm run prisma:generate
-          npm run prisma:migrate
-          npm run prisma:seed
+          npm ci --ignore-scripts
+          npm --workspace=@bazionweb/api run prisma:generate
+          npm --workspace=@bazionweb/api run prisma:migrate
+          npm --workspace=@bazionweb/api run prisma:seed
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
@@ -389,7 +378,7 @@ jobs:
         run: |
           if [ -d e2e ]; then
             cd e2e
-            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm ci --ignore-scripts
             npx playwright install --with-deps chromium
           else
             echo "No e2e directory — skipping"
