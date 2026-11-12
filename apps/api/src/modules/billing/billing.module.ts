@@ -4,6 +4,7 @@ import { BillingController } from './billing.controller';
 import { WebhooksController } from './webhooks.controller';
 import { BillingService } from './billing.service';
 import { PaymentSettlementService } from './payment-settlement.service';
+import { SubscriptionDunningService } from './subscription-dunning.service';
 import { PlansController } from './plans.controller';
 import { PaystackService } from './paystack.service';
 import { DarajaService } from './daraja.service';
@@ -13,7 +14,19 @@ import { PlatformProvisioningModule } from '../platform-provisioning/platform-pr
 @Module({
   imports: [PrismaModule, ScheduleModule, PlatformProvisioningModule],
   controllers: [BillingController, PlansController, WebhooksController],
-  providers: [BillingService, PaymentSettlementService, PaystackService, DarajaService],
-  exports: [BillingService, PaymentSettlementService, PaystackService, DarajaService],
+  providers: [
+    BillingService,
+    PaymentSettlementService,
+    SubscriptionDunningService,
+    PaystackService,
+    DarajaService,
+  ],
+  exports: [
+    BillingService,
+    PaymentSettlementService,
+    SubscriptionDunningService,
+    PaystackService,
+    DarajaService,
+  ],
 })
 export class BillingModule {}

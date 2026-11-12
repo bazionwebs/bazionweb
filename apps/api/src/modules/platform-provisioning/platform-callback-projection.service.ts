@@ -4,7 +4,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   DEFAULT_CALLBACK_MAX_SKEW_SECONDS,
   type ProvisioningOperationV1,
+  type SubscriptionLifecycleAction,
   validateProvisioningStatusEventV1,
+  validateSubscriptionLifecycleStatusEventV1,
   verifyPlatformStatusWebhook,
 } from './provisioning-crypto';
 
@@ -212,6 +214,197 @@ export class PlatformCallbackProjectionService {
       staleIgnored: false,
       projection,
     };
+  }
+
+  private verifyWebhookSignature(input: {
+    rawBody: Buffer | string;
+    signatureHeader: string | undefined;
+    authorizationHeader?: string;
+    signingSecret?: string;
+    bearerSecret?: string;
+    maxSkewSeconds?: number;
+    nowSeconds?: number;
+  }): void {
+    const signingSecret = (
+      input.signingSecret ??
+      this.config?.get<string>('PLATFORM_CALLBACK_SIGNING_SECRET') ??
+      ''
+    ).trim();
+    const bearerSecret = (
+      input.bearerSecret ??
+      this.config?.get<string>('PLATFORM_CALLBACK_BEARER_SECRET') ??
+      ''
+    ).trim();
+    const maxSkewSeconds =
+      input.maxSkewSeconds ??
+      Number(this.config?.get('PLATFORM_CALLBACK_MAX_SKEW_SECONDS') ?? DEFAULT_CALLBACK_MAX_SKEW_SECONDS);
+
+    verifyPlatformStatusWebhook({
+      rawBody: input.rawBody,
+      signatureHeader: input.signatureHeader,
+      signingSecret,
+      maxSkewSeconds,
+      nowSeconds: input.nowSeconds,
+      authorizationHeader: input.authorizationHeader,
+      bearerSecret,
+    });
+  }
+
+  private formatCustomerLifecycleMessage(
+    action: SubscriptionLifecycleAction,
+    installationStatus: string | null,
+  ): string {
+    if (action === 'grace') {
+      return 'Invoice payment past due; your workspace remains active during your billing grace window.';
+    }
+    if (action === 'suspend' || installationStatus === 'suspended') {
+      return 'Service is temporarily suspended due to an overdue invoice. Paying the outstanding invoice restores access automatically.';
+    }
+    if (action === 'cancel' || installationStatus === 'offboarding' || installationStatus === 'offboarded') {
+      return 'Subscription cancelled. Configuration snapshots remain safeguarded inside the 30-day recovery window.';
+    }
+    return 'Service active and synchronized.';
+  }
+
+  async ingestSignedLifecycleCallback(input: {
+    rawBody: Buffer | string;
+    body: unknown;
+    signatureHeader: string | undefined;
+    authorizationHeader?: string;
+    signingSecret?: string;
+    bearerSecret?: string;
+    maxSkewSeconds?: number;
+    nowSeconds?: number;
+  }) {
+    this.verifyWebhookSignature(input);
+
+    const validated = validateSubscriptionLifecycleStatusEventV1(input.body);
+    if (!validated) {
+      throw new BadRequestException('Invalid product.subscription.lifecycle.status.v1 callback payload');
+    }
+
+    const lc = validated.lifecycle;
+    const incomingUpdatedAt = new Date(lc.updatedAt);
+
+    return this.prisma.$transaction(async (tx: any) => {
+      const existingInbox = await tx.platformCallbackInbox.findUnique({
+        where: { eventId: validated.eventId },
+      });
+      if (existingInbox) {
+        const currentProjection = await tx.platformProvisioningProjection.findUnique({
+          where: { externalOrderId: lc.externalOrderId },
+        });
+        return {
+          deduplicated: true,
+          staleIgnored: false,
+          projection: currentProjection,
+        };
+      }
+
+      try {
+        await tx.platformCallbackInbox.create({
+          data: {
+            eventId: validated.eventId,
+            correlationId: validated.correlationId,
+            operationId: lc.commandId,
+            eventType: validated.eventType,
+            statusSnapshot: lc.installationStatus ?? lc.action,
+            occurredAt: new Date(validated.occurredAt),
+          },
+        });
+      } catch (error: any) {
+        if (error?.code === 'P2002') {
+          const currentProjection = await tx.platformProvisioningProjection.findUnique({
+            where: { externalOrderId: lc.externalOrderId },
+          });
+          return { deduplicated: true, staleIgnored: false, projection: currentProjection };
+        }
+        throw error;
+      }
+
+      const existingProjection = await tx.platformProvisioningProjection.findUnique({
+        where: { externalOrderId: lc.externalOrderId },
+      });
+
+      if (
+        existingProjection &&
+        existingProjection.platformUpdatedAt.getTime() > incomingUpdatedAt.getTime()
+      ) {
+        return {
+          deduplicated: false,
+          staleIgnored: true,
+          projection: existingProjection,
+        };
+      }
+
+      const outbox = await tx.platformProvisioningOutbox?.findUnique?.({
+        where: { externalOrderId: lc.externalOrderId },
+        select: { id: true, clientId: true },
+      });
+
+      const subscription = await tx.subscription?.findUnique?.({
+        where: { id: lc.subscriptionId },
+        select: { clientId: true, gracePeriodEnd: true },
+      });
+
+      const resolvedClientId =
+        existingProjection?.clientId ?? subscription?.clientId ?? outbox?.clientId ?? null;
+      const customerStatusMessage = this.formatCustomerLifecycleMessage(
+        lc.action,
+        lc.installationStatus,
+      );
+      const graceEndsAt = lc.action === 'grace' ? subscription?.gracePeriodEnd ?? null : null;
+      const subscriptionStatus =
+        lc.installationStatus === 'suspended'
+          ? 'SUSPENDED'
+          : lc.action === 'grace'
+            ? 'PAST_DUE'
+            : lc.action === 'cancel'
+              ? 'CANCELLED'
+              : 'ACTIVE';
+
+      const projection = existingProjection
+        ? await tx.platformProvisioningProjection.update({
+            where: { id: existingProjection.id },
+            data: {
+              status: lc.installationStatus ?? existingProjection.status,
+              platformTenantId: lc.tenantId ?? existingProjection.platformTenantId,
+              installationId: lc.installationId ?? existingProjection.installationId,
+              subscriptionStatus,
+              graceEndsAt,
+              lifecycleReasonCode: lc.reasonCode,
+              customerStatusMessage,
+              lastEventId: validated.eventId,
+              lastCorrelationId: validated.correlationId,
+              platformUpdatedAt: incomingUpdatedAt,
+            },
+          })
+        : await tx.platformProvisioningProjection.create({
+            data: {
+              operationId: lc.commandId,
+              outboxId: outbox?.id ?? null,
+              clientId: resolvedClientId,
+              externalOrderId: lc.externalOrderId,
+              status: lc.installationStatus === 'ready' ? 'ready' : lc.action,
+              currentStep: null,
+              platformTenantId: lc.tenantId,
+              installationId: lc.installationId,
+              subscriptionStatus,
+              graceEndsAt,
+              lifecycleReasonCode: lc.reasonCode,
+              customerStatusMessage,
+              lastEventId: validated.eventId,
+              lastCorrelationId: validated.correlationId,
+              platformUpdatedAt: incomingUpdatedAt,
+            },
+          });
+
+      return {
+        deduplicated: false,
+        staleIgnored: false,
+        projection,
+      };
+    });
   }
 }
 

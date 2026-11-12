@@ -11,13 +11,27 @@ import { ManualProvisionClientDto } from './dto/manual-provision-client.dto';
 const CLIENT_INCLUDE = {
   plan: true,
   subscriptions: {
-    where: { status: 'ACTIVE' },
+    where: { status: { in: ['ACTIVE', 'PAST_DUE', 'SUSPENDED', 'TRIAL'] as any[] } },
     include: { plan: true },
     take: 1,
-    orderBy: { createdAt: 'desc' } as const,
+    orderBy: [{ updatedAt: 'desc' as const }, { createdAt: 'desc' as const }],
+  },
+  platformProvisioningProjections: {
+    orderBy: { platformUpdatedAt: 'desc' as const },
+    take: 5,
+    select: {
+      id: true,
+      externalOrderId: true,
+      status: true,
+      subscriptionStatus: true,
+      graceEndsAt: true,
+      lifecycleReasonCode: true,
+      customerStatusMessage: true,
+      platformUpdatedAt: true,
+    },
   },
   _count: { select: { tickets: true, projects: true, hostingAccounts: true } },
-} as const;
+};
 
 @Injectable()
 export class ClientsService {

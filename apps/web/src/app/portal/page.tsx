@@ -20,6 +20,7 @@ import {
   UserCog,
   ArrowUpRight,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   useClientProfile,
@@ -43,6 +44,13 @@ export default function PortalDashboardPage() {
 
   const contactName = liveClient?.contactName || liveClient?.businessName || 'there';
   const activeSubscription = liveClient?.subscriptions?.[0];
+  const latestProjection = liveClient?.platformProvisioningProjections?.[0];
+  const effectiveSubStatus =
+    activeSubscription?.status ?? latestProjection?.subscriptionStatus ?? liveClient?.status;
+  const graceDate = activeSubscription?.gracePeriodEnd ?? latestProjection?.graceEndsAt ?? null;
+  const isSuspended =
+    effectiveSubStatus === 'SUSPENDED' || latestProjection?.status === 'SUSPENDED';
+  const isGracePeriod = !isSuspended && effectiveSubStatus === 'PAST_DUE';
   const activeProject = projects[0];
   const isCustomBuildClient = !activeSubscription && Boolean(activeProject);
 
@@ -114,6 +122,57 @@ export default function PortalDashboardPage() {
         <div className="absolute -right-10 -bottom-10 w-72 h-72 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
       </div>
 
+      {/* ── Subscription Grace / Suspension Notice ────────────────────────── */}
+      {!clientLoading && (isGracePeriod || isSuspended) && (
+        <div
+          className={cn(
+            'rounded-2xl border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs',
+            isSuspended
+              ? 'bg-rose-50 border-rose-200 text-rose-950'
+              : 'bg-amber-50 border-amber-200 text-amber-950',
+          )}
+        >
+          <div className="flex items-start gap-3.5">
+            <div
+              className={cn(
+                'p-2.5 rounded-xl shrink-0',
+                isSuspended ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700',
+              )}
+            >
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold">
+                {isSuspended
+                  ? 'Subscription Temporarily Suspended — Data Safely Preserved'
+                  : 'Billing Grace Period Active'}
+              </h3>
+              <p className="text-xs mt-1 leading-relaxed opacity-90 max-w-2xl">
+                {latestProjection?.customerStatusMessage
+                  ? latestProjection.customerStatusMessage
+                  : isSuspended
+                    ? 'Your workspace is temporarily paused due to an unsettled renewal invoice. All tenant data and configurations remain preserved and will be restored automatically once your invoice is settled.'
+                    : graceDate
+                      ? `An invoice is past due. Your service remains online during your grace period until ${formatDate(graceDate)}. Please complete payment to avoid temporary interruption.`
+                      : 'An invoice is past due. Your service remains active during the grace window—please settle your balance to prevent interruption.'}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/portal/invoices"
+            className={cn(
+              'inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors shrink-0',
+              isSuspended
+                ? 'bg-rose-700 hover:bg-rose-800 text-white'
+                : 'bg-amber-700 hover:bg-amber-800 text-white',
+            )}
+          >
+            <CreditCard className="w-4 h-4" />
+            Review &amp; Pay Invoice
+          </Link>
+        </div>
+      )}
+
       {/* ── Guided Onboarding Checklist (hidden once onboardedAt is set) ──── */}
       {!clientLoading && !liveClient?.onboardedAt && (
         <ClientOnboardingChecklist
@@ -136,14 +195,18 @@ export default function PortalDashboardPage() {
                 'text-[11px] font-bold px-2 py-0.5 rounded-full',
                 clientError
                   ? 'bg-slate-100 text-slate-600'
-                  : activeSubscription?.status === 'ACTIVE' || liveClient?.status === 'ACTIVE'
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-amber-50 text-amber-700',
+                  : isSuspended
+                    ? 'bg-rose-50 text-rose-700'
+                    : isGracePeriod
+                      ? 'bg-amber-50 text-amber-700'
+                      : activeSubscription?.status === 'ACTIVE' || liveClient?.status === 'ACTIVE'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-amber-50 text-amber-700',
               )}
             >
               {clientError
                 ? 'Unavailable'
-                : activeSubscription?.status ?? liveClient?.status ?? (clientLoading ? 'Loading…' : 'Active')}
+                : effectiveSubStatus ?? (clientLoading ? 'Loading…' : 'Active')}
             </span>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight truncate">{planHeadline}</div>

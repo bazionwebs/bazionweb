@@ -24,7 +24,19 @@ export interface ApiSubscription {
   billingCycle: string;
   provider: string;
   renewalDate: string | null;
+  gracePeriodEnd?: string | null;
   plan?: ApiPlan | null;
+}
+
+export interface ApiPlatformProjectionSummary {
+  id: string;
+  externalOrderId: string;
+  status: string;
+  subscriptionStatus?: string | null;
+  graceEndsAt?: string | null;
+  lifecycleReasonCode?: string | null;
+  customerStatusMessage?: string | null;
+  platformUpdatedAt: string;
 }
 
 export interface ApiClient {
@@ -42,6 +54,7 @@ export interface ApiClient {
   createdAt?: string;
   plan?: ApiPlan | null;
   subscriptions?: ApiSubscription[];
+  platformProvisioningProjections?: ApiPlatformProjectionSummary[];
 }
 
 export interface ApiTicketComment {

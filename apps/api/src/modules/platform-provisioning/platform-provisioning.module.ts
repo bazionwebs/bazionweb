@@ -7,6 +7,7 @@ import { PlatformProvisioningAdminController } from './platform-provisioning-adm
 import { PlatformProvisioningOutboxService } from './platform-provisioning-outbox.service';
 import { PlatformProvisioningReconciliationService } from './platform-provisioning-reconciliation.service';
 import { PlatformProvisioningWorkerService } from './platform-provisioning-worker.service';
+import { SubscriptionLifecycleOutboxService } from './subscription-lifecycle-outbox.service';
 
 @Module({
   imports: [PrismaModule, ScheduleModule],
@@ -14,12 +15,14 @@ import { PlatformProvisioningWorkerService } from './platform-provisioning-worke
   providers: [
     PlatformProvisioningOutboxService,
     PlatformProvisioningWorkerService,
+    SubscriptionLifecycleOutboxService,
     PlatformCallbackProjectionService,
     PlatformProvisioningReconciliationService,
   ],
   exports: [
     PlatformProvisioningOutboxService,
     PlatformProvisioningWorkerService,
+    SubscriptionLifecycleOutboxService,
     PlatformCallbackProjectionService,
     PlatformProvisioningReconciliationService,
   ],

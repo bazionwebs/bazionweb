@@ -80,6 +80,7 @@ export class PlatformProvisioningOutboxService {
           externalCustomerId: command.externalCustomerId,
           externalOrderId: command.externalOrderId,
           payload: command.payload,
+          nextAttemptAt: new Date(),
         },
       });
     }

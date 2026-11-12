@@ -40,5 +40,30 @@ export class PlatformCallbacksController {
       authorizationHeader: authorization,
     });
   }
+
+  @Post('lifecycle-status')
+  @Public()
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Receive signed Bazion Platform subscription lifecycle status callback' })
+  async receiveLifecycleStatus(
+    @Req() req: Request,
+    @Headers('x-bazion-signature') signature?: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const raw = (req as any).rawBody as Buffer | undefined;
+    const rawBody =
+      raw ?? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}));
+    const parsedBody =
+      typeof req.body === 'string'
+        ? JSON.parse(req.body)
+        : (req.body ?? (raw ? JSON.parse(raw.toString('utf8')) : {}));
+
+    return this.projection.ingestSignedLifecycleCallback({
+      rawBody,
+      body: parsedBody,
+      signatureHeader: signature,
+      authorizationHeader: authorization,
+    });
+  }
 }
 

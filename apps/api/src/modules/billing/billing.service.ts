@@ -1,5 +1,6 @@
 import { 
   Injectable, 
+  Optional,
   NotFoundException, 
   ForbiddenException, 
   BadRequestException, 
@@ -38,6 +39,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { checkoutLineItem, PaymentSettlementService } from './payment-settlement.service';
+import { SubscriptionDunningService } from './subscription-dunning.service';
 import {
   CANONICAL_CATALOG_PRICES,
   CanonicalCatalogEntry,
@@ -80,6 +82,7 @@ export class BillingService {
     private readonly darajaService: DarajaService,
     private readonly settlement: PaymentSettlementService,
     private readonly config: ConfigService,
+    @Optional() private readonly dunningService?: SubscriptionDunningService,
   ) {}
 
   private async resolveClient(user: any, fallback: { businessName: string; contactName: string; email: string; phone?: string; planId: string }) {
@@ -2364,6 +2367,14 @@ export class BillingService {
   /** Mark overdue invoices and trigger dunning sequences — runs daily at 06:00 */
   @Cron('0 6 * * *', { name: 'mark-overdue-invoices' })
   async markOverdueInvoices() {
+    if (this.dunningService) {
+      const summary = await this.dunningService.processOverdueAndDunning();
+      if (summary.invoicesMarkedOverdue > 0) {
+        this.events.emit('invoice.overdue_batch', { count: summary.invoicesMarkedOverdue });
+      }
+      return summary;
+    }
+
     const result = await this.prisma.invoice.updateMany({
       where: {
         status: InvoiceStatus.SENT,

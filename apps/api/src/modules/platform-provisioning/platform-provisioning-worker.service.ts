@@ -114,7 +114,8 @@ export class PlatformProvisioningWorkerService {
 
     return this.prisma.$transaction(async (tx: any) => {
       let candidates: Array<{ id: string }> = [];
-      if (typeof tx.$queryRaw === 'function') {
+      const usedRawClaim = typeof tx.$queryRaw === 'function';
+      if (usedRawClaim) {
         candidates = await tx.$queryRaw<Array<{ id: string }>>`
           SELECT id
             FROM platform_provisioning_outbox
@@ -146,13 +147,18 @@ export class PlatformProvisioningWorkerService {
       for (const candidate of candidates) {
         const leaseToken = crypto.randomUUID();
         const updated = await tx.platformProvisioningOutbox.updateMany({
-          where: {
-            id: candidate.id,
-            OR: [
-              { status: PlatformOutboxStatus.PENDING, nextAttemptAt: { lte: now } },
-              { status: PlatformOutboxStatus.PROCESSING, leaseExpiresAt: { lte: now } },
-            ],
-          },
+          where: usedRawClaim
+            ? {
+                id: candidate.id,
+                status: { in: [PlatformOutboxStatus.PENDING, PlatformOutboxStatus.PROCESSING] },
+              }
+            : {
+                id: candidate.id,
+                OR: [
+                  { status: PlatformOutboxStatus.PENDING, nextAttemptAt: { lte: now } },
+                  { status: PlatformOutboxStatus.PROCESSING, leaseExpiresAt: { lte: now } },
+                ],
+              },
           data: {
             status: PlatformOutboxStatus.PROCESSING,
             leaseToken,

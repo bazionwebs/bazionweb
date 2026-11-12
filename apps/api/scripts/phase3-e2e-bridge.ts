@@ -24,12 +24,14 @@ import * as readline from 'readline';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PaymentSettlementService, checkoutLineItem } from '../src/modules/billing/payment-settlement.service';
 import { PaystackService } from '../src/modules/billing/paystack.service';
+import { SubscriptionDunningService } from '../src/modules/billing/subscription-dunning.service';
 import { PlatformCallbackProjectionService } from '../src/modules/platform-provisioning/platform-callback-projection.service';
 import { PlatformCallbacksController } from '../src/modules/platform-provisioning/platform-callbacks.controller';
 import { PlatformProvisioningAdminController } from '../src/modules/platform-provisioning/platform-provisioning-admin.controller';
 import { PlatformProvisioningOutboxService } from '../src/modules/platform-provisioning/platform-provisioning-outbox.service';
 import { PlatformProvisioningReconciliationService } from '../src/modules/platform-provisioning/platform-provisioning-reconciliation.service';
 import { PlatformProvisioningWorkerService } from '../src/modules/platform-provisioning/platform-provisioning-worker.service';
+import { SubscriptionLifecycleOutboxService } from '../src/modules/platform-provisioning/subscription-lifecycle-outbox.service';
 import {
   DEFAULT_COMMAND_AUDIENCE,
   DEFAULT_COMMAND_ISSUER,
@@ -92,6 +94,10 @@ async function main() {
     PLATFORM_PROVISIONING_LEASE_SECONDS: '60',
     PLATFORM_PROVISIONING_TIMEOUT_MS: '5000',
     PLATFORM_PROVISIONING_WORKER_ENABLED: 'false',
+    PLATFORM_LIFECYCLE_WORKER_ENABLED: 'false',
+    BILLING_GRACE_PERIOD_DAYS: '7',
+    BILLING_DUNNING_MAX_ATTEMPTS: '3',
+    BILLING_DUNNING_RETRY_HOURS: '24',
     KEYCLOAK_URL: 'https://auth.example.test',
     KEYCLOAK_REALM: 'bazionweb',
     JWT_SECRET: 'e2e-bridge-jwt-secret-placeholder',
@@ -107,6 +113,8 @@ async function main() {
       Reflector,
       PlatformProvisioningOutboxService,
       PlatformProvisioningWorkerService,
+      SubscriptionLifecycleOutboxService,
+      SubscriptionDunningService,
       PlatformCallbackProjectionService,
       PlatformProvisioningReconciliationService,
       PaymentSettlementService,
@@ -133,6 +141,8 @@ async function main() {
   const settlement = moduleRef.get(PaymentSettlementService);
   const outboxService = moduleRef.get(PlatformProvisioningOutboxService);
   const worker = moduleRef.get(PlatformProvisioningWorkerService);
+  const lifecycleOutbox = moduleRef.get(SubscriptionLifecycleOutboxService);
+  const dunningService = moduleRef.get(SubscriptionDunningService);
   const reconciliation = moduleRef.get(PlatformProvisioningReconciliationService);
 
   const createdPlanIds: string[] = [];
@@ -237,6 +247,7 @@ async function main() {
       invoiceNumber: invoice.invoiceNumber,
       clientId: client.id,
       subscriptionId: subscription.id,
+      planId: plan.id,
       outbox,
     };
   }
@@ -347,9 +358,16 @@ async function main() {
       await prisma.invoice.deleteMany({ where: { id: { in: createdInvoiceIds } } }).catch(() => undefined);
     }
     if (createdSubscriptionIds.length > 0) {
+      await prisma.subscriptionLifecycleOutbox.deleteMany({
+        where: { subscriptionId: { in: createdSubscriptionIds } },
+      }).catch(() => undefined);
       await prisma.subscription.deleteMany({ where: { id: { in: createdSubscriptionIds } } }).catch(() => undefined);
     }
+    if (createdUserIds.length > 0) {
+      await prisma.notification.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => undefined);
+    }
     if (createdClientIds.length > 0) {
+      await prisma.platformProvisioningProjection.deleteMany({ where: { clientId: { in: createdClientIds } } }).catch(() => undefined);
       await prisma.client.deleteMany({ where: { id: { in: createdClientIds } } }).catch(() => undefined);
     }
     if (createdUserIds.length > 0) {
@@ -437,6 +455,91 @@ async function main() {
             : null;
           const reportAfter = await reconciliation.getReconciliationReport(staleMinutes);
           result = { reportBefore, poll, reportAfter };
+          break;
+        }
+        case 'create_overdue_renewal': {
+          const renewal = await prisma.invoice.create({
+            data: {
+              clientId: String(args.clientId),
+              subscriptionId: String(args.subscriptionId),
+              invoiceNumber: `INV-REN-${String(args.suffix)}`,
+              amount: 15000,
+              currency: 'KES',
+              status: InvoiceStatus.SENT,
+              dueDate: new Date(String(args.dueDateIso)),
+              lineItems: [
+                checkoutLineItem({
+                  description: 'Renewal Billing Cycle',
+                  amount: 15000,
+                  currency: 'KES',
+                  planId: args.planId ? String(args.planId) : undefined,
+                  productId: String(args.offerId ?? 'website-business'),
+                  purpose: 'subscription',
+                }),
+              ],
+            },
+          });
+          createdInvoiceIds.push(renewal.id);
+          result = { invoiceId: renewal.id, invoiceNumber: renewal.invoiceNumber };
+          break;
+        }
+        case 'run_dunning_sweep':
+          result = await dunningService.processOverdueAndDunning(new Date(String(args.nowIso)));
+          break;
+        case 'deliver_lifecycle_outbox':
+          result = await lifecycleOutbox.processDueBatch({
+            platformApiBaseUrl: String(args.platformApiBaseUrl),
+            commandSecret,
+            commandIssuer: configValues.PLATFORM_PROVISIONING_COMMAND_ISSUER,
+            commandAudience: configValues.PLATFORM_PROVISIONING_COMMAND_AUDIENCE,
+            retryBaseSeconds: 1,
+            retryMaxSeconds: 10,
+            randomFn: () => 0,
+          });
+          break;
+        case 'settle_renewal_invoice': {
+          await prisma.$transaction(async (tx) => {
+            await tx.invoice.update({
+              where: { id: String(args.invoiceId) },
+              data: { status: InvoiceStatus.PAID, paidAt: new Date(String(args.paidAtIso)) },
+            });
+            await settlement.activatePaidSubscription(
+              tx,
+              {
+                id: String(args.invoiceId),
+                clientId: String(args.clientId),
+                subscriptionId: String(args.subscriptionId),
+                lineItems: [
+                  checkoutLineItem({
+                    description: 'Renewal Billing Cycle',
+                    amount: 15000,
+                    currency: 'KES',
+                    planId: args.planId ? String(args.planId) : undefined,
+                    productId: String(args.offerId ?? 'website-business'),
+                    purpose: 'subscription',
+                  }),
+                ],
+                client: { planId: String(args.planId) },
+              },
+              { provider: 'PAYSTACK', providerRef: `ren-ps-${String(args.suffix)}` },
+            );
+          });
+          result = { settled: true };
+          break;
+        }
+        case 'get_lifecycle_state': {
+          const [subscription, client, lifecycleOutboxes, projection] = await Promise.all([
+            prisma.subscription.findUnique({ where: { id: String(args.subscriptionId) } }),
+            prisma.client.findUnique({ where: { id: String(args.clientId) } }),
+            prisma.subscriptionLifecycleOutbox.findMany({
+              where: { subscriptionId: String(args.subscriptionId) },
+              orderBy: { createdAt: 'asc' },
+            }),
+            prisma.platformProvisioningProjection.findUnique({
+              where: { externalOrderId: String(args.externalOrderId) },
+            }),
+          ]);
+          result = { subscription, client, lifecycleOutboxes, projection };
           break;
         }
         case 'shutdown':

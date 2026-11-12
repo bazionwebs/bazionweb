@@ -349,3 +349,122 @@ export function validateProvisioningStatusEventV1(value: unknown): ProvisioningS
   return evt as unknown as ProvisioningStatusEventV1;
 }
 
+
+
+export type SubscriptionLifecycleAction =
+  | 'activate'
+  | 'grace'
+  | 'suspend'
+  | 'reactivate'
+  | 'cancel';
+
+export interface SubscriptionLifecycleStatusEventV1 {
+  schemaVersion: '1.0.0';
+  eventType: 'product.subscription.lifecycle.status.v1';
+  eventId: string;
+  correlationId: string;
+  occurredAt: string;
+  source: 'bazion-platform';
+  lifecycle: {
+    schemaVersion: '1.0.0';
+    commandId: string;
+    action: SubscriptionLifecycleAction;
+    subscriptionId: string;
+    externalOrderId: string;
+    tenantId: string | null;
+    installationId: string | null;
+    installationStatus: 'ready' | 'suspended' | 'offboarding' | 'offboarded' | null;
+    applied: boolean;
+    reasonCode: string;
+    effectiveAt: string;
+    updatedAt: string;
+  };
+}
+
+const VALID_LIFECYCLE_ACTIONS = new Set<SubscriptionLifecycleAction>([
+  'activate',
+  'grace',
+  'suspend',
+  'reactivate',
+  'cancel',
+]);
+
+const VALID_INSTALLATION_STATUSES = new Set([
+  'ready',
+  'suspended',
+  'offboarding',
+  'offboarded',
+]);
+
+export function validateSubscriptionLifecycleStatusEventV1(
+  value: unknown,
+): SubscriptionLifecycleStatusEventV1 | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (
+    raw.schemaVersion !== '1.0.0' ||
+    raw.eventType !== 'product.subscription.lifecycle.status.v1' ||
+    raw.source !== 'bazion-platform'
+  ) {
+    return null;
+  }
+  if (
+    typeof raw.eventId !== 'string' ||
+    typeof raw.correlationId !== 'string' ||
+    typeof raw.occurredAt !== 'string' ||
+    Number.isNaN(Date.parse(raw.occurredAt))
+  ) {
+    return null;
+  }
+  if (!raw.lifecycle || typeof raw.lifecycle !== 'object' || Array.isArray(raw.lifecycle)) {
+    return null;
+  }
+  const lc = raw.lifecycle as Record<string, unknown>;
+  if (
+    lc.schemaVersion !== '1.0.0' ||
+    typeof lc.commandId !== 'string' ||
+    typeof lc.action !== 'string' ||
+    !VALID_LIFECYCLE_ACTIONS.has(lc.action as SubscriptionLifecycleAction) ||
+    typeof lc.subscriptionId !== 'string' ||
+    typeof lc.externalOrderId !== 'string' ||
+    typeof lc.applied !== 'boolean' ||
+    typeof lc.reasonCode !== 'string' ||
+    typeof lc.effectiveAt !== 'string' ||
+    Number.isNaN(Date.parse(lc.effectiveAt)) ||
+    typeof lc.updatedAt !== 'string' ||
+    Number.isNaN(Date.parse(lc.updatedAt))
+  ) {
+    return null;
+  }
+  if (lc.tenantId !== null && typeof lc.tenantId !== 'string') return null;
+  if (lc.installationId !== null && typeof lc.installationId !== 'string') return null;
+  if (
+    lc.installationStatus !== null &&
+    (typeof lc.installationStatus !== 'string' || !VALID_INSTALLATION_STATUSES.has(lc.installationStatus))
+  ) {
+    return null;
+  }
+
+  return {
+    schemaVersion: '1.0.0',
+    eventType: 'product.subscription.lifecycle.status.v1',
+    eventId: raw.eventId,
+    correlationId: raw.correlationId,
+    occurredAt: raw.occurredAt,
+    source: 'bazion-platform',
+    lifecycle: {
+      schemaVersion: '1.0.0',
+      commandId: lc.commandId,
+      action: lc.action as SubscriptionLifecycleAction,
+      subscriptionId: lc.subscriptionId,
+      externalOrderId: lc.externalOrderId,
+      tenantId: (lc.tenantId as string | null) ?? null,
+      installationId: (lc.installationId as string | null) ?? null,
+      installationStatus: lc.installationStatus as SubscriptionLifecycleStatusEventV1['lifecycle']['installationStatus'],
+      applied: lc.applied,
+      reasonCode: lc.reasonCode,
+      effectiveAt: lc.effectiveAt,
+      updatedAt: lc.updatedAt,
+    },
+  };
+}

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
   BillingCycle,
   InvoiceStatus,
@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
 import { provisionProjectFromProposalInvoice } from '../projects/project-provisioning.util';
 import { PlatformProvisioningOutboxService } from '../platform-provisioning/platform-provisioning-outbox.service';
+import { SubscriptionLifecycleOutboxService } from '../platform-provisioning/subscription-lifecycle-outbox.service';
 
 export type CheckoutPurpose = 'subscription' | 'invoice_payment';
 
@@ -93,6 +94,7 @@ export class PaymentSettlementService {
     private readonly prisma: PrismaService,
     private readonly paystack: PaystackService,
     private readonly provisioningOutbox: PlatformProvisioningOutboxService,
+    @Optional() private readonly lifecycleOutbox?: SubscriptionLifecycleOutboxService,
   ) {}
 
   async enqueueProvisioningOutbox(
@@ -166,12 +168,16 @@ export class PaymentSettlementService {
 
     const now = new Date();
     let planId = intent.planId;
-    if (!planId && invoice.subscriptionId) {
+    let previousSubStatus: SubscriptionStatus | null = null;
+    if (invoice.subscriptionId) {
       const linked = await tx.subscription.findUnique({
         where: { id: invoice.subscriptionId },
-        select: { planId: true },
+        select: { planId: true, status: true },
       });
-      planId = linked?.planId;
+      previousSubStatus = linked?.status ?? null;
+      if (!planId) {
+        planId = linked?.planId;
+      }
     }
     if (!planId) planId = opts.metadataPlanId;
     if (!planId) planId = invoice.client?.planId;
@@ -185,6 +191,11 @@ export class PaymentSettlementService {
     const cycleDays = getBillingCycleDays(billingCycle);
     const periodEnd = new Date(now.getTime() + cycleDays * 86_400_000);
 
+    let settledSubscriptionId: string | null = invoice.subscriptionId ?? null;
+    let shouldReactivatePlatform =
+      previousSubStatus === SubscriptionStatus.SUSPENDED ||
+      previousSubStatus === SubscriptionStatus.PAST_DUE;
+
     if (invoice.subscriptionId) {
       await tx.subscription.update({
         where: { id: invoice.subscriptionId },
@@ -196,16 +207,30 @@ export class PaymentSettlementService {
           gracePeriodEnd: null,
           dunningAttemptsCount: 0,
           lastDunningAt: null,
+          cancelledAt: null,
           ...(planId ? { planId } : {}),
         },
       });
     } else if (planId) {
       const existingActive = await tx.subscription.findFirst({
-        where: { clientId: invoice.clientId, status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] } },
+        where: {
+          clientId: invoice.clientId,
+          status: {
+            in: [
+              SubscriptionStatus.ACTIVE,
+              SubscriptionStatus.PAST_DUE,
+              SubscriptionStatus.SUSPENDED,
+            ],
+          },
+        },
         orderBy: { createdAt: 'desc' },
-        select: { id: true },
+        select: { id: true, status: true },
       });
       if (existingActive) {
+        settledSubscriptionId = existingActive.id;
+        shouldReactivatePlatform =
+          existingActive.status === SubscriptionStatus.SUSPENDED ||
+          existingActive.status === SubscriptionStatus.PAST_DUE;
         await tx.subscription.update({
           where: { id: existingActive.id },
           data: {
@@ -238,6 +263,7 @@ export class PaymentSettlementService {
             providerSubscriptionId: opts.providerRef,
           },
         });
+        settledSubscriptionId = sub.id;
         await tx.invoice.update({ where: { id: invoice.id }, data: { subscriptionId: sub.id } });
       }
     }
@@ -246,6 +272,17 @@ export class PaymentSettlementService {
       where: { id: invoice.clientId },
       data: { status: 'ACTIVE', ...(planId ? { planId } : {}) },
     }).catch((err: Error) => this.logger.warn(`Client status update failed: ${err.message}`));
+
+    if (shouldReactivatePlatform && settledSubscriptionId && this.lifecycleOutbox) {
+      await this.lifecycleOutbox.enqueueForSubscription(tx, {
+        subscriptionId: settledSubscriptionId,
+        clientId: invoice.clientId,
+        action: 'reactivate',
+        reasonCode: 'INVOICE_SETTLED',
+        effectiveAt: now,
+        idempotencyKey: `invoice:${invoice.id}:reactivate`,
+      });
+    }
 
     await this.enqueueProvisioningOutbox(tx, invoice);
   }

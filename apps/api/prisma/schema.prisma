@@ -291,8 +291,9 @@ model Client {
   wiseReceivingAccounts           WiseReceivingAccount[]
   paymentLogs                     PaymentLog[]
   vaultSecrets                    VaultSecret[]
-  platformOutboxEntries           PlatformProvisioningOutbox[]
-  platformProvisioningProjections PlatformProvisioningProjection[]
+  platformOutboxEntries              PlatformProvisioningOutbox[]
+  platformProvisioningProjections    PlatformProvisioningProjection[]
+  subscriptionLifecycleOutboxEntries SubscriptionLifecycleOutbox[]
 
   @@index([planId])
   @@index([status])
@@ -403,8 +404,9 @@ model Subscription {
 
   client      Client       @relation(fields: [clientId], references: [id])
   plan        Plan         @relation(fields: [planId], references: [id])
-  invoices    Invoice[]
-  paymentLogs PaymentLog[]
+  invoices             Invoice[]
+  paymentLogs          PaymentLog[]
+  lifecycleOutboxEntries SubscriptionLifecycleOutbox[]
 
   @@index([clientId])
   @@index([planId])
@@ -902,11 +904,15 @@ model PlatformProvisioningProjection {
   installationId    String?  @map("installation_id")
   failureCode       String?  @map("failure_code")
   failureRetryable  Boolean? @map("failure_retryable")
-  lastEventId       String?  @map("last_event_id")
-  lastCorrelationId String?  @map("last_correlation_id")
-  platformUpdatedAt DateTime @map("platform_updated_at")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  lastEventId           String?   @map("last_event_id")
+  lastCorrelationId     String?   @map("last_correlation_id")
+  subscriptionStatus    String?   @map("subscription_status")
+  graceEndsAt           DateTime? @map("grace_ends_at")
+  lifecycleReasonCode   String?   @map("lifecycle_reason_code")
+  customerStatusMessage String?   @map("customer_status_message")
+  platformUpdatedAt     DateTime  @map("platform_updated_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   outbox PlatformProvisioningOutbox? @relation(fields: [outboxId], references: [id])
   client Client?                     @relation(fields: [clientId], references: [id])
@@ -914,6 +920,41 @@ model PlatformProvisioningProjection {
   @@index([clientId, status])
   @@index([status, platformUpdatedAt])
   @@map("platform_provisioning_projections")
+}
+
+model SubscriptionLifecycleOutbox {
+  id              String               @id @default(uuid())
+  subscriptionId  String               @map("subscription_id")
+  clientId        String               @map("client_id")
+  externalOrderId String               @map("external_order_id")
+  action          String
+  reasonCode      String               @map("reason_code")
+  effectiveAt     DateTime             @map("effective_at")
+  graceEndsAt     DateTime?            @map("grace_ends_at")
+  eventId         String               @unique @map("event_id")
+  correlationId   String               @map("correlation_id")
+  idempotencyKey  String               @unique @map("idempotency_key")
+  payload         Json
+  status          PlatformOutboxStatus @default(PENDING)
+  attemptCount    Int                  @default(0) @map("attempt_count")
+  maxAttempts     Int                  @default(8) @map("max_attempts")
+  leaseToken      String?              @map("lease_token")
+  leaseExpiresAt  DateTime?            @map("lease_expires_at")
+  nextAttemptAt   DateTime             @default(now()) @map("next_attempt_at")
+  lastHttpStatus  Int?                 @map("last_http_status")
+  lastErrorCode   String?              @map("last_error_code")
+  acceptedAt      DateTime?            @map("accepted_at")
+  deadLetteredAt  DateTime?            @map("dead_lettered_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  client       Client       @relation(fields: [clientId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([status, nextAttemptAt])
+  @@index([subscriptionId, createdAt])
+  @@index([clientId, createdAt])
+  @@map("subscription_lifecycle_outbox")
 }
 
 model PlatformCallbackInbox {
