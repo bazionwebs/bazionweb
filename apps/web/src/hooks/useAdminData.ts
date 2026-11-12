@@ -61,6 +61,7 @@ export interface AdminHostingCutoverItem {
   platformProjectionStatus: string | null;
   domainClaimCount: number;
   clientDomainClaimCount: number;
+  domainClaimConflict: boolean;
   candidatePlatformDeploymentId: string | null;
   platformClaimStatuses: string[];
   classification: AdminHostingCutoverClassification;

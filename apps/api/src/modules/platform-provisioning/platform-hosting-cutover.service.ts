@@ -23,6 +23,7 @@ export interface HostingCutoverItem {
   platformProjectionStatus: string | null;
   domainClaimCount: number;
   clientDomainClaimCount: number;
+  domainClaimConflict: boolean;
   candidatePlatformDeploymentId: string | null;
   platformClaimStatuses: string[];
   classification: HostingCutoverClassification;
@@ -92,7 +93,8 @@ export class PlatformHostingCutoverService {
           p.status::text AS status,
           p.platform_tenant_id::text AS platform_tenant_id,
           p.platform_deployment_id::text AS platform_deployment_id,
-          true AS is_projection
+          true AS is_projection,
+          false AS domain_claim_conflict
         FROM "platform_provisioning_projections" p
         WHERE NULLIF(trim(p.requested_domain), '') IS NOT NULL
         UNION ALL
@@ -102,7 +104,8 @@ export class PlatformHostingCutoverService {
           o.status::text AS status,
           NULL::text AS platform_tenant_id,
           NULL::text AS platform_deployment_id,
-          false AS is_projection
+          false AS is_projection,
+          o.last_error_code = 'PLATFORM_DOMAIN_CLAIM_CONFLICT' AS domain_claim_conflict
         FROM "platform_provisioning_outbox" o
         WHERE NULLIF(trim(o.payload ->> 'requestedDomain'), '') IS NOT NULL
           AND NOT EXISTS (
@@ -134,6 +137,7 @@ export class PlatformHostingCutoverService {
               AND platform_tenant_id IS NOT NULL
               AND platform_deployment_id IS NOT NULL
           ) AS candidate_platform_deployment_id,
+          bool_or(domain_claim_conflict) AS has_domain_claim_conflict,
           COALESCE(array_agg(DISTINCT status ORDER BY status) FILTER (WHERE status IS NOT NULL), ARRAY[]::text[]) AS claim_statuses
         FROM claims
         GROUP BY normalized_domain, client_id
@@ -147,6 +151,7 @@ export class PlatformHostingCutoverService {
           COALESCE(dc.claim_count, 0) AS domain_claim_count,
           COALESCE(cc.claim_count, 0) AS client_domain_claim_count,
           COALESCE(cc.ready_candidate_count, 0) AS ready_candidate_count,
+          COALESCE(cc.has_domain_claim_conflict, false) AS domain_claim_conflict,
           cc.candidate_platform_deployment_id,
           COALESCE(cc.claim_statuses, ARRAY[]::text[]) AS claim_statuses,
           CASE
@@ -216,6 +221,7 @@ export class PlatformHostingCutoverService {
               'platformProjectionStatus', linked_projection_status,
               'domainClaimCount', domain_claim_count,
               'clientDomainClaimCount', client_domain_claim_count,
+              'domainClaimConflict', domain_claim_conflict,
               'candidatePlatformDeploymentId', CASE
                 WHEN classification = 'ready_to_map' THEN candidate_platform_deployment_id
                 ELSE NULL

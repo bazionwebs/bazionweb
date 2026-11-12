@@ -36,6 +36,7 @@ const report: AdminHostingCutoverReport = {
     platformProjectionStatus: null,
     domainClaimCount: 1,
     clientDomainClaimCount: 1,
+    domainClaimConflict: false,
     candidatePlatformDeploymentId: 'deployment-1',
     platformClaimStatuses: ['ready'],
     classification: 'ready_to_map',
@@ -74,6 +75,23 @@ describe('HostingCutoverPage', () => {
     render(<HostingCutoverPage />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('ADMIN or SUPER_ADMIN');
+  });
+
+  it('shows an operator hint for a dead-lettered domain ownership conflict', () => {
+    mockUseHostingCutover.mockReturnValue({
+      data: {
+        ...report,
+        items: [{ ...report.items[0], domainClaimConflict: true }],
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch,
+    } as unknown as ReturnType<typeof useHostingCutover>);
+
+    render(<HostingCutoverPage />);
+
+    expect(screen.getByText('Domain ownership conflict · resolve before replay')).toBeInTheDocument();
   });
 
   it('requests the next report page when the operator advances pagination', async () => {

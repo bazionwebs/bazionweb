@@ -178,6 +178,12 @@ export default function HostingCutoverPage() {
                       <td className="px-4 py-3">
                         <div className="font-semibold">{platformState}</div>
                         <div className="mt-1 text-[10px] text-slate-400">{item.domainClaimCount} domain claim(s), {item.clientDomainClaimCount} for this client</div>
+                        {item.domainClaimConflict && (
+                          <div className="mt-2 inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-semibold text-rose-800" role="alert">
+                            <AlertTriangle className="h-3 w-3" />
+                            Domain ownership conflict · resolve before replay
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ring-1 ring-inset ${classificationTone(item.classification)}`}>

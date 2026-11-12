@@ -20,6 +20,7 @@ describe('PlatformHostingCutoverService', () => {
         platformProjectionStatus: null,
         domainClaimCount: 1,
         clientDomainClaimCount: 1,
+        domainClaimConflict: false,
         candidatePlatformDeploymentId: 'deployment-1',
         platformClaimStatuses: ['ready'],
         classification: 'ready_to_map',
