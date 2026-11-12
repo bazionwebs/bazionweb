@@ -30,6 +30,7 @@ import { PlatformCallbacksController } from '../src/modules/platform-provisionin
 import { PlatformProvisioningAdminController } from '../src/modules/platform-provisioning/platform-provisioning-admin.controller';
 import { PlatformProvisioningOutboxService } from '../src/modules/platform-provisioning/platform-provisioning-outbox.service';
 import { PlatformProvisioningReconciliationService } from '../src/modules/platform-provisioning/platform-provisioning-reconciliation.service';
+import { PlatformHostingCutoverService } from '../src/modules/platform-provisioning/platform-hosting-cutover.service';
 import { PlatformProvisioningWorkerService } from '../src/modules/platform-provisioning/platform-provisioning-worker.service';
 import { SubscriptionLifecycleOutboxService } from '../src/modules/platform-provisioning/subscription-lifecycle-outbox.service';
 import {
@@ -66,6 +67,24 @@ function assertSafeLocalTestDbUrl(urlString: string): string {
     }
   }
   return trimmed;
+}
+
+function catalogSnapshot(offerId: string) {
+  return {
+    schemaVersion: '1.0.0' as const,
+    catalogGeneratedAt: '2026-11-12T00:00:00.000Z',
+    binding: {
+      offer: { id: offerId, version: '2026.1.0' },
+      composition: {
+        product: { id: 'bazion-site', version: '1.0.0' },
+        solution: { id: 'business-website', version: '1.0.0' },
+        template: { id: 'node-nextjs', version: '1.0.0' },
+      },
+      requiredModules: [{ id: 'website-content', version: '1.0.0' }],
+      optionalModules: [],
+      distributionMode: 'shared-managed' as const,
+    },
+  };
 }
 
 async function main() {
@@ -117,6 +136,7 @@ async function main() {
       SubscriptionDunningService,
       PlatformCallbackProjectionService,
       PlatformProvisioningReconciliationService,
+      PlatformHostingCutoverService,
       PaymentSettlementService,
       { provide: PrismaService, useValue: prisma },
       { provide: PaystackService, useValue: {} },
@@ -219,6 +239,7 @@ async function main() {
             planId: plan.id,
             productId: offerId,
             purpose: 'subscription',
+            platformProvisioningBinding: catalogSnapshot(offerId),
           }),
         ],
       },
