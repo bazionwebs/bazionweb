@@ -153,7 +153,8 @@ export class AuthService {
       .toLowerCase();
     if (allowLegacy === 'true' || allowLegacy === '1') return false;
 
-    return isPlatformSsotAuthoritative(this.config);
+    const nodeEnv = (this.config.get<string>('NODE_ENV') ?? '').trim().toLowerCase();
+    return nodeEnv === 'production' || isPlatformSsotAuthoritative(this.config);
   }
 
   isStaffLocalAuthDisabled(): boolean {

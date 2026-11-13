@@ -52,11 +52,23 @@ describe('customer & OIDC auth policy validation', () => {
     expect(value.AUTH_PROVIDER).toBe('oidc');
   });
 
-  it('fails closed in production when AUTH_PROVIDER=local has no customer auth policy override', () => {
+  it('defaults CUSTOMER_LOCAL_AUTH_DISABLED to true in production when AUTH_PROVIDER=local has no override', () => {
+    const { error, value } = envValidationSchema.validate({
+      ...validBaseConfig,
+      NODE_ENV: 'production',
+      AUTH_PROVIDER: 'local',
+    });
+
+    expect(error).toBeUndefined();
+    expect(value.CUSTOMER_LOCAL_AUTH_DISABLED).toBe('true');
+  });
+
+  it('fails closed in production when CUSTOMER_LOCAL_AUTH_DISABLED=false lacks ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH=true', () => {
     const { error } = envValidationSchema.validate({
       ...validBaseConfig,
       NODE_ENV: 'production',
       AUTH_PROVIDER: 'local',
+      CUSTOMER_LOCAL_AUTH_DISABLED: 'false',
     });
 
     expect(error?.message).toContain('CUSTOMER_AUTH_POLICY_REQUIRED');

@@ -347,5 +347,31 @@ describe('OIDC (issuer, subject) Identity Mapping & Local Customer Login Policy'
       strictController.login({ email: 'staff@bazionweb.com', password: 'SomePassword123!' }),
     ).rejects.toThrow(ForbiddenException);
   });
+
+  it('defaults isCustomerLocalAuthDisabled() to true in NODE_ENV=production without extra env vars while keeping staff local login available', async () => {
+    const prisma = {
+      user: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.email === 'customer@example.com') {
+            return {
+              id: 'u-cust',
+              email: 'customer@example.com',
+              role: 'CLIENT',
+              deletedAt: null,
+              passwordHash: 'scrypt$salt$hash',
+            };
+          }
+          return null;
+        }),
+      },
+    };
+
+    const prodDefaultSvc = new AuthService(makeConfig({ NODE_ENV: 'production' }) as any, prisma as any);
+    expect(prodDefaultSvc.isCustomerLocalAuthDisabled()).toBe(true);
+    expect(prodDefaultSvc.isStaffLocalAuthDisabled()).toBe(false);
+    await expect(prodDefaultSvc.login('customer@example.com', 'SomePassword123!')).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
 });
 

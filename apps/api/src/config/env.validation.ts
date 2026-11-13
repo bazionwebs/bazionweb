@@ -115,14 +115,18 @@ export const envValidationSchema = Joi.object({
     });
   }
 
-  if (!ssotActive && !oidcSelected && !explicitDisabled && !allowLegacy) {
+  if (explicitEnabled && !allowLegacy) {
     return helpers.message({
       custom:
-        'CUSTOMER_AUTH_POLICY_REQUIRED: Production requires AUTH_PROVIDER=oidc, PLATFORM_SSOT_MODE=true, or CUSTOMER_LOCAL_AUTH_DISABLED=true (or explicit ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH=true prior to OIDC cutover).',
+        'CUSTOMER_AUTH_POLICY_REQUIRED: Setting CUSTOMER_LOCAL_AUTH_DISABLED=false in production requires explicit ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH=true prior to OIDC cutover.',
     });
   }
 
-  if (ssotActive || oidcSelected) {
+  if (!explicitDisabled && !explicitEnabled && !allowLegacy) {
+    value.CUSTOMER_LOCAL_AUTH_DISABLED = 'true';
+  }
+
+  if (oidcSelected || (ssotActive && Boolean(value.OIDC_ISSUER || value.OIDC_BFF_SESSION_SECRET))) {
     const issuer = typeof value.OIDC_ISSUER === 'string' ? value.OIDC_ISSUER.trim() : '';
     const sessionSecret = typeof value.OIDC_BFF_SESSION_SECRET === 'string' ? value.OIDC_BFF_SESSION_SECRET.trim() : '';
     if (!issuer.startsWith('https://')) {
