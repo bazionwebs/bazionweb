@@ -141,6 +141,54 @@ describe('Bazionweb workspace & delivery invariants (Phase 0)', () => {
     expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "clients_intasend_customer_id_key"');
   });
 
+  it('keeps every Prisma enum value represented in the SQL migration history', () => {
+    const schema = readFileSync(join(repoRoot, 'apps/api/prisma/schema.prisma'), 'utf8');
+    const migrationsDir = join(repoRoot, 'apps/api/prisma/migrations');
+    const migrationFiles = readdirSync(migrationsDir)
+      .filter((name) => statSync(join(migrationsDir, name)).isDirectory())
+      .map((name) => join(migrationsDir, name, 'migration.sql'));
+    const valuesByEnum = new Map<string, Set<string>>();
+
+    const addValue = (enumName: string, value: string) => {
+      const values = valuesByEnum.get(enumName) ?? new Set<string>();
+      values.add(value);
+      valuesByEnum.set(enumName, values);
+    };
+
+    for (const migrationFile of migrationFiles) {
+      const sql = readFileSync(migrationFile, 'utf8');
+      for (const match of sql.matchAll(/CREATE TYPE\s+"([^"]+)"\s+AS ENUM\s*\(([^)]*)\)/g)) {
+        for (const valueMatch of match[2]!.matchAll(/'([^']+)'/g)) {
+          addValue(match[1]!, valueMatch[1]!);
+        }
+      }
+      for (const match of sql.matchAll(/ALTER TYPE\s+"([^"]+)"\s+ADD VALUE(?:\s+IF NOT EXISTS)?\s+'([^']+)'/g)) {
+        addValue(match[1]!, match[2]!);
+      }
+    }
+
+    for (const match of schema.matchAll(/^enum\s+(\w+)\s*\{([\s\S]*?)^\}/gm)) {
+      const enumName = match[1]!;
+      const expectedValues = (match[2] ?? '')
+        .split('\n')
+        .map((value) => value.trim())
+        .filter((value) => /^[A-Z][A-Z0-9_]*$/.test(value));
+      const migratedValues = valuesByEnum.get(enumName) ?? new Set<string>();
+
+      for (const value of expectedValues) {
+        expect(migratedValues.has(value)).toBe(true);
+      }
+    }
+  });
+  it('adds the SubscriptionStatus value used by the dunning lifecycle', () => {
+    const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
+    const migration = '20261113080000_add_suspended_subscription_status';
+    const sql = readFileSync(join(migrationsDir, migration, 'migration.sql'), 'utf8');
+
+    expect(sql).toContain('ALTER TYPE "SubscriptionStatus"');
+    expect(sql).toContain("ADD VALUE IF NOT EXISTS 'SUSPENDED'");
+  });
+
   it('adds subscription lifecycle fields before the performance index migration uses them', () => {
     const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
     const migrationNames = readdirSync(migrationsDir)
