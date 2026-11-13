@@ -117,6 +117,12 @@ export interface ProvisioningOfferCatalogV1 {
   bindings: ProvisioningOfferBindingV1[];
 }
 
+export interface ProvisioningBindingSnapshotV1 {
+  schemaVersion: '1.0.0';
+  catalogGeneratedAt: string;
+  binding: ProvisioningOfferBindingV1;
+}
+
 export interface ProvisioningOperationV1 {
   schemaVersion: '1.0.0';
   operationId: string;
@@ -217,6 +223,35 @@ function createContractValidator<T>(
   };
 }
 
+function collectBindingModuleUniquenessIssues(
+  binding: ProvisioningOfferBindingV1,
+  basePath: string,
+): ProvisioningContractIssue[] {
+  const issues: ProvisioningContractIssue[] = [];
+  const seenModules = new Set<string>();
+  for (const mod of [...binding.requiredModules, ...binding.optionalModules]) {
+    if (seenModules.has(mod.id)) {
+      issues.push({ path: basePath, keyword: 'uniqueModuleId' });
+    }
+    seenModules.add(mod.id);
+  }
+  return issues;
+}
+
+const catalogSchemaProps = (provisioningOfferCatalogV1JsonSchema as Record<string, any>).properties;
+
+const provisioningBindingSnapshotV1Schema: Record<string, unknown> = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  type: 'object',
+  properties: {
+    schemaVersion: { type: 'string', const: '1.0.0' },
+    catalogGeneratedAt: catalogSchemaProps.generatedAt,
+    binding: catalogSchemaProps.bindings.items,
+  },
+  required: ['schemaVersion', 'catalogGeneratedAt', 'binding'],
+  additionalProperties: false,
+};
+
 export const validateProvisionProductRequestV1 = createContractValidator<ProvisionProductRequestV1>(
   provisionProductRequestV1JsonSchema as Record<string, unknown>,
 );
@@ -233,18 +268,16 @@ export const validateProvisioningOfferCatalogV1 = createContractValidator<Provis
         issues.push({ path: `/bindings/${bindingIndex}/offer`, keyword: 'uniqueOfferVersion' });
       }
       seenOfferVersions.add(offerKey);
-
-      const seenModules = new Set<string>();
-      for (const mod of [...binding.requiredModules, ...binding.optionalModules]) {
-        if (seenModules.has(mod.id)) {
-          issues.push({ path: `/bindings/${bindingIndex}`, keyword: 'uniqueModuleId' });
-        }
-        seenModules.add(mod.id);
-      }
+      issues.push(...collectBindingModuleUniquenessIssues(binding, `/bindings/${bindingIndex}`));
     });
 
     return issues;
   },
+);
+
+export const validateProvisioningBindingSnapshotV1 = createContractValidator<ProvisioningBindingSnapshotV1>(
+  provisioningBindingSnapshotV1Schema,
+  (snapshot) => collectBindingModuleUniquenessIssues(snapshot.binding, '/binding'),
 );
 
 export const validateProvisioningOperationV1Contract = createContractValidator<ProvisioningOperationV1>(

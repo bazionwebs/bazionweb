@@ -204,22 +204,23 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
     expect(commands[0]?.requestFingerprint).toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it('does not infer offers or releases from plan names when an invoice lacks a quote-time catalog pin', () => {
-    const commands = buildProvisioningRequestsForSettledInvoice({
-      invoice: {
-        id: 'inv-unpinned',
-        clientId: 'client-unpinned',
-        lineItems: [checkoutLineItem({
-          description: 'Website Business subscription',
-          amount: 90000,
-          currency: 'KES',
-          planId: 'plan-business',
-          productId: 'website-business',
-        })],
-      },
-      client: { id: 'client-unpinned', planId: 'plan-business', plan: { name: 'Business Website', tier: 'BUSINESS' } },
-    });
-    expect(commands).toEqual([]);
+  it('fails closed when a Platform-provisionable invoice line lacks a quote-time catalog pin', () => {
+    expect(() =>
+      buildProvisioningRequestsForSettledInvoice({
+        invoice: {
+          id: 'inv-unpinned',
+          clientId: 'client-unpinned',
+          lineItems: [checkoutLineItem({
+            description: 'Website Business subscription',
+            amount: 90000,
+            currency: 'KES',
+            planId: 'plan-business',
+            productId: 'website-business',
+          })],
+        },
+        client: { id: 'client-unpinned', planId: 'plan-business', plan: { name: 'Business Website', tier: 'BUSINESS' } },
+      }),
+    ).toThrow('PROVISIONING_CATALOG_BINDING_MISSING_OR_INVALID');
   });
   it('enqueues outbox commands inside the same settlement transaction and aborts on failure', async () => {
     const outboxRows: any[] = [];

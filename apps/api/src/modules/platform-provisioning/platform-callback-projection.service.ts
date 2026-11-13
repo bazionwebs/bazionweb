@@ -343,7 +343,7 @@ export class PlatformCallbackProjectionService {
 
       const outbox = await tx.platformProvisioningOutbox?.findUnique?.({
         where: { externalOrderId: lc.externalOrderId },
-        select: { id: true, clientId: true },
+        select: { id: true, clientId: true, platformOperationId: true },
       });
 
       const subscription = await tx.subscription?.findUnique?.({
@@ -385,7 +385,7 @@ export class PlatformCallbackProjectionService {
           })
         : await tx.platformProvisioningProjection.create({
             data: {
-              operationId: lc.commandId,
+              operationId: outbox?.platformOperationId ?? `lifecycle:${lc.commandId}`,
               outboxId: outbox?.id ?? null,
               clientId: resolvedClientId,
               externalOrderId: lc.externalOrderId,

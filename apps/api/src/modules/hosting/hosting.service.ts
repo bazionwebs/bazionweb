@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException, ConflictException, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HostingStatus } from '@prisma/client';
@@ -17,6 +18,7 @@ import {
   lockProvisioningDomainClaim,
   normalizeProvisioningDomain,
 } from '../platform-provisioning/domain-claim-lock';
+import { assertLegacyProvisioningPermitted } from '../platform-provisioning/platform-ssot-guard';
 
 const deploymentMappingEvidencePattern = /^(?:CHG|INC|MIG|ROLLBACK|DRILL|TICKET)[-:/#][A-Za-z0-9][A-Za-z0-9._:/#-]{2,292}$/i;
 
@@ -85,6 +87,8 @@ export class HostingService {
     private readonly events: EventEmitter2,
     @Optional()
     private readonly deploymentProvider?: DeploymentProvider,
+    @Optional()
+    private readonly config?: ConfigService,
   ) {}
 
 
@@ -275,6 +279,7 @@ export class HostingService {
     emailProvider?: string;
     emailAliases?: string[];
   }) {
+    assertLegacyProvisioningPermitted('HostingService.create', this.config);
     const normalizedDomain = normalizeHostingDomain(dto.domain);
 
     // 1. Validate and resolve plan to canonical tier profile

@@ -16,7 +16,7 @@ import {
 import { useClientHosting, useClientProjects } from '@/hooks/usePortalData';
 import { QueryError, SectionLoading } from '@/components/ui/QueryState';
 import { formatDate, titleCase } from '@/lib/format';
-import { cn } from '@/lib/utils';
+import { cn, toSafeExternalUrl } from '@/lib/utils';
 
 const HOST_STATUS_STYLE: Record<string, string> = {
   ACTIVE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -143,14 +143,30 @@ export default function AssetsClient() {
                     </div>
                   </div>
 
-                  <a
-                    href={`https://${account.domain}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2563EB] hover:bg-blue-50 transition-colors self-start sm:self-auto"
-                  >
-                    Visit Live Domain <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    {(() => {
+                      const platformUrl = toSafeExternalUrl(process.env.NEXT_PUBLIC_PLATFORM_APP_URL);
+                      if (!platformUrl || !account.platformProvisioning) return null;
+                      return (
+                        <a
+                          href={`${platformUrl.replace(/\/+$/, '')}/workspace?ref=${encodeURIComponent(account.id)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                        >
+                          Open Product Workspace <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      );
+                    })()}
+                    <a
+                      href={`https://${account.domain}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2563EB] hover:bg-blue-50 transition-colors"
+                    >
+                      Visit Live Domain <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 </div>
 
                 {account.platformProvisioning && (

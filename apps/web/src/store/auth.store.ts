@@ -14,6 +14,8 @@ export interface AuthUser {
   subscriptionStatus?: 'ACTIVE' | 'PENDING' | 'NONE';
   impersonatedBy?: string;
   isSandbox?: boolean;
+  oidcIssuer?: string;
+  oidcSubject?: string;
 }
 
 function decodeJwtPayload(token: string | null): Record<string, any> | null {
@@ -68,6 +70,8 @@ export function normalizeSessionUser(
       undefined,
     impersonatedBy: user?.impersonatedBy || decoded?.impersonatedBy || undefined,
     isSandbox: user?.isSandbox ?? Boolean(decoded?.isSandbox || decoded?.impersonatedBy),
+    ...(user?.oidcIssuer ? { oidcIssuer: user.oidcIssuer } : {}),
+    ...(user?.oidcSubject ? { oidcSubject: user.oidcSubject } : {}),
   };
 }
 
@@ -84,76 +88,24 @@ export const isSandboxTab = (): boolean => {
   );
 };
 
-function processUrlSandboxToken() {
-  if (typeof window === 'undefined') return;
+/**
+ * Sanitizes serialized Zustand persist JSON before writing to persistent
+ * `localStorage` so raw JWT access/refresh tokens never sit in localStorage
+ * across browser restarts (RFC 9700).
+ */
+function stripTokensForLocalStorage(serialized: string): string {
   try {
-    const search = window.location.search;
-    if (!search || !search.includes('sandbox_token=')) return;
-    const params = new URLSearchParams(search);
-    const sandboxToken = params.get('sandbox_token');
-    if (!sandboxToken) return;
-
-    const decoded = decodeJwtPayload(sandboxToken);
-    if (!decoded) return;
-
-    const expMs =
-      typeof decoded.exp === 'number'
-        ? decoded.exp * 1000
-        : Date.now() + 15 * 60 * 1000;
-    if (Date.now() >= expMs) return;
-
-    const user = normalizeSessionUser(
-      {
-        id: decoded.sub,
-        email: decoded.email,
-        firstName: decoded.given_name,
-        lastName: decoded.family_name,
-        roles: decoded.realm_access?.roles || ['CLIENT'],
-        subscriptionStatus: decoded.subscriptionStatus,
-        impersonatedBy: decoded.impersonatedBy,
-        isSandbox: true,
-      },
-      sandboxToken,
-    );
-
-    const sandboxState = {
-      state: {
-        user,
-        accessToken: sandboxToken,
-        refreshToken: null,
-        expiresAt: expMs,
-        pendingPlan: null,
-        isSandbox: true,
-        sandboxMeta: {
-          clientId: decoded.clientId || '',
-          clientBusinessName: decoded.clientBusinessName || '',
-          impersonatedBy: decoded.impersonatedBy || '',
-        },
-      },
-      version: 0,
-    };
-
-    window.sessionStorage.setItem('bazionweb_is_sandbox_tab', 'true');
-    window.sessionStorage.setItem('bazionweb_sandbox_active', 'true');
-    window.sessionStorage.setItem('bazionweb_sandbox_token', sandboxToken);
-    window.sessionStorage.setItem('bazionweb-auth', JSON.stringify(sandboxState));
-
-    // Purge sandbox_token from URL bar without causing page reload
-    params.delete('sandbox_token');
-    const remaining = params.toString();
-    const cleanUrl =
-      window.location.pathname +
-      (remaining ? `?${remaining}` : '') +
-      window.location.hash;
-    window.history.replaceState({}, '', cleanUrl);
+    const parsed = JSON.parse(serialized) as { state?: Record<string, unknown>; version?: number };
+    if (parsed?.state && typeof parsed.state === 'object') {
+      const sanitizedState = { ...parsed.state };
+      delete sanitizedState.accessToken;
+      delete sanitizedState.refreshToken;
+      return JSON.stringify({ ...parsed, state: sanitizedState });
+    }
   } catch {
-    // Ignore URL parsing or storage errors
+    // Fall back to empty state string if unparseable
   }
-}
-
-// Execute immediately on client evaluation
-if (typeof window !== 'undefined') {
-  processUrlSandboxToken();
+  return serialized;
 }
 
 interface AuthState {
@@ -163,6 +115,7 @@ interface AuthState {
   refreshToken: string | null;
   expiresAt: number | null;   // Unix ms
   pendingPlan: string | null; // plan slug selected during registration
+  isBffSession?: boolean;
   isSandbox?: boolean;
   sandboxMeta?: {
     clientId?: string;
@@ -173,6 +126,16 @@ interface AuthState {
   // Actions
   setHasHydrated: (state: boolean) => void;
   setSession: (user: AuthUser, accessToken: string, refreshToken: string, expiresIn: number) => void;
+  setBffSession: (expiresAt: number, user?: AuthUser | null) => void;
+  setSandboxSession: (
+    user: AuthUser,
+    expiresAt: number,
+    sandboxMeta?: {
+      clientId?: string;
+      clientBusinessName?: string;
+      impersonatedBy?: string;
+    } | null,
+  ) => void;
   clearSession: () => void;
   setPendingPlan: (planSlug: string | null) => void;
   setSubscriptionStatus: (status: 'ACTIVE' | 'PENDING' | 'NONE') => void;
@@ -206,6 +169,30 @@ export const useAuthStore = create<AuthState>()(
           accessToken,
           refreshToken,
           expiresAt: Date.now() + safeExpiresIn * 1000,
+          isBffSession: true,
+        });
+      },
+
+      setBffSession: (expiresAt, user) => {
+        set((prev) => ({
+          expiresAt,
+          isBffSession: true,
+          ...(user ? { user: normalizeSessionUser(user, prev.accessToken) } : {}),
+        }));
+      },
+
+      setSandboxSession: (user, expiresAt, sandboxMeta = null) => {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('bazionweb_is_sandbox_tab', 'true');
+          window.sessionStorage.setItem('bazionweb_sandbox_active', 'true');
+        }
+        set({
+          user: { ...user, isSandbox: true },
+          accessToken: null,
+          refreshToken: null,
+          expiresAt,
+          isSandbox: true,
+          sandboxMeta,
         });
       },
 
@@ -217,6 +204,7 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: null,
           expiresAt: null,
           pendingPlan: null,
+          isBffSession: false,
           isSandbox: false,
           sandboxMeta: null,
         });
@@ -239,8 +227,8 @@ export const useAuthStore = create<AuthState>()(
       },
 
       isAuthenticated: () => {
-        const { accessToken, expiresAt } = get();
-        return !!accessToken && !!expiresAt && Date.now() < expiresAt;
+        const { accessToken, expiresAt, isSandbox, isBffSession } = get();
+        return Boolean((accessToken || isSandbox || isBffSession) && expiresAt && Date.now() < expiresAt);
       },
 
       hasRole: (role: string) => {
@@ -270,7 +258,6 @@ export const useAuthStore = create<AuthState>()(
         return {
           getItem: (name: string): string | null => {
             try {
-              processUrlSandboxToken();
               if (
                 typeof window !== 'undefined' &&
                 (window.sessionStorage.getItem('bazionweb_sandbox_active') === 'true' ||
@@ -309,7 +296,7 @@ export const useAuthStore = create<AuthState>()(
                 parsed.state.user = normalizeSessionUser(parsed.state.user, parsed.state.accessToken);
                 const repaired = JSON.stringify(parsed);
                 window.sessionStorage.setItem(name, repaired);
-                window.localStorage.setItem(name, repaired);
+                window.localStorage.setItem(name, stripTokensForLocalStorage(repaired));
                 return repaired;
               }
               if (!fromSession && fromLocal) {
@@ -327,17 +314,7 @@ export const useAuthStore = create<AuthState>()(
                 return;
               }
               window.sessionStorage.setItem(name, value);
-              window.localStorage.setItem(name, value);
-              if (name === 'bazionweb-auth' && typeof document !== 'undefined') {
-                try {
-                  const parsed = JSON.parse(value);
-                  if (parsed?.state?.accessToken) {
-                    document.cookie = 'bazionweb_session=1; path=/; SameSite=Lax';
-                  }
-                } catch {
-                  // Ignore JSON parse errors
-                }
-              }
+              window.localStorage.setItem(name, stripTokensForLocalStorage(value));
             } catch {
               // Ignore quota errors
             }
@@ -350,9 +327,6 @@ export const useAuthStore = create<AuthState>()(
               }
               window.sessionStorage.removeItem(name);
               window.localStorage.removeItem(name);
-              if (name === 'bazionweb-auth' && typeof document !== 'undefined') {
-                document.cookie = 'bazionweb_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-              }
             } catch {
               // Ignore storage removal errors
             }

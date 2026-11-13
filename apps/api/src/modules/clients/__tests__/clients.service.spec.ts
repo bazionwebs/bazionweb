@@ -210,4 +210,72 @@ describe('ClientsService', () => {
       await expect(service.softDelete('missing-uuid')).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('Platform SSoT legacy provisioning isolation & softDelete sync', () => {
+    it('rejects manualProvision and syncOnboarding when PLATFORM_SSOT_MODE=true', async () => {
+      const ssotConfig = {
+        get: jest.fn((key: string) => (key === 'PLATFORM_SSOT_MODE' ? 'true' : undefined)),
+      };
+      const ssotService = new ClientsService(mockPrisma as any, ssotConfig as any);
+
+      await expect(
+        ssotService.manualProvision({
+          businessName: 'Acacia Ltd',
+          contactName: 'Sarah Kamau',
+          email: 'sarah@acacia.com',
+        } as any),
+      ).rejects.toThrow(ConflictException);
+
+      await expect(ssotService.syncOnboarding('client-uuid-1')).rejects.toThrow(ConflictException);
+    });
+
+    it('cancels active subscriptions and enqueues lifecycle cancel commands on softDelete', async () => {
+      const mockTx = {
+        client: { update: jest.fn().mockResolvedValue({ ...mockClient, status: 'CANCELLED' }) },
+        subscription: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      };
+      const prismaWithTx = {
+        client: { findUnique: jest.fn().mockResolvedValue(mockClient) },
+        subscription: { findMany: jest.fn().mockResolvedValue([{ id: 'sub-uuid-1' }]) },
+        $transaction: jest.fn((cb: any) => cb(mockTx)),
+      };
+      const lifecycleOutbox = { enqueueForSubscription: jest.fn().mockResolvedValue({ id: 'outbox-1' }) };
+      const ssotConfig = {
+        get: jest.fn((key: string) => (key === 'PLATFORM_SSOT_MODE' ? 'true' : undefined)),
+      };
+
+      const svc = new ClientsService(prismaWithTx as any, ssotConfig as any, lifecycleOutbox as any);
+      const res = await svc.softDelete('client-uuid-1');
+
+      expect(res.data.deleted).toBe(true);
+      expect(mockTx.subscription.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { in: ['sub-uuid-1'] } }),
+          data: expect.objectContaining({ status: 'CANCELLED' }),
+        }),
+      );
+      expect(lifecycleOutbox.enqueueForSubscription).toHaveBeenCalledWith(
+        mockTx,
+        expect.objectContaining({
+          subscriptionId: 'sub-uuid-1',
+          clientId: 'client-uuid-1',
+          action: 'cancel',
+          reasonCode: 'CLIENT_SOFT_DELETED',
+        }),
+      );
+    });
+
+    it('fails closed on softDelete when active subscriptions exist under PLATFORM_SSOT_MODE without outbox', async () => {
+      const prismaWithSubs = {
+        client: { findUnique: jest.fn().mockResolvedValue(mockClient) },
+        subscription: { findMany: jest.fn().mockResolvedValue([{ id: 'sub-uuid-1' }]) },
+      };
+      const ssotConfig = {
+        get: jest.fn((key: string) => (key === 'PLATFORM_SSOT_MODE' ? 'true' : undefined)),
+      };
+
+      const svc = new ClientsService(prismaWithSubs as any, ssotConfig as any);
+      await expect(svc.softDelete('client-uuid-1')).rejects.toThrow(ConflictException);
+    });
+  });
 });

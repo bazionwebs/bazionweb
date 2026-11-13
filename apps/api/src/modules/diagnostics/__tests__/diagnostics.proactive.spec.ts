@@ -38,6 +38,7 @@ describe('AdminDiagnosticsService - Proactive Intelligence & Anomaly Remediation
       proposal: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({}),
       },
       invoice: {

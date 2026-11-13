@@ -218,7 +218,7 @@ describe('Milestone 1 Remediation: Client View-As Sandbox Tab Isolation', () => 
     expect(useAuthStore.getState().accessToken).toBe('sandbox-jwt-impersonation-token');
   });
 
-  it('processUrlSandboxToken extracts query param, sets permanent marker, and purges URL bar', () => {
+  it('ignores URL ?sandbox_token query parameters and hydrates sandbox state only via verified server session', () => {
     // Generate valid 15-minute token
     const expSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
@@ -239,7 +239,6 @@ describe('Milestone 1 Remediation: Client View-As Sandbox Tab Isolation', () => 
     ).toString('base64url');
     const sandboxToken = `${header}.${payload}.mockSignature`;
 
-    // Setup window.location search
     delete (window as any).location;
     window.location = {
       search: `?sandbox_token=${sandboxToken}`,
@@ -247,31 +246,48 @@ describe('Milestone 1 Remediation: Client View-As Sandbox Tab Isolation', () => 
       hash: '',
     } as any;
 
-    const replaceStateSpy = jest.spyOn(window.history, 'replaceState').mockImplementation(() => {});
-
-    // Admin session in localStorage
+    // Admin session in localStorage (already stripped of tokens by persist storage)
     window.localStorage.setItem('bazionweb-auth', adminCredentials);
 
     const storage = useAuthStore.persist.getOptions().storage;
-    const result = storage!.getItem('bazionweb-auth') as any;
+    storage!.getItem('bazionweb-auth');
 
-    expect(result).not.toBeNull();
-    expect(result.state.user.id).toBe('client-u-77');
-    expect(result.state.user.email).toBe('client77@acme.co.ke');
-    expect(result.state.isSandbox).toBe(true);
+    // URL query param token MUST NEVER be ingested into sessionStorage or state
+    expect(window.sessionStorage.getItem('bazionweb_sandbox_token')).toBeNull();
+    expect(window.sessionStorage.getItem('bazionweb_sandbox_active')).toBeNull();
 
-    // Both markers stamped
+    // Server-verified HttpOnly cookie hydration populates tab-isolated sandbox state without exposing a token
+    useAuthStore.getState().setSandboxSession(
+      {
+        id: 'client-u-77',
+        email: 'client77@acme.co.ke',
+        firstName: 'David',
+        lastName: 'Ochieng',
+        roles: ['CLIENT'],
+        keycloakId: 'client-u-77',
+        subscriptionStatus: 'ACTIVE',
+        impersonatedBy: 'auditor@bazion.com',
+        isSandbox: true,
+      },
+      expSeconds * 1000,
+      {
+        clientId: 'client-77',
+        clientBusinessName: 'Ochieng Logistics Ltd',
+        impersonatedBy: 'auditor@bazion.com',
+      },
+    );
+
+    const hydrated = useAuthStore.getState();
+    expect(hydrated.user?.id).toBe('client-u-77');
+    expect(hydrated.user?.email).toBe('client77@acme.co.ke');
+    expect(hydrated.isSandbox).toBe(true);
+    expect(hydrated.accessToken).toBeNull();
+    expect(hydrated.isAuthenticated()).toBe(true);
     expect(window.sessionStorage.getItem('bazionweb_is_sandbox_tab')).toBe('true');
     expect(window.sessionStorage.getItem('bazionweb_sandbox_active')).toBe('true');
-    expect(window.sessionStorage.getItem('bazionweb_sandbox_token')).toBe(sandboxToken);
 
-    // URL purged
-    expect(replaceStateSpy).toHaveBeenCalledWith({}, '', '/portal');
-
-    // Admin localStorage unaffected
+    // Admin localStorage remains unaffected
     expect(window.localStorage.getItem('bazionweb-auth')).toBe(adminCredentials);
-
-    replaceStateSpy.mockRestore();
   });
 
   it('handleExitSandbox workflow cleanly terminates sandbox session and leaves admin localStorage intact', () => {

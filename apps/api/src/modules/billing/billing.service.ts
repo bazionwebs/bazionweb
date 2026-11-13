@@ -41,9 +41,11 @@ import * as jwt from 'jsonwebtoken';
 import { checkoutLineItem, PaymentSettlementService } from './payment-settlement.service';
 import { SubscriptionDunningService } from './subscription-dunning.service';
 import { PlatformProvisioningCatalogService } from '../platform-provisioning/provisioning-catalog.service';
+import { isPlatformSsotAuthoritative } from '../platform-provisioning/platform-ssot-guard';
 import {
   CANONICAL_CATALOG_PRICES,
   CanonicalCatalogEntry,
+  isPlatformProvisionableProductId,
   resolveCanonicalProductId,
 } from '../pricing/canonical-catalog';
 import {
@@ -1223,9 +1225,26 @@ export class BillingService {
   private async pinPlatformProvisioningBindings<T extends { productId?: string | null; platformProvisioningBinding?: unknown }>(
     lineItems: readonly T[],
   ): Promise<any[]> {
-    return this.platformCatalogService
-      ? this.platformCatalogService.pinLineItems(lineItems)
-      : [...lineItems];
+    if (this.platformCatalogService) {
+      return this.platformCatalogService.pinLineItems(lineItems);
+    }
+
+    const hasProvisionable = lineItems.some((item) => isPlatformProvisionableProductId(item?.productId));
+    const enforceFailClosed =
+      isPlatformSsotAuthoritative(this.config) ||
+      Boolean((this.config?.get<string>('PLATFORM_API_BASE_URL') ?? process.env.PLATFORM_API_BASE_URL ?? '').trim());
+    if (hasProvisionable && enforceFailClosed) {
+      throw new ServiceUnavailableException(
+        'Platform provisioning catalog service is unavailable to pin offer bindings.',
+      );
+    }
+
+    // Never trust caller-supplied platformProvisioningBinding snapshots without catalog verification.
+    return lineItems.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const { platformProvisioningBinding: _untrusted, ...rest } = item as Record<string, unknown>;
+      return rest;
+    });
   }
   private async priceCartExtras(
     currency: 'KES' | 'USD',

@@ -79,6 +79,31 @@ export function resolveCanonicalProductId(rawId: string): string {
   return CATALOG_PRODUCT_ALIASES[clean] || CATALOG_PRODUCT_ALIASES[clean.toLowerCase()] || clean;
 }
 
+/**
+ * Software/product offer IDs that map to Platform-managed tenant installations
+ * and therefore require an authoritative Platform catalog binding at checkout/quote time.
+ */
+export const PLATFORM_PROVISIONABLE_OFFER_IDS = new Set<string>([
+  'website-launch',
+  'website-business',
+  'website-professional',
+  'website-enterprise',
+  'ecommerce-starter',
+  'ecommerce-business',
+  'ecommerce-enterprise',
+  'service-admin-hub-starter',
+  'service-admin-hub-corporate',
+  'custom-tier-1',
+  'custom-tier-2',
+  'custom-tier-3',
+]);
+
+/** Returns true when a raw or aliased productId represents a Platform-provisionable product offer. */
+export function isPlatformProvisionableProductId(rawId: unknown): boolean {
+  if (typeof rawId !== 'string' || !rawId.trim()) return false;
+  return PLATFORM_PROVISIONABLE_OFFER_IDS.has(resolveCanonicalProductId(rawId));
+}
+
 const BASE_CATALOG_PRICES: Record<string, CanonicalCatalogEntry> = {
   // Step 1: Websites & E-Commerce Builds
   'website-existing': { name: 'Existing Website / App Onboarding', KES: 0, USD: 0, billingPeriod: 'one-time' },

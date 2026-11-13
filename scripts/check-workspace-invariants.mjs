@@ -44,6 +44,19 @@ export function validateWorkspaceInvariants(repoRoot = rootDir) {
 
   const apiMigrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
   const rootMigrationsDir = join(repoRoot, 'prisma', 'migrations');
+
+  const apiLockPath = join(apiMigrationsDir, 'migration_lock.toml');
+  const rootLockPath = join(rootMigrationsDir, 'migration_lock.toml');
+  if (!existsSync(apiLockPath) || !existsSync(rootLockPath)) {
+    throw new Error('Missing migration_lock.toml in either prisma/migrations or apps/api/prisma/migrations.');
+  }
+  if (
+    readFileSync(apiLockPath, 'utf8').replace(/\r\n/g, '\n') !==
+    readFileSync(rootLockPath, 'utf8').replace(/\r\n/g, '\n')
+  ) {
+    throw new Error('Prisma migration_lock.toml drift detected between prisma/migrations and apps/api/prisma/migrations.');
+  }
+
   for (const entry of readdirSync(apiMigrationsDir)) {
     const fullApiEntry = join(apiMigrationsDir, entry);
     if (!statSync(fullApiEntry).isDirectory()) continue;
@@ -56,6 +69,15 @@ export function validateWorkspaceInvariants(repoRoot = rootDir) {
     const rootSql = readFileSync(rootSqlPath, 'utf8').replace(/\r\n/g, '\n');
     if (apiSql !== rootSql) {
       throw new Error(`Prisma migration SQL drift detected for ${entry}.`);
+    }
+  }
+
+  for (const entry of readdirSync(rootMigrationsDir)) {
+    const fullRootEntry = join(rootMigrationsDir, entry);
+    if (!statSync(fullRootEntry).isDirectory()) continue;
+    const apiSqlPath = join(apiMigrationsDir, entry, 'migration.sql');
+    if (!existsSync(apiSqlPath)) {
+      throw new Error(`Missing mirrored API Prisma migration: apps/api/prisma/migrations/${entry}/migration.sql`);
     }
   }
 }

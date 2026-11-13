@@ -2,7 +2,8 @@ module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir:              'src',
   testRegex:            '.*\\.spec\\.ts$',
-  transform:            { '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: { experimentalDecorators: true, emitDecoratorMetadata: true } }] },
+  transform:            { '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: { experimentalDecorators: true, emitDecoratorMetadata: true, allowJs: true } }] },
+  transformIgnorePatterns: ['[/\\\\]node_modules[/\\\\](?!(jose|jwks-rsa)[/\\\\])'],
   collectCoverageFrom:  [
     '**/*.service.ts',
     '!**/main.ts',

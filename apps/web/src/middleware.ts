@@ -34,39 +34,163 @@ function isPublicPath(pathname: string, publicPaths: string[]): boolean {
   );
 }
 
-function hasAuthSession(request: NextRequest): boolean {
-  // Check common session/token cookie identifiers
-  const authCookie =
-    request.cookies.get('bazionweb_session')?.value ||
-    request.cookies.get('bazionweb-auth')?.value ||
-    request.cookies.get('bazionweb_auth_token')?.value ||
-    request.cookies.get('bazionweb_sandbox_token')?.value ||
-    request.cookies.get('accessToken')?.value ||
-    request.cookies.get('token')?.value;
-
-  if (authCookie && authCookie.trim().length >= 10) {
-    return true;
+function decodeBase64UrlToBytes(input: string): Uint8Array<ArrayBuffer> | null {
+  try {
+    let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const binary =
+      typeof atob === 'function'
+        ? atob(base64)
+        : Buffer.from(base64, 'base64').toString('binary');
+    const bytes = new Uint8Array(new ArrayBuffer(binary.length));
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
   }
+}
 
-  // Check Authorization header (e.g. from mobile or API clients)
-  const authHeader = request.headers.get('authorization');
-  if (authHeader && authHeader.trim().toLowerCase().startsWith('bearer ')) {
-    const bearerToken = authHeader.trim().slice(7).trim();
-    if (bearerToken.length >= 10) {
-      return true;
+function decodeBase64UrlJson(input: string): Record<string, unknown> | null {
+  const bytes = decodeBase64UrlToBytes(input);
+  if (!bytes) return null;
+  try {
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveVerificationSecrets(): string[] {
+  const candidates = [
+    process.env.JWT_SECRET,
+    process.env.OIDC_BFF_SESSION_SECRET,
+  ];
+  const secrets: string[] = [];
+  for (const raw of candidates) {
+    const trimmed = (raw || '').trim();
+    if (trimmed.length >= 32 && !trimmed.includes('CHANGE_ME') && !secrets.includes(trimmed)) {
+      secrets.push(trimmed);
+    }
+  }
+  return secrets;
+}
+
+async function verifyHs256Jwt(token: string): Promise<boolean> {
+  const parts = token.trim().split('.');
+  if (parts.length !== 3) return false;
+  const [headerSeg, payloadSeg, sigSeg] = parts;
+  if (!headerSeg || !payloadSeg || !sigSeg) return false;
+
+  const header = decodeBase64UrlJson(headerSeg);
+  const payload = decodeBase64UrlJson(payloadSeg);
+  if (!header || !payload) return false;
+  if (header.alg !== 'HS256') return false;
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= nowSeconds) {
+    return false;
+  }
+  if (payload.nbf !== undefined) {
+    if (typeof payload.nbf !== 'number' || !Number.isFinite(payload.nbf) || payload.nbf > nowSeconds) {
+      return false;
+    }
+  }
+  if (payload.iss !== undefined) {
+    const allowedIssuers = new Set(
+      ['bazionweb', 'bazionweb-bff', process.env.OIDC_ISSUER].filter(
+        (v): v is string => typeof v === 'string' && v.trim().length > 0,
+      ),
+    );
+    if (typeof payload.iss !== 'string' || !allowedIssuers.has(payload.iss)) {
+      return false;
     }
   }
 
+  const secrets = resolveVerificationSecrets();
+  if (secrets.length === 0 || !globalThis.crypto?.subtle) {
+    return false;
+  }
+
+  const sigBytes = decodeBase64UrlToBytes(sigSeg);
+  if (!sigBytes || sigBytes.length !== 32) return false;
+
+  const signingInput = new TextEncoder().encode(`${headerSeg}.${payloadSeg}`);
+  for (const secret of secrets) {
+    const key = await globalThis.crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+    const valid = await globalThis.crypto.subtle.verify('HMAC', key, sigBytes, signingInput);
+    if (valid) return true;
+  }
   return false;
 }
 
-export function middleware(request: NextRequest) {
+function extractJwtCandidates(request: NextRequest): string[] {
+  const candidates: string[] = [];
+  const authHeader = request.headers.get('authorization');
+  if (authHeader && authHeader.trim().toLowerCase().startsWith('bearer ')) {
+    const bearer = authHeader.trim().slice(7).trim();
+    if (bearer) candidates.push(bearer);
+  }
+
+  const directCookies = [
+    request.cookies.get('__Host-Http-bw_bff_session')?.value,
+    request.cookies.get('bw_bff_session')?.value,
+    request.cookies.get('bazionweb_session')?.value,
+    request.cookies.get('bazionweb_auth_token')?.value,
+    ...(request.nextUrl.pathname.startsWith('/portal')
+      ? [request.cookies.get('bazionweb_sandbox_token')?.value]
+      : []),
+    request.cookies.get('accessToken')?.value,
+    request.cookies.get('token')?.value,
+  ];
+  for (const val of directCookies) {
+    if (val && val.trim()) candidates.push(val.trim());
+  }
+
+  const authJsonCookie = request.cookies.get('bazionweb-auth')?.value;
+  if (authJsonCookie) {
+    try {
+      const parsed = JSON.parse(authJsonCookie) as { state?: { accessToken?: unknown } };
+      if (typeof parsed?.state?.accessToken === 'string' && parsed.state.accessToken.trim()) {
+        candidates.push(parsed.state.accessToken.trim());
+      }
+    } catch {
+      // Ignore malformed JSON cookie
+    }
+  }
+
+  return candidates;
+}
+
+async function hasAuthSession(request: NextRequest): Promise<boolean> {
+  const candidates = extractJwtCandidates(request);
+  for (const token of candidates) {
+    if (await verifyHs256Jwt(token)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ── 1. Edge Authentication & Route Protection ────────────────────────────
   // Protect /admin routes (except /admin/login)
   if (pathname.startsWith('/admin') && !isPublicPath(pathname, PUBLIC_ADMIN_PATHS)) {
-    if (!hasAuthSession(request)) {
+    if (!(await hasAuthSession(request))) {
       const loginUrl = new URL('/admin/login', request.url);
       loginUrl.searchParams.set('next', pathname);
       return NextResponse.redirect(loginUrl, 307);
@@ -75,7 +199,7 @@ export function middleware(request: NextRequest) {
 
   // Protect /portal routes (except /portal/login, claim, register, reset-password)
   if (pathname.startsWith('/portal') && !isPublicPath(pathname, PUBLIC_PORTAL_PATHS)) {
-    if (!hasAuthSession(request)) {
+    if (!(await hasAuthSession(request))) {
       const loginUrl = new URL('/portal/login', request.url);
       loginUrl.searchParams.set('next', pathname);
       return NextResponse.redirect(loginUrl, 307);

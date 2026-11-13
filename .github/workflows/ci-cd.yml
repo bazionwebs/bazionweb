@@ -211,6 +211,7 @@ jobs:
           # calls /api/v1 on its own origin and Traefik routes it to the API.
           build-args: |
             NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_PLATFORM_APP_URL=${{ secrets.NEXT_PUBLIC_PLATFORM_APP_URL }}
 
       - name: Build & push API image
         uses: docker/build-push-action@v7

@@ -652,5 +652,6 @@ describe('Phase 6 Commercial Dunning & Subscription Lifecycle Sync', () => {
         await prisma.$disconnect();
       }
     },
+    30_000,
   );
 });

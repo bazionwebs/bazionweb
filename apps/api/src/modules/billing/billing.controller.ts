@@ -9,15 +9,19 @@ import {
   UseGuards, 
   Request, 
   Res,
-  ParseUUIDPipe 
+  ParseUUIDPipe,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { PrismaService } from '../../prisma/prisma.service';
 import { BillingService } from './billing.service';
 import { PaymentSettlementService } from './payment-settlement.service';
+import { SubscriptionDunningService } from './subscription-dunning.service';
 import { JwtAuthGuard, Roles, Public } from '../../common/guards/jwt-auth.guard';
 import { MfaGuard } from '../../common/guards/mfa.guard';
-import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto, ConfirmPaystackDto, AcceptProposalDto, ProposalDepositCardDto, ProposalDepositMpesaDto, GenerateInvoiceDto } from './dto/billing.dto';
+import { MpesaSubscriptionDto, PaystackSubscriptionDto, BankTransferInvoiceDto, GuestSubscriptionDto, GuestMpesaSubscriptionDto, GuestBankTransferInvoiceDto, PayInvoiceMpesaDto, PayInvoiceCardDto, ConfirmPaystackDto, AcceptProposalDto, ProposalDepositCardDto, ProposalDepositMpesaDto, GenerateInvoiceDto, CancelSubscriptionDto } from './dto/billing.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('billing')
@@ -270,6 +274,45 @@ export class BillingController {
     res.setHeader('Cache-Control', 'no-store, private');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.end(stream);
+  }
+}
+
+@ApiTags('subscriptions')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, MfaGuard)
+@Controller({ path: 'subscriptions', version: '1' })
+export class SubscriptionsController {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dunningService: SubscriptionDunningService,
+  ) {}
+
+  @Post(':id/cancel')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Cancel subscription and enqueue signed Platform lifecycle cancellation command' })
+  async cancelSubscription(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req: any,
+    @Body() body?: CancelSubscriptionDto,
+  ) {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { id },
+      include: { client: { select: { userId: true } } },
+    });
+    if (!sub) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    const roles: string[] = Array.isArray(req?.user?.roles) ? req.user.roles : [];
+    const isStaff = ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].some((role) => roles.includes(role));
+    if (!isStaff && sub.client?.userId !== req?.user?.id) {
+      throw new ForbiddenException('You do not have permission to cancel this subscription');
+    }
+
+    return this.dunningService.cancelSubscriptionWithSync({
+      subscriptionId: id,
+      reasonCode: body?.reasonCode,
+    });
   }
 }
 

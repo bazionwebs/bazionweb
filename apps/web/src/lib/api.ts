@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { ApiResponse, QuoteRequest } from '@/types';
-import { useAuthStore } from '@/store/auth.store';
+import { isSandboxTab, useAuthStore } from '@/store/auth.store';
 import { resolveApiV1Base, toCleanUrl } from '@/lib/api-base';
 
 const api = axios.create({
@@ -11,11 +11,13 @@ const api = axios.create({
   timeout: 15_000,
 });
 
-// ─── Request interceptor: attach JWT from the auth store ─────────────────────
+// ─── Request interceptor: attach JWT from the auth store or sandbox flag ────
 api.interceptors.request.use(config => {
   const token = useAuthStore.getState().accessToken;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else if (isSandboxTab()) {
+    config.headers['x-bazion-sandbox'] = '1';
   }
   return config;
 });
@@ -171,6 +173,9 @@ export const portalApi = {
       taxPin?: string;
     },
   ) => api.patch(`/clients/${id}`, data).then(r => r.data),
+
+  cancelSubscription: (subscriptionId: string, data: { reasonCode?: string } = {}) =>
+    api.post(`/subscriptions/${subscriptionId}/cancel`, data).then(r => r.data),
 };
 
 // ─── Staff (admin/support) ───────────────────────────────────────────────────

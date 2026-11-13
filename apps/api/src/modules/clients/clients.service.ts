@@ -1,7 +1,12 @@
 import {
-  Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException,
+  Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException, Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SubscriptionLifecycleOutboxService } from '../platform-provisioning/subscription-lifecycle-outbox.service';
+import {
+  assertLegacyProvisioningPermitted,
+  isPlatformSsotAuthoritative,
+} from '../platform-provisioning/platform-ssot-guard';
 import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateClientDto } from './dto/create-client.dto';
@@ -40,6 +45,7 @@ export class ClientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    @Optional() private readonly lifecycleOutbox?: SubscriptionLifecycleOutboxService,
   ) {}
 
   async create(dto: CreateClientDto) {
@@ -269,10 +275,63 @@ export class ClientsService {
     const client = await this.prisma.client.findUnique({ where: { id } });
     if (!client) throw new NotFoundException('Client not found');
 
-    await this.prisma.client.update({
-      where: { id },
-      data: { deletedAt: new Date(), status: 'CANCELLED' },
-    });
+    const now = new Date();
+    const subsRepo = (this.prisma as any).subscription;
+    const activeSubscriptions: Array<{ id: string }> =
+      subsRepo && typeof subsRepo.findMany === 'function'
+        ? await subsRepo.findMany({
+            where: {
+              clientId: id,
+              status: { in: ['ACTIVE', 'PAST_DUE', 'SUSPENDED', 'TRIAL'] },
+            },
+            select: { id: true },
+          })
+        : [];
+
+    if (activeSubscriptions.length > 0 && !this.lifecycleOutbox && isPlatformSsotAuthoritative(this.config)) {
+      throw new ConflictException(
+        'Cannot soft-delete client with active subscriptions while bazion-platform is authoritative unless lifecycle sync is available.',
+      );
+    }
+
+    const applyDelete = async (tx: any) => {
+      await tx.client.update({
+        where: { id },
+        data: { deletedAt: now, status: 'CANCELLED' },
+      });
+
+      if (activeSubscriptions.length > 0 && tx.subscription && typeof tx.subscription.updateMany === 'function') {
+        await tx.subscription.updateMany({
+          where: {
+            id: { in: activeSubscriptions.map((sub) => sub.id) },
+            status: { in: ['ACTIVE', 'PAST_DUE', 'SUSPENDED', 'TRIAL'] },
+          },
+          data: {
+            status: 'CANCELLED',
+            cancelledAt: now,
+          },
+        });
+      }
+
+      if (this.lifecycleOutbox) {
+        for (const sub of activeSubscriptions) {
+          await this.lifecycleOutbox.enqueueForSubscription(tx, {
+            subscriptionId: sub.id,
+            clientId: id,
+            action: 'cancel',
+            reasonCode: 'CLIENT_SOFT_DELETED',
+            effectiveAt: now,
+            idempotencyKey: `client-soft-delete-cancel:${sub.id}:${now.toISOString()}`,
+          });
+        }
+      }
+    };
+
+    if (typeof (this.prisma as any).$transaction === 'function') {
+      await this.prisma.$transaction(applyDelete);
+    } else {
+      await applyDelete(this.prisma);
+    }
 
     return { data: { deleted: true, id } };
   }
@@ -282,6 +341,7 @@ export class ClientsService {
    * active subscription, and a 72-hour cryptographic claim token.
    */
   async manualProvision(dto: ManualProvisionClientDto, staffUser?: any) {
+    assertLegacyProvisioningPermitted('ClientsService.manualProvision', this.config);
     const cleanEmail = dto.email.trim().toLowerCase();
 
     const [existingClient, existingUser] = await Promise.all([
@@ -495,6 +555,7 @@ export class ClientsService {
    * (ensures linked user, initial project, active subscription, and active client standing).
    */
   async syncOnboarding(id: string, staffUser?: any) {
+    assertLegacyProvisioningPermitted('ClientsService.syncOnboarding', this.config);
     const client = await this.prisma.client.findUnique({
       where: { id },
       include: {

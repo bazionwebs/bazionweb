@@ -46,6 +46,15 @@ export function useAuth() {
       expiresIn,
     );
 
+    if (typeof window !== 'undefined') {
+      await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: at }),
+        credentials: 'include',
+      }).catch(() => undefined);
+    }
+
     const safeRedirect = sanitizeRedirectPath(redirectTo);
     if (safeRedirect) {
       router.push(safeRedirect);
@@ -65,6 +74,10 @@ export function useAuth() {
     try {
       if (accessToken) await api.post('/auth/logout');
     } catch { /* ignore */ }
+    if (typeof window !== 'undefined') {
+      await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
+      await fetch('/api/auth/oidc/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
+    }
     clearSession();
     const target =
       customRedirect ||
@@ -82,6 +95,14 @@ export function useAuth() {
       const decoded = parseJwt(at);
       if (!decoded || !user) { clearSession(); return; }
       setSession(user, at, rt, expiresIn);
+      if (typeof window !== 'undefined') {
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: at }),
+          credentials: 'include',
+        }).catch(() => undefined);
+      }
     } catch {
       clearSession();
     }

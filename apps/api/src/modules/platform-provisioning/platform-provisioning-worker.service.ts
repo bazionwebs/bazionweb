@@ -5,8 +5,11 @@ import { PlatformOutboxStatus } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  assertSafePlatformBaseUrl,
   DEFAULT_COMMAND_AUDIENCE,
   DEFAULT_COMMAND_ISSUER,
+  DEFAULT_MAX_PLATFORM_RESPONSE_BYTES,
+  readJsonResponseWithSizeLimit,
   signCommercialCommandToken,
 } from './provisioning-crypto';
 import {
@@ -210,13 +213,15 @@ export class PlatformProvisioningWorkerService {
     fetchImpl?: FetchLike;
     randomFn?: () => number;
   }): Promise<DeliveryBatchSummary> {
-    const baseUrl = (overrides?.platformApiBaseUrl ?? this.config?.get<string>('PLATFORM_API_BASE_URL') ?? '')
-      .trim()
-      .replace(/\/+$/, '');
+    const rawBaseUrl = (overrides?.platformApiBaseUrl ?? this.config?.get<string>('PLATFORM_API_BASE_URL') ?? '').trim();
     const secret = (overrides?.commandSecret ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_SECRET') ?? '').trim();
-    if (!baseUrl || !secret) {
+    if (!rawBaseUrl || !secret) {
       throw new Error('PLATFORM_PROVISIONING_DELIVERY_NOT_CONFIGURED');
     }
+    const baseUrl = assertSafePlatformBaseUrl(rawBaseUrl, {
+      isProduction: this.config?.get<string>('NODE_ENV') === 'production',
+      errorCode: 'PLATFORM_PROVISIONING_BASE_URL_INVALID',
+    });
 
     const issuer = overrides?.commandIssuer ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_ISSUER') ?? DEFAULT_COMMAND_ISSUER;
     const audience = overrides?.commandAudience ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_AUDIENCE') ?? DEFAULT_COMMAND_AUDIENCE;
@@ -229,11 +234,12 @@ export class PlatformProvisioningWorkerService {
     const fetchImpl: FetchLike =
       overrides?.fetchImpl ??
       (async (url, init) => {
-        const res = await fetch(url, init);
+        const res = await fetch(url, { ...init, redirect: 'error' });
+        const parsed = await readJsonResponseWithSizeLimit(res, DEFAULT_MAX_PLATFORM_RESPONSE_BYTES).catch(() => null);
         return {
           status: res.status,
           ok: res.ok,
-          json: () => res.json(),
+          json: async () => parsed,
         };
       });
     const randomFn = overrides?.randomFn ?? (() => Math.random());
@@ -269,6 +275,7 @@ export class PlatformProvisioningWorkerService {
       try {
         const response = await fetchImpl(endpointUrl, {
           method: 'POST',
+          redirect: 'error',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${bearer}`,
@@ -412,22 +419,20 @@ export class PlatformProvisioningWorkerService {
       });
 
       if (typeof tx.auditLog?.create === 'function') {
-        await tx.auditLog
-          .create({
-            data: {
-              userId: actorUser?.id ?? null,
-              action: 'platform_provisioning.outbox_replay',
-              resourceType: 'PlatformProvisioningOutbox',
-              resourceId: id,
-              newValue: {
-                previousStatus: existing.status,
-                newStatus: updated.status,
-                externalOrderId: existing.externalOrderId,
-                replayedBy: actorUser?.email ?? actorUser?.id ?? 'operator',
-              },
+        await tx.auditLog.create({
+          data: {
+            userId: actorUser?.id ?? null,
+            action: 'platform_provisioning.outbox_replay',
+            resourceType: 'PlatformProvisioningOutbox',
+            resourceId: id,
+            newValue: {
+              previousStatus: existing.status,
+              newStatus: updated.status,
+              externalOrderId: existing.externalOrderId,
+              replayedBy: actorUser?.email ?? actorUser?.id ?? 'operator',
             },
-          })
-          .catch(() => undefined);
+          },
+        });
       }
 
       return updated;

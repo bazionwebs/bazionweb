@@ -1,6 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { assertLegacyProvisioningPermitted } from '../../platform-provisioning/platform-ssot-guard';
 import {
   DeploymentProvider,
   WorkloadConfig,
@@ -161,6 +162,7 @@ export class DokployProvider extends DeploymentProvider {
    * 5. Triggers first deployment.
    */
   async createWorkload(config: WorkloadConfig): Promise<ProvisionResult> {
+    assertLegacyProvisioningPermitted('DokployProvider.createWorkload', this.config);
     this.assertConfigured();
 
     let applicationId: string | undefined;

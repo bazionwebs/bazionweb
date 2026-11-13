@@ -87,7 +87,7 @@ describe('Stage 5: Client Onboarding Checklist & Multi-Tab Session Persistence',
     expect(container.firstChild).toBeNull();
   });
 
-  it('persists auth session across both sessionStorage and localStorage for multi-tab continuity', () => {
+  it('persists active tab session in sessionStorage while stripping raw JWTs from localStorage', () => {
     useAuthStore.getState().setSession(
       {
         id: 'u-1',
@@ -105,7 +105,11 @@ describe('Stage 5: Client Onboarding Checklist & Multi-Tab Session Persistence',
 
     expect(useAuthStore.getState().isAuthenticated()).toBe(true);
     expect(window.sessionStorage.getItem('bazionweb-auth')).toContain('client@acme.co.ke');
-    expect(window.localStorage.getItem('bazionweb-auth')).toContain('client@acme.co.ke');
+    expect(window.sessionStorage.getItem('bazionweb-auth')).toContain('access-token-123');
+    const localSnapshot = window.localStorage.getItem('bazionweb-auth') ?? '';
+    expect(localSnapshot).toContain('client@acme.co.ke');
+    expect(localSnapshot).not.toContain('access-token-123');
+    expect(localSnapshot).not.toContain('refresh-token-456');
 
     useAuthStore.getState().clearSession();
     expect(useAuthStore.getState().isAuthenticated()).toBe(false);

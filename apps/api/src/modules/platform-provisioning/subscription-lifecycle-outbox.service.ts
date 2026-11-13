@@ -9,9 +9,12 @@ import {
   type SubscriptionLifecycleCommandV1,
 } from './provisioning-contract';
 import {
+  assertSafePlatformBaseUrl,
   DEFAULT_COMMAND_AUDIENCE,
   DEFAULT_COMMAND_ISSUER,
+  DEFAULT_MAX_PLATFORM_RESPONSE_BYTES,
   deterministicUuidFromSeed,
+  readJsonResponseWithSizeLimit,
   signCommercialCommandToken,
   type SubscriptionLifecycleAction,
 } from './provisioning-crypto';
@@ -132,7 +135,7 @@ export class SubscriptionLifecycleOutboxService {
 
     if (typeof db.platformProvisioningProjection?.findFirst === 'function') {
       const proj = await db.platformProvisioningProjection.findFirst({
-        where: { clientId },
+        where: { clientId, outbox: { subscriptionId } },
         orderBy: { platformUpdatedAt: 'desc' },
         select: { externalOrderId: true },
       });
@@ -244,7 +247,7 @@ export class SubscriptionLifecycleOutboxService {
   })
   async scheduledTick(): Promise<void> {
     if (this.running) return;
-    if ((this.config?.get<string>('PLATFORM_LIFECYCLE_WORKER_ENABLED') ?? 'true') === 'false') {
+    if (this.config?.get<string>('PLATFORM_LIFECYCLE_WORKER_ENABLED') !== 'true') {
       return;
     }
     const baseUrl = this.config?.get<string>('PLATFORM_API_BASE_URL')?.trim();
@@ -361,13 +364,15 @@ export class SubscriptionLifecycleOutboxService {
     fetchImpl?: FetchLike;
     randomFn?: () => number;
   }): Promise<LifecycleDeliveryBatchSummary> {
-    const baseUrl = (overrides?.platformApiBaseUrl ?? this.config?.get<string>('PLATFORM_API_BASE_URL') ?? '')
-      .trim()
-      .replace(/\/+$/, '');
+    const rawBaseUrl = (overrides?.platformApiBaseUrl ?? this.config?.get<string>('PLATFORM_API_BASE_URL') ?? '').trim();
     const secret = (overrides?.commandSecret ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_SECRET') ?? '').trim();
-    if (!baseUrl || !secret) {
+    if (!rawBaseUrl || !secret) {
       throw new Error('PLATFORM_LIFECYCLE_DELIVERY_NOT_CONFIGURED');
     }
+    const baseUrl = assertSafePlatformBaseUrl(rawBaseUrl, {
+      isProduction: this.config?.get<string>('NODE_ENV') === 'production',
+      errorCode: 'PLATFORM_LIFECYCLE_BASE_URL_INVALID',
+    });
 
     const issuer = overrides?.commandIssuer ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_ISSUER') ?? DEFAULT_COMMAND_ISSUER;
     const audience = overrides?.commandAudience ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_AUDIENCE') ?? DEFAULT_COMMAND_AUDIENCE;
@@ -380,11 +385,12 @@ export class SubscriptionLifecycleOutboxService {
     const fetchImpl: FetchLike =
       overrides?.fetchImpl ??
       (async (url, init) => {
-        const res = await fetch(url, init);
+        const res = await fetch(url, { ...init, redirect: 'error' });
+        const parsed = await readJsonResponseWithSizeLimit(res, DEFAULT_MAX_PLATFORM_RESPONSE_BYTES).catch(() => null);
         return {
           status: res.status,
           ok: res.ok,
-          json: () => res.json(),
+          json: async () => parsed,
         };
       });
     const randomFn = overrides?.randomFn ?? (() => Math.random());

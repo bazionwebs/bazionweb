@@ -245,6 +245,87 @@ export function verifyPlatformStatusWebhook(input: {
   }
 }
 
+export const DEFAULT_MAX_PLATFORM_RESPONSE_BYTES = 1_048_576;
+
+/**
+ * Validates and normalizes the configured Platform internal API base URL.
+ * Rejects credentials/query/fragment segments and enforces HTTPS in production (except loopback).
+ */
+export function assertSafePlatformBaseUrl(
+  rawBaseUrl: string,
+  options: { isProduction?: boolean; errorCode?: string } = {},
+): string {
+  const errorCode = options.errorCode ?? 'PLATFORM_API_BASE_URL_INVALID';
+  const trimmed = rawBaseUrl.trim().replace(/\/+$/, '');
+  if (!trimmed) {
+    throw new Error(errorCode);
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error(errorCode);
+  }
+
+  const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname.toLowerCase());
+  const isProduction = options.isProduction ?? process.env.NODE_ENV === 'production';
+  if (
+    !['http:', 'https:'].includes(parsed.protocol)
+    || (isProduction && parsed.protocol !== 'https:' && !isLoopback)
+    || parsed.username
+    || parsed.password
+    || parsed.search
+    || parsed.hash
+  ) {
+    throw new Error(errorCode);
+  }
+
+  return trimmed;
+}
+
+/**
+ * Bounded JSON response reader enforcing strict max response byte limits.
+ */
+export async function readJsonResponseWithSizeLimit(
+  response: {
+    headers?: { get(name: string): string | null };
+    text?: () => Promise<string>;
+    json?: () => Promise<unknown>;
+  },
+  maxBytes = DEFAULT_MAX_PLATFORM_RESPONSE_BYTES,
+  tooLargeCode = 'PLATFORM_RESPONSE_TOO_LARGE',
+): Promise<unknown> {
+  const declared = Number(response.headers?.get('content-length') ?? 0);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(tooLargeCode);
+  }
+
+  if (typeof response.text === 'function') {
+    const raw = await response.text();
+    if (Buffer.byteLength(raw, 'utf8') > maxBytes) {
+      throw new Error(tooLargeCode);
+    }
+    if (!raw.trim()) return null;
+    try {
+      return JSON.parse(raw) as unknown;
+    } catch {
+      throw new Error('PLATFORM_RESPONSE_INVALID_JSON');
+    }
+  }
+
+  if (typeof response.json === 'function') {
+    const value = await response.json();
+    const approxBytes = Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8');
+    if (approxBytes > maxBytes) {
+      throw new Error(tooLargeCode);
+    }
+    return value;
+  }
+
+  return null;
+}
+
 /** Validate strict ProvisioningOperationV1 wire shape against the published JSON Schema. */
 export function validateProvisioningOperationV1(value: unknown): ProvisioningOperationV1 | null {
   const result = validateProvisioningOperationV1Contract(value);

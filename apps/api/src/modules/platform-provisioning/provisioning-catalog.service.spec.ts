@@ -1,3 +1,4 @@
+import { BadGatewayException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   parsePlatformProvisioningCatalog,
@@ -85,7 +86,7 @@ describe('PlatformProvisioningCatalogService', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://platform.example.test/v1/internal/commercial/provisioning-catalog');
   });
 
-  it('strips caller-supplied snapshots and leaves ambiguous offer versions unpinned', async () => {
+  it('strips caller-supplied snapshots and rejects ambiguous offer versions cleanly', async () => {
     const offer = catalog().bindings[0];
     const ambiguousCatalog = catalog({
       bindings: [
@@ -106,10 +107,10 @@ describe('PlatformProvisioningCatalogService', () => {
 
     await expect(service.pinLineItems([
       { productId: 'website-launch', platformProvisioningBinding: attackerSnapshot },
-    ])).resolves.toEqual([{ productId: 'website-launch' }]);
+    ])).rejects.toThrow(ConflictException);
   });
 
-  it('requires HTTPS for production Platform catalog requests', async () => {
+  it('requires HTTPS for production Platform catalog requests and fails closed', async () => {
     const fetchMock = jest.fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>();
     global.fetch = fetchMock as typeof fetch;
     const service = new PlatformProvisioningCatalogService(mockConfig({
@@ -119,14 +120,14 @@ describe('PlatformProvisioningCatalogService', () => {
     }));
 
     await expect(service.pinLineItems([{ productId: 'website-launch' }]))
-      .resolves.toEqual([{ productId: 'website-launch' }]);
+      .rejects.toThrow(ServiceUnavailableException);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('leaves invoice items unpinned when configuration or catalog validation is unavailable', async () => {
+  it('fails closed when configuration, offer binding, or catalog contract validation fails', async () => {
     const unconfigured = new PlatformProvisioningCatalogService(mockConfig({}));
     await expect(unconfigured.pinLineItems([{ productId: 'website-launch', platformProvisioningBinding: { forged: true } }]))
-      .resolves.toEqual([{ productId: 'website-launch' }]);
+      .rejects.toThrow(ServiceUnavailableException);
 
     const invalidFetch = jest.fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>(async () => new Response(JSON.stringify({ ...catalog(), price: 25000 }), {
       status: 200,
@@ -137,19 +138,30 @@ describe('PlatformProvisioningCatalogService', () => {
       PLATFORM_API_BASE_URL: 'https://platform.example.test',
       PLATFORM_PROVISIONING_COMMAND_SECRET: 'platform-command-secret-value-long-enough',
     }));
-    const items = [{ productId: 'website-launch' }];
-    await expect(configured.pinLineItems(items)).resolves.toEqual(items);
+    await expect(configured.pinLineItems([{ productId: 'website-launch' }])).rejects.toThrow(ServiceUnavailableException);
+
+    const missingBindingFetch = jest.fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>(async () => new Response(JSON.stringify(catalog()), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    global.fetch = missingBindingFetch as typeof fetch;
+    await expect(configured.pinLineItems([{ productId: 'website-business' }])).rejects.toThrow(BadGatewayException);
   });
 
-  it('does not make a network call for invoices without product offers', async () => {
+  it('does not make a network call for invoices without Platform-provisionable offers', async () => {
     const fetchMock = jest.fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>();
     global.fetch = fetchMock as typeof fetch;
     const service = new PlatformProvisioningCatalogService(mockConfig({
       PLATFORM_API_BASE_URL: 'https://platform.example.test',
       PLATFORM_PROVISIONING_COMMAND_SECRET: 'platform-command-secret-value-long-enough',
     }));
-    await expect(service.pinLineItems([{ planId: 'care-plan' } as never]))
-      .resolves.toEqual([{ planId: 'care-plan' }]);
+    await expect(service.pinLineItems([
+      { planId: 'care-plan' } as never,
+      { productId: 'addon-blog-news', platformProvisioningBinding: { forged: true } },
+    ])).resolves.toEqual([
+      { planId: 'care-plan' },
+      { productId: 'addon-blog-news' },
+    ]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

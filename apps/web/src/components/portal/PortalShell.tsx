@@ -63,6 +63,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const expiresAt = useAuthStore(s => s.expiresAt);
   const isSandboxStore = useAuthStore(s => s.isSandbox);
   const sandboxMeta = useAuthStore(s => s.sandboxMeta);
+  const setSandboxSession = useAuthStore(s => s.setSandboxSession);
   const clearSession = useAuthStore(s => s.clearSession);
 
   const { data: liveClient } = useClientProfile();
@@ -74,10 +75,22 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsSandboxActiveSession(window.sessionStorage.getItem('bazionweb_sandbox_active') === 'true');
+    if (typeof window === 'undefined') return;
+    const activeInSession = window.sessionStorage.getItem('bazionweb_sandbox_active') === 'true';
+    setIsSandboxActiveSession(activeInSession);
+
+    if (!isSandboxStore && !user?.isSandbox && !user?.impersonatedBy) {
+      fetch('/api/auth/sandbox', { credentials: 'include' })
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          if (data?.active && data.user && typeof data.expiresAt === 'number') {
+            setIsSandboxActiveSession(true);
+            setSandboxSession(data.user, data.expiresAt, data.sandboxMeta ?? null);
+          }
+        })
+        .catch(() => undefined);
     }
-  }, []);
+  }, [isSandboxStore, user?.isSandbox, user?.impersonatedBy, setSandboxSession]);
 
   const isSandbox = Boolean(
     isSandboxStore ||
@@ -183,6 +196,10 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const handleSignOut = async () => {
     setUserMenuOpen(false);
     await authApi.logout().catch(() => undefined);
+    if (typeof window !== 'undefined') {
+      await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
+      await fetch('/api/auth/oidc/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
+    }
     clearSession();
     router.replace('/portal/login');
   };
@@ -202,6 +219,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
   const handleExitSandbox = () => {
     if (typeof window !== 'undefined') {
+      fetch('/api/auth/sandbox', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
       clearSession();
       window.sessionStorage.removeItem('bazionweb_sandbox_active');
       window.sessionStorage.removeItem('bazionweb_sandbox_token');

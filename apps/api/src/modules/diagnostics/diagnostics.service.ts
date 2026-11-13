@@ -1985,12 +1985,10 @@ export class AdminDiagnosticsService {
           });
 
           if (invoice.clientId) {
-            await tx.client
-              .update({
-                where: { id: invoice.clientId },
-                data: { status: 'ACTIVE' },
-              })
-              .catch(() => undefined);
+            await tx.client.update({
+              where: { id: invoice.clientId },
+              data: { status: 'ACTIVE' },
+            });
           }
 
           // Check if this is a proposal kickoff deposit
@@ -2003,29 +2001,27 @@ export class AdminDiagnosticsService {
             paidAt: new Date(),
             notes: invoice.notes,
             lineItems: invoice.lineItems,
-          }).catch(() => undefined);
+          });
 
           if (typeof (this.settlement as any)?.enqueueProvisioningOutbox === 'function') {
             await (this.settlement as any).enqueueProvisioningOutbox(tx, invoice);
           }
 
-          await tx.auditLog
-            .create({
-              data: {
-                userId: staffUser?.id || null,
-                action: 'proactive.auto_apply_payment',
-                resourceType: 'PaymentLog',
-                resourceId: log.id,
-                newValue: {
-                  invoiceId: invoice.id,
-                  invoiceNumber: invoice.invoiceNumber,
-                  amount: Number(log.amount),
-                  currency: log.currency,
-                  resolvedBy: staffUser?.email || staffUser?.id || 'admin',
-                },
+          await tx.auditLog.create({
+            data: {
+              userId: staffUser?.id || null,
+              action: 'proactive.auto_apply_payment',
+              resourceType: 'PaymentLog',
+              resourceId: log.id,
+              newValue: {
+                invoiceId: invoice.id,
+                invoiceNumber: invoice.invoiceNumber,
+                amount: Number(log.amount),
+                currency: log.currency,
+                resolvedBy: staffUser?.email || staffUser?.id || 'admin',
               },
-            })
-            .catch(() => undefined);
+            },
+          });
         });
 
         return {
@@ -2126,12 +2122,10 @@ export class AdminDiagnosticsService {
             }
 
             if (invoice.clientId) {
-              await tx.client
-                .update({
-                  where: { id: invoice.clientId },
-                  data: { status: 'ACTIVE' },
-                })
-                .catch(() => undefined);
+              await tx.client.update({
+                where: { id: invoice.clientId },
+                data: { status: 'ACTIVE' },
+              });
             }
 
             await provisionProjectFromProposalInvoice(tx, {
@@ -2145,27 +2139,25 @@ export class AdminDiagnosticsService {
                 ? `${invoice.notes} proposal ${proposal.proposalCode}`
                 : `proposal ${proposal.proposalCode}`,
               lineItems: invoice.lineItems,
-            }).catch(() => undefined);
+            });
           }
 
-          await tx.auditLog
-            .create({
-              data: {
-                userId: staffUser?.id || null,
-                action: 'proactive.extend_and_activate_quote',
-                resourceType: 'Proposal',
-                resourceId: proposal.id,
-                newValue: {
-                  proposalCode: proposal.proposalCode,
-                  status: 'ACCEPTED',
-                  extendedByDays: 14,
-                  newExpiry: newExpiry.toISOString(),
-                  invoiceId: invoice?.id,
-                  resolvedBy: staffUser?.email || staffUser?.id || 'admin',
-                },
+          await tx.auditLog.create({
+            data: {
+              userId: staffUser?.id || null,
+              action: 'proactive.extend_and_activate_quote',
+              resourceType: 'Proposal',
+              resourceId: proposal.id,
+              newValue: {
+                proposalCode: proposal.proposalCode,
+                status: 'ACCEPTED',
+                extendedByDays: 14,
+                newExpiry: newExpiry.toISOString(),
+                invoiceId: invoice?.id,
+                resolvedBy: staffUser?.email || staffUser?.id || 'admin',
               },
-            })
-            .catch(() => undefined);
+            },
+          });
         } else {
           await tx.proposal.update({
             where: { id: proposal.id },
@@ -2175,23 +2167,21 @@ export class AdminDiagnosticsService {
             },
           });
 
-          await tx.auditLog
-            .create({
-              data: {
-                userId: staffUser?.id || null,
-                action: 'proactive.extend_quote',
-                resourceType: 'Proposal',
-                resourceId: proposal.id,
-                newValue: {
-                  proposalCode: proposal.proposalCode,
-                  status: 'LOCKED',
-                  extendedByDays: 14,
-                  newExpiry: newExpiry.toISOString(),
-                  resolvedBy: staffUser?.email || staffUser?.id || 'admin',
-                },
+          await tx.auditLog.create({
+            data: {
+              userId: staffUser?.id || null,
+              action: 'proactive.extend_quote',
+              resourceType: 'Proposal',
+              resourceId: proposal.id,
+              newValue: {
+                proposalCode: proposal.proposalCode,
+                status: 'LOCKED',
+                extendedByDays: 14,
+                newExpiry: newExpiry.toISOString(),
+                resolvedBy: staffUser?.email || staffUser?.id || 'admin',
               },
-            })
-            .catch(() => undefined);
+            },
+          });
         }
       });
 

@@ -303,7 +303,14 @@ function PortalLoginContent() {
             </form>
           )}
 
-          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center space-y-3">
+            <a
+              href={`/api/auth/oidc/login${redirectPath ? `?redirect=${encodeURIComponent(redirectPath)}` : ''}`}
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-[#0F172A] transition-colors"
+            >
+              <ShieldCheck className="w-4 h-4 text-[#2563EB]" />
+              Continue with Bazion Platform ID (OIDC)
+            </a>
             <p className="text-[11px] text-slate-400">
               Just completed payment?{' '}
               <Link href="/portal/claim" className="font-semibold text-[#2563EB] hover:underline">

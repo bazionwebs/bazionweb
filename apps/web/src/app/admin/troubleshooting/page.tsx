@@ -1967,9 +1967,21 @@ function AdminTroubleshootingContent() {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  const url = `/portal?sandbox_token=${encodeURIComponent(impersonationSession.token)}`;
-                  window.open(url, '_blank', 'noopener,noreferrer');
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/auth/sandbox', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token: impersonationSession.token }),
+                      credentials: 'include',
+                    });
+                    if (!response.ok) {
+                      return;
+                    }
+                    window.open('/portal', '_blank', 'noopener,noreferrer');
+                  } catch {
+                    // Fail closed if sandbox cookie exchange fails
+                  }
                 }}
                 className="px-3.5 py-1.5 bg-[#2563EB] text-white text-xs font-bold rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-1.5 transition-colors"
               >

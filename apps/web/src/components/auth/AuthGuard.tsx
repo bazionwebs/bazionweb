@@ -60,6 +60,40 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
       };
 
       if (!isAuthenticated()) {
+        if (normalizedPath.startsWith('/portal')) {
+          try {
+            const sandboxRes = await fetch('/api/auth/sandbox', { credentials: 'include' });
+            if (sandboxRes.ok) {
+              const sandboxData = await sandboxRes.json().catch(() => null);
+              if (sandboxData?.active && sandboxData.user && typeof sandboxData.expiresAt === 'number') {
+                useAuthStore.getState().setSandboxSession(
+                  sandboxData.user,
+                  sandboxData.expiresAt,
+                  sandboxData.sandboxMeta ?? null,
+                );
+              }
+            }
+          } catch {
+            // Fall through to normal session check
+          }
+        }
+        if (!useAuthStore.getState().isAuthenticated()) {
+          try {
+            const sessionRes = await fetch('/api/auth/session', { credentials: 'include' });
+            if (sessionRes.ok) {
+              const sessionData = await sessionRes.json().catch(() => null);
+              if (sessionData?.active && typeof sessionData.expiresAt === 'number') {
+                useAuthStore.getState().setBffSession(sessionData.expiresAt, sessionData.user ?? null);
+              }
+            }
+          } catch {
+            // Fail closed below
+          }
+        }
+        if (!active) return;
+      }
+
+      if (!useAuthStore.getState().isAuthenticated()) {
         if (active) setStatus('unauthorized');
         redirectUnlessHere(redirectTo);
         return;
@@ -92,10 +126,11 @@ export default function AuthGuard({ children, requiredRoles = [], redirectTo = '
 
       if (!isAdminRole && !isSandboxSession) {
         const liveToken = useAuthStore.getState().accessToken;
-        if (liveToken) {
+        if (liveToken || (useAuthStore.getState().isBffSession && !sessionUser?.oidcSubject)) {
           try {
             const res = await fetch(`${resolveApiV1Base()}/clients/me`, {
-              headers: { Authorization: `Bearer ${liveToken}` },
+              headers: liveToken ? { Authorization: `Bearer ${liveToken}` } : undefined,
+              credentials: 'include',
               signal: AbortSignal.timeout(6000),
             });
 

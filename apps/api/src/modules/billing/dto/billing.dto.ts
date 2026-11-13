@@ -515,3 +515,11 @@ export class GenerateInvoiceDto {
   @MaxLength(1000)
   notes?: string;
 }
+
+export class CancelSubscriptionDto {
+  @ApiPropertyOptional({ description: 'Machine-readable reason code for subscription cancellation' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9_:-]{2,64}$/i, { message: 'reasonCode must be 2-64 alphanumeric/underscore characters' })
+  reasonCode?: string;
+}

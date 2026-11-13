@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { BillingController } from './billing.controller';
+import { BillingController, SubscriptionsController } from './billing.controller';
 import { WebhooksController } from './webhooks.controller';
 import { BillingService } from './billing.service';
 import { PaymentSettlementService } from './payment-settlement.service';
@@ -13,7 +13,7 @@ import { PlatformProvisioningModule } from '../platform-provisioning/platform-pr
 
 @Module({
   imports: [PrismaModule, ScheduleModule, PlatformProvisioningModule],
-  controllers: [BillingController, PlansController, WebhooksController],
+  controllers: [BillingController, SubscriptionsController, PlansController, WebhooksController],
   providers: [
     BillingService,
     PaymentSettlementService,

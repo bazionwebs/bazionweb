@@ -507,3 +507,18 @@ export function useUpdateClientProfile() {
     },
   });
 }
+
+export function useCancelSubscription() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { subscriptionId: string; reasonCode?: string }) =>
+      portalApi.cancelSubscription(input.subscriptionId, {
+        ...(input.reasonCode ? { reasonCode: input.reasonCode } : {}),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'client'] });
+      queryClient.invalidateQueries({ queryKey: ['portal', 'hosting'] });
+      queryClient.invalidateQueries({ queryKey: ['portal', 'invoices'] });
+    },
+  });
+}

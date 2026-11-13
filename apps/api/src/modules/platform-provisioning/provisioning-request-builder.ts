@@ -1,5 +1,11 @@
 import {
+  isPlatformProvisionableProductId,
+  resolveCanonicalProductId,
+} from '../pricing/canonical-catalog';
+import {
   validateProvisionProductRequestV1,
+  validateProvisioningBindingSnapshotV1,
+  type CatalogReleaseReferenceV1,
   type ProvisionProductRequestV1,
 } from './provisioning-contract';
 import {
@@ -47,78 +53,39 @@ function sanitizeExternalId(raw: string, fallbackPrefix = 'ord'): string {
   return /^[A-Za-z0-9]/.test(cleaned) ? cleaned : `${fallbackPrefix}-${cleaned}`;
 }
 
-interface CatalogReleaseReference {
-  id: string;
-  version: string;
-}
-
 interface PinnedCatalogTuple {
   offerId: string;
   offerVersion: string;
-  product: CatalogReleaseReference;
-  solution: CatalogReleaseReference;
-  template: CatalogReleaseReference;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actual = Object.keys(value).sort();
-  const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
-}
-
-function parseReleaseReference(value: unknown): CatalogReleaseReference | null {
-  if (!isRecord(value) || !hasExactKeys(value, ['id', 'version'])) return null;
-  if (typeof value.id !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,119}$/.test(value.id)) return null;
-  if (typeof value.version !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/.test(value.version)) return null;
-  return { id: value.id, version: value.version };
-}
-
-function parseCatalogReferences(value: unknown, minimum: number): CatalogReleaseReference[] | null {
-  if (!Array.isArray(value) || value.length < minimum || value.length > 100) return null;
-  const references = value.map(parseReleaseReference);
-  if (references.some((reference) => reference === null)) return null;
-  const parsed = references as CatalogReleaseReference[];
-  return new Set(parsed.map((reference) => reference.id)).size === parsed.length ? parsed : null;
+  product: CatalogReleaseReferenceV1;
+  solution: CatalogReleaseReferenceV1;
+  template: CatalogReleaseReferenceV1;
 }
 
 function resolveCatalogTuple(line: Record<string, unknown>): PinnedCatalogTuple | null {
-  const snapshot = line.platformProvisioningBinding;
-  if (!isRecord(snapshot) || !hasExactKeys(snapshot, ['schemaVersion', 'catalogGeneratedAt', 'binding'])) return null;
-  if (
-    snapshot.schemaVersion !== '1.0.0'
-    || typeof snapshot.catalogGeneratedAt !== 'string'
-    || !Number.isFinite(Date.parse(snapshot.catalogGeneratedAt))
-  ) return null;
-
-  const binding = snapshot.binding;
-  if (!isRecord(binding) || !hasExactKeys(binding, [
-    'offer', 'composition', 'requiredModules', 'optionalModules', 'distributionMode',
-  ])) return null;
-  if (binding.distributionMode !== 'shared-managed' || !isRecord(binding.composition)) return null;
-  if (!hasExactKeys(binding.composition, ['product', 'solution', 'template'])) return null;
-
-  const offer = parseReleaseReference(binding.offer);
-  const product = parseReleaseReference(binding.composition.product);
-  const solution = parseReleaseReference(binding.composition.solution);
-  const template = parseReleaseReference(binding.composition.template);
-  const requiredModules = parseCatalogReferences(binding.requiredModules, 1);
-  const optionalModules = parseCatalogReferences(binding.optionalModules, 0);
-  if (!offer || !product || !solution || !template || !requiredModules || !optionalModules) return null;
-  if (new Set([...requiredModules, ...optionalModules].map((module) => module.id)).size !== requiredModules.length + optionalModules.length) {
+  const requiresPin =
+    isPlatformProvisionableProductId(line.productId) || line.platformProvisioningBinding !== undefined;
+  if (!requiresPin) {
     return null;
   }
-  if (typeof line.productId !== 'string' || line.productId !== offer.id) return null;
+
+  const validation = validateProvisioningBindingSnapshotV1(line.platformProvisioningBinding);
+  if (!validation.valid) {
+    throw new Error('PROVISIONING_CATALOG_BINDING_MISSING_OR_INVALID');
+  }
+
+  const binding = validation.value.binding;
+  const lineProductId = typeof line.productId === 'string' ? line.productId.trim() : '';
+  const canonicalProductId = lineProductId ? resolveCanonicalProductId(lineProductId) : '';
+  if (!lineProductId || (lineProductId !== binding.offer.id && canonicalProductId !== binding.offer.id)) {
+    throw new Error('PROVISIONING_CATALOG_BINDING_MISSING_OR_INVALID');
+  }
 
   return {
-    offerId: offer.id,
-    offerVersion: offer.version,
-    product,
-    solution,
-    template,
+    offerId: binding.offer.id,
+    offerVersion: binding.offer.version,
+    product: binding.composition.product,
+    solution: binding.composition.solution,
+    template: binding.composition.template,
   };
 }
 

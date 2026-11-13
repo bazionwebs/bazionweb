@@ -89,6 +89,20 @@ function sanitizeSegments(segments: string[]): boolean {
   return true;
 }
 
+function readCookie(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx <= 0) continue;
+    const k = part.slice(0, idx).trim();
+    if (k === name) {
+      const val = part.slice(idx + 1).trim();
+      return val ? decodeURIComponent(val) : null;
+    }
+  }
+  return null;
+}
+
 async function proxy(req: Request, segments: string[]): Promise<Response> {
   const clientIp = getClientIp(req);
   const rl = checkRateLimit(`gateway:${clientIp}`, GATEWAY_RATE_LIMIT, GATEWAY_RATE_WINDOW_MS);
@@ -164,6 +178,18 @@ async function proxy(req: Request, segments: string[]): Promise<Response> {
   for (const name of FORWARDED_HEADER_ALLOWLIST) {
     const value = req.headers.get(name);
     if (value) headers.set(name, value);
+  }
+  if (!headers.has('authorization')) {
+    const cookieHeader = req.headers.get('cookie');
+    const isSandboxReq = req.headers.get('x-bazion-sandbox') === '1';
+    const cookieJwt = isSandboxReq
+      ? readCookie(cookieHeader, 'bazionweb_sandbox_token')
+      : readCookie(cookieHeader, '__Host-Http-bw_bff_session') ??
+        readCookie(cookieHeader, 'bw_bff_session') ??
+        readCookie(cookieHeader, 'bazionweb_session');
+    if (cookieJwt && cookieJwt.split('.').length === 3) {
+      headers.set('authorization', `Bearer ${cookieJwt}`);
+    }
   }
   // Re-emit the client's source address from edge-trusted data only. Never
   // forward a client-supplied X-Forwarded-For/X-Real-IP chain verbatim.

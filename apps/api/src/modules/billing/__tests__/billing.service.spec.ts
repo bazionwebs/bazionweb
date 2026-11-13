@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BillingService } from '../billing.service';
 import { computeDocumentFingerprint } from '../invoice-pdf.generator';
@@ -1012,6 +1012,69 @@ describe('BillingService', () => {
       expect(missingRes.verified).toBe(false);
       expect(missingRes.found).toBe(false);
       expect(missingRes.referenceNumber).toBe('INV-FAKE-99999999');
+    });
+  });
+
+  describe('pinPlatformProvisioningBindings() fail-closed', () => {
+    it('fails closed when Platform SSoT / PLATFORM_API_BASE_URL is configured and catalog service is absent', async () => {
+      const customConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'PLATFORM_API_BASE_URL') return 'https://platform.bazionweb.com';
+          return undefined;
+        }),
+      };
+      const customService = new BillingService(
+        mockPrisma as any,
+        mockEvents as any,
+        mockPaystackService as any,
+        mockDarajaService as any,
+        mockPaymentSettlementService as any,
+        customConfig as any,
+      );
+      await expect(
+        (customService as any).pinPlatformProvisioningBindings([
+          { productId: 'website-launch', platformProvisioningBinding: { forged: true } },
+        ]),
+      ).rejects.toThrow(ServiceUnavailableException);
+    });
+
+    it('strips untrusted caller platformProvisioningBinding snapshots when catalog service is absent in local mode', async () => {
+      const localConfig = { get: jest.fn(() => undefined) };
+      const customService = new BillingService(
+        mockPrisma as any,
+        mockEvents as any,
+        mockPaystackService as any,
+        mockDarajaService as any,
+        mockPaymentSettlementService as any,
+        localConfig as any,
+      );
+      const result = await (customService as any).pinPlatformProvisioningBindings([
+        { productId: 'custom-site', quantity: 1, platformProvisioningBinding: { forged: true } },
+      ]);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({ productId: 'custom-site', quantity: 1 });
+      expect(result[0]).not.toHaveProperty('platformProvisioningBinding');
+    });
+
+    it('propagates catalog service failures instead of swallowing them', async () => {
+      const failingCatalog = {
+        pinLineItems: jest.fn().mockRejectedValue(
+          new ServiceUnavailableException('Catalog offline'),
+        ),
+      };
+      const customService = new BillingService(
+        mockPrisma as any,
+        mockEvents as any,
+        mockPaystackService as any,
+        mockDarajaService as any,
+        mockPaymentSettlementService as any,
+        mockConfigService as any,
+        undefined,
+        failingCatalog as any,
+      );
+      await expect(
+        (customService as any).pinPlatformProvisioningBindings([{ productId: 'website-launch' }]),
+      ).rejects.toThrow(ServiceUnavailableException);
     });
   });
 });

@@ -4,8 +4,11 @@ import { InvoiceStatus, PlatformOutboxStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformCallbackProjectionService } from './platform-callback-projection.service';
 import {
+  assertSafePlatformBaseUrl,
   DEFAULT_COMMAND_AUDIENCE,
   DEFAULT_COMMAND_ISSUER,
+  DEFAULT_MAX_PLATFORM_RESPONSE_BYTES,
+  readJsonResponseWithSizeLimit,
   signCommercialCommandToken,
   validateProvisioningOperationV1,
 } from './provisioning-crypto';
@@ -186,13 +189,15 @@ export class PlatformProvisioningReconciliationService {
     timeoutMs?: number;
     fetchImpl?: FetchLike;
   }): Promise<{ checked: number; updated: number; errors: number }> {
-    const baseUrl = (options?.platformApiBaseUrl ?? this.config?.get<string>('PLATFORM_API_BASE_URL') ?? '')
-      .trim()
-      .replace(/\/+$/, '');
+    const rawBaseUrl = (options?.platformApiBaseUrl ?? this.config?.get<string>('PLATFORM_API_BASE_URL') ?? '').trim();
     const secret = (options?.commandSecret ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_SECRET') ?? '').trim();
-    if (!baseUrl || !secret) {
+    if (!rawBaseUrl || !secret) {
       throw new Error('PLATFORM_PROVISIONING_POLL_NOT_CONFIGURED');
     }
+    const baseUrl = assertSafePlatformBaseUrl(rawBaseUrl, {
+      isProduction: this.config?.get<string>('NODE_ENV') === 'production',
+      errorCode: 'PLATFORM_PROVISIONING_BASE_URL_INVALID',
+    });
 
     const issuer = options?.commandIssuer ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_ISSUER') ?? DEFAULT_COMMAND_ISSUER;
     const audience = options?.commandAudience ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_AUDIENCE') ?? DEFAULT_COMMAND_AUDIENCE;
@@ -202,11 +207,12 @@ export class PlatformProvisioningReconciliationService {
     const fetchImpl: FetchLike =
       options?.fetchImpl ??
       (async (url, init) => {
-        const res = await fetch(url, init);
+        const res = await fetch(url, { ...init, redirect: 'error' });
+        const parsed = await readJsonResponseWithSizeLimit(res, DEFAULT_MAX_PLATFORM_RESPONSE_BYTES).catch(() => null);
         return {
           status: res.status,
           ok: res.ok,
-          json: () => res.json(),
+          json: async () => parsed,
         };
       });
 
@@ -247,6 +253,7 @@ export class PlatformProvisioningReconciliationService {
       try {
         const res = await fetchImpl(`${baseUrl}/v1/internal/commercial/operations/${encodeURIComponent(operationId)}`, {
           method: 'GET',
+          redirect: 'error',
           headers: {
             Authorization: `Bearer ${token}`,
           },

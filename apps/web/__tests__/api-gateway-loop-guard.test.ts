@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 
-import { resolveApiBase } from '@/lib/api-base';
+import { fetchInternalApi, resolveApiBase, resolveInternalDispatchSecret } from '@/lib/api-base';
 import { GET as gatewayGet } from '@/app/api/v1/[...path]/route';
 
 const ORIGINAL_ENV = { ...process.env };
@@ -126,6 +126,38 @@ describe('API gateway: server-side API base & loop guard', () => {
 
       expect(res.status).toBe(403);
       expect(await res.json()).toEqual({ message: 'Forbidden' });
+    });
+  });
+
+  describe('Internal dispatch secret & fallback hygiene', () => {
+    it('requires dedicated INTERNAL_DISPATCH_SECRET and never falls back to PAYSTACK_SECRET_KEY or JWT_SECRET', () => {
+      setEnv({
+        INTERNAL_DISPATCH_SECRET: undefined,
+        PAYSTACK_SECRET_KEY: 'sk_live_paystack_secret_key_must_never_be_reused',
+        JWT_SECRET: 'jwt_signing_secret_must_never_be_reused_as_dispatch',
+      });
+      expect(resolveInternalDispatchSecret()).toBe('');
+
+      setEnv({ INTERNAL_DISPATCH_SECRET: 'CHANGE_ME_internal_secret' });
+      expect(resolveInternalDispatchSecret()).toBe('');
+
+      setEnv({ INTERNAL_DISPATCH_SECRET: 'dedicated-bff-dispatch-secret-value' });
+      expect(resolveInternalDispatchSecret()).toBe('dedicated-bff-dispatch-secret-value');
+    });
+
+    it('does not retry against a hardcoded tenant/dokploy service URL when DOKPLOY_API_INTERNAL_URL is unset', async () => {
+      setEnv({
+        NODE_ENV: 'production',
+        API_INTERNAL_URL: undefined,
+        DOKPLOY_API_INTERNAL_URL: undefined,
+        NEXT_PUBLIC_API_URL: undefined,
+      });
+      const fetchMock = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      await expect(fetchInternalApi('/api/v1/health')).rejects.toThrow('ECONNREFUSED');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith('http://api:4000/api/v1/health', undefined);
     });
   });
 });

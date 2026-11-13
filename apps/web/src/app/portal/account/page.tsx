@@ -26,6 +26,7 @@ import {
   useClientProfile,
   useClientProjects,
   useUpdateClientProfile,
+  useCancelSubscription,
 } from '@/hooks/usePortalData';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
@@ -36,6 +37,10 @@ export default function PortalAccountPage() {
   const { data: client, isLoading, isError, isFetching, refetch } = useClientProfile();
   const { data: projects = [] } = useClientProjects();
   const updateProfile = useUpdateClientProfile();
+  const cancelSubscription = useCancelSubscription();
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('CUSTOMER_REQUESTED');
+  const [cancelFeedback, setCancelFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   const sessionUser = useAuthStore(s => s.user);
   const setSession = useAuthStore(s => s.setSession);
@@ -181,6 +186,8 @@ export default function PortalAccountPage() {
 
   async function handleSignOutEverywhere() {
     await authApi.logout().catch(() => undefined);
+    await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
+    await fetch('/api/auth/oidc/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
     clearSession();
     router.replace('/portal/login');
   }
@@ -272,6 +279,113 @@ export default function PortalAccountPage() {
             </div>
           </div>
         </div>
+
+        {cancelFeedback && (
+          <div
+            className={`mt-4 flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium border ${
+              cancelFeedback.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}
+          >
+            {cancelFeedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            )}
+            <span>{cancelFeedback.msg}</span>
+          </div>
+        )}
+
+        {subscription && subscription.status !== 'CANCELLED' && (
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            {!cancelOpen ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">
+                  Cancelling immediately notifies the provisioned commercial platform runtime to deprovision or suspend this entitlement.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCancelFeedback(null);
+                    setCancelOpen(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-700 text-xs font-bold hover:bg-rose-50 transition-colors cursor-pointer"
+                >
+                  Cancel Subscription
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-rose-50/70 border border-rose-200 space-y-3">
+                <div className="text-xs font-bold text-rose-900">
+                  Confirm subscription cancellation
+                </div>
+                <p className="text-xs text-rose-800 leading-relaxed">
+                  Select a reason below and confirm to enqueue cancellation across billing and commercial platform provisioning.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    aria-label="Cancellation reason"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    disabled={cancelSubscription.isPending}
+                    className="px-3 py-2 rounded-xl border border-rose-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  >
+                    <option value="CUSTOMER_REQUESTED">Customer requested</option>
+                    <option value="SWITCHING_PLAN">Switching plan</option>
+                    <option value="COST_OPTIMIZATION">Cost optimization</option>
+                    <option value="PROJECT_COMPLETED">Project completed</option>
+                  </select>
+                  <button
+                    type="button"
+                    disabled={cancelSubscription.isPending}
+                    onClick={() => {
+                      setCancelFeedback(null);
+                      cancelSubscription.mutate(
+                        {
+                          subscriptionId: subscription.id,
+                          reasonCode: cancelReason,
+                        },
+                        {
+                          onSuccess: () => {
+                            setCancelOpen(false);
+                            setCancelFeedback({
+                              type: 'success',
+                              msg: 'Subscription cancellation recorded and queued for commercial platform lifecycle sync.',
+                            });
+                          },
+                          onError: (err) => {
+                            setCancelFeedback({
+                              type: 'error',
+                              msg:
+                                err instanceof Error
+                                  ? err.message
+                                  : 'Unable to cancel subscription. Please try again.',
+                            });
+                          },
+                        },
+                      );
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 disabled:opacity-50 cursor-pointer"
+                  >
+                    {cancelSubscription.isPending && (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    )}
+                    Confirm Cancellation
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cancelSubscription.isPending}
+                    onClick={() => setCancelOpen(false)}
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Keep Subscription
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Organization & Tax Profile form */}
