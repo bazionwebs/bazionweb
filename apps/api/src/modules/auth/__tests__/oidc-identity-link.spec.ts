@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as jwt from 'jsonwebtoken';
 import { createHash } from 'crypto';
+import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { ClientsService } from '../../clients/clients.service';
@@ -268,6 +269,83 @@ describe('OIDC (issuer, subject) Identity Mapping & Local Customer Login Policy'
     });
     const authSvcStrict = new AuthService(staffDisabledConfig as any, prisma as any);
     expect(authSvcStrict.isStaffLocalAuthDisabled()).toBe(true);
+  });
+
+  it('rejects customer password login, refresh, and magic-link via AuthController under AUTH_PROVIDER=oidc while keeping staff policy distinct', async () => {
+    const rawRefresh = 'rt_customer_legacy_token';
+    const refreshHash = createHash('sha256').update(rawRefresh).digest('hex');
+
+    const prisma = {
+      user: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.email === 'customer@example.com') {
+            return {
+              id: 'u-cust',
+              email: 'customer@example.com',
+              role: 'CLIENT',
+              deletedAt: null,
+              passwordHash: 'scrypt$salt$hash',
+            };
+          }
+          if (where.email === 'staff@bazionweb.com') {
+            return {
+              id: 'u-staff',
+              email: 'staff@bazionweb.com',
+              role: 'ADMIN',
+              deletedAt: null,
+              passwordHash: 'scrypt$salt$hash',
+            };
+          }
+          return null;
+        }),
+      },
+      refreshToken: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.tokenHash === refreshHash) {
+            return {
+              id: 'rt-1',
+              tokenHash: refreshHash,
+              revokedAt: null,
+              expiresAt: new Date(Date.now() + 600_000),
+              user: { id: 'u-cust', email: 'customer@example.com', role: 'CLIENT', deletedAt: null },
+            };
+          }
+          return null;
+        }),
+      },
+    };
+
+    const oidcConfig = makeConfig({
+      AUTH_PROVIDER: 'oidc',
+      STAFF_LOCAL_AUTH_POLICY: 'allow_staff_only',
+      JWT_SECRET: TEST_SECRET,
+    });
+    const authSvc = new AuthService(oidcConfig as any, prisma as any);
+    const controller = new AuthController(authSvc);
+
+    await expect(
+      controller.login({ email: 'customer@example.com', password: 'SomePassword123!' }),
+    ).rejects.toThrow(ForbiddenException);
+
+    await expect(controller.refresh({ refreshToken: rawRefresh })).rejects.toThrow(ForbiddenException);
+
+    await expect(controller.requestMagicLink({ email: 'customer@example.com' })).rejects.toThrow(
+      ForbiddenException,
+    );
+
+    // Staff password sign-in remains separately governed by STAFF_LOCAL_AUTH_POLICY
+    const oidcStrictStaff = new AuthService(
+      makeConfig({
+        AUTH_PROVIDER: 'oidc',
+        STAFF_LOCAL_AUTH_POLICY: 'oidc_only',
+        JWT_SECRET: TEST_SECRET,
+      }) as any,
+      prisma as any,
+    );
+    const strictController = new AuthController(oidcStrictStaff);
+    await expect(
+      strictController.login({ email: 'staff@bazionweb.com', password: 'SomePassword123!' }),
+    ).rejects.toThrow(ForbiddenException);
   });
 });
 

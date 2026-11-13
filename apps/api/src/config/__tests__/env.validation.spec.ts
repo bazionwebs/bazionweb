@@ -40,3 +40,51 @@ describe('document signing key validation', () => {
     expect(error?.details.some(({ path }) => path[0] === 'DOCUMENT_SIGNING_PREVIOUS_SECRET')).toBe(true);
   });
 });
+
+describe('customer & OIDC auth policy validation', () => {
+  it('accepts AUTH_PROVIDER=oidc in non-production environments', () => {
+    const { error, value } = envValidationSchema.validate({
+      ...validBaseConfig,
+      AUTH_PROVIDER: 'oidc',
+    });
+
+    expect(error).toBeUndefined();
+    expect(value.AUTH_PROVIDER).toBe('oidc');
+  });
+
+  it('fails closed in production when AUTH_PROVIDER=local has no customer auth policy override', () => {
+    const { error } = envValidationSchema.validate({
+      ...validBaseConfig,
+      NODE_ENV: 'production',
+      AUTH_PROVIDER: 'local',
+    });
+
+    expect(error?.message).toContain('CUSTOMER_AUTH_POLICY_REQUIRED');
+  });
+
+  it('rejects conflicting ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH=true with AUTH_PROVIDER=oidc in production', () => {
+    const { error } = envValidationSchema.validate({
+      ...validBaseConfig,
+      NODE_ENV: 'production',
+      AUTH_PROVIDER: 'oidc',
+      ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH: 'true',
+      OIDC_ISSUER: 'https://platform.bazionweb.com',
+      OIDC_BFF_SESSION_SECRET: 'oidc-session-secret-minimum-32-characters',
+    });
+
+    expect(error?.message).toContain('CUSTOMER_LOCAL_AUTH_CONFLICT');
+  });
+
+  it('accepts production AUTH_PROVIDER=oidc with HTTPS OIDC_ISSUER and >=32-char OIDC_BFF_SESSION_SECRET', () => {
+    const { error } = envValidationSchema.validate({
+      ...validBaseConfig,
+      NODE_ENV: 'production',
+      AUTH_PROVIDER: 'oidc',
+      STAFF_LOCAL_AUTH_POLICY: 'allow_staff_only',
+      OIDC_ISSUER: 'https://platform.bazionweb.com',
+      OIDC_BFF_SESSION_SECRET: 'oidc-session-secret-minimum-32-characters',
+    });
+
+    expect(error).toBeUndefined();
+  });
+});

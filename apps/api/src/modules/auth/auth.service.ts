@@ -202,6 +202,12 @@ export class AuthService {
   }
 
   private async localLogin(email: string, password: string): Promise<TokenPair> {
+    if (this.isCustomerLocalAuthDisabled() && this.isStaffLocalAuthDisabled()) {
+      throw new ForbiddenException({
+        code: 'LOCAL_PASSWORD_LOGIN_DISABLED',
+        message: 'Local password sign-in is disabled by policy. Please sign in with Platform OIDC.',
+      });
+    }
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (user && !user.deletedAt) {
       if (user.role === 'CLIENT' && this.isCustomerLocalAuthDisabled()) {
@@ -260,6 +266,19 @@ export class AuthService {
       stored.user.deletedAt
     ) {
       throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    if (stored.user.role === 'CLIENT' && this.isCustomerLocalAuthDisabled()) {
+      throw new ForbiddenException({
+        code: 'CUSTOMER_LOCAL_LOGIN_DISABLED',
+        message: 'Customer local session refresh is disabled. Please sign in with Platform OIDC.',
+      });
+    }
+    if (stored.user.role !== 'CLIENT' && this.isStaffLocalAuthDisabled()) {
+      throw new ForbiddenException({
+        code: 'STAFF_LOCAL_LOGIN_DISABLED',
+        message: 'Staff local session refresh is disabled by policy.',
+      });
     }
 
     // Rotate atomically: only the first concurrent caller consumes the refresh token.

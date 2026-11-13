@@ -14,7 +14,13 @@ export const envValidationSchema = Joi.object({
   DATABASE_URL_UNPOOLED: Joi.string().uri().optional().allow(''),
 
   // Auth & JWT (Enforce minimum 32 characters to prevent weak HMAC keys)
-  AUTH_PROVIDER: Joi.string().valid('local', 'keycloak').default('local'),
+  AUTH_PROVIDER: Joi.string().valid('local', 'keycloak', 'oidc').default('local'),
+  PLATFORM_SSOT_MODE: Joi.string().valid('true', 'false', '1', '0').optional().allow(''),
+  CUSTOMER_LOCAL_AUTH_DISABLED: Joi.string().valid('true', 'false', '1', '0').optional().allow(''),
+  ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH: Joi.string().valid('true', 'false', '1', '0').optional().allow(''),
+  STAFF_LOCAL_AUTH_POLICY: Joi.string().valid('allow_staff_only', 'disabled', 'oidc_only').default('allow_staff_only'),
+  OIDC_ISSUER: Joi.string().uri().optional().allow(''),
+  OIDC_BFF_SESSION_SECRET: Joi.string().min(32).optional().allow(''),
   JWT_SECRET: Joi.string()
     .min(32)
     .required()
@@ -88,4 +94,48 @@ export const envValidationSchema = Joi.object({
   PLATFORM_PROVISIONING_BATCH_SIZE: Joi.number().integer().min(1).max(50).default(10),
   PLATFORM_PROVISIONING_LEASE_SECONDS: Joi.number().integer().min(30).max(900).default(120),
   PLATFORM_PROVISIONING_TIMEOUT_MS: Joi.number().integer().min(500).max(30000).default(5000),
+}).custom((value, helpers) => {
+  if (value.NODE_ENV !== 'production') {
+    return value;
+  }
+
+  const ssotActive = value.PLATFORM_SSOT_MODE === 'true' || value.PLATFORM_SSOT_MODE === '1';
+  const oidcSelected = String(value.AUTH_PROVIDER ?? 'local').toLowerCase() === 'oidc';
+  const explicitDisabled =
+    value.CUSTOMER_LOCAL_AUTH_DISABLED === 'true' || value.CUSTOMER_LOCAL_AUTH_DISABLED === '1';
+  const explicitEnabled =
+    value.CUSTOMER_LOCAL_AUTH_DISABLED === 'false' || value.CUSTOMER_LOCAL_AUTH_DISABLED === '0';
+  const allowLegacy =
+    value.ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH === 'true' || value.ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH === '1';
+
+  if ((ssotActive || oidcSelected) && (explicitEnabled || allowLegacy)) {
+    return helpers.message({
+      custom:
+        'CUSTOMER_LOCAL_AUTH_CONFLICT: Customer local password authentication cannot be enabled in production when AUTH_PROVIDER=oidc or PLATFORM_SSOT_MODE=true.',
+    });
+  }
+
+  if (!ssotActive && !oidcSelected && !explicitDisabled && !allowLegacy) {
+    return helpers.message({
+      custom:
+        'CUSTOMER_AUTH_POLICY_REQUIRED: Production requires AUTH_PROVIDER=oidc, PLATFORM_SSOT_MODE=true, or CUSTOMER_LOCAL_AUTH_DISABLED=true (or explicit ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH=true prior to OIDC cutover).',
+    });
+  }
+
+  if (ssotActive || oidcSelected) {
+    const issuer = typeof value.OIDC_ISSUER === 'string' ? value.OIDC_ISSUER.trim() : '';
+    const sessionSecret = typeof value.OIDC_BFF_SESSION_SECRET === 'string' ? value.OIDC_BFF_SESSION_SECRET.trim() : '';
+    if (!issuer.startsWith('https://')) {
+      return helpers.message({
+        custom: 'OIDC_ISSUER must be an https:// URL in production when Platform OIDC is active.',
+      });
+    }
+    if (sessionSecret.length < 32) {
+      return helpers.message({
+        custom: 'OIDC_BFF_SESSION_SECRET (>= 32 chars) is required in production when Platform OIDC is active.',
+      });
+    }
+  }
+
+  return value;
 });

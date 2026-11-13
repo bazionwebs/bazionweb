@@ -214,7 +214,10 @@ export class AuthController {
   async refresh(@Body() dto: RefreshDto) {
     try {
       return await this.authService.refresh(dto.refreshToken);
-    } catch {
+    } catch (err) {
+      if (err instanceof ForbiddenException) {
+        throw err;
+      }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }
