@@ -72,4 +72,25 @@ describe('Bazionweb workspace & delivery invariants (Phase 0)', () => {
     expect(baseSql).toContain('CREATE TABLE "payment_logs"');
     expect(baseSql).toContain('"idempotency_key" TEXT NOT NULL');
   });
+
+  it('normalizes legacy commercial identifier columns before dependent foreign keys are added', () => {
+    const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
+    const migrationNames = readdirSync(migrationsDir)
+      .filter((name) => statSync(join(migrationsDir, name)).isDirectory())
+      .sort();
+    const referenceMigration = '20261029000000_normalize_commercial_reference_ids';
+    const vaultMigration = '20261030012500_add_vault_secrets';
+    const outboxMigration = '20261111000000_platform_provisioning_outbox';
+    const oidcMigration = '20261113050000_phase5_oidc_identity_links';
+
+    expect(migrationNames.indexOf(referenceMigration)).toBeGreaterThanOrEqual(0);
+    expect(migrationNames.indexOf(referenceMigration)).toBeLessThan(migrationNames.indexOf(vaultMigration));
+    expect(migrationNames.indexOf(referenceMigration)).toBeLessThan(migrationNames.indexOf(outboxMigration));
+    expect(migrationNames.indexOf(referenceMigration)).toBeLessThan(migrationNames.indexOf(oidcMigration));
+
+    const sql = readFileSync(join(migrationsDir, referenceMigration, 'migration.sql'), 'utf8');
+    expect(sql).toContain('ALTER TABLE "clients" ALTER COLUMN "id" TYPE TEXT USING "id"::TEXT');
+    expect(sql).toContain('ALTER TABLE "subscriptions" ALTER COLUMN "id" TYPE TEXT USING "id"::TEXT');
+    expect(sql).toContain('ALTER TABLE "invoices" ALTER COLUMN "id" TYPE TEXT USING "id"::TEXT');
+  });
 });
