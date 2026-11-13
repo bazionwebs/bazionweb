@@ -21,6 +21,7 @@ import { DarajaService } from '../billing/daraja.service';
 import { DeploymentProvider } from '../hosting/providers/deployment-provider.interface';
 import { AuthService } from '../auth/auth.service';
 import { isPrivateOrReservedIp } from '../hosting/hosting.service';
+import { assertLegacyProvisioningPermitted } from '../platform-provisioning/platform-ssot-guard';
 import { PaymentProvider, PaymentStatus } from '@prisma/client';
 import {
   RemediateOrphanPaymentDto,
@@ -381,6 +382,7 @@ export class AdminDiagnosticsService {
       if (account.platformDeploymentId) {
         throw new ConflictException('This hosting account is linked to Bazion Platform; Bazionweb cannot mutate its provider workload.');
       }
+      assertLegacyProvisioningPermitted('AdminDiagnosticsService.remediateDnsSsl.REISSUE_SSL', this.config);
       const provider = account.deploymentProvider?.trim().toLowerCase().replace(/provider$/, '');
       const deploymentProvider = this.deploymentProvider;
       const configuredProvider = deploymentProvider?.providerName?.trim().toLowerCase().replace(/provider$/, '');
@@ -1266,6 +1268,12 @@ export class AdminDiagnosticsService {
 
     if (account.platformDeploymentId && (dto.action === 'UNSUSPEND' || dto.action === 'NORMALIZE_STATUS')) {
       throw new ConflictException('This hosting account is linked to Bazion Platform; its deployment lifecycle is managed there.');
+    }
+
+    if (dto.action === 'UNSUSPEND') {
+      assertLegacyProvisioningPermitted('AdminDiagnosticsService.remediateDomainState.UNSUSPEND', this.config);
+    } else if (dto.action === 'NORMALIZE_STATUS') {
+      assertLegacyProvisioningPermitted('AdminDiagnosticsService.remediateDomainState.NORMALIZE_STATUS', this.config);
     }
 
     if (dto.action === 'UNSUSPEND' && account.status !== 'ACTIVE') {

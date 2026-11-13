@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -104,6 +105,14 @@ export class PlatformProvisioningAdminController {
     return this.reconciliation.pollLaggingOperations({ staleMinutes });
   }
 
+  @Post('reconciliation/push')
+  @ApiOperation({ summary: 'Push cross-entity reconciliation snapshot to Platform and alert on unresolved drift' })
+  async pushReconciliation(
+    @Query('staleMinutes', new ParseIntPipe({ optional: true })) staleMinutes = 5,
+  ) {
+    return this.reconciliation.pushCrossEntityReconciliationSnapshot({ staleMinutes });
+  }
+
   @Get('hosting-cutover')
   @ApiOperation({ summary: 'Compare legacy hosting rows with Platform domain claims before cutover' })
   async hostingCutoverReport(
@@ -111,6 +120,27 @@ export class PlatformProvisioningAdminController {
     @Query('limit', new ParseIntPipe({ optional: true })) limit = 50,
   ) {
     return this.hostingCutover.getReport(page, limit);
+  }
+
+  @Get('hosting-cutover/:id/dual-read')
+  @ApiOperation({ summary: 'Run dual-read consistency check between legacy HostingAccount and Platform projection' })
+  async hostingCutoverDualRead(@Param('id', ParseUUIDPipe) id: string) {
+    return this.hostingCutover.compareHostingProjectionDualRead(id);
+  }
+
+  @Post('hosting-cutover/:id/rollback-drill')
+  @ApiOperation({ summary: 'Execute and audit a non-destructive hosting cutover rollback drill' })
+  async hostingCutoverRollbackDrill(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { ticketId?: string; reason?: string },
+    @Request() req: any,
+  ) {
+    return this.hostingCutover.executeAuditedRollbackDrill({
+      accountId: id,
+      actorId: String(req?.user?.id ?? ''),
+      ticketId: String(body?.ticketId ?? ''),
+      reason: String(body?.reason ?? ''),
+    });
   }
 }
 

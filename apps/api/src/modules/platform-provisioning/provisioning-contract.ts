@@ -6,6 +6,7 @@ import provisioningOperationV1JsonSchema from './contracts/provisioning-operatio
 import provisioningStatusEventV1JsonSchema from './contracts/provisioning-status-event-v1.schema.json';
 import subscriptionLifecycleCommandV1JsonSchema from './contracts/subscription-lifecycle-command-v1.schema.json';
 import subscriptionLifecycleStatusEventV1JsonSchema from './contracts/subscription-lifecycle-status-event-v1.schema.json';
+import installationChangeCommandV1JsonSchema from './contracts/installation-change-command-v1.schema.json';
 
 export const CONTRACT_COMPATIBILITY_V1 = {
   contractName: 'bazion-commercial-platform-v1',
@@ -82,8 +83,8 @@ export interface ProvisionProductRequestV1 {
   source: 'bazionweb';
   customer: {
     externalCustomerId: string;
-    displayName: string;
-    primaryContact: { name: string; email: string };
+    displayName?: string;
+    primaryContact?: { name: string; email: string };
   };
   order: { externalOrderId: string; offerId: string; offerVersion: string };
   composition: {
@@ -300,4 +301,66 @@ export const validateSubscriptionLifecycleCommandV1 =
 export const validateSubscriptionLifecycleStatusEventV1Contract =
   createContractValidator<SubscriptionLifecycleStatusEventV1>(
     subscriptionLifecycleStatusEventV1JsonSchema as Record<string, unknown>,
+  );
+
+export type InstallationChangeType = 'addon_grant' | 'addon_revoke' | 'plan_upgrade' | 'rollback';
+
+export interface InstallationChangeCommandV1 {
+  schemaVersion: '1.0.0';
+  eventId: string;
+  correlationId: string;
+  idempotencyKey: string;
+  occurredAt: string;
+  source: 'bazionweb';
+  target: {
+    externalCustomerId: string;
+    installationId: string;
+    tenantId?: string;
+    expectedBaseComposition: {
+      product: { id: string; version: string };
+      solution: { id: string; version: string };
+      template: { id: string; version: string };
+    };
+  };
+  commercial: {
+    externalOrderId: string;
+    orderLineId: string;
+    invoiceId: string;
+    subscriptionId: string | null;
+  };
+  change: {
+    changeType: InstallationChangeType;
+    preservePinnedBaseComposition: true;
+    enableModules: string[];
+    disableModules: string[];
+    entitlementOverrides: Record<string, string | number | boolean>;
+    rollbackOfEventId: string | null;
+  };
+}
+
+export const validateInstallationChangeCommandV1 =
+  createContractValidator<InstallationChangeCommandV1>(
+    installationChangeCommandV1JsonSchema as Record<string, unknown>,
+    (cmd) => {
+      const issues: ProvisioningContractIssue[] = [];
+      const enableSet = new Set(cmd.change.enableModules);
+      if (cmd.change.disableModules.some((m) => enableSet.has(m))) {
+        issues.push({ path: '/change/disableModules', keyword: 'nonOverlappingModules' });
+      }
+      if (cmd.change.changeType === 'rollback' && !cmd.change.rollbackOfEventId) {
+        issues.push({ path: '/change/rollbackOfEventId', keyword: 'rollbackRequiresTarget' });
+      }
+      if (cmd.change.changeType !== 'rollback' && cmd.change.rollbackOfEventId !== null) {
+        issues.push({ path: '/change/rollbackOfEventId', keyword: 'nonRollbackTargetMustBeNull' });
+      }
+      if (
+        cmd.change.changeType !== 'rollback' &&
+        cmd.change.enableModules.length === 0 &&
+        cmd.change.disableModules.length === 0 &&
+        Object.keys(cmd.change.entitlementOverrides).length === 0
+      ) {
+        issues.push({ path: '/change', keyword: 'nonEmptyInstallationChange' });
+      }
+      return issues;
+    },
   );

@@ -1,6 +1,6 @@
 import {
-  Controller, Post, Body, Headers, HttpCode, UseGuards, Request,
-  HttpStatus, UnauthorizedException, Logger, NotFoundException,
+  Controller, Post, Body, Headers, HttpCode, UseGuards, Request, Req,
+  HttpStatus, UnauthorizedException, ForbiddenException, Logger, NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { IsEmail, IsOptional, IsString, IsUUID, MinLength, MaxLength } from 'class-validator';
@@ -117,6 +117,51 @@ class ChangePasswordDto {
   newPassword: string;
 }
 
+class OidcExchangeDto {
+  @ApiProperty()
+  @IsString()
+  issuer: string;
+
+  @ApiProperty()
+  @IsString()
+  subject: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
+
+class OidcClaimDto {
+  @ApiProperty()
+  @IsString()
+  issuer: string;
+
+  @ApiProperty()
+  @IsString()
+  subject: string;
+
+  @ApiProperty()
+  @IsEmail()
+  email: string;
+
+  @ApiProperty()
+  @IsString()
+  claimToken: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  firstName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  lastName?: string;
+}
+
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
@@ -136,7 +181,10 @@ export class AuthController {
   async login(@Body() dto: LoginDto) {
     try {
       return await this.authService.login(dto.email, dto.password);
-    } catch {
+    } catch (err) {
+      if (err instanceof ForbiddenException) {
+        throw err;
+      }
       throw new UnauthorizedException('Invalid email or password');
     }
   }
@@ -305,5 +353,37 @@ export class AuthController {
     const user = await this.authService.setUserPassword(dto.userId, dto.newPassword, req.user?.roles ?? []);
     if (!user) throw new NotFoundException('User not found');
     return { data: { userId: user.id } };
+  }
+
+  /**
+   * Server-side OIDC (issuer, subject) resolution for the Next.js BFF callback.
+   * POST /api/v1/auth/oidc/exchange
+   */
+  @Post('oidc/exchange')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resolve OIDC (issuer, subject) to Bazionweb commercial customer identity' })
+  async exchangeOidc(
+    @Body() dto: OidcExchangeDto,
+    @Headers('x-internal-dispatch') dispatchSecret?: string,
+  ) {
+    if (!this.authService.canDispatchTokens(dispatchSecret)) {
+      throw new UnauthorizedException('Internal BFF dispatch credential required.');
+    }
+    return { data: await this.authService.exchangeOidcCallback(dto) };
+  }
+
+  /**
+   * Explicit customer account claim binding an OIDC (issuer, subject) 1-to-1
+   * with a verified paid Bazionweb User and Client record.
+   * POST /api/v1/auth/oidc/claim
+   */
+  @Post('oidc/claim')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Explicitly bind an OIDC (issuer, subject) to a claimed paid account' })
+  async claimOidc(@Body() dto: OidcClaimDto, @Req() req: any) {
+    return { data: await this.authService.claimOidcAccount(dto, req?.ip) };
   }
 }

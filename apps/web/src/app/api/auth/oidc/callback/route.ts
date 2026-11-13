@@ -111,7 +111,68 @@ export async function GET(req: Request) {
       return applyNoStoreHeaders(res);
     }
 
-    const user = await verifyIdTokenWithJwks(tokenBody.id_token, config, tx.nonce, fetch);
+    const verifiedUser = await verifyIdTokenWithJwks(tokenBody.id_token, config, tx.nonce, fetch);
+    let user = verifiedUser;
+    let redirectOverride: string | null = null;
+
+    const apiBaseUrl = (
+      process.env.API_INTERNAL_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      ''
+    )
+      .trim()
+      .replace(/\/+$/, '');
+    const dispatchSecret = (process.env.INTERNAL_DISPATCH_SECRET || '').trim();
+    if (apiBaseUrl && dispatchSecret.length >= 12) {
+      const exchangeBase = apiBaseUrl.endsWith('/api/v1') ? apiBaseUrl : `${apiBaseUrl}/api/v1`;
+      const exchangeRes = await fetch(`${exchangeBase}/auth/oidc/exchange`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'x-internal-dispatch': dispatchSecret,
+        },
+        body: JSON.stringify({
+          issuer: verifiedUser.oidcIssuer,
+          subject: verifiedUser.oidcSubject,
+          email: verifiedUser.email || undefined,
+        }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => null);
+
+      const exchangeJson = (await exchangeRes?.json().catch(() => null)) as {
+        data?: {
+          linked?: boolean;
+          claimRequired?: boolean;
+          userId?: string;
+          clientId?: string | null;
+          roles?: string[];
+        };
+      } | null;
+
+      if (exchangeRes?.ok && exchangeJson?.data) {
+        if (exchangeJson.data.linked && exchangeJson.data.userId) {
+          user = {
+            ...verifiedUser,
+            id: exchangeJson.data.userId,
+            clientId: exchangeJson.data.clientId ?? null,
+            claimRequired: false,
+            roles: Array.isArray(exchangeJson.data.roles) && exchangeJson.data.roles.length > 0
+              ? exchangeJson.data.roles
+              : verifiedUser.roles,
+          };
+        } else if (exchangeJson.data.claimRequired) {
+          user = {
+            ...verifiedUser,
+            claimRequired: true,
+            clientId: null,
+          };
+          redirectOverride = `/portal/claim?mode=oidc${verifiedUser.email ? `&email=${encodeURIComponent(verifiedUser.email)}` : ''}`;
+        }
+      }
+    }
+
     const nowSeconds = Math.floor(Date.now() / 1000);
     const rawExpiresIn =
       typeof tokenBody.expires_in === 'number' && Number.isFinite(tokenBody.expires_in)
@@ -125,7 +186,7 @@ export async function GET(req: Request) {
       exp,
     });
     const edgeJwt = signBffEdgeJwt(config.sessionSecret, user, rawExpiresIn);
-    const safeTarget = sanitizeRedirectPath(tx.redirectTo) ?? '/portal';
+    const safeTarget = redirectOverride ?? sanitizeRedirectPath(tx.redirectTo) ?? '/portal';
 
     const response = NextResponse.redirect(new URL(safeTarget, config.appOrigin).toString(), 302);
     clearTxCookie(response, config.strictCookies);

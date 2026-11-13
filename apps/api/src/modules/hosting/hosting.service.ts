@@ -517,6 +517,7 @@ export class HostingService {
     if (account.platformDeploymentId && dto.status !== undefined && dto.status !== account.status) {
       throw new ConflictException('Platform-linked hosting status is read-only in Bazionweb; manage its deployment in Bazion Platform.');
     }
+    assertLegacyProvisioningPermitted('HostingService.updateAccount', this.config);
 
     const updated = await this.prisma.hostingAccount.update({
       where: { id },
@@ -653,6 +654,7 @@ export class HostingService {
   }
 
   async unlinkPlatformDeployment(id: string, evidenceRef: string, actor: { id?: string }) {
+    assertLegacyProvisioningPermitted('HostingService.unlinkPlatformDeployment', this.config);
     const cleanEvidenceRef = typeof evidenceRef === 'string' ? evidenceRef.trim() : '';
     if (!deploymentMappingEvidencePattern.test(cleanEvidenceRef)) {
       throw new BadRequestException('A valid rollback change ticket or drill evidence reference is required.');

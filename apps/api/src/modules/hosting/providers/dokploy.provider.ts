@@ -303,6 +303,7 @@ export class DokployProvider extends DeploymentProvider {
    * Triggers an asynchronous build and deployment of the application.
    */
   async triggerDeployment(workloadId: string): Promise<DeploymentResult> {
+    assertLegacyProvisioningPermitted('DokployProvider.triggerDeployment', this.config);
     this.assertConfigured();
     const res = await this.withRetry(() =>
       this.http.post('/api/application.deploy', { applicationId: workloadId }),
@@ -320,6 +321,7 @@ export class DokployProvider extends DeploymentProvider {
    * Sets environment variables in Dokploy format (KEY=VALUE newline-delimited block).
    */
   async setEnvironmentVariables(workloadId: string, env: Record<string, string>): Promise<boolean> {
+    assertLegacyProvisioningPermitted('DokployProvider.setEnvironmentVariables', this.config);
     this.assertConfigured();
     const envBlock = Object.entries(env)
       .map(([k, v]) => `${k}=${formatEnvValue(v)}`)
@@ -342,6 +344,7 @@ export class DokployProvider extends DeploymentProvider {
     domain?: string,
     pathPrefix?: string,
   ): Promise<DomainBindingResult> {
+    assertLegacyProvisioningPermitted('DokployProvider.bindDomain', this.config);
     this.assertConfigured();
 
     const conf: DomainBindingConfig =
@@ -462,6 +465,7 @@ export class DokployProvider extends DeploymentProvider {
    * Stops container execution.
    */
   async stopWorkload(workloadId: string): Promise<boolean> {
+    assertLegacyProvisioningPermitted('DokployProvider.stopWorkload', this.config);
     this.assertConfigured();
     await this.withRetry(() =>
       this.http.post('/api/application.stop', { applicationId: workloadId }),
@@ -473,6 +477,7 @@ export class DokployProvider extends DeploymentProvider {
    * Restarts container execution.
    */
   async restartWorkload(workloadId: string): Promise<boolean> {
+    assertLegacyProvisioningPermitted('DokployProvider.restartWorkload', this.config);
     this.assertConfigured();
     await this.withRetry(() =>
       this.http.post('/api/application.deploy', { applicationId: workloadId }),
@@ -484,6 +489,7 @@ export class DokployProvider extends DeploymentProvider {
    * Permanently destroys the application container and Traefik routers.
    */
   async destroyWorkload(workloadId: string): Promise<boolean> {
+    assertLegacyProvisioningPermitted('DokployProvider.destroyWorkload', this.config);
     this.assertConfigured();
     await this.withRetry(() =>
       this.http.post('/api/application.delete', { applicationId: workloadId }),

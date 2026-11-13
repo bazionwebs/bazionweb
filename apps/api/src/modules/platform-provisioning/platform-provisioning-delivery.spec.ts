@@ -195,7 +195,7 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
     expect(commands).toHaveLength(1);
     expect(commands[0]?.idempotencyKey).toBe('bazionweb:order:inv-1001:line:0:v1');
     expect(commands[0]?.externalOrderId).toBe('INV-2026-1001:line:0');
-    expect(commands[0]?.payload.customer.primaryContact.email).toBe('grace@savannah.example');
+    expect(commands[0]?.payload.customer).toEqual({ externalCustomerId: 'client-1001' });
     expect(commands[0]?.payload.order.offerId).toBe('website-business');
 
     const serialized = JSON.stringify(commands);
@@ -709,5 +709,100 @@ describe('BazionWeb commercial provisioning Phase 3 delivery suite', () => {
     expect(poll).toEqual({ checked: 1, updated: 1, errors: 0 });
     expect(savedProjection?.status).toBe('ready');
     expect(savedProjection?.installationId).toBe('78787878-7878-4787-8787-787878787878');
+  });
+
+  it('enqueues and delivers installation-change commands to /v1/internal/commercial/installation-changes with commercial:lifecycle:write scope', async () => {
+    const outboxRows: any[] = [];
+    const invoiceId = '88888888-8888-4888-8888-888888888888';
+    const clientId = '99999999-9999-4999-8999-999999999999';
+    const installationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+    const tx = {
+      platformProvisioningOutbox: {
+        upsert: jest.fn(async ({ create }) => {
+          outboxRows.push({
+            id: `outbox-${outboxRows.length + 1}`,
+            ...create,
+            attemptCount: 0,
+            maxAttempts: 5,
+            status: PlatformOutboxStatus.PENDING,
+          });
+        }),
+      },
+    };
+
+    const outboxService = new PlatformProvisioningOutboxService();
+    await outboxService.enqueueForSettledInvoice(tx, {
+      id: invoiceId,
+      invoiceNumber: 'INV-CHG-1',
+      clientId,
+      lineItems: [
+        {
+          description: 'Notifications add-on',
+          installationChangeTarget: {
+            installationId,
+            changeType: 'addon_grant',
+            enableModules: ['notifications'],
+            expectedBaseComposition: {
+              product: { id: 'church-ministry', version: '1.0.0' },
+              solution: { id: 'website-launch', version: '1.0.0' },
+              template: { id: 'node-nextjs', version: '1.0.0' },
+            },
+          },
+        },
+      ],
+      client: {
+        id: clientId,
+        businessName: 'Grace Church',
+        contactName: 'Pastor John',
+        email: 'john@grace.org',
+      },
+    });
+
+    expect(outboxRows).toHaveLength(1);
+    expect(outboxRows[0].payload.change.changeType).toBe('addon_grant');
+    expect(outboxRows[0].payload.target.installationId).toBe(installationId);
+
+    const updatedRows: any[] = [];
+    const prismaWorker: any = {
+      $transaction: jest.fn(async (fn) => fn(prismaWorker)),
+      platformProvisioningOutbox: {
+        findMany: jest.fn().mockResolvedValue([{ id: outboxRows[0].id }]),
+        findUnique: jest.fn().mockResolvedValue(outboxRows[0]),
+        updateMany: jest.fn(async (args) => {
+          updatedRows.push(args.data);
+          return { count: 1 };
+        }),
+      },
+    };
+
+    const deliveredCalls: Array<{ url: string; scopes: string[] }> = [];
+    const worker = new PlatformProvisioningWorkerService(prismaWorker);
+    const batch = await worker.processDueBatch({
+      platformApiBaseUrl: 'https://platform.example.test',
+      commandSecret: 'test-command-signing-secret-minimum-32c',
+      fetchImpl: async (url, init) => {
+        const auth = (init.headers as Record<string, string>).Authorization;
+        const jwtPayload = JSON.parse(Buffer.from(auth.split('.')[1]!, 'base64url').toString('utf8'));
+        deliveredCalls.push({ url, scopes: String(jwtPayload.scope ?? '').split(' ') });
+        return {
+          status: 200,
+          ok: true,
+          json: async () => ({
+            accepted: true,
+            changeId: 'chg-12345',
+          }),
+        };
+      },
+    });
+
+    expect(batch.accepted).toBe(1);
+    expect(deliveredCalls).toEqual([
+      {
+        url: 'https://platform.example.test/v1/internal/commercial/installation-changes',
+        scopes: ['commercial:lifecycle:write'],
+      },
+    ]);
+    expect(updatedRows[1].platformOperationId).toBe('chg-12345');
   });
 });

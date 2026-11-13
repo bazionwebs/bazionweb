@@ -64,28 +64,48 @@ export function createKeycloakJwksClient(config: ConfigService): ReturnType<type
   });
 }
 
-export function verifyBearerTokenForRequest(
+export async function verifyBearerTokenForRequest(
   token: string,
   config: ConfigService,
   jwks?: ReturnType<typeof jwksClient>,
 ): Promise<any> {
-  // Local BazionWeb tokens (HS256) first; Keycloak RS256 only when configured.
+  // Local BazionWeb tokens and BFF-signed edge tokens (HS256) first; OIDC/Keycloak RS256 when configured.
   const unverified = jwt.decode(token) as { iss?: string } | null;
-  if (unverified?.iss === 'bazionweb') {
-    return new Promise((resolve, reject) => {
-      jwt.verify(
-        token,
-        config.get<string>('JWT_SECRET') ?? '',
-        { algorithms: ['HS256'], issuer: 'bazionweb' },
-        (err, decoded) => (err ? reject(err) : resolve(decoded)),
-      );
-    });
+  if (unverified?.iss === 'bazionweb' || unverified?.iss === 'bazionweb-bff') {
+    const candidateSecrets =
+      unverified.iss === 'bazionweb-bff'
+        ? [config.get<string>('OIDC_BFF_SESSION_SECRET'), config.get<string>('JWT_SECRET')]
+        : [config.get<string>('JWT_SECRET')];
+    const secrets = candidateSecrets
+      .map((s) => (s ?? '').trim())
+      .filter((s, i, arr) => s.length >= 16 && arr.indexOf(s) === i);
+
+    let lastErr: unknown = new Error('No signing secret configured for local/BFF token');
+    for (const secret of secrets) {
+      try {
+        return await new Promise((resolve, reject) => {
+          jwt.verify(
+            token,
+            secret,
+            { algorithms: ['HS256'], issuer: unverified.iss },
+            (err, decoded) => (err ? reject(err) : resolve(decoded)),
+          );
+        });
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr;
   }
 
   const keycloakUrl = config.get<string>('KEYCLOAK_URL');
-  if (!keycloakUrl || !jwks) {
-    return Promise.reject(new Error('No local issuer and Keycloak is not configured'));
+  const oidcIssuer = config.get<string>('OIDC_ISSUER');
+  if ((!keycloakUrl && !oidcIssuer) || !jwks) {
+    return Promise.reject(new Error('No local issuer and OIDC/Keycloak is not configured'));
   }
+  const expectedIssuer = oidcIssuer
+    ? oidcIssuer.replace(/\/+$/, '')
+    : `${keycloakUrl}/realms/${config.get('KEYCLOAK_REALM')}`;
   return new Promise((resolve, reject) => {
     jwt.verify(
       token,
@@ -97,7 +117,7 @@ export function verifyBearerTokenForRequest(
       },
       {
         algorithms: ['RS256'],
-        issuer: `${keycloakUrl}/realms/${config.get('KEYCLOAK_REALM')}`,
+        issuer: expectedIssuer,
       },
       (err, decoded) => (err ? reject(err) : resolve(decoded)),
     );

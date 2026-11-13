@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  buildInstallationChangeCommandsForSettledInvoice,
   buildProvisioningRequestsForSettledInvoice,
   type BuiltProvisioningOutboxCommand,
   type SettledClientSource,
@@ -62,8 +64,13 @@ export class PlatformProvisioningOutboxService {
       client,
       occurredAt: opts?.occurredAt,
     });
+    const changeCommands = buildInstallationChangeCommandsForSettledInvoice({
+      invoice,
+      client,
+      occurredAt: opts?.occurredAt,
+    });
 
-    if (commands.length === 0) {
+    if (commands.length === 0 && changeCommands.length === 0) {
       this.logger.warn(
         `Invoice ${invoice.invoiceNumber ?? invoice.id} has no quote-time Platform catalog binding; no provisioning command was created.`,
       );
@@ -116,8 +123,39 @@ export class PlatformProvisioningOutboxService {
       });
     }
 
+    for (const changeCmd of changeCommands) {
+      const requestFingerprint = createHash('sha256')
+        .update(JSON.stringify(changeCmd.payload))
+        .digest('hex');
+
+      await tx.platformProvisioningOutbox.upsert({
+        where: {
+          invoiceId_lineIndex: {
+            invoiceId: invoice.id,
+            lineIndex: changeCmd.lineIndex,
+          },
+        },
+        update: {},
+        create: {
+          invoiceId: invoice.id,
+          clientId: invoice.clientId,
+          subscriptionId: invoice.subscriptionId ?? null,
+          lineIndex: changeCmd.lineIndex,
+          schemaVersion: changeCmd.payload.schemaVersion,
+          eventId: changeCmd.eventId,
+          correlationId: changeCmd.correlationId,
+          idempotencyKey: changeCmd.idempotencyKey,
+          requestFingerprint,
+          externalCustomerId: changeCmd.payload.target.externalCustomerId,
+          externalOrderId: changeCmd.payload.commercial.externalOrderId,
+          payload: changeCmd.payload,
+          nextAttemptAt: new Date(),
+        },
+      });
+    }
+
     this.logger.log(
-      `Enqueued ${commands.length} platform provisioning command(s) for invoice ${invoice.invoiceNumber ?? invoice.id}`,
+      `Enqueued ${commands.length} provisioning command(s) and ${changeCommands.length} installation-change command(s) for invoice ${invoice.invoiceNumber ?? invoice.id}`,
     );
 
     return commands;

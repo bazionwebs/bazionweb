@@ -42,6 +42,8 @@ export interface OidcTransactionState {
 
 export interface OidcSessionUser {
   id: string;
+  clientId?: string | null;
+  claimRequired?: boolean;
   email: string;
   firstName: string;
   lastName: string;
@@ -227,6 +229,8 @@ export function signBffEdgeJwt(secret: string, user: OidcSessionUser, ttlSeconds
     JSON.stringify({
       iss: 'bazionweb-bff',
       sub: user.id,
+      ...(user.clientId ? { clientId: user.clientId } : {}),
+      ...(typeof user.claimRequired === 'boolean' ? { claimRequired: user.claimRequired } : {}),
       oidcIss: user.oidcIssuer,
       oidcSub: user.oidcSubject,
       email: user.email,

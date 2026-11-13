@@ -3,9 +3,12 @@ import {
   resolveCanonicalProductId,
 } from '../pricing/canonical-catalog';
 import {
+  validateInstallationChangeCommandV1,
   validateProvisionProductRequestV1,
   validateProvisioningBindingSnapshotV1,
   type CatalogReleaseReferenceV1,
+  type InstallationChangeCommandV1,
+  type InstallationChangeType,
   type ProvisionProductRequestV1,
 } from './provisioning-contract';
 import {
@@ -102,6 +105,7 @@ export function buildProvisioningRequestsForSettledInvoice(input: {
   invoice: SettledInvoiceLineSource;
   client: SettledClientSource;
   occurredAt?: Date;
+  includeContactPii?: boolean;
 }): BuiltProvisioningOutboxCommand[] {
   const { invoice, client } = input;
   const rawLines = Array.isArray(invoice.lineItems)
@@ -139,14 +143,18 @@ export function buildProvisioningRequestsForSettledInvoice(input: {
       idempotencyKey,
       occurredAt: occurredAtIso,
       source: 'bazionweb',
-      customer: {
-        externalCustomerId: customerExternalId,
-        displayName,
-        primaryContact: {
-          name: contactName,
-          email: normalizedEmail,
-        },
-      },
+      customer: input.includeContactPii
+        ? {
+            externalCustomerId: customerExternalId,
+            displayName,
+            primaryContact: {
+              name: contactName,
+              email: normalizedEmail,
+            },
+          }
+        : {
+            externalCustomerId: customerExternalId,
+          },
       order: {
         externalOrderId,
         offerId: compositionTuple.offerId,
@@ -179,4 +187,113 @@ export function buildProvisioningRequestsForSettledInvoice(input: {
       payload: validatedValue,
     };
   });
+}
+
+export interface BuiltInstallationChangeOutboxCommand {
+  lineIndex: number;
+  eventId: string;
+  correlationId: string;
+  idempotencyKey: string;
+  installationId: string;
+  payload: InstallationChangeCommandV1;
+}
+
+/**
+ * Builds versioned target-installation add-on / upgrade entitlement commands
+ * for settled invoice lines carrying an explicit `installationChangeTarget`.
+ */
+export function buildInstallationChangeCommandsForSettledInvoice(input: {
+  invoice: SettledInvoiceLineSource;
+  client: SettledClientSource;
+  occurredAt?: Date;
+}): BuiltInstallationChangeOutboxCommand[] {
+  const { invoice, client } = input;
+  const rawLines = Array.isArray(invoice.lineItems)
+    ? invoice.lineItems.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
+    : [];
+
+  const occurredAtIso = (input.occurredAt ?? new Date()).toISOString();
+  const orderBase = sanitizeExternalId(invoice.invoiceNumber ?? invoice.id, 'ord');
+  const customerExternalId = sanitizeExternalId(client.id, 'cust');
+  const correlationId = deterministicUuidFromSeed(`bazionweb:install-change:corr:${invoice.id}`);
+  const results: BuiltInstallationChangeOutboxCommand[] = [];
+
+  rawLines.forEach((line, lineIndex) => {
+    const targetRaw = line.installationChangeTarget as Record<string, unknown> | undefined;
+    if (!targetRaw || typeof targetRaw !== 'object') return;
+
+    const installationId = String(targetRaw.installationId ?? '').trim();
+    const expectedBaseComposition = targetRaw.expectedBaseComposition as
+      | InstallationChangeCommandV1['target']['expectedBaseComposition']
+      | undefined;
+    const changeType = (String(targetRaw.changeType ?? 'addon_grant').trim() || 'addon_grant') as InstallationChangeType;
+    const enableModules = Array.isArray(targetRaw.enableModules)
+      ? targetRaw.enableModules.filter((m): m is string => typeof m === 'string')
+      : [];
+    const disableModules = Array.isArray(targetRaw.disableModules)
+      ? targetRaw.disableModules.filter((m): m is string => typeof m === 'string')
+      : [];
+    const entitlementOverrides =
+      targetRaw.entitlementOverrides &&
+      typeof targetRaw.entitlementOverrides === 'object' &&
+      !Array.isArray(targetRaw.entitlementOverrides)
+        ? (targetRaw.entitlementOverrides as Record<string, string | number | boolean>)
+        : {};
+    const rollbackOfEventId =
+      typeof targetRaw.rollbackOfEventId === 'string' && targetRaw.rollbackOfEventId.trim()
+        ? targetRaw.rollbackOfEventId.trim()
+        : null;
+
+    const eventId = deterministicUuidFromSeed(`bazionweb:install-change:evt:${invoice.id}:line:${lineIndex}`);
+    const idempotencyKey = `bazionweb:install-change:${invoice.id}:line:${lineIndex}:v1`;
+
+    const candidate: InstallationChangeCommandV1 = {
+      schemaVersion: '1.0.0',
+      eventId,
+      correlationId,
+      idempotencyKey,
+      occurredAt: occurredAtIso,
+      source: 'bazionweb',
+      target: {
+        externalCustomerId: customerExternalId,
+        installationId,
+        ...(typeof targetRaw.tenantId === 'string' && targetRaw.tenantId.trim()
+          ? { tenantId: targetRaw.tenantId.trim() }
+          : {}),
+        expectedBaseComposition: expectedBaseComposition!,
+      },
+      commercial: {
+        externalOrderId: `${orderBase}:line:${lineIndex}`,
+        orderLineId: `line-${lineIndex}`,
+        invoiceId: invoice.id,
+        subscriptionId: invoice.subscriptionId ?? null,
+      },
+      change: {
+        changeType,
+        preservePinnedBaseComposition: true,
+        enableModules,
+        disableModules,
+        entitlementOverrides,
+        rollbackOfEventId,
+      },
+    };
+
+    const validation = validateInstallationChangeCommandV1(candidate);
+    if (validation.valid === false && 'issues' in validation) {
+      throw new Error(
+        `INSTALLATION_CHANGE_CONTRACT_VALIDATION_FAILED:${validation.issues.map((i) => `${i.path}:${i.keyword}`).join(',')}`,
+      );
+    }
+
+    results.push({
+      lineIndex,
+      eventId,
+      correlationId,
+      idempotencyKey,
+      installationId,
+      payload: (validation as { valid: true; value: InstallationChangeCommandV1 }).value,
+    });
+  });
+
+  return results;
 }

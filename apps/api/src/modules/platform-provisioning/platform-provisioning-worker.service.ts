@@ -57,6 +57,34 @@ function normalizeSafeErrorCode(raw: unknown, fallback: string): string {
   return SAFE_ERROR_CODE_REGEX.test(trimmed) ? trimmed : fallback;
 }
 
+/**
+ * Strips transient contact PII (`displayName`, `primaryContact`) from persisted outbox
+ * payloads while preserving `customer.externalCustomerId` and commercial references.
+ */
+export function redactProvisioningOutboxPayload(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return payload;
+  }
+  const rawCustomer = payload.customer;
+  if (!rawCustomer || typeof rawCustomer !== 'object' || Array.isArray(rawCustomer)) {
+    return payload;
+  }
+  const customerObj = rawCustomer as Record<string, unknown>;
+  if (!('displayName' in customerObj) && !('primaryContact' in customerObj)) {
+    return payload;
+  }
+  return {
+    ...payload,
+    customer: {
+      ...(customerObj.externalCustomerId !== undefined
+        ? { externalCustomerId: customerObj.externalCustomerId }
+        : {}),
+    },
+  };
+}
+
 function computeRetryDelaySeconds(
   attemptNumber: number,
   baseSeconds: number,
@@ -253,15 +281,28 @@ export class PlatformProvisioningWorkerService {
       leaseConflicts: 0,
     };
 
-    const endpointUrl = `${baseUrl}/v1/internal/commercial/provisioning-requests`;
+    const provisioningEndpointUrl = `${baseUrl}/v1/internal/commercial/provisioning-requests`;
+    const installationChangeEndpointUrl = `${baseUrl}/v1/internal/commercial/installation-changes`;
 
     for (const item of claimed) {
+      const isInstallationChange =
+        Boolean(item.payload) &&
+        typeof item.payload === 'object' &&
+        'change' in item.payload &&
+        'target' in item.payload;
+      const endpointUrl = isInstallationChange
+        ? installationChangeEndpointUrl
+        : provisioningEndpointUrl;
+      const scopes = isInstallationChange
+        ? ['commercial:lifecycle:write']
+        : ['commercial:provisioning:write'];
+
       const bearer = signCommercialCommandToken(
         {
           subject: 'bazionweb-outbox-worker',
           issuer,
           audience,
-          scopes: ['commercial:provisioning:write'],
+          scopes,
           ttlSeconds: 120,
         },
         secret,
@@ -295,7 +336,12 @@ export class PlatformProvisioningWorkerService {
 
       if (acceptedOk) {
         const op = responseBody?.operation as Record<string, unknown> | undefined;
-        const operationId = typeof op?.operationId === 'string' ? op.operationId : null;
+        const operationId =
+          typeof op?.operationId === 'string'
+            ? op.operationId
+            : typeof responseBody?.changeId === 'string'
+              ? responseBody.changeId
+              : null;
         const ack = await this.prisma.platformProvisioningOutbox.updateMany({
           where: {
             id: item.id,
@@ -311,6 +357,7 @@ export class PlatformProvisioningWorkerService {
             leaseToken: null,
             leaseExpiresAt: null,
             acceptedAt: new Date(),
+            payload: redactProvisioningOutboxPayload(item.payload) as any,
           },
         });
         if (ack.count === 1) summary.accepted += 1;
@@ -437,6 +484,53 @@ export class PlatformProvisioningWorkerService {
 
       return updated;
     });
+  }
+
+  /**
+   * Nightly retention enforcement: redacts any transient contact fields on delivered
+   * (`ACCEPTED`) or expired dead-letter (`DEAD`) outbox payloads older than `retentionDays`.
+   */
+  @Cron('0 15 3 * * *')
+  async enforceOutboxRetentionPolicy(options?: {
+    retentionDays?: number;
+    now?: Date;
+  }): Promise<{ scanned: number; redacted: number; cutoffIso: string }> {
+    const retentionDaysRaw =
+      options?.retentionDays ??
+      Number(this.config?.get<string>('OUTBOX_RETENTION_DAYS') ?? 30);
+    const retentionDays = Math.max(1, Math.min(3650, Math.trunc(retentionDaysRaw || 30)));
+    const now = options?.now ?? new Date();
+    const cutoff = new Date(now.getTime() - retentionDays * 86_400_000);
+
+    const rows =
+      (await this.prisma.platformProvisioningOutbox.findMany({
+        where: {
+          OR: [
+            { status: PlatformOutboxStatus.ACCEPTED, acceptedAt: { lte: cutoff } },
+            { status: PlatformOutboxStatus.DEAD, deadLetteredAt: { lte: cutoff } },
+          ],
+        },
+        take: 500,
+      })) ?? [];
+
+    let redacted = 0;
+    for (const row of rows) {
+      const original = (row.payload ?? {}) as Record<string, unknown>;
+      const sanitized = redactProvisioningOutboxPayload(original);
+      if (sanitized !== original) {
+        await this.prisma.platformProvisioningOutbox.update({
+          where: { id: row.id },
+          data: { payload: sanitized as any },
+        });
+        redacted += 1;
+      }
+    }
+
+    return {
+      scanned: rows.length,
+      redacted,
+      cutoffIso: cutoff.toISOString(),
+    };
   }
 }
 

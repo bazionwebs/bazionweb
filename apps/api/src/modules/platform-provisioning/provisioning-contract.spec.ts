@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import sharedFixtures from './contracts/fixtures/v1-contract-fixtures.json';
 import {
   CONTRACT_COMPATIBILITY_V1,
+  validateInstallationChangeCommandV1,
   validateProvisionProductRequestV1,
   validateProvisioningOfferCatalogV1,
   validateProvisioningOperationV1Contract,
@@ -10,7 +11,10 @@ import {
   validateSubscriptionLifecycleStatusEventV1Contract,
   type ProvisioningContractResult,
 } from './provisioning-contract';
-import { buildProvisioningRequestsForSettledInvoice } from './provisioning-request-builder';
+import {
+  buildInstallationChangeCommandsForSettledInvoice,
+  buildProvisioningRequestsForSettledInvoice,
+} from './provisioning-request-builder';
 import { SubscriptionLifecycleOutboxService } from './subscription-lifecycle-outbox.service';
 
 interface FixtureCase {
@@ -31,6 +35,7 @@ const fixtures = sharedFixtures as {
   provisioningStatusEvent: FixtureGroup;
   subscriptionLifecycleCommand: FixtureGroup;
   subscriptionLifecycleStatusEvent: FixtureGroup;
+  installationChangeCommand: FixtureGroup;
 };
 
 describe('Bazion platform provisioning & lifecycle contract v1 (Ajv strict parity)', () => {
@@ -95,6 +100,7 @@ describe('Bazion platform provisioning & lifecycle contract v1 (Ajv strict parit
     ['provisioningStatusEvent', validateProvisioningStatusEventV1Contract],
     ['subscriptionLifecycleCommand', validateSubscriptionLifecycleCommandV1],
     ['subscriptionLifecycleStatusEvent', validateSubscriptionLifecycleStatusEventV1Contract],
+    ['installationChangeCommand', validateInstallationChangeCommandV1],
   ];
 
   it.each(validatorEntries)(
@@ -129,36 +135,35 @@ describe('Bazion platform provisioning & lifecycle contract v1 (Ajv strict parit
     }).valid).toBe(true);
   });
 
-  it('normalizes mixed-case whitespace contact email before emission while wire validator stays strict', () => {
-    const built = buildProvisioningRequestsForSettledInvoice({
+  it('omits contact PII by default and normalizes mixed-case whitespace email when legacy contact fields are requested', () => {
+    const lineItem = {
+      productId: 'website-launch',
+      offerId: 'website-launch',
+      offerVersion: '1.0.0',
+      quantity: 1,
+      requestedDomain: 'HTTPS://WWW.Acacia.Example.ORG/welcome',
+      platformProvisioningBinding: {
+        schemaVersion: '1.0.0',
+        catalogGeneratedAt: '2026-11-11T08:30:00.000Z',
+        binding: {
+          offer: { id: 'website-launch', version: '1.0.0' },
+          composition: {
+            product: { id: 'bazion-site', version: '1.0.0' },
+            solution: { id: 'business-website', version: '1.0.0' },
+            template: { id: 'node-nextjs', version: '1.0.0' },
+          },
+          requiredModules: [{ id: 'website-content', version: '1.0.0' }],
+          optionalModules: [{ id: 'forms-leads', version: '1.0.0' }],
+          distributionMode: 'shared-managed',
+        },
+      },
+    };
+    const piiFree = buildProvisioningRequestsForSettledInvoice({
       invoice: {
         id: 'inv-norm-1',
         invoiceNumber: 'INV-2026-0042',
         clientId: 'customer-1008',
-        lineItems: [
-          {
-            productId: 'website-launch',
-            offerId: 'website-launch',
-            offerVersion: '1.0.0',
-            quantity: 1,
-            requestedDomain: 'HTTPS://WWW.Acacia.Example.ORG/welcome',
-            platformProvisioningBinding: {
-              schemaVersion: '1.0.0',
-              catalogGeneratedAt: '2026-11-11T08:30:00.000Z',
-              binding: {
-                offer: { id: 'website-launch', version: '1.0.0' },
-                composition: {
-                  product: { id: 'bazion-site', version: '1.0.0' },
-                  solution: { id: 'business-website', version: '1.0.0' },
-                  template: { id: 'node-nextjs', version: '1.0.0' },
-                },
-                requiredModules: [{ id: 'website-content', version: '1.0.0' }],
-                optionalModules: [{ id: 'forms-leads', version: '1.0.0' }],
-                distributionMode: 'shared-managed',
-              },
-            },
-          },
-        ],
+        lineItems: [lineItem],
       },
       client: {
         id: 'customer-1008',
@@ -169,10 +174,63 @@ describe('Bazion platform provisioning & lifecycle contract v1 (Ajv strict parit
       occurredAt: new Date('2026-11-11T08:30:00.000Z'),
     });
 
-    expect(built).toHaveLength(1);
-    expect(built[0].payload.customer.primaryContact.email).toBe('admin@acacia.example.org');
-    expect(built[0].payload.requestedDomain).toBe('www.acacia.example.org');
-    expect(validateProvisionProductRequestV1(built[0].payload).valid).toBe(true);
+    expect(piiFree).toHaveLength(1);
+    expect(piiFree[0].payload.customer).toEqual({ externalCustomerId: 'customer-1008' });
+    expect(piiFree[0].payload.requestedDomain).toBe('www.acacia.example.org');
+    expect(validateProvisionProductRequestV1(piiFree[0].payload).valid).toBe(true);
+
+    const withContact = buildProvisioningRequestsForSettledInvoice({
+      invoice: {
+        id: 'inv-norm-1',
+        invoiceNumber: 'INV-2026-0042',
+        clientId: 'customer-1008',
+        lineItems: [lineItem],
+      },
+      client: {
+        id: 'customer-1008',
+        businessName: 'Acacia Studio Ltd',
+        contactName: 'Grace Wanjiku',
+        email: '  ADMIN@Acacia.Example.ORG  ',
+      },
+      occurredAt: new Date('2026-11-11T08:30:00.000Z'),
+      includeContactPii: true,
+    });
+    expect(withContact[0].payload.customer.primaryContact?.email).toBe('admin@acacia.example.org');
+    expect(validateProvisionProductRequestV1(withContact[0].payload).valid).toBe(true);
+  });
+
+  it('builds valid installation change commands for add-on entitlement purchases', () => {
+    const changes = buildInstallationChangeCommandsForSettledInvoice({
+      invoice: {
+        id: 'inv-addon-1',
+        invoiceNumber: 'INV-2026-0099',
+        clientId: 'customer-1008',
+        subscriptionId: 'sub-100',
+        lineItems: [
+          {
+            productId: 'addon-forms',
+            installationChangeTarget: {
+              installationId: '4954ba5a-6c50-4881-a3bc-c43076c7abc8',
+              changeType: 'addon_grant',
+              enableModules: ['forms-leads'],
+              disableModules: [],
+              entitlementOverrides: { 'forms-leads': true },
+              expectedBaseComposition: {
+                product: { id: 'bazion-site', version: '1.0.0' },
+                solution: { id: 'business-website', version: '1.0.0' },
+                template: { id: 'node-nextjs', version: '1.0.0' },
+              },
+            },
+          },
+        ],
+      },
+      client: { id: 'customer-1008' },
+      occurredAt: new Date('2026-11-12T12:00:00.000Z'),
+    });
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0].payload.change.preservePinnedBaseComposition).toBe(true);
+    expect(validateInstallationChangeCommandV1(changes[0].payload).valid).toBe(true);
   });
 
   it('returns only safe validation metadata without leaking customer PII', () => {

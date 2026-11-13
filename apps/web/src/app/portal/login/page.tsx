@@ -127,32 +127,48 @@ function PortalLoginContent() {
             </div>
           )}
 
-          {/* Auth Method Tabs */}
-          <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-100 mb-6 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => { setAuthMethod('magic-link'); setMagicLinkSent(false); setError(''); }}
-              className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                authMethod === 'magic-link' ? 'bg-white text-[#0F172A] shadow-xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
+          {/* Primary Customer Identity Provider (Platform OIDC SSO) */}
+          <div className="mb-6 space-y-3">
+            <a
+              href={`/api/auth/oidc/login${redirectPath ? `?redirect=${encodeURIComponent(redirectPath)}` : ''}`}
+              className="btn-primary inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl text-xs font-bold"
             >
-              <Mail className="w-3.5 h-3.5 text-[#2563EB]" />
-              Magic Link
-            </button>
-            <button
-              type="button"
-              onClick={() => { setAuthMethod('password'); setError(''); }}
-              className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                authMethod === 'password' ? 'bg-white text-[#0F172A] shadow-xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <KeyRound className="w-3.5 h-3.5 text-slate-500" />
-              Password
-            </button>
+              <ShieldCheck className="w-4 h-4" />
+              Continue with Bazion Platform ID (OIDC)
+            </a>
+            <p className="text-[11px] text-slate-400 text-center">
+              Customer portal authentication uses Bazion Platform single sign-on.
+            </p>
           </div>
 
+          {process.env.NEXT_PUBLIC_ALLOW_LEGACY_CUSTOMER_LOGIN === 'true' && (
+            <>
+              {/* Legacy Auth Method Tabs */}
+              <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-100 mb-6 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMethod('magic-link'); setMagicLinkSent(false); setError(''); }}
+                  className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                    authMethod === 'magic-link' ? 'bg-white text-[#0F172A] shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5 text-[#2563EB]" />
+                  Magic Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMethod('password'); setError(''); }}
+                  className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                    authMethod === 'password' ? 'bg-white text-[#0F172A] shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+                  Password
+                </button>
+              </div>
+
           {/* Magic Link Mode */}
-          {authMethod === 'magic-link' && (
+          {process.env.NEXT_PUBLIC_ALLOW_LEGACY_CUSTOMER_LOGIN === 'true' && authMethod === 'magic-link' && (
             <div>
               {!magicLinkSent ? (
                 <form onSubmit={handleMagicLinkSubmit} className="space-y-4">
@@ -232,7 +248,7 @@ function PortalLoginContent() {
           )}
 
           {/* Standard Password Mode */}
-          {authMethod === 'password' && (
+          {process.env.NEXT_PUBLIC_ALLOW_LEGACY_CUSTOMER_LOGIN === 'true' && authMethod === 'password' && (
             <form onSubmit={handlePasswordSubmit} className="space-y-4" noValidate>
               <div>
                 <label htmlFor="email" className="label text-xs">Email Address</label>
@@ -302,15 +318,10 @@ function PortalLoginContent() {
               </button>
             </form>
           )}
+            </>
+          )}
 
           <div className="mt-6 pt-5 border-t border-slate-100 text-center space-y-3">
-            <a
-              href={`/api/auth/oidc/login${redirectPath ? `?redirect=${encodeURIComponent(redirectPath)}` : ''}`}
-              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-[#0F172A] transition-colors"
-            >
-              <ShieldCheck className="w-4 h-4 text-[#2563EB]" />
-              Continue with Bazion Platform ID (OIDC)
-            </a>
             <p className="text-[11px] text-slate-400">
               Just completed payment?{' '}
               <Link href="/portal/claim" className="font-semibold text-[#2563EB] hover:underline">

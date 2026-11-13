@@ -4,6 +4,8 @@ import {
   Optional,
   UnauthorizedException,
   ForbiddenException,
+  ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -15,6 +17,7 @@ import {
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthMailService, sanitizeRedirectPath } from './auth-mail.service';
+import { isPlatformSsotAuthoritative } from '../platform-provisioning/platform-ssot-guard';
 
 // Promise wrapper with an explicit signature (avoids promisify overload issues)
 function scryptAsync(
@@ -131,6 +134,36 @@ export class AuthService {
   }
 
   /**
+   * Customer portal accounts migrate exclusively to Platform OIDC once
+   * Platform SSoT is authoritative (or AUTH_PROVIDER=oidc / explicit disable).
+   * Staff accounts remain governed separately by STAFF_LOCAL_AUTH_POLICY.
+   */
+  isCustomerLocalAuthDisabled(): boolean {
+    const explicitDisabled = (this.config.get<string>('CUSTOMER_LOCAL_AUTH_DISABLED') ?? '')
+      .trim()
+      .toLowerCase();
+    if (explicitDisabled === 'true' || explicitDisabled === '1') return true;
+    if (explicitDisabled === 'false' || explicitDisabled === '0') return false;
+
+    const provider = (this.config.get<string>('AUTH_PROVIDER') ?? 'local').trim().toLowerCase();
+    if (provider === 'oidc') return true;
+
+    const allowLegacy = (this.config.get<string>('ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH') ?? '')
+      .trim()
+      .toLowerCase();
+    if (allowLegacy === 'true' || allowLegacy === '1') return false;
+
+    return isPlatformSsotAuthoritative(this.config);
+  }
+
+  isStaffLocalAuthDisabled(): boolean {
+    const policy = (this.config.get<string>('STAFF_LOCAL_AUTH_POLICY') ?? 'allow_staff_only')
+      .trim()
+      .toLowerCase();
+    return policy === 'disabled' || policy === 'oidc_only';
+  }
+
+  /**
    * Raw claim/magic tokens are only returned to the Next.js mailer BFF,
    * never to anonymous API callers. The BFF proves itself strictly with the dedicated
    * shared dispatch secret (INTERNAL_DISPATCH_SECRET).
@@ -170,6 +203,20 @@ export class AuthService {
 
   private async localLogin(email: string, password: string): Promise<TokenPair> {
     const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user && !user.deletedAt) {
+      if (user.role === 'CLIENT' && this.isCustomerLocalAuthDisabled()) {
+        throw new ForbiddenException({
+          code: 'CUSTOMER_LOCAL_LOGIN_DISABLED',
+          message: 'Customer password sign-in is disabled. Please sign in with Platform OIDC.',
+        });
+      }
+      if (user.role !== 'CLIENT' && this.isStaffLocalAuthDisabled()) {
+        throw new ForbiddenException({
+          code: 'STAFF_LOCAL_LOGIN_DISABLED',
+          message: 'Staff local password sign-in is disabled by policy.',
+        });
+      }
+    }
     if (!user || user.deletedAt || !user.passwordHash) {
       await verifyPassword(password, DUMMY_PASSWORD_HASH);
       throw new UnauthorizedException('Invalid email or password');
@@ -284,6 +331,12 @@ export class AuthService {
     if (!user || user.deletedAt) {
       throw new UnauthorizedException('Account not found');
     }
+    if (user.role === 'CLIENT' && this.isCustomerLocalAuthDisabled()) {
+      throw new ForbiddenException({
+        code: 'CUSTOMER_LOCAL_LOGIN_DISABLED',
+        message: 'Customer password management is handled by Platform OIDC.',
+      });
+    }
 
     if (user.passwordHash) {
       if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordHash))) {
@@ -365,6 +418,11 @@ export class AuthService {
     }
     const cleanEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (user && !user.deletedAt && user.role === 'CLIENT' && this.isCustomerLocalAuthDisabled()) {
+      return apiMailReady
+        ? { resetToken: '', expiresIn: 0, emailDispatched: true, delivered: true }
+        : { resetToken: '', expiresIn: 0 };
+    }
     if (!user || user.deletedAt || !user.passwordHash) {
       return apiMailReady
         ? { resetToken: '', expiresIn: 0, emailDispatched: true, delivered: true }
@@ -425,6 +483,13 @@ export class AuthService {
       stored.user.deletedAt
     ) {
       throw new UnauthorizedException('This reset link is invalid or has expired.');
+    }
+
+    if (stored.user.role === 'CLIENT' && this.isCustomerLocalAuthDisabled()) {
+      throw new ForbiddenException({
+        code: 'CUSTOMER_LOCAL_LOGIN_DISABLED',
+        message: 'Customer password reset is disabled; sign in with Platform OIDC.',
+      });
     }
 
     // Unclaimed checkout guests must complete the pay-first claim flow instead.
@@ -760,6 +825,12 @@ export class AuthService {
     provider?: string;
     message?: string;
   }> {
+    if (this.isCustomerLocalAuthDisabled()) {
+      throw new ForbiddenException({
+        code: 'CUSTOMER_LOCAL_LOGIN_DISABLED',
+        message: 'Customer magic-link sign-in is disabled. Sign in with Platform OIDC.',
+      });
+    }
     const apiMailReady = Boolean(this.mailService?.isConfigured());
     if (!dispatchAuthorized && !apiMailReady) {
       return { magicToken: '', expiresIn: 0 };
@@ -847,6 +918,12 @@ export class AuthService {
     }
 
     const user = stored.user;
+    if (user.role === 'CLIENT' && this.isCustomerLocalAuthDisabled()) {
+      throw new ForbiddenException({
+        code: 'CUSTOMER_LOCAL_LOGIN_DISABLED',
+        message: 'Customer local authentication is disabled; use Platform OIDC.',
+      });
+    }
     const subStatus = await this.resolveSubscriptionStatus(user.id);
 
     const tokens = await this.issueTokenPair({
@@ -959,6 +1036,240 @@ export class AuthService {
         refreshToken: tokens.refresh_token,
         expiresIn:    tokens.expires_in,
       },
+    };
+  }
+
+  // ── Audited 1-to-1 Platform OIDC (issuer, subject) Identity Bridge ───────
+
+  private normalizeOidcIssuer(issuer: string): string {
+    return (issuer || '').trim().replace(/\/+$/, '');
+  }
+
+  async resolveOidcIdentity(params: { issuer: string; subject: string }): Promise<
+    | {
+        linked: false;
+        claimRequired: true;
+        issuer: string;
+        subject: string;
+      }
+    | {
+        linked: true;
+        claimRequired: false;
+        issuer: string;
+        subject: string;
+        userId: string;
+        clientId: string | null;
+        role: string;
+        roles: string[];
+        email: string;
+      }
+  > {
+    const cleanIssuer = this.normalizeOidcIssuer(params.issuer);
+    const cleanSubject = (params.subject || '').trim();
+    if (!cleanIssuer || !cleanSubject) {
+      throw new BadRequestException('OIDC issuer and subject are required.');
+    }
+
+    const link = await (this.prisma as any).oidcIdentityLink.findUnique({
+      where: {
+        issuer_subject: { issuer: cleanIssuer, subject: cleanSubject },
+      },
+      include: {
+        user: { include: { client: true } },
+        client: true,
+      },
+    });
+
+    if (!link || link.revokedAt || !link.user || link.user.deletedAt) {
+      return {
+        linked: false,
+        claimRequired: true,
+        issuer: cleanIssuer,
+        subject: cleanSubject,
+      };
+    }
+
+    return {
+      linked: true,
+      claimRequired: false,
+      issuer: cleanIssuer,
+      subject: cleanSubject,
+      userId: link.userId,
+      clientId: link.clientId ?? link.client?.id ?? link.user.client?.id ?? null,
+      role: link.user.role,
+      roles: expandRoles(link.user.role),
+      email: link.user.email,
+    };
+  }
+
+  async exchangeOidcCallback(dto: { issuer: string; subject: string; email?: string }) {
+    const resolved = await this.resolveOidcIdentity({
+      issuer: dto.issuer,
+      subject: dto.subject,
+    });
+
+    await (this.prisma as any).auditLog
+      ?.create?.({
+        data: {
+          userId: resolved.linked ? resolved.userId : null,
+          action: resolved.linked
+            ? 'auth.oidc_identity.exchanged'
+            : 'auth.oidc_identity.claim_required',
+          resourceType: 'OidcIdentityLink',
+          resourceId: `${resolved.issuer}:${resolved.subject}`,
+          newValue: {
+            linked: resolved.linked,
+            issuer: resolved.issuer,
+            subject: resolved.subject,
+            userId: resolved.linked ? resolved.userId : null,
+            clientId: resolved.linked ? resolved.clientId : null,
+          },
+        },
+      })
+      ?.catch(() => undefined);
+
+    return resolved;
+  }
+
+  async claimOidcAccount(
+    dto: {
+      issuer: string;
+      subject: string;
+      email: string;
+      claimToken: string;
+      firstName?: string;
+      lastName?: string;
+    },
+    ipAddress?: string,
+  ) {
+    const cleanIssuer = this.normalizeOidcIssuer(dto.issuer);
+    const cleanSubject = (dto.subject || '').trim();
+    const cleanEmail = (dto.email || '').trim().toLowerCase();
+    if (!cleanIssuer || !cleanSubject || !cleanEmail) {
+      throw new BadRequestException('OIDC issuer, subject, and billing email are required.');
+    }
+    if (!dto.claimToken?.startsWith(CLAIM_TOKEN_PREFIX)) {
+      throw new ForbiddenException(
+        'Verify your billing inbox first with the claim link sent to your email.',
+      );
+    }
+
+    const tokenHash = createHash('sha256').update(dto.claimToken).digest('hex');
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (
+      !stored ||
+      stored.revokedAt ||
+      stored.expiresAt.getTime() <= Date.now() ||
+      !stored.user ||
+      stored.user.deletedAt
+    ) {
+      throw new ForbiddenException('This claim link is invalid or has expired. Request a new one.');
+    }
+    if (stored.user.email !== cleanEmail) {
+      throw new ForbiddenException('This claim link was issued for a different email address.');
+    }
+
+    const { client, paid } = await this.loadPaidEvidence(cleanEmail);
+    if (!client || !paid) {
+      throw new ForbiddenException(
+        'No paid subscription found for this email yet. Wait for payment settlement and retry.',
+      );
+    }
+    if (client.userId && client.userId !== stored.user.id) {
+      throw new ForbiddenException('This client account is already linked to another user.');
+    }
+
+    const linkResult = await this.prisma.$transaction(async (tx: any) => {
+      const existingConflict = await tx.oidcIdentityLink.findFirst({
+        where: {
+          revokedAt: null,
+          OR: [
+            { issuer: cleanIssuer, subject: cleanSubject },
+            { userId: stored.user.id },
+            { clientId: client.id },
+          ],
+        },
+      });
+      if (existingConflict) {
+        throw new ConflictException({
+          code: 'OIDC_IDENTITY_ALREADY_LINKED',
+          message:
+            'This OIDC identity, user account, or client record is already linked 1-to-1.',
+        });
+      }
+
+      const consumed = await tx.refreshToken.updateMany({
+        where: { id: stored.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (consumed.count === 0) {
+        throw new ForbiddenException('This claim link has already been used. Request a new one.');
+      }
+
+      const firstName = dto.firstName ?? stored.user.firstName;
+      const lastName = dto.lastName ?? stored.user.lastName;
+      await tx.user.update({
+        where: { id: stored.user.id },
+        data: {
+          firstName,
+          lastName,
+          lastLoginAt: new Date(),
+        },
+      });
+
+      await tx.client.update({
+        where: { id: client.id },
+        data: { userId: stored.user.id, status: 'ACTIVE' },
+      });
+
+      const createdLink = await tx.oidcIdentityLink.create({
+        data: {
+          issuer: cleanIssuer,
+          subject: cleanSubject,
+          userId: stored.user.id,
+          clientId: client.id,
+          email: cleanEmail,
+          claimMethod: 'EXPLICIT_CLAIM_TOKEN',
+          linkedBy: stored.user.id,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: stored.user.id,
+          action: 'auth.oidc_identity.linked',
+          resourceType: 'OidcIdentityLink',
+          resourceId: createdLink.id,
+          newValue: {
+            issuer: cleanIssuer,
+            subject: cleanSubject,
+            userId: stored.user.id,
+            clientId: client.id,
+            email: cleanEmail,
+            claimMethod: 'EXPLICIT_CLAIM_TOKEN',
+          },
+          ipAddress: ipAddress ?? null,
+        },
+      });
+
+      return createdLink;
+    });
+
+    return {
+      linked: true,
+      claimRequired: false,
+      linkId: linkResult.id,
+      issuer: cleanIssuer,
+      subject: cleanSubject,
+      userId: stored.user.id,
+      clientId: client.id,
+      email: stored.user.email,
+      role: stored.user.role,
+      roles: expandRoles(stored.user.role),
     };
   }
 }

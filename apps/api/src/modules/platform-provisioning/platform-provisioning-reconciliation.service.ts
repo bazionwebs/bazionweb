@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron } from '@nestjs/schedule';
 import { InvoiceStatus, PlatformOutboxStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformCallbackProjectionService } from './platform-callback-projection.service';
@@ -284,6 +286,198 @@ export class PlatformProvisioningReconciliationService {
       updated,
       errors,
     };
+  }
+
+  /**
+   * Pushes paid commercial order snapshots to Platform's cross-entity reconciliation
+   * endpoint and emits structured error logs + immutable audit alerts on unresolved drift.
+   */
+  async pushCrossEntityReconciliationSnapshot(options?: {
+    staleMinutes?: number;
+    platformApiBaseUrl?: string;
+    commandSecret?: string;
+    commandIssuer?: string;
+    commandAudience?: string;
+    timeoutMs?: number;
+    fetchImpl?: FetchLike;
+  }): Promise<{
+    correlationId: string;
+    ordersSubmitted: number;
+    localDriftCount: number;
+    remoteUnresolvedDriftCount: number;
+    alertTriggered: boolean;
+  }> {
+    const rawBaseUrl = (options?.platformApiBaseUrl ?? this.config?.get<string>('PLATFORM_API_BASE_URL') ?? '').trim();
+    const secret = (options?.commandSecret ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_SECRET') ?? '').trim();
+    if (!rawBaseUrl || !secret) {
+      throw new Error('PLATFORM_PROVISIONING_RECONCILIATION_NOT_CONFIGURED');
+    }
+    const baseUrl = assertSafePlatformBaseUrl(rawBaseUrl, {
+      isProduction: this.config?.get<string>('NODE_ENV') === 'production',
+      errorCode: 'PLATFORM_PROVISIONING_BASE_URL_INVALID',
+    });
+
+    const issuer = options?.commandIssuer ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_ISSUER') ?? DEFAULT_COMMAND_ISSUER;
+    const audience = options?.commandAudience ?? this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_AUDIENCE') ?? DEFAULT_COMMAND_AUDIENCE;
+    const timeoutMs = options?.timeoutMs ?? Number(this.config?.get('PLATFORM_PROVISIONING_TIMEOUT_MS') ?? 5000);
+    const correlationId = randomUUID();
+
+    const localReport = await this.getReconciliationReport(options?.staleMinutes ?? 5);
+    const localDriftCount =
+      localReport.counts.paidInvoicesWithoutOutbox
+      + localReport.counts.acceptedWithoutStatusLag
+      + localReport.counts.deadOutboxCount
+      + localReport.counts.staleProcessingLeases
+      + localReport.counts.failedOrCompensationRequired;
+
+    const outboxSnapshots = await this.prisma.platformProvisioningOutbox.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: {
+        externalOrderId: true,
+        externalCustomerId: true,
+        clientId: true,
+        payload: true,
+        platformOperationId: true,
+        createdAt: true,
+        invoice: { select: { status: true, paidAt: true } },
+        projection: {
+          select: {
+            platformTenantId: true,
+            installationId: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    const paidOrders = outboxSnapshots
+      .filter((item) => item.invoice?.status === InvoiceStatus.PAID || item.invoice == null)
+      .map((item) => {
+        const payload = (item.payload && typeof item.payload === 'object' ? item.payload : {}) as {
+          order?: { offerId?: string; offerVersion?: string };
+        };
+        return {
+          externalOrderId: item.externalOrderId,
+          externalCustomerId: item.externalCustomerId || item.clientId,
+          offerId: payload.order?.offerId ?? 'website-launch',
+          offerVersion: payload.order?.offerVersion ?? '1.0.0',
+          paymentStatus: 'paid' as const,
+          paidAt: (item.invoice?.paidAt ?? item.createdAt ?? new Date()).toISOString(),
+          operationId: item.platformOperationId ?? null,
+          tenantId: item.projection?.platformTenantId ?? null,
+          installationId: item.projection?.installationId ?? null,
+          provisioningStatus: (item.projection?.status as string | undefined) ?? null,
+          legacyFallbackUsed: false,
+          legacyTenantId: null,
+        };
+      });
+
+    const token = signCommercialCommandToken(
+      {
+        subject: 'bazionweb-reconciliation-scheduler',
+        issuer,
+        audience,
+        scopes: ['commercial:provisioning:read'],
+        ttlSeconds: 120,
+      },
+      secret,
+    );
+
+    const fetchImpl: FetchLike =
+      options?.fetchImpl ??
+      (async (url, init) => {
+        const res = await fetch(url, { ...init, redirect: 'error' });
+        const parsed = await readJsonResponseWithSizeLimit(res, DEFAULT_MAX_PLATFORM_RESPONSE_BYTES).catch(() => null);
+        return {
+          status: res.status,
+          ok: res.ok,
+          json: async () => parsed,
+        };
+      });
+
+    const res = await fetchImpl(`${baseUrl}/v1/internal/commercial/reconciliation/report`, {
+      method: 'POST',
+      redirect: 'error',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-Correlation-Id': correlationId,
+      },
+      body: JSON.stringify({
+        schemaVersion: '1.0.0',
+        correlationId,
+        paidOrders,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    const remoteBody = (await res.json()) as {
+      summary?: { unresolvedDriftCount?: number; criticalExceptions?: number };
+    } | null;
+    if (!res.ok) {
+      throw new Error(`PLATFORM_RECONCILIATION_PUSH_FAILED:${res.status}`);
+    }
+
+    const remoteUnresolvedDriftCount = Number(remoteBody?.summary?.unresolvedDriftCount ?? 0);
+    const alertTriggered = localDriftCount > 0 || remoteUnresolvedDriftCount > 0;
+
+    if (alertTriggered) {
+      this.logger.error(
+        JSON.stringify({
+          event: 'PLATFORM_RECONCILIATION_DRIFT_ALERT',
+          correlationId,
+          localDriftCount,
+          remoteUnresolvedDriftCount,
+          ordersSubmitted: paidOrders.length,
+        }),
+      );
+      if (typeof (this.prisma as any).auditLog?.create === 'function') {
+        await (this.prisma as any).auditLog
+          .create({
+            data: {
+              action: 'PLATFORM_RECONCILIATION_DRIFT_ALERT',
+              resourceType: 'PlatformReconciliation',
+              resourceId: correlationId,
+              newValue: {
+                localDriftCount,
+                remoteUnresolvedDriftCount,
+                ordersSubmitted: paidOrders.length,
+                localCounts: localReport.counts,
+              },
+            },
+          })
+          .catch(() => undefined);
+      }
+    }
+
+    return {
+      correlationId,
+      ordersSubmitted: paidOrders.length,
+      localDriftCount,
+      remoteUnresolvedDriftCount,
+      alertTriggered,
+    };
+  }
+
+  /** Scheduled every 15 minutes to poll lagging operations and push cross-entity snapshots. */
+  @Cron('0 */15 * * * *')
+  async scheduledReconciliationTick(): Promise<void> {
+    if (this.config?.get<string>('PLATFORM_PROVISIONING_RECONCILIATION_CRON_ENABLED') === 'false') {
+      return;
+    }
+    const baseUrl = (this.config?.get<string>('PLATFORM_API_BASE_URL') ?? '').trim();
+    const secret = (this.config?.get<string>('PLATFORM_PROVISIONING_COMMAND_SECRET') ?? '').trim();
+    if (!baseUrl || !secret) {
+      return;
+    }
+
+    await this.pollLaggingOperations().catch((err) => {
+      this.logger.error(`Scheduled lag poll failed: ${err instanceof Error ? err.message : 'UNKNOWN'}`);
+    });
+    await this.pushCrossEntityReconciliationSnapshot().catch((err) => {
+      this.logger.error(`Scheduled cross-entity reconciliation push failed: ${err instanceof Error ? err.message : 'UNKNOWN'}`);
+    });
   }
 }
 

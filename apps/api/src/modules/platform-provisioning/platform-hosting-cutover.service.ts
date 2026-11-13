@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type HostingCutoverClassification =
@@ -265,6 +265,172 @@ export class PlatformHostingCutoverService {
         legacyOnly: toCount(row?.legacyOnly),
       },
       items: Array.isArray(row?.items) ? row.items : [],
+    };
+  }
+
+  /**
+   * Compares a Bazionweb HostingAccount row against its PlatformDeployment projection
+   * (read-only dual read) to surface mapping/status/domain parity before cutover.
+   */
+  async compareHostingProjectionDualRead(accountId: string): Promise<{
+    accountId: string;
+    status: 'matched' | 'drift' | 'unmapped' | 'not_found';
+    hostingStatus: string | null;
+    platformProjectionStatus: string | null;
+    hostingDomain: string | null;
+    platformRequestedDomain: string | null;
+    platformDeploymentId: string | null;
+    drifts: string[];
+  }> {
+    const account = await this.prisma.hostingAccount.findUnique({
+      where: { id: accountId },
+      select: {
+        id: true,
+        clientId: true,
+        domain: true,
+        status: true,
+        platformDeploymentId: true,
+      },
+    });
+    if (!account) {
+      return {
+        accountId,
+        status: 'not_found',
+        hostingStatus: null,
+        platformProjectionStatus: null,
+        hostingDomain: null,
+        platformRequestedDomain: null,
+        platformDeploymentId: null,
+        drifts: ['HOSTING_ACCOUNT_NOT_FOUND'],
+      };
+    }
+
+    const projection = account.platformDeploymentId
+      ? await this.prisma.platformProvisioningProjection.findFirst({
+          where: { platformDeploymentId: account.platformDeploymentId },
+          select: {
+            clientId: true,
+            status: true,
+            requestedDomain: true,
+            platformDeploymentId: true,
+          },
+        })
+      : await this.prisma.platformProvisioningProjection.findFirst({
+          where: {
+            clientId: account.clientId,
+            requestedDomain: { equals: account.domain, mode: 'insensitive' },
+          },
+          select: {
+            clientId: true,
+            status: true,
+            requestedDomain: true,
+            platformDeploymentId: true,
+          },
+        });
+
+    if (!projection) {
+      return {
+        accountId: account.id,
+        status: 'unmapped',
+        hostingStatus: String(account.status),
+        platformProjectionStatus: null,
+        hostingDomain: account.domain,
+        platformRequestedDomain: null,
+        platformDeploymentId: account.platformDeploymentId ?? null,
+        drifts: ['PLATFORM_PROJECTION_MISSING'],
+      };
+    }
+
+    const drifts: string[] = [];
+    if (!account.platformDeploymentId) {
+      drifts.push('HOSTING_ACCOUNT_MISSING_PLATFORM_DEPLOYMENT_LINK');
+    }
+    if (projection.clientId && projection.clientId !== account.clientId) {
+      drifts.push('CLIENT_OWNERSHIP_MISMATCH');
+    }
+    const normalizedHostingDomain = account.domain.trim().toLowerCase().replace(/\.$/, '');
+    const normalizedProjDomain = (projection.requestedDomain ?? '').trim().toLowerCase().replace(/\.$/, '');
+    if (normalizedProjDomain && normalizedProjDomain !== normalizedHostingDomain) {
+      drifts.push('DOMAIN_MISMATCH');
+    }
+    const expectedReady = String(account.status).toUpperCase() === 'ACTIVE' && projection.status === 'ready';
+    const expectedSuspended = String(account.status).toUpperCase() === 'SUSPENDED' && projection.status === 'suspended';
+    if (!expectedReady && !expectedSuspended) {
+      drifts.push(`STATUS_DIVERGENCE:${String(account.status)}!=${projection.status}`);
+    }
+
+    return {
+      accountId: account.id,
+      status: drifts.length === 0 ? 'matched' : 'drift',
+      hostingStatus: String(account.status),
+      platformProjectionStatus: projection.status,
+      hostingDomain: account.domain,
+      platformRequestedDomain: projection.requestedDomain ?? null,
+      platformDeploymentId: account.platformDeploymentId ?? projection.platformDeploymentId ?? null,
+      drifts,
+    };
+  }
+
+  /**
+   * Executes and records an audited hosting cutover rollback drill against an existing account
+   * without mutating production workload state.
+   */
+  async executeAuditedRollbackDrill(input: {
+    accountId: string;
+    actorId: string;
+    ticketId: string;
+    reason: string;
+  }): Promise<{
+    drillRecorded: true;
+    accountId: string;
+    ticketId: string;
+    dualRead: Awaited<ReturnType<PlatformHostingCutoverService['compareHostingProjectionDualRead']>>;
+    verifiedAt: string;
+  }> {
+    const actorId = input.actorId?.trim();
+    const ticketId = input.ticketId?.trim();
+    const reason = input.reason?.trim();
+    if (!actorId || !ticketId || !reason) {
+      throw new BadRequestException({
+        code: 'ROLLBACK_DRILL_INPUT_INVALID',
+        message: 'actorId, ticketId, and reason are required for an audited rollback drill.',
+      });
+    }
+
+    const dualRead = await this.compareHostingProjectionDualRead(input.accountId);
+    if (dualRead.status === 'not_found') {
+      throw new NotFoundException({
+        code: 'HOSTING_ACCOUNT_NOT_FOUND',
+        message: 'Cannot execute rollback drill for unknown hosting account.',
+      });
+    }
+
+    const verifiedAt = new Date().toISOString();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actorId);
+    await this.prisma.auditLog.create({
+      data: {
+        userId: isUuid ? actorId : null,
+        action: 'PLATFORM_HOSTING_ROLLBACK_DRILL_VERIFIED',
+        resourceType: 'HostingAccount',
+        resourceId: input.accountId,
+        newValue: {
+          actorId,
+          ticketId,
+          reason,
+          dualReadStatus: dualRead.status,
+          drifts: dualRead.drifts,
+          platformDeploymentId: dualRead.platformDeploymentId,
+          verifiedAt,
+        },
+      },
+    });
+
+    return {
+      drillRecorded: true,
+      accountId: input.accountId,
+      ticketId,
+      dualRead,
+      verifiedAt,
     };
   }
 }

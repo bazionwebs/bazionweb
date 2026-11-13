@@ -205,6 +205,7 @@ model User {
   notifications   Notification[]
   paymentLogs     PaymentLog[]
   refreshTokens   RefreshToken[]
+  oidcIdentityLink OidcIdentityLink?
 
   @@index([email])
   @@index([keycloakId])
@@ -294,6 +295,7 @@ model Client {
   platformOutboxEntries              PlatformProvisioningOutbox[]
   platformProvisioningProjections    PlatformProvisioningProjection[]
   subscriptionLifecycleOutboxEntries SubscriptionLifecycleOutbox[]
+  oidcIdentityLink                   OidcIdentityLink?
 
   @@index([planId])
   @@index([status])
@@ -978,4 +980,27 @@ model PlatformCallbackInbox {
 
   @@index([operationId, receivedAt])
   @@map("platform_callback_inbox")
+}
+
+model OidcIdentityLink {
+  id          String    @id @default(cuid())
+  issuer      String
+  subject     String
+  userId      String    @unique @map("user_id") @db.Uuid
+  clientId    String?   @unique @map("client_id")
+  email       String?
+  claimMethod String    @default("EXPLICIT_CLAIM_TOKEN") @map("claim_method")
+  linkedBy    String?   @map("linked_by") @db.Uuid
+  metadata    Json      @default("{}")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@unique([issuer, subject])
+  @@index([userId])
+  @@index([clientId])
+  @@map("oidc_identity_links")
 }
