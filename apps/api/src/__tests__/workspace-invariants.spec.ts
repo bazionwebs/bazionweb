@@ -114,4 +114,31 @@ describe('Bazionweb workspace & delivery invariants (Phase 0)', () => {
     );
     expect(new Set(assignedColumns).size).toBe(assignedColumns.length);
   });
+
+  it('adds subscription lifecycle fields before the performance index migration uses them', () => {
+    const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
+    const migrationNames = readdirSync(migrationsDir)
+      .filter((name) => statSync(join(migrationsDir, name)).isDirectory())
+      .sort();
+    const lifecycleMigration = '20261030030000_subscription_payment_lifecycle_columns';
+    const performanceMigration = '20261030054500_add_performance_indexes';
+
+    expect(migrationNames.indexOf(lifecycleMigration)).toBeGreaterThanOrEqual(0);
+    expect(migrationNames.indexOf(lifecycleMigration)).toBeLessThan(migrationNames.indexOf(performanceMigration));
+
+    const sql = readFileSync(join(migrationsDir, lifecycleMigration, 'migration.sql'), 'utf8');
+    for (const column of [
+      '"provider"',
+      '"provider_subscription_id"',
+      '"current_period_start"',
+      '"current_period_end"',
+      '"grace_period_end"',
+      '"dunning_attempts_count"',
+      '"last_dunning_at"',
+    ]) {
+      expect(sql).toContain(column);
+    }
+    expect(sql).toContain('"start_date" AT TIME ZONE \'UTC\'');
+    expect(sql).toContain('"renewal_date" AT TIME ZONE \'UTC\'');
+  });
 });
