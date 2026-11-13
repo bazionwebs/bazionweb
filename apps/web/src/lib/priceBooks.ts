@@ -725,6 +725,25 @@ export const PRICE_BOOK_KE_2026_V1: PriceBook = {
       ],
       description: 'Custom-branded client admin portal to upload project photos, swap hero banners, publish PDF brochures, and toggle announcement notices with zero code.',
     },
+    'addon-branded-sms': {
+      productId: 'addon-branded-sms',
+      category: 'addon',
+      name: 'Branded SMS & Custom Sender ID Integration',
+      amount: 18500,
+      currency: 'KES',
+      formatted: 'KSh 18,500',
+      billingPeriod: 'one-time',
+      timeline: '3–5 working days (includes telco clearance)',
+      badge: 'Telco Verified',
+      deliverables: [
+        'Official Safaricom & Airtel alphanumeric Sender ID registration (up to 11 chars)',
+        'CAK compliance, Letter of Authorization (LoA) & documentation clearance',
+        'Direct Africa’s Talking / Telco SMS gateway API & webhook hookup',
+        'Automated triggers: M-Pesa payment receipts, booking reminders & order alerts',
+        '500 starter branded transactional SMS units included',
+      ],
+      description: 'Official Safaricom & Airtel alphanumeric Sender ID registration (up to 11 chars) with automated transactional SMS event triggers and 500 starter SMS credits.',
+    },
 
     // Units / Rates
     'rate-extra-page': {
@@ -1280,6 +1299,24 @@ export const PRICE_BOOK_GLOBAL_2026_V1: PriceBook = {
       ],
       description: 'Custom-branded client admin portal to upload project photos, swap hero banners, publish PDF brochures, and toggle announcement notices with zero code.',
     },
+    'addon-branded-sms': {
+      productId: 'addon-branded-sms',
+      category: 'addon',
+      name: 'Branded SMS & Custom Sender ID Integration',
+      amount: 220,
+      currency: 'USD',
+      formatted: '$220',
+      billingPeriod: 'one-time',
+      timeline: '3–5 working days',
+      badge: 'Telco Verified',
+      deliverables: [
+        'Alphanumeric Sender ID registration & regulatory bundle clearance (Twilio/aggregators)',
+        'Direct transactional SMS API gateway & webhook trigger integration',
+        'Automated notifications: Card/Stripe receipts, appointment reminders & order updates',
+        '500 starter branded transactional SMS units included',
+      ],
+      description: 'Alphanumeric Sender ID registration and gateway integration with automated transactional SMS event triggers and 500 starter SMS credits.',
+    },
 
     // Units / Rates
     'rate-extra-page': {
@@ -1410,6 +1447,11 @@ export const CATALOG_PRODUCT_ALIASES: Record<string, string> = {
   'addon-crm-erp': 'addon-custom-api',
   multilingual: 'addon-multilingual',
   'document-hub': 'addon-document-hub',
+  'branded-sms': 'addon-branded-sms',
+  'addon-branded-sms': 'addon-branded-sms',
+  'addon-sms': 'addon-branded-sms',
+  'sms-integration': 'addon-branded-sms',
+  'custom-sender-id': 'addon-branded-sms',
 };
 
 export function normalizeCatalogProductId(productId: string): string {
@@ -1820,6 +1862,16 @@ export const CANONICAL_SERVICE_CATALOG: ServiceCatalogItem[] = [
     priceUsd: 299,
     period: 'one-time',
     badge: 'Admin Hub',
+  },
+  {
+    id: 'addon-branded-sms',
+    category: 'addons',
+    name: 'Branded SMS & Custom Sender ID Integration',
+    tagline: 'Official alphanumeric Sender ID (Safaricom/Airtel/Twilio), transactional triggers & 500 SMS credits',
+    priceKes: 18500,
+    priceUsd: 220,
+    period: 'one-time',
+    badge: 'Telco Verified',
   },
 ];
 

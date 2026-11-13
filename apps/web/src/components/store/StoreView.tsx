@@ -256,6 +256,11 @@ const PRODUCT_MARKETING: Record<string, { name: string; description: string; fea
     description: 'Branded admin portal to upload project photos, swap banners, publish PDFs, and toggle noticebars.',
     features: [],
   },
+  'addon-branded-sms': {
+    name: 'Branded SMS & Custom Sender ID',
+    description: 'Official Safaricom & Airtel alphanumeric Sender ID registration with automated transactional SMS triggers & 500 units.',
+    features: [],
+  },
   'rate-extra-page': {
     name: 'Additional Page',
     description: 'Fully designed and responsive page adhering to your design system.',

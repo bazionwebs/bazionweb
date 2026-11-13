@@ -868,6 +868,16 @@ export const ADD_ON_RATE_CARD: AddOnItem[] = [
     rawUsd: 240,
   },
   {
+    id: 'branded-sms',
+    name: 'Branded SMS & Custom Sender ID',
+    category: 'integration',
+    kenyaPrice: 'KSh 18,500',
+    intlPrice: '$220',
+    description: 'Official Safaricom & Airtel alphanumeric Sender ID registration with automated transactional SMS triggers & 500 units.',
+    rawKes: 18500,
+    rawUsd: 220,
+  },
+  {
     id: 'rush-delivery',
     name: 'Priority / Rush Delivery',
     category: 'workflow',

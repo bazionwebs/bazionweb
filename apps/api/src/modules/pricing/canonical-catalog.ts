@@ -69,6 +69,11 @@ export const CATALOG_PRODUCT_ALIASES: Record<string, string> = {
   'addon-crm-erp': 'addon-custom-api',
   multilingual: 'addon-multilingual',
   'document-hub': 'addon-document-hub',
+  'branded-sms': 'addon-branded-sms',
+  'addon-branded-sms': 'addon-branded-sms',
+  'addon-sms': 'addon-branded-sms',
+  'sms-integration': 'addon-branded-sms',
+  'custom-sender-id': 'addon-branded-sms',
   'addon-ga4-pixel': 'addon-analytics',
   'addon-brand-refresh': 'addon-logo-brand',
 };
@@ -139,6 +144,7 @@ const BASE_CATALOG_PRICES: Record<string, CanonicalCatalogEntry> = {
   'addon-custom-api': { name: 'Custom API Integration', KES: 15000, USD: 240, billingPeriod: 'one-time' },
   'addon-multilingual': { name: 'Multilingual Support (i18n)', KES: 15000, USD: 240, billingPeriod: 'one-time' },
   'addon-document-hub': { name: 'Document Download Hub', KES: 6000, USD: 120, billingPeriod: 'one-time' },
+  'addon-branded-sms': { name: 'Branded SMS & Custom Sender ID Integration', KES: 18500, USD: 220, billingPeriod: 'one-time' },
 
   // Legacy add-on / rate SKUs retained for backwards compatibility
   'rate-copywriting-page': { name: 'Professional Copywriting (per page)', KES: 2500, USD: 30, billingPeriod: 'one-time' },

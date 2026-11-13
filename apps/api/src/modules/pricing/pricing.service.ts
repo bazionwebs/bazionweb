@@ -798,6 +798,7 @@ export class PricingService {
       'addon-custom-api': 'Custom API Integration',
       'addon-multilingual': 'Multilingual Support (i18n)',
       'addon-document-hub': 'Document Download Hub',
+      'addon-branded-sms': 'Branded SMS & Custom Sender ID Integration',
       'care-essential': 'Care Essential',
       'care-business': 'Care Business',
       'care-professional': 'Care Professional',

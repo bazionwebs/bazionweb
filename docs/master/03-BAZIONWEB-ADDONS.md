@@ -44,7 +44,7 @@ This document powers both the internal sales estimation engine and the public-fa
 | `ADDON-ECO-SHIP` | **Tiered Shipping Matrix** | KSh 7,500 | $150 | +1 day | E-com base | Dynamic delivery fee calculation based on country, county/state, total weight, or free-shipping order thresholds. |
 | `ADDON-ECO-INVO` | **Automated PDF Invoicing** | KSh 6,000 | $120 | +1 day | E-com base | Automatic PDF tax invoice generation attached to order confirmation emails with company KRA PIN / tax details. |
 | `ADDON-ECO-COUP` | **Coupons & Discount Engine** | KSh 6,000 | $120 | +1 day | E-com base | Percentage, fixed amount, first-order discounts, expiration date rules, and usage frequency caps per customer. |
-| `ADDON-ECO-SMS`  | **Order SMS Notification** | KSh 8,500 | $180 | +1.5 days | E-com base | Africa's Talking API integration dispatching branded transactional SMS updates (Order Received, Dispatched, Delivered). |
+| `ADDON-ECO-SMS`  | **Branded SMS & Custom Sender ID** | KSh 18,500 | $220 | +3 days | Base / E-com | Safaricom/Airtel/CAK alphanumeric Sender ID registration (up to 11 chars), Africa's Talking / Twilio gateway integration, automated transactional triggers (M-Pesa payment receipts, booking reminders, order alerts) & 500 starter SMS units. |
 | `ADDON-ECO-SYNC` | **Inventory & Stock Alerts** | KSh 12,000 | $250 | +2 days | E-com base | Low stock threshold email alerts, automatic out-of-stock badge triggering, and back-in-stock notification signups. |
 
 ---

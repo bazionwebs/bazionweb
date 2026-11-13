@@ -392,6 +392,7 @@ async function main() {
     { priceBookId: 'KE-2026-v1', productId: 'addon-multilingual', amount: 15000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'addon-document-hub', amount: 6000, billingPeriod: 'one-time' },
     { priceBookId: 'KE-2026-v1', productId: 'addon-admin-dashboard', amount: 25000, billingPeriod: 'one-time' },
+    { priceBookId: 'KE-2026-v1', productId: 'addon-branded-sms', amount: 18500, billingPeriod: 'one-time' },
 
     // Global prices (USD) — Aggressive Market-Penetration Tier (40-60% below US/UK agency rates)
     { priceBookId: 'GLOBAL-2026-v1', productId: 'website-existing', amount: 0, billingPeriod: 'one-time' },
@@ -440,6 +441,7 @@ async function main() {
     { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-multilingual', amount: 240, billingPeriod: 'one-time' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-document-hub', amount: 120, billingPeriod: 'one-time' },
     { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-admin-dashboard', amount: 299, billingPeriod: 'one-time' },
+    { priceBookId: 'GLOBAL-2026-v1', productId: 'addon-branded-sms', amount: 220, billingPeriod: 'one-time' },
   ];
 
   for (const p of priceCatalog) {
