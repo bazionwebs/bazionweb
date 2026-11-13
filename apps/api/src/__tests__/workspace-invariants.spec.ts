@@ -127,6 +127,20 @@ describe('Bazionweb workspace & delivery invariants (Phase 0)', () => {
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS "tax_pin" TEXT');
   });
 
+  it('adds the Prisma client payment-provider profile fields with the declared uniqueness', () => {
+    const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
+    const migration = '20261113070000_add_client_payment_profile_ids';
+    const migrationNames = readdirSync(migrationsDir)
+      .filter((name) => statSync(join(migrationsDir, name)).isDirectory())
+      .sort();
+    const sql = readFileSync(join(migrationsDir, migration, 'migration.sql'), 'utf8');
+
+    expect(migrationNames).toContain(migration);
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS "intasend_customer_id" TEXT');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS "wise_profile_id" TEXT');
+    expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "clients_intasend_customer_id_key"');
+  });
+
   it('adds subscription lifecycle fields before the performance index migration uses them', () => {
     const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
     const migrationNames = readdirSync(migrationsDir)
