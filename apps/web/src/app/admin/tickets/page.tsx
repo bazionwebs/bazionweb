@@ -10,6 +10,7 @@ import {
 import { useAdminTickets, useUpdateTicket } from '@/hooks/useAdminData';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { timeAgo, shortId } from '@/lib/format';
+import { pulse } from '@/components/pulse';
 
 interface TicketRow {
   raw: unknown;
@@ -77,7 +78,14 @@ export default function AdminTicketsPage() {
   const breachedCount = tickets.filter(t => t.slaBreached).length;
 
   const handleStatusChange = async (ticketId: string, newStatus: string) => {
-    await updateTicketMutation.mutateAsync({ id: ticketId, status: newStatus });
+    await pulse.track(
+      () => updateTicketMutation.mutateAsync({ id: ticketId, status: newStatus }),
+      {
+        pending: `Updating ticket status to ${newStatus}…`,
+        success: `Ticket status set to ${newStatus}`,
+        scope: 'tickets',
+      },
+    );
     if (selectedTicket && selectedTicket.rawId === ticketId) {
       setSelectedTicket({ ...selectedTicket, status: newStatus });
     }

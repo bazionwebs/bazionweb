@@ -11,6 +11,7 @@ import {
 } from '@/hooks/usePortalData';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { pulse } from '@/components/pulse';
 
 const TYPE_STYLES: Record<string, { dot: string; label: string }> = {
   TICKET_UPDATE: { dot: 'bg-blue-500', label: 'Support' },
@@ -149,7 +150,16 @@ export default function NotificationBell() {
             {unreadCount > 0 && (
               <button
                 type="button"
-                onClick={() => markAllRead.mutate()}
+                onClick={async () => {
+                  await pulse.track(
+                    () => markAllRead.mutateAsync(),
+                    {
+                      pending: 'Marking all read…',
+                      success: 'All notifications marked as read',
+                      scope: 'notifications',
+                    },
+                  );
+                }}
                 disabled={markAllRead.isPending}
                 className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#2563EB] hover:underline disabled:opacity-50"
               >

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { portalApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { pulse } from '@/components/pulse';
 
 export type OnboardingStepKey = 'profile' | 'domain' | 'vault' | 'roadmap';
 
@@ -152,7 +153,14 @@ export default function ClientOnboardingChecklist({
     setError(null);
     try {
       const stepsToSubmit = completedSteps.length > 0 ? completedSteps : VALID_STEPS;
-      const res = await portalApi.markOnboarded(stepsToSubmit);
+      const res = await pulse.track(
+        () => portalApi.markOnboarded(stepsToSubmit),
+        {
+          pending: 'Finalizing client onboarding workspace…',
+          success: 'Onboarding complete! Welcome aboard.',
+          scope: 'onboarding',
+        },
+      );
       const payload = res?.data ?? res;
       const timestamp = payload?.onboardedAt || new Date().toISOString();
       setLocalOnboardedAt(timestamp);

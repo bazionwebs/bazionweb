@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import '../styles/globals.css';
+import '@/components/pulse/pulse.css';
 import CookieBanner from '@/components/ui/CookieBanner';
 import MicrosoftClarity from '@/components/analytics/MicrosoftClarity';
 import { getServerMarket } from '@/lib/geoDetection';
 import MarketProvider from '@/components/providers/MarketProvider';
+import { PulseHost } from '@/components/pulse';
 
 /**
  * Self-hosted Google Fonts via next/font — the CSS is inlined in <head> by the
@@ -138,6 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={`${inter.variable} ${outfit.variable} min-h-screen bg-white antialiased font-sans`}>
         <MarketProvider initialMarket={serverMarket.market}>
           {children}
+          <PulseHost position="top-right" />
           <MicrosoftClarity />
           <CookieBanner />
         </MarketProvider>

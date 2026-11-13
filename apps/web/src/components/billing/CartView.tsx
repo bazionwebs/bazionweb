@@ -9,6 +9,7 @@ import { getProductPrice } from '@/lib/priceBooks';
 import { usePlans } from '@/lib/plans';
 import { useMarketPreference } from '@/hooks/useMarketPreference';
 import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress';
+import { pulse } from '@/components/pulse';
 
 const kindIcon = (item: CartItem) =>
   item.kind === 'PLAN' ? Wrench : item.cycle === 'one-time' ? Puzzle : Server;
@@ -73,6 +74,31 @@ export default function CartView() {
       unitPrice: price,
       currency: isKes ? 'KES' : 'USD',
     });
+    pulse.success(`Added ${target?.name ?? 'Care Essential'} to cart`);
+  };
+
+  const handleRemove = async (item: CartItem) => {
+    const confirmed = await pulse.confirm({
+      title: `Remove ${item.name}?`,
+      detail: 'This item will be removed from your cart.',
+      confirmLabel: 'Remove item',
+      danger: true,
+    });
+    if (!confirmed) return;
+    remove(item.key);
+    pulse.info(`Removed ${item.name} from cart`);
+  };
+
+  const handleClear = async () => {
+    const confirmed = await pulse.confirm({
+      title: 'Clear your cart?',
+      detail: 'All items will be removed from your current order.',
+      confirmLabel: 'Clear cart',
+      danger: true,
+    });
+    if (!confirmed) return;
+    clear();
+    pulse.info('Cart cleared');
   };
 
   if (items.length === 0) {
@@ -175,7 +201,7 @@ export default function CartView() {
                         )}
                         <button
                           type="button"
-                          onClick={() => remove(item.key)}
+                          onClick={() => handleRemove(item)}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-3.5 w-3.5" /> Remove
@@ -193,7 +219,7 @@ export default function CartView() {
               </Link>
               <button
                 type="button"
-                onClick={clear}
+                onClick={handleClear}
                 className="text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors"
               >
                 Clear cart

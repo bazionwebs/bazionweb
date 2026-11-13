@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useManualProvisionClient } from '@/hooks/useAdminData';
 import { adminApi } from '@/lib/api';
+import { pulse } from '@/components/pulse';
 
 interface ManualClientCreateModalProps {
   isOpen: boolean;
@@ -63,16 +64,23 @@ export function ManualClientCreateModal({
 
     try {
       const cleanEmail = email.trim().toLowerCase();
-      const res = await provisionMutation.mutateAsync({
-        businessName: businessName.trim(),
-        contactName: contactName.trim(),
-        email: cleanEmail,
-        phone: phone.trim() || undefined,
-        planTier,
-        marketCode,
-        currency,
-        projectTitle: projectTitle.trim() || undefined,
-      });
+      const res = await pulse.track(
+        () => provisionMutation.mutateAsync({
+          businessName: businessName.trim(),
+          contactName: contactName.trim(),
+          email: cleanEmail,
+          phone: phone.trim() || undefined,
+          planTier,
+          marketCode,
+          currency,
+          projectTitle: projectTitle.trim() || undefined,
+        }),
+        {
+          pending: `Provisioning client ${businessName.trim()}…`,
+          success: `Client ${businessName.trim()} provisioned successfully`,
+          scope: 'clients',
+        },
+      );
 
       let effectiveClaimUrl = res?.claimUrl;
       if (effectiveClaimUrl && typeof window !== 'undefined') {
@@ -107,6 +115,7 @@ export function ManualClientCreateModal({
   const handleCopyLink = () => {
     if (!provisionResult?.claimUrl) return;
     navigator.clipboard.writeText(provisionResult.claimUrl);
+    pulse.success('Claim link copied to clipboard');
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };

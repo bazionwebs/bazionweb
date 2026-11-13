@@ -18,6 +18,7 @@ import { useAdminHosting, useAdminClients, useUptime, useUpdateHosting, UptimeSi
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatDate } from '@/lib/format';
 import { adminApi } from '@/lib/api';
+import { pulse } from '@/components/pulse';
 
 export default function AdminHostingPage() {
   const [search, setSearch] = useState('');
@@ -75,16 +76,26 @@ export default function AdminHostingPage() {
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      await adminApi.createHosting({
-        clientId,
-        domain,
-        serverIp,
-        plan,
-      });
-      setShowProvisionModal(false);
-      setClientId('');
-      setDomain('');
-      hostingQuery.refetch();
+      await pulse.track(
+        async () => {
+          const res = await adminApi.createHosting({
+            clientId,
+            domain,
+            serverIp,
+            plan,
+          });
+          setShowProvisionModal(false);
+          setClientId('');
+          setDomain('');
+          hostingQuery.refetch();
+          return res;
+        },
+        {
+          pending: `Provisioning container for ${domain}…`,
+          success: `Container for ${domain} provisioned`,
+          scope: 'hosting',
+        },
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to provision hosting account.';
       setErrorMsg((err as { response?: { data?: { message?: string } } })?.response?.data?.message || msg);
@@ -95,12 +106,24 @@ export default function AdminHostingPage() {
 
   const handleToggleStatus = async (account: { id: string; domain: string; status: string }) => {
     const nextStatus = account.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    if (confirm(`Change status of ${account.domain} to ${nextStatus}?`)) {
-      await updateHostingMutation.mutateAsync({
+    const confirmed = await pulse.confirm({
+      title: `${nextStatus === 'SUSPENDED' ? 'Suspend' : 'Activate'} ${account.domain}?`,
+      detail: `This will update container state to ${nextStatus}.`,
+      confirmLabel: `${nextStatus === 'SUSPENDED' ? 'Suspend' : 'Activate'} Container`,
+      danger: nextStatus === 'SUSPENDED',
+    });
+    if (!confirmed) return;
+    await pulse.track(
+      () => updateHostingMutation.mutateAsync({
         id: account.id,
         data: { status: nextStatus },
-      });
-    }
+      }),
+      {
+        pending: `Updating status for ${account.domain}…`,
+        success: `${account.domain} status changed to ${nextStatus}`,
+        scope: 'hosting',
+      },
+    );
   };
 
   return (

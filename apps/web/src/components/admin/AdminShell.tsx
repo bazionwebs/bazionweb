@@ -31,6 +31,7 @@ import Logo from '@/components/ui/Logo';
 import { useAuthStore } from '@/store/auth.store';
 import { authApi } from '@/lib/api';
 import { useAdminClients, useAdminTickets, useUptime } from '@/hooks/useAdminData';
+import { PulseActivityButton, pulse } from '@/components/pulse';
 
 export interface AdminNavItem {
   id: string;
@@ -90,9 +91,19 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   };
 
   const handleSignOut = async () => {
-    await authApi.logout().catch(() => undefined);
-    clearSession();
-    router.replace('/admin/login');
+    await pulse.track(
+      async () => {
+        await authApi.logout().catch(() => undefined);
+        clearSession();
+        router.replace('/admin/login');
+      },
+      {
+        title: 'Signing out',
+        pendingDetail: 'Closing admin session…',
+        successTitle: 'Signed out',
+        group: 'admin:signout',
+      },
+    ).catch(() => undefined);
   };
 
   // Determine active item from pathname
@@ -262,6 +273,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 className="pl-8 pr-4 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl w-64 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:bg-white transition-all"
               />
             </div>
+
+            {/* Pulse Activity Timeline */}
+            <PulseActivityButton label="Activity" />
 
             {/* Notifications Alert Bell */}
             <div className="relative">

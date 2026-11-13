@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Logo from '@/components/ui/Logo';
+import { PulseActivityButton, pulse } from '@/components/pulse';
 import { useAuthStore } from '@/store/auth.store';
 import { authApi } from '@/lib/api';
 import {
@@ -195,13 +196,23 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
   const handleSignOut = async () => {
     setUserMenuOpen(false);
-    await authApi.logout().catch(() => undefined);
-    if (typeof window !== 'undefined') {
-      await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
-      await fetch('/api/auth/oidc/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
-    }
-    clearSession();
-    router.replace('/portal/login');
+    await pulse.track(
+      async () => {
+        await authApi.logout().catch(() => undefined);
+        if (typeof window !== 'undefined') {
+          await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
+          await fetch('/api/auth/oidc/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
+        }
+        clearSession();
+        router.replace('/portal/login');
+      },
+      {
+        title: 'Signing out',
+        pendingDetail: 'Closing your portal session…',
+        successTitle: 'Signed out',
+        group: 'portal:signout',
+      },
+    ).catch(() => undefined);
   };
 
   const sandboxClientName = liveClient?.businessName || sandboxMeta?.clientBusinessName || clientName;
@@ -219,6 +230,10 @@ export default function PortalShell({ children }: { children: React.ReactNode })
 
   const handleExitSandbox = () => {
     if (typeof window !== 'undefined') {
+      pulse.info('Exiting sandbox session', {
+        detail: 'Restoring your staff admin workspace…',
+        dwellMs: 2500,
+      });
       fetch('/api/auth/sandbox', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
       clearSession();
       window.sessionStorage.removeItem('bazionweb_sandbox_active');
@@ -436,6 +451,9 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               <Sparkles className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">{headerPill.label}</span>
             </Link>
+
+            {/* Pulse Activity Timeline */}
+            <PulseActivityButton label="Activity" />
 
             {/* Notifications — live unread count + dropdown from the API */}
             <NotificationBell />

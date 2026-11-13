@@ -31,6 +31,7 @@ import {
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { formatDate, titleCase } from '@/lib/format';
+import { pulse } from '@/components/pulse';
 
 export default function PortalAccountPage() {
   const router = useRouter();
@@ -87,53 +88,54 @@ export default function PortalAccountPage() {
       country !== (client.country ?? '') ||
       taxPin !== (client.taxPin ?? ''));
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!client) return;
     setFeedback(null);
-    updateProfile.mutate(
-      {
-        clientId: client.id,
-        businessName: businessName.trim() || undefined,
-        contactName: contactName.trim() || undefined,
-        phone: phone.trim(),
-        address: address.trim(),
-        country: country.trim(),
-        taxPin: taxPin.trim(),
-      },
-      {
-        onSuccess: () => {
-          setFeedback({ type: 'success', msg: 'Organization & billing details updated.' });
-          // Keep Zustand header user name in sync
-          if (sessionUser && contactName.trim()) {
-            const parts = contactName.trim().split(/\s+/);
-            const state = useAuthStore.getState();
-            if (state.accessToken && state.refreshToken) {
-              setSession(
-                {
-                  ...sessionUser,
-                  firstName: parts[0] || sessionUser.firstName,
-                  lastName: parts.slice(1).join(' ') || sessionUser.lastName,
-                },
-                state.accessToken,
-                state.refreshToken,
-                900,
-              );
-            }
-          }
+    try {
+      await pulse.track(
+        () => updateProfile.mutateAsync({
+          clientId: client.id,
+          businessName: businessName.trim() || undefined,
+          contactName: contactName.trim() || undefined,
+          phone: phone.trim(),
+          address: address.trim(),
+          country: country.trim(),
+          taxPin: taxPin.trim(),
+        }),
+        {
+          pending: 'Updating organization & profile…',
+          success: 'Profile details updated',
+          scope: 'account',
         },
-        onError: (err: unknown) => {
-          const serverMsg = (err as { response?: { data?: { message?: string | string[] } } })
-            ?.response?.data?.message;
-          setFeedback({
-            type: 'error',
-            msg: Array.isArray(serverMsg)
-              ? serverMsg[0]
-              : serverMsg || 'Could not save your changes. Try again shortly.',
-          });
-        },
-      },
-    );
+      );
+      setFeedback({ type: 'success', msg: 'Organization & billing details updated.' });
+      if (sessionUser && contactName.trim()) {
+        const parts = contactName.trim().split(/\s+/);
+        const state = useAuthStore.getState();
+        if (state.accessToken && state.refreshToken) {
+          setSession(
+            {
+              ...sessionUser,
+              firstName: parts[0] || sessionUser.firstName,
+              lastName: parts.slice(1).join(' ') || sessionUser.lastName,
+            },
+            state.accessToken,
+            state.refreshToken,
+            900,
+          );
+        }
+      }
+    } catch (err: unknown) {
+      const serverMsg = (err as { response?: { data?: { message?: string | string[] } } })
+        ?.response?.data?.message;
+      setFeedback({
+        type: 'error',
+        msg: Array.isArray(serverMsg)
+          ? serverMsg[0]
+          : serverMsg || 'Could not save your changes. Try again shortly.',
+      });
+    }
   }
 
   async function handlePasswordChange(e: React.FormEvent) {
@@ -150,10 +152,17 @@ export default function PortalAccountPage() {
 
     setPwdLoading(true);
     try {
-      const res = await authApi.changePassword({
-        currentPassword: currentPassword || undefined,
-        newPassword,
-      });
+      const res = await pulse.track(
+        () => authApi.changePassword({
+          currentPassword: currentPassword || undefined,
+          newPassword,
+        }),
+        {
+          pending: 'Updating password securely…',
+          success: 'Password updated successfully',
+          scope: 'security',
+        },
+      );
       const tokens = res?.data ?? res;
       if (sessionUser && tokens?.accessToken && tokens?.refreshToken) {
         setSession(
@@ -185,11 +194,27 @@ export default function PortalAccountPage() {
   }
 
   async function handleSignOutEverywhere() {
-    await authApi.logout().catch(() => undefined);
-    await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
-    await fetch('/api/auth/oidc/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
-    clearSession();
-    router.replace('/portal/login');
+    const confirmed = await pulse.confirm({
+      title: 'Sign out of all sessions?',
+      detail: 'This will revoke your active tokens and log you out across all devices and browser sessions.',
+      confirmLabel: 'Sign out everywhere',
+      danger: true,
+    });
+    if (!confirmed) return;
+    await pulse.track(
+      async () => {
+        await authApi.logout().catch(() => undefined);
+        await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
+        await fetch('/api/auth/oidc/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
+        clearSession();
+        router.replace('/portal/login');
+      },
+      {
+        pending: 'Signing out across all devices…',
+        success: 'Signed out everywhere',
+        scope: 'auth',
+      },
+    );
   }
 
   if (isError && !client) {

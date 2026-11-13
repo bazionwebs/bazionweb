@@ -19,6 +19,7 @@ import {
 import { EmptyState, QueryError, SectionLoading } from '@/components/ui/QueryState';
 import { useCanSeeBilling, useHostingCutover, useLinkHostingPlatformDeployment } from '@/hooks/useAdminData';
 import type { AdminHostingCutoverClassification, AdminHostingCutoverItem } from '@/hooks/useAdminData';
+import { pulse } from '@/components/pulse';
 
 const classificationLabels: Record<AdminHostingCutoverClassification, string> = {
   linked: 'Linked and consistent',
@@ -109,11 +110,18 @@ export default function HostingCutoverPage() {
     event.preventDefault();
     if (!mappingItem?.candidatePlatformDeploymentId || !mappingConfirmed || !evidencePattern.test(mappingEvidence.trim())) return;
     try {
-      await mapDeploymentMutation.mutateAsync({
-        hostingAccountId: mappingItem.hostingAccountId,
-        platformDeploymentId: mappingItem.candidatePlatformDeploymentId,
-        evidenceRef: mappingEvidence.trim(),
-      });
+      await pulse.track(
+        () => mapDeploymentMutation.mutateAsync({
+          hostingAccountId: mappingItem.hostingAccountId,
+          platformDeploymentId: mappingItem.candidatePlatformDeploymentId!,
+          evidenceRef: mappingEvidence.trim(),
+        }),
+        {
+          pending: `Linking platform deployment for ${mappingItem.domain}…`,
+          success: `Platform deployment linked for ${mappingItem.domain}`,
+          scope: 'hosting-cutover',
+        },
+      );
       setMappingItem(null);
       setMappingEvidence('');
       setMappingConfirmed(false);

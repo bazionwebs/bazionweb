@@ -28,6 +28,7 @@ import { useAdminInvoices, useCanSeeBilling, useMarkInvoicePaid, useAdminClients
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatMoney, formatDate, shortId } from '@/lib/format';
 import { adminApi } from '@/lib/api';
+import { pulse } from '@/components/pulse';
 import { resolveApiV1Base } from '@/lib/api-base';
 import { getApiErrorMessage } from '@/lib/error-helpers';
 import {
@@ -523,9 +524,20 @@ export default function AdminInvoicesPage() {
   const grandTotal = cartSubtotal;
 
   const handleMarkPaid = async (id: string) => {
-    if (confirm('Are you sure you want to manually mark this invoice as PAID? This will update subscription records.')) {
-      await markPaidMutation.mutateAsync(id);
-    }
+    const confirmed = await pulse.confirm({
+      title: 'Mark invoice as PAID?',
+      detail: 'This will manually mark the invoice as settled and update linked client subscription records.',
+      confirmLabel: 'Confirm Payment',
+    });
+    if (!confirmed) return;
+    await pulse.track(
+      () => markPaidMutation.mutateAsync(id),
+      {
+        pending: 'Marking invoice as paid…',
+        success: 'Invoice marked as PAID',
+        scope: 'invoices',
+      },
+    );
   };
 
   const handleDownloadPdf = async (invoiceId: string) => {

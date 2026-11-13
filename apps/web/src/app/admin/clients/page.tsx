@@ -41,6 +41,7 @@ import { adminApi } from '@/lib/api';
 import { SectionLoading, QueryError, EmptyState } from '@/components/ui/QueryState';
 import { formatDate } from '@/lib/format';
 import { ManualClientCreateModal } from '@/components/admin/ManualClientCreateModal';
+import { pulse } from '@/components/pulse';
 
 interface ClientRow {
   id: string;
@@ -162,20 +163,27 @@ function ClientDetailModal({
     }
 
     try {
-      await updateClientMutation.mutateAsync({
-        id: client.id,
-        data: {
-          businessName: businessName.trim(),
-          contactName: contactName.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim() || null,
-          address: address.trim() || null,
-          country: country.trim() || null,
-          taxPin: taxPin.trim() || null,
-          planTier: planTier as any,
-          status: status as any,
+      await pulse.track(
+        () => updateClientMutation.mutateAsync({
+          id: client.id,
+          data: {
+            businessName: businessName.trim(),
+            contactName: contactName.trim(),
+            email: email.trim().toLowerCase(),
+            phone: phone.trim() || null,
+            address: address.trim() || null,
+            country: country.trim() || null,
+            taxPin: taxPin.trim() || null,
+            planTier: planTier as any,
+            status: status as any,
+          },
+        }),
+        {
+          pending: `Updating ${businessName.trim()}…`,
+          success: `Client ${businessName.trim()} updated`,
+          scope: 'clients',
         },
-      });
+      );
 
       setEditSuccess('Client information, plan alignment, and user identity updated successfully.');
       onUpdated();
@@ -192,17 +200,27 @@ function ClientDetailModal({
     setActionNotice(null);
     setActionError(null);
     try {
-      const res = await resendInviteMutation.mutateAsync(client.id);
-      if (res?.claimUrl) {
-        await adminApi
-          .dispatchAdminLinkEmail({
-            to: client.email,
-            url: res.claimUrl,
-            clientName: client.name,
-            type: 'claim',
-          })
-          .catch(() => undefined);
-      }
+      await pulse.track(
+        async () => {
+          const res = await resendInviteMutation.mutateAsync(client.id);
+          if (res?.claimUrl) {
+            await adminApi
+              .dispatchAdminLinkEmail({
+                to: client.email,
+                url: res.claimUrl,
+                clientName: client.name,
+                type: 'claim',
+              })
+              .catch(() => undefined);
+          }
+          return res;
+        },
+        {
+          pending: `Minting fresh claim link for ${client.email}…`,
+          success: `Claim link sent to ${client.email}`,
+          scope: 'clients',
+        },
+      );
       setActionNotice(`Fresh 72-hour claim link minted and emailed to ${client.email}!`);
       setTimeout(() => setActionNotice(null), 4000);
     } catch (err: any) {
@@ -218,7 +236,14 @@ function ClientDetailModal({
     setActionNotice(null);
     setActionError(null);
     try {
-      await syncOnboardingMutation.mutateAsync(client.id);
+      await pulse.track(
+        () => syncOnboardingMutation.mutateAsync(client.id),
+        {
+          pending: `Synchronizing onboarding for ${client.name}…`,
+          success: `Onboarding workspace synchronized`,
+          scope: 'clients',
+        },
+      );
       setActionNotice(`Onboarding workspace synchronized and verified for ${client.name}.`);
       onUpdated();
       setTimeout(() => setActionNotice(null), 4000);
@@ -232,14 +257,28 @@ function ClientDetailModal({
 
   const handleToggleStatus = async () => {
     const nextStatus = status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const confirmed = await pulse.confirm({
+      title: `${nextStatus === 'SUSPENDED' ? 'Suspend' : 'Activate'} ${client.name}?`,
+      detail: `This will update the client's account standing to ${nextStatus}.`,
+      confirmLabel: `${nextStatus === 'SUSPENDED' ? 'Suspend' : 'Activate'} Client`,
+      danger: nextStatus === 'SUSPENDED',
+    });
+    if (!confirmed) return;
     setIsActionRunning(true);
     setActionNotice(null);
     setActionError(null);
     try {
-      await updateClientMutation.mutateAsync({
-        id: client.id,
-        data: { status: nextStatus as any },
-      });
+      await pulse.track(
+        () => updateClientMutation.mutateAsync({
+          id: client.id,
+          data: { status: nextStatus as any },
+        }),
+        {
+          pending: `Switching standing to ${nextStatus}…`,
+          success: `Account standing switched to ${nextStatus}`,
+          scope: 'clients',
+        },
+      );
       setStatus(nextStatus);
       setActionNotice(`Account standing switched to ${nextStatus}.`);
       onUpdated();

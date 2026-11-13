@@ -28,6 +28,7 @@ import {
   ApiVaultSecret,
 } from '@/hooks/usePortalData';
 import { EmptyState, QueryError, SectionLoading } from '@/components/ui/QueryState';
+import { pulse } from '@/components/pulse';
 import { formatDate, timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -86,14 +87,21 @@ export default function VaultClient() {
     if (!label.trim() || !secretValue.trim() || createSecret.isPending) return;
     setFormError(null);
     try {
-      await createSecret.mutateAsync({
-        label: label.trim(),
-        category,
-        username: username.trim() || undefined,
-        serviceUrl: serviceUrl.trim() || undefined,
-        value: secretValue,
-        notes: notes.trim() || undefined,
-      });
+      await pulse.track(
+        () => createSecret.mutateAsync({
+          label: label.trim(),
+          category,
+          username: username.trim() || undefined,
+          serviceUrl: serviceUrl.trim() || undefined,
+          value: secretValue,
+          notes: notes.trim() || undefined,
+        }),
+        {
+          pending: `Encrypting & storing ${label.trim()}…`,
+          success: `Credential ${label.trim()} encrypted & stored`,
+          scope: 'vault',
+        },
+      );
       setLabel('');
       setCategory('DOMAIN_REGISTRAR');
       setUsername('');
@@ -121,7 +129,14 @@ export default function VaultClient() {
     setActionError(null);
     setRevealingId(secret.id);
     try {
-      const res = await revealSecret.mutateAsync(secret.id);
+      const res = await pulse.track(
+        () => revealSecret.mutateAsync(secret.id),
+        {
+          pending: `Decrypting ${secret.label}…`,
+          success: `Decrypted ${secret.label}`,
+          scope: 'vault',
+        },
+      );
       setRevealedMap(prev => ({ ...prev, [secret.id]: res.value }));
       // Auto-mask after 30 seconds
       setTimeout(() => {
@@ -146,11 +161,19 @@ export default function VaultClient() {
       let plain = revealedMap[secret.id];
       if (plain === undefined) {
         setRevealingId(secret.id);
-        const res = await revealSecret.mutateAsync(secret.id);
+        const res = await pulse.track(
+          () => revealSecret.mutateAsync(secret.id),
+          {
+            pending: `Decrypting for copy…`,
+            success: `Decrypted`,
+            scope: 'vault',
+          },
+        );
         plain = res.value;
         setRevealingId(null);
       }
       await navigator.clipboard.writeText(plain);
+      pulse.success('Credential copied to clipboard');
       setCopiedId(secret.id);
       setTimeout(() => setCopiedId(curr => (curr === secret.id ? null : curr)), 2500);
     } catch {
@@ -162,7 +185,14 @@ export default function VaultClient() {
   const handleDelete = async (id: string) => {
     setActionError(null);
     try {
-      await deleteSecret.mutateAsync(id);
+      await pulse.track(
+        () => deleteSecret.mutateAsync(id),
+        {
+          pending: 'Revoking credential…',
+          success: 'Credential permanently revoked',
+          scope: 'vault',
+        },
+      );
       setConfirmDeleteId(null);
       setRevealedMap(prev => {
         const next = { ...prev };
