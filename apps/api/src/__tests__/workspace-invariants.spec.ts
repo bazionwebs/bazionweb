@@ -35,4 +35,23 @@ describe('Bazionweb workspace & delivery invariants (Phase 0)', () => {
       expect(rootSql).toBe(apiSql);
     }
   });
+
+  it('creates the base PaymentProvider enum before provider-specific migrations', () => {
+    const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
+    const migrationNames = readdirSync(migrationsDir)
+      .filter((name) => statSync(join(migrationsDir, name)).isDirectory())
+      .sort();
+    const baseMigration = '20260930000000_payment_provider_enum';
+    const paystackMigration = '20261001000000_paystack_provider';
+    const darajaMigration = '20261023000000_daraja_provider';
+
+    expect(migrationNames.indexOf(baseMigration)).toBeGreaterThanOrEqual(0);
+    expect(migrationNames.indexOf(baseMigration)).toBeLessThan(migrationNames.indexOf(paystackMigration));
+    expect(migrationNames.indexOf(paystackMigration)).toBeLessThan(migrationNames.indexOf(darajaMigration));
+
+    const baseSql = readFileSync(join(migrationsDir, baseMigration, 'migration.sql'), 'utf8').replace(/\s+/g, ' ');
+    expect(baseSql).toContain(
+      'CREATE TYPE "PaymentProvider" AS ENUM ( \'INTASEND\', \'WISE\', \'MANUAL_BANK_TRANSFER\' );',
+    );
+  });
 });
