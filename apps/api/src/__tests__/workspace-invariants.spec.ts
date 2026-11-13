@@ -54,4 +54,22 @@ describe('Bazionweb workspace & delivery invariants (Phase 0)', () => {
       'CREATE TYPE "PaymentProvider" AS ENUM ( \'INTASEND\', \'WISE\', \'MANUAL_BANK_TRANSFER\' );',
     );
   });
+
+  it('creates payment_logs and its enums before the pricing migration alters the table', () => {
+    const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
+    const baseMigration = '20261018000000_payment_log_base';
+    const pricingMigration = '20261019000000_multi_market_pricing_ssot';
+    const migrationNames = readdirSync(migrationsDir)
+      .filter((name) => statSync(join(migrationsDir, name)).isDirectory())
+      .sort();
+
+    expect(migrationNames.indexOf(baseMigration)).toBeGreaterThanOrEqual(0);
+    expect(migrationNames.indexOf(baseMigration)).toBeLessThan(migrationNames.indexOf(pricingMigration));
+
+    const baseSql = readFileSync(join(migrationsDir, baseMigration, 'migration.sql'), 'utf8');
+    expect(baseSql).toContain('CREATE TYPE "PaymentMethodType" AS ENUM');
+    expect(baseSql).toContain('CREATE TYPE "PaymentStatus" AS ENUM');
+    expect(baseSql).toContain('CREATE TABLE "payment_logs"');
+    expect(baseSql).toContain('"idempotency_key" TEXT NOT NULL');
+  });
 });
