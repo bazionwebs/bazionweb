@@ -62,10 +62,7 @@ ON CONFLICT ("id") DO UPDATE SET
   "price_annual" = EXCLUDED."price_annual",
   "price_monthly_kes" = EXCLUDED."price_monthly_kes",
   "price_annual_kes" = EXCLUDED."price_annual_kes",
-  "price_monthly" = EXCLUDED."price_monthly",
-  "price_annual" = EXCLUDED."price_annual",
-  "price_monthly_kes" = EXCLUDED."price_monthly_kes",
-  "price_annual_kes" = EXCLUDED."price_annual_kes",
+
   "is_active" = true,
   "updated_at" = CURRENT_TIMESTAMP;
 

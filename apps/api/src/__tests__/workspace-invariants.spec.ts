@@ -93,4 +93,25 @@ describe('Bazionweb workspace & delivery invariants (Phase 0)', () => {
     expect(sql).toContain('ALTER TABLE "subscriptions" ALTER COLUMN "id" TYPE TEXT USING "id"::TEXT');
     expect(sql).toContain('ALTER TABLE "invoices" ALTER COLUMN "id" TYPE TEXT USING "id"::TEXT');
   });
+
+  it('keeps the unified price-book upsert free of duplicate column assignments', () => {
+    const migrationPath = join(
+      repoRoot,
+      'apps',
+      'api',
+      'prisma',
+      'migrations',
+      '20261030021500_unify_commercial_pricebooks',
+      'migration.sql',
+    );
+    const sql = readFileSync(migrationPath, 'utf8');
+    const updateClause = sql.match(/ON CONFLICT \("id"\) DO UPDATE SET([\s\S]*?);/);
+
+    expect(updateClause).not.toBeNull();
+    const assignedColumns = Array.from(
+      updateClause![1]!.matchAll(/^\s*"([^"]+)"\s*=/gm),
+      (match) => match[1],
+    );
+    expect(new Set(assignedColumns).size).toBe(assignedColumns.length);
+  });
 });
