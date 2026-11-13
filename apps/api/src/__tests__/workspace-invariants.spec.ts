@@ -115,6 +115,18 @@ describe('Bazionweb workspace & delivery invariants (Phase 0)', () => {
     expect(new Set(assignedColumns).size).toBe(assignedColumns.length);
   });
 
+  it('adds the Prisma client tax PIN field through a mirrored migration', () => {
+    const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
+    const migration = '20261113060000_add_client_tax_pin';
+    const migrationNames = readdirSync(migrationsDir)
+      .filter((name) => statSync(join(migrationsDir, name)).isDirectory())
+      .sort();
+    const sql = readFileSync(join(migrationsDir, migration, 'migration.sql'), 'utf8');
+
+    expect(migrationNames).toContain(migration);
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS "tax_pin" TEXT');
+  });
+
   it('adds subscription lifecycle fields before the performance index migration uses them', () => {
     const migrationsDir = join(repoRoot, 'apps', 'api', 'prisma', 'migrations');
     const migrationNames = readdirSync(migrationsDir)
