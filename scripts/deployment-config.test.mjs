@@ -7,12 +7,19 @@ const workflow = readFileSync(new URL('../.github/workflows/ci-cd.yml', import.m
 const apiDockerfile = readFileSync(new URL('../apps/api/Dockerfile', import.meta.url), 'utf8');
 const webDockerfile = readFileSync(new URL('../apps/web/Dockerfile', import.meta.url), 'utf8');
 const dbInit = readFileSync(new URL('../deploy/dokploy/bazionweb-staging-db-init.sql', import.meta.url), 'utf8');
+const stagingGuide = readFileSync(new URL('../docs/operations/vps-staging-deployment.md', import.meta.url), 'utf8');
 
 test('staging uses separate staging hostnames and never routes production domains', () => {
   assert.match(compose, /Host\(`staging\.bazionweb\.com`\)/);
   assert.match(compose, /Host\(`staging-api\.bazionweb\.com`\)/);
   assert.doesNotMatch(compose, /Host\(`(?:www\.)?bazionweb\.com`/);
   assert.doesNotMatch(compose, /DATABASE_URL.*neon/i);
+});
+
+test('staging PostgreSQL has an explicit label for encrypted off-host backups', () => {
+  assert.match(compose, /com\.bazion\.backup-target: bazionweb-staging/);
+  assert.match(stagingGuide, /bazion-docker-postgres-dump\.sh bazionweb-staging bazionweb_staging bazion_admin/);
+  assert.match(stagingGuide, /bazion-docker-postgres-dump\.sh platform-staging bazion_platform bazion_admin/);
 });
 
 test('staging database and cache have no host-published ports and use isolated networks', () => {
@@ -49,6 +56,9 @@ test('production Neon migrations are main-only while staging migrates its own VP
   assert.match(stagingJob, /environment: staging/);
 });
 test('manual validation builds both images without publishing or deploying them', () => {
+  assert.match(stagingGuide, /feature branches do not publish images on push/i);
+  assert.match(stagingGuide, /manual workflow dispatch is build-only/i);
+  assert.match(stagingGuide, /wait for a validated staging image in GHCR/i);
   const buildJob = workflow.match(/\n  build:\n([\s\S]*?)\n  # ─── Stage 4:/)?.[1] ?? '';
   const stagingJob = workflow.match(/\n  deploy-staging:\n([\s\S]*?)\n  # ─── Stage 6:/)?.[1] ?? '';
   const productionJob = workflow.match(/\n  deploy-production:\n([\s\S]*?)\n  # ─── Stage 9:/)?.[1] ?? '';

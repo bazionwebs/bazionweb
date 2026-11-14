@@ -30,6 +30,8 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    labels:
+      com.bazion.backup-target: bazionweb-staging
     environment:
       POSTGRES_DB: bazionweb_staging
       POSTGRES_USER: bazion_admin
