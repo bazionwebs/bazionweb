@@ -37,3 +37,17 @@ test-results/
 *.pdf
 *.xlsx
 download*.json
+
+# Keep app-local environment files out of every Docker build context.
+**/.env
+**/.env.*
+
+# Exclude workspace-local dependencies and generated artifacts from root-context builds.
+**/node_modules/
+**/coverage/
+**/dist/
+**/build/
+**/.next/
+**/.nyc_output/
+**/playwright-report/
+**/test-results/

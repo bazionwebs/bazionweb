@@ -58,3 +58,21 @@ test('manual validation builds both images without publishing or deploying them'
   assert.match(stagingJob, /github\.event_name == 'push'/);
   assert.match(productionJob, /github\.event_name == 'push'/);
 });
+test('nested local environment files are excluded from Docker build contexts', () => {
+  const dockerignore = readFileSync(new URL('../.dockerignore', import.meta.url), 'utf8');
+  assert.match(dockerignore, /^\*\*\/\.env$/m);
+  assert.match(dockerignore, /^\*\*\/\.env\.\*$/m);
+});
+
+test('root Docker context excludes nested workspace dependencies and generated artifacts', () => {
+  const dockerignore = readFileSync(new URL('../.dockerignore', import.meta.url), 'utf8');
+  for (const pattern of [
+    /^\*\*\/node_modules\/$/m,
+    /^\*\*\/coverage\/$/m,
+    /^\*\*\/dist\/$/m,
+    /^\*\*\/build\/$/m,
+    /^\*\*\/\.next\/$/m,
+  ]) {
+    assert.match(dockerignore, pattern);
+  }
+});

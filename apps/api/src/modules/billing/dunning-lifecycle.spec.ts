@@ -410,10 +410,10 @@ describe('Phase 6 Commercial Dunning & Subscription Lifecycle Sync', () => {
 
       const suffix = crypto.randomUUID().slice(0, 8);
       const userId = crypto.randomUUID();
-      const planId = `plan-p6-${suffix}`;
-      const clientId = `client-p6-${suffix}`;
-      const subscriptionId = `sub-p6-${suffix}`;
-      const invoiceId = `inv-p6-${suffix}`;
+      const planId = crypto.randomUUID();
+      const clientId = crypto.randomUUID();
+      const subscriptionId = crypto.randomUUID();
+      const invoiceId = crypto.randomUUID();
       const provOutboxId = `pout-p6-${suffix}`;
       const externalOrderId = `ord-p6-${suffix}`;
       const nowBase = new Date('2026-11-01T00:00:00.000Z');
