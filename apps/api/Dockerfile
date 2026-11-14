@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 1 — builder (monorepo root context `.`)
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 RUN apk add --no-cache libc6-compat openssl python3 make g++
 WORKDIR /app
 
@@ -23,7 +23,7 @@ RUN npm --workspace=@bazionweb/api run build
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — production deps only (strict root workspace lockfile)
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
@@ -35,7 +35,7 @@ RUN npm ci --omit=dev --workspace=@bazionweb/api --include-workspace-root --igno
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 3 — runner
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 # Patch-level OS upgrade: ship a base with current advisory fixes
 RUN apk update && apk upgrade --no-cache && apk add --no-cache curl openssl \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
@@ -63,6 +63,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modul
 
 # Prisma schema needed for runtime metadata
 COPY --chown=nestjs:nodejs prisma/schema.prisma ./prisma/schema.prisma
+COPY --chown=nestjs:nodejs prisma/migrations ./prisma/migrations
 
 USER nestjs
 

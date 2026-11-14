@@ -1242,8 +1242,9 @@ export class BillingService {
     // Never trust caller-supplied platformProvisioningBinding snapshots without catalog verification.
     return lineItems.map((item) => {
       if (!item || typeof item !== 'object') return item;
-      const { platformProvisioningBinding: _untrusted, ...rest } = item as Record<string, unknown>;
-      return rest;
+      return Object.fromEntries(
+        Object.entries(item).filter(([key]) => key !== 'platformProvisioningBinding'),
+      );
     });
   }
   private async priceCartExtras(

@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BillingService } from '../billing.service';
-import { computeDocumentFingerprint } from '../invoice-pdf.generator';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 const mockInvoice = {

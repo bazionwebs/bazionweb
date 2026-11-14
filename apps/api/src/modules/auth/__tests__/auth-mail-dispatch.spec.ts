@@ -88,7 +88,10 @@ describe('AuthService + AuthMailService Production Magic-Link Dispatch', () => {
         AuthMailService,
         {
           provide: ConfigService,
-          useValue: makeConfig({ RESEND_API_KEY: 'test-resend-dummy-key-999' }),
+          useValue: makeConfig({
+            RESEND_API_KEY: 'test-resend-dummy-key-999',
+            ALLOW_LEGACY_CUSTOMER_LOCAL_AUTH: 'true',
+          }),
         },
         { provide: PrismaService, useValue: prisma },
       ],
@@ -119,6 +122,33 @@ describe('AuthService + AuthMailService Production Magic-Link Dispatch', () => {
     expect(body.html).toContain('redirect=%2Fcheckout%3Fplan%3Dcare-essential%26cycle%3DMONTHLY%26cart%3D1');
   });
 
+  it('fails closed for customer magic links when production local auth is disabled', async () => {
+    const mockFetch = jest.fn();
+    global.fetch = mockFetch as unknown as typeof fetch;
+    const prisma = makePrisma();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        AuthMailService,
+        {
+          provide: ConfigService,
+          useValue: makeConfig({
+            RESEND_API_KEY: 'test-resend-dummy-key-999',
+            CUSTOMER_LOCAL_AUTH_DISABLED: 'true',
+          }),
+        },
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+
+    const auth = module.get<AuthService>(AuthService);
+
+    await expect(
+      auth.requestMagicLink('bazion001@gmail.com', false, '/checkout'),
+    ).rejects.toThrow('Customer magic-link sign-in is disabled');
+    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
   it('sanitizeRedirectPath blocks open redirects and login loops on API side', () => {
     expect(sanitizeRedirectPath('/checkout?cart=1')).toBe('/checkout?cart=1');
     expect(sanitizeRedirectPath('https://evil.example/phish')).toBeNull();

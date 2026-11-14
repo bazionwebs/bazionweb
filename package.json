@@ -2,6 +2,9 @@
   "name": "bazionweb-monorepo",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  },
   "workspaces": [
     "apps/*"
   ],
@@ -20,7 +23,8 @@
     "admin:create": "node scripts/create-superadmin.js",
     "test:e2e": "node --no-warnings --experimental-strip-types scripts/run-e2e-audit-suite.ts",
     "verify:feature14": "npm --workspace=@bazionweb/api run verify:feature14",
-    "check:invariants": "node scripts/check-workspace-invariants.mjs"
+    "check:invariants": "node scripts/check-workspace-invariants.mjs",
+    "test:deployment-config": "node --test scripts/deployment-config.test.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.6",

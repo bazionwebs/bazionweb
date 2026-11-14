@@ -1,11 +1,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # BazionWeb — Standalone Next.js Multi-Stage Dockerfile (monorepo root context `.`)
-# Base: Node 20 Alpine (Minimal Attack Surface & Resource Efficiency)
+# Base: Node 24 Alpine (Minimal Attack Surface & Resource Efficiency)
 # Architecture: 2-Stage Multi-Build (builder -> runner; standalone traces runtime deps)
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Deterministic Workspace Install & Build ──────────────────────────
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -35,7 +35,7 @@ ENV NODE_ENV=production
 RUN npm --workspace=@bazionweb/web run build
 
 # ── Stage 2: Minimal Production Runner ───────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 # Patch-level OS upgrade: ship a base with current advisory fixes
 RUN apk update && apk upgrade --no-cache && apk add --no-cache curl \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
