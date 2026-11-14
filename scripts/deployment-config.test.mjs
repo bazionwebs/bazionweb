@@ -56,9 +56,10 @@ test('production Neon migrations are main-only while staging migrates its own VP
   assert.match(stagingJob, /environment: staging/);
 });
 test('manual validation builds both images without publishing or deploying them', () => {
-  assert.match(stagingGuide, /feature branches do not publish images on push/i);
-  assert.match(stagingGuide, /manual workflow dispatch is build-only/i);
-  assert.match(stagingGuide, /wait for a validated staging image in GHCR/i);
+  assert.match(stagingGuide, /Feature branch pushes do not publish/i);
+  assert.match(stagingGuide, /Bazionweb manual dispatch is build-only/i);
+  assert.match(stagingGuide, /Platform-owned fallback workflow/i);
+  assert.match(stagingGuide, /publishes commit-addressed images without deploying them/i);
   const buildJob = workflow.match(/\n  build:\n([\s\S]*?)\n  # ─── Stage 4:/)?.[1] ?? '';
   const stagingJob = workflow.match(/\n  deploy-staging:\n([\s\S]*?)\n  # ─── Stage 6:/)?.[1] ?? '';
   const productionJob = workflow.match(/\n  deploy-production:\n([\s\S]*?)\n  # ─── Stage 9:/)?.[1] ?? '';
@@ -85,4 +86,11 @@ test('root Docker context excludes nested workspace dependencies and generated a
   ]) {
     assert.match(dockerignore, pattern);
   }
+});
+
+test('staging supports commit-addressed images built by the Platform Actions fallback', () => {
+  assert.equal((compose.match(/image: ghcr\.io\/\$\{IMAGE_OWNER:-bazionwebs\}\/bazionweb-(?:api|web):\$\{IMAGE_TAG/g) ?? []).length, 3);
+  assert.match(stagingGuide, /`IMAGE_OWNER` \| `bazionwebs`/);
+  assert.match(stagingGuide, /IMAGE_OWNER=bazionweb` and `IMAGE_TAG=sha-/);
+  assert.match(stagingGuide, /Build Bazionweb images with Platform Actions/);
 });

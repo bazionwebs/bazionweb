@@ -108,7 +108,7 @@ services:
       - staging-cache
 
   migrate:
-    image: ghcr.io/bazionwebs/bazionweb-api:${IMAGE_TAG:?Set IMAGE_TAG to staging or a published sha tag}
+    image: ghcr.io/${IMAGE_OWNER:-bazionwebs}/bazionweb-api:${IMAGE_TAG:?Set IMAGE_TAG to staging or a published sha tag}
     pull_policy: always
     restart: "no"
     command: ["./node_modules/.bin/prisma", "migrate", "deploy", "--schema=./prisma/schema.prisma"]
@@ -129,7 +129,7 @@ services:
       - staging-data
 
   api:
-    image: ghcr.io/bazionwebs/bazionweb-api:${IMAGE_TAG:?Set IMAGE_TAG to staging or a published sha tag}
+    image: ghcr.io/${IMAGE_OWNER:-bazionwebs}/bazionweb-api:${IMAGE_TAG:?Set IMAGE_TAG to staging or a published sha tag}
     pull_policy: always
     restart: unless-stopped
     environment:
@@ -208,7 +208,7 @@ services:
       - "traefik.http.middlewares.bazionweb-staging-compress.compress=true"
 
   web:
-    image: ghcr.io/bazionwebs/bazionweb-web:${IMAGE_TAG:?Set IMAGE_TAG to staging or a published sha tag}
+    image: ghcr.io/${IMAGE_OWNER:-bazionwebs}/bazionweb-web:${IMAGE_TAG:?Set IMAGE_TAG to staging or a published sha tag}
     pull_policy: always
     restart: unless-stopped
     environment:
