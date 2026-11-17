@@ -24,13 +24,17 @@ RUN npm --workspace=@bazionweb/api run build
 # Stage 2 — production deps only (strict root workspace lockfile)
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:24-alpine AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apk add --no-cache libc6-compat openssl python3 make g++
 WORKDIR /app
+
+# Bundle the Prisma CLI engine for the Alpine runtime during the image build.
+ENV PRISMA_CLI_BINARY_TARGETS=linux-musl-openssl-3.0.x
 
 COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
-RUN npm ci --omit=dev --workspace=@bazionweb/api --include-workspace-root --ignore-scripts
+RUN npm ci --omit=dev --workspace=@bazionweb/api --include-workspace-root --ignore-scripts \
+    && npm rebuild @prisma/engines
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 3 — runner
@@ -55,10 +59,9 @@ COPY --from=deps    --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
 
-# Generated Prisma Client — `prisma generate` runs in the builder stage, but
-# the production-only node_modules above comes from deps (no generate there
-# and no Prisma CLI in production deps). Without this copy the app crashes
-# at boot with "Cannot find module '.prisma/client/default'".
+# Generated Prisma Client — the deps stage installs production dependencies and
+# Prisma CLI engines for migrations, but does not run `prisma generate`. Copy the
+# generated client from the builder so the API has its Alpine query engine.
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
 # Prisma schema needed for runtime metadata
