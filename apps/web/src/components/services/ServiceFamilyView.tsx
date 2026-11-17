@@ -22,22 +22,55 @@ interface Props {
  * only hydrates the price leaves (no GLOBAL→KE flash for Kenyan visitors).
  */
 export default function ServiceFamilyView({ family }: Props) {
-  const faqSchema = {
+  const schemaData = {
     '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: family.faqs.map(f => ({
-      '@type': 'Question',
-      name: f.question,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: typeof f.answer === 'string' ? f.answer : f.answer.GLOBAL,
+    '@graph': [
+      {
+        '@type': 'Service',
+        name: family.name,
+        description: family.heroSubtitle,
+        url: `https://bazionweb.com/services/${family.slug}`,
+        provider: {
+          '@type': 'Organization',
+          name: 'BazionWeb',
+          url: 'https://bazionweb.com',
+          logo: 'https://bazionweb.com/og-image.png',
+        },
+        areaServed: [
+          { '@type': 'Country', name: 'Kenya' },
+          { '@type': 'Country', name: 'Uganda' },
+          { '@type': 'Country', name: 'Tanzania' },
+          { '@type': 'Country', name: 'Rwanda' },
+          { '@type': 'AdministrativeArea', name: 'Worldwide' },
+        ],
+        hasOfferCatalog: {
+          '@type': 'OfferCatalog',
+          name: `${family.name} Packages`,
+          itemListElement: family.packages.map((pkg, idx) => ({
+            '@type': 'Offer',
+            position: idx + 1,
+            name: pkg.name,
+            description: pkg.description,
+          })),
+        },
       },
-    })),
+      {
+        '@type': 'FAQPage',
+        mainEntity: family.faqs.map(f => ({
+          '@type': 'Question',
+          name: f.question,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: typeof f.answer === 'string' ? f.answer : f.answer.GLOBAL,
+          },
+        })),
+      },
+    ],
   };
 
   return (
     <div className="bg-[#F8FAFC]">
-      <JsonLd data={faqSchema} />
+      <JsonLd data={schemaData} />
 
       {/* ─── Hero ─── */}
       <section className="bg-[#0F172A] pt-32 pb-20 text-white relative overflow-hidden">

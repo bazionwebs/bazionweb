@@ -12,13 +12,35 @@ export const metadata: Metadata = {
 
 const posts = [
   {
+    slug: 'how-much-does-a-website-cost-in-kenya',
+    title: 'How Much Does a Website Cost in Kenya? (2026 Comprehensive Price Guide)',
+    excerpt: 'Looking to build a website in Kenya? Here is a transparent breakdown of real market costs in 2026 — from basic launch sites to corporate portals and e-commerce stores.',
+    category: 'Buying Guide',
+    readTime: '9 min read',
+    date: 'January 15, 2026',
+    featured: true,
+    published: true,
+    tags: ['Website Cost', 'Pricing', 'Web Design Kenya', 'SME'],
+  },
+  {
+    slug: 'how-to-accept-mpesa-payments-on-your-website',
+    title: 'Accepting M-Pesa on Your Website: The Complete Daraja STK Push Guide',
+    excerpt: 'Stop losing customers at checkout. Learn how Safaricom Daraja 2.0 STK Push works, how it compares to manual Paybill, and how to implement it on modern web apps.',
+    category: 'E-Commerce',
+    readTime: '10 min read',
+    date: 'February 3, 2026',
+    featured: false,
+    published: true,
+    tags: ['M-Pesa', 'Daraja API', 'E-Commerce', 'Next.js', 'Payments'],
+  },
+  {
     slug: 'why-smes-need-managed-website-services',
     title: 'Why SMEs Need Managed Website Services (Not Just Hosting)',
     excerpt: 'Most small businesses think hosting is the end of website management. Here\'s why the real work starts after you go live — and how managed services change everything.',
     category: 'Managed Services',
     readTime: '6 min read',
     date: 'June 5, 2025',
-    featured: true,
+    featured: false,
     published: true,
     tags: ['Managed Services', 'SME', 'Hosting'],
   },
@@ -80,12 +102,18 @@ const posts = [
 ];
 
 
-const categories = ['All', 'Managed Services', 'Security', 'Performance', 'Maintenance'];
+const categories = ['All', 'Buying Guide', 'E-Commerce', 'Managed Services', 'Security', 'Performance', 'Maintenance'];
 
 export default function BlogPage() {
   const [featured, ...rest] = posts;
   const staticPosts = posts.filter(p =>
-    ['why-smes-need-managed-website-services', 'core-web-vitals-guide-2025', 'ssl-certificate-management-guide'].includes(p.slug)
+    [
+      'how-much-does-a-website-cost-in-kenya',
+      'how-to-accept-mpesa-payments-on-your-website',
+      'why-smes-need-managed-website-services',
+      'core-web-vitals-guide-2025',
+      'ssl-certificate-management-guide',
+    ].includes(p.slug)
   );
 
   return (

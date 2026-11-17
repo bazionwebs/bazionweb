@@ -4,11 +4,27 @@ import { ArrowRight, TrendingUp, Shield, Zap, Clock } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import Breadcrumbs from '@/components/seo/Breadcrumbs';
+import JsonLd from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: 'Client Case Studies & Engineering Results',
-  description: 'Real client results: see how BazionWeb transformed website performance, online sales, and system reliability for healthcare networks, law firms, and NGOs.',
+  title: 'Client Case Studies & Engineering Results | BazionWeb',
+  description: 'Real client results: see how BazionWeb transformed website performance, online sales, and system reliability for healthcare networks, law firms, and NGOs in Kenya and beyond.',
   alternates: { canonical: 'https://bazionweb.com/case-studies' },
+  keywords: [
+    'web design case studies',
+    'Next.js case studies Kenya',
+    'website performance results',
+    'ecommerce case study Kenya',
+  ],
+  openGraph: {
+    title: 'Client Case Studies & Engineering Results | BazionWeb',
+    description: 'Real client results: measurable performance improvements, conversion increases, and zero security incidents.',
+    url: 'https://bazionweb.com/case-studies',
+    siteName: 'BazionWeb',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'BazionWeb Case Studies' }],
+    locale: 'en_US',
+    type: 'website',
+  },
 };
 
 type Study = {
@@ -78,6 +94,25 @@ const studies: Study[] = [
 export default function CaseStudiesPage() {
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'ItemList',
+          name: 'BazionWeb Client Case Studies',
+          description: 'Real client results and engineering transformations by BazionWeb.',
+          itemListElement: studies.map((s, idx) => ({
+            '@type': 'ListItem',
+            position: idx + 1,
+            item: {
+              '@type': 'CreativeWork',
+              name: `${s.client} — ${s.industry}`,
+              headline: `${s.client} Website Engineering & Transformation`,
+              url: `https://bazionweb.com/case-studies/${s.slug}`,
+              description: s.challenge,
+            },
+          })),
+        }}
+      />
       {/* Header */}
       <section className="section bg-[#0F172A] pt-32">
         <div className="container-default">

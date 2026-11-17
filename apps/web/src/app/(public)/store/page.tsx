@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: 'Store — Care Plans, Hosting & Add-ons',
   description:
     'Browse BazionWeb managed care plans, hosting, and add-ons. Add multiple items to your cart and check out once with M-Pesa or card.',
+  alternates: { canonical: 'https://bazionweb.com/store' },
 };
 
 export default function StorePage() {

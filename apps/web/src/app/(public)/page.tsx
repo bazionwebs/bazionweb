@@ -28,10 +28,32 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Build. Launch. Manage. Grow. — Digital Engineering',
+  title: 'Web Design Company Kenya, E-Commerce & Custom Software Development',
   description:
-    'Digital platforms, websites, and custom systems engineered for businesses, churches, schools, NGOs, and startups. Transparent pricing, 100% client asset ownership, and SLA care.',
+    'BazionWeb is a leading digital engineering agency in Nairobi, Kenya. We engineer high-converting Next.js websites, M-Pesa integrated e-commerce stores, custom portals, and ongoing website care plans.',
   alternates: { canonical: 'https://bazionweb.com/' },
+  keywords: [
+    'web design company Kenya',
+    'website development Nairobi',
+    'web design Nairobi',
+    'e-commerce website Kenya',
+    'M-Pesa payment integration',
+    'Next.js web developers Kenya',
+    'custom web application development Nairobi',
+    'website maintenance services Kenya',
+    'corporate website design Kenya',
+    'BazionWeb',
+  ],
+  openGraph: {
+    title: 'BazionWeb — Web Design Company Kenya, E-Commerce & Custom Systems',
+    description:
+      'High-converting Next.js websites, M-Pesa integrated online stores, custom software systems, and managed website care for businesses in Kenya and worldwide.',
+    url: 'https://bazionweb.com/',
+    siteName: 'BazionWeb',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'BazionWeb — Web Design & Digital Engineering' }],
+    locale: 'en_US',
+    type: 'website',
+  },
 };
 
 // ─── Service Families ────────────────────────────────────────────────────────
@@ -240,18 +262,138 @@ export default async function HomePage() {
       <JsonLd
         data={{
           '@context': 'https://schema.org',
-          '@type': 'ProfessionalService',
-          name: 'BazionWeb',
-          url: 'https://bazionweb.com/',
-          description:
-            'Digital engineering platform: websites, e-commerce, custom software, and managed care plans engineered for businesses and institutions in Kenya and worldwide.',
-          telephone: SITE_CONTACT.phoneE164,
-          address: {
-            '@type': 'PostalAddress',
-            addressLocality: 'Nairobi',
-            addressCountry: 'KE',
-          },
-          priceRange: '$$',
+          '@graph': [
+            {
+              '@type': ['ProfessionalService', 'Organization'],
+              '@id': 'https://bazionweb.com/#organization',
+              name: 'BazionWeb',
+              url: 'https://bazionweb.com',
+              logo: 'https://bazionweb.com/og-image.png',
+              image: 'https://bazionweb.com/og-image.png',
+              description:
+                'Digital engineering platform: websites, e-commerce, custom software, and managed care plans engineered for businesses and institutions in Kenya and worldwide.',
+              telephone: SITE_CONTACT.phoneE164,
+              email: SITE_CONTACT.email,
+              priceRange: '$$ - $$$',
+              address: {
+                '@type': 'PostalAddress',
+                addressLocality: 'Nairobi',
+                addressRegion: 'Nairobi County',
+                addressCountry: 'KE',
+              },
+              geo: {
+                '@type': 'GeoCoordinates',
+                latitude: -1.286389,
+                longitude: 36.817223,
+              },
+              areaServed: [
+                { '@type': 'Country', name: 'Kenya' },
+                { '@type': 'Country', name: 'Uganda' },
+                { '@type': 'Country', name: 'Tanzania' },
+                { '@type': 'Country', name: 'Rwanda' },
+                { '@type': 'AdministrativeArea', name: 'Worldwide' },
+              ],
+              sameAs: [
+                'https://twitter.com/bazionweb',
+                'https://linkedin.com/company/bazionweb',
+                'https://github.com/bazionweb',
+              ],
+              knowsAbout: [
+                'Web Design & Development',
+                'Next.js & React Applications',
+                'M-Pesa STK Push Integration',
+                'E-Commerce Development',
+                'Custom Web Portals & CRMs',
+                'Website Maintenance & Care Plans',
+                'Search Engine Optimization (SEO)',
+              ],
+              hasOfferCatalog: {
+                '@type': 'OfferCatalog',
+                name: 'Digital Engineering & Web Development Services',
+                itemListElement: [
+                  {
+                    '@type': 'Offer',
+                    itemOffered: {
+                      '@type': 'Service',
+                      name: 'Website Design & Development',
+                      description: 'Custom Next.js websites built for startups, businesses, and corporate organizations.',
+                    },
+                  },
+                  {
+                    '@type': 'Offer',
+                    itemOffered: {
+                      '@type': 'Service',
+                      name: 'E-Commerce Website Development',
+                      description: 'Online stores with automated Safaricom M-Pesa STK Push prompts and card payment rails.',
+                    },
+                  },
+                  {
+                    '@type': 'Offer',
+                    itemOffered: {
+                      '@type': 'Service',
+                      name: 'Custom Web Systems & Portals',
+                      description: 'Tailored software, client portals, booking engines, and management workflows.',
+                    },
+                  },
+                  {
+                    '@type': 'Offer',
+                    itemOffered: {
+                      '@type': 'Service',
+                      name: 'Managed Website Care & Hosting',
+                      description: 'Proactive SLA maintenance, security defense, 24/7 uptime monitoring, and daily cloud backups.',
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              '@type': 'WebSite',
+              '@id': 'https://bazionweb.com/#website',
+              url: 'https://bazionweb.com',
+              name: 'BazionWeb',
+              description: 'Web Design, Custom Systems & E-Commerce Development Kenya',
+              publisher: {
+                '@id': 'https://bazionweb.com/#organization',
+              },
+            },
+            {
+              '@type': 'FAQPage',
+              mainEntity: [
+                {
+                  '@type': 'Question',
+                  name: 'How much does website design cost in Kenya?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'BazionWeb offers transparent pricing starting from KSh 25,000 for Launch websites up to custom corporate web systems with full deliverables, warranties, and code ownership.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'Can you integrate M-Pesa STK Push into an online store or website?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Yes. We specialize in automated Safaricom Daraja M-Pesa STK Push integration with instant payment verification, automated customer receipts, and reconciliation.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'Do I own 100% of my website code and domain?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Yes — 100%. Your domain stays in your name, and you own all website code, content, and database assets outright with zero vendor lock-in.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'How long does it take to design and launch a website?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Launch packages typically go live in 5–10 business days. Standard business sites take 2–4 weeks, and complex custom systems take 6–12 weeks.',
+                  },
+                },
+              ],
+            },
+          ],
         }}
       />
 

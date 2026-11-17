@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import { Clock, ArrowRight } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -170,6 +170,134 @@ To ensure your website never drops its HTTPS lock icon:
 ## Complete Peace of Mind
 
 At BazionWeb, SSL management is never an optional extra or manual task. Every client site under our care is provisioned with automated renewal, redundant SSL termination, and proactive uptime alerts.
+    `.trim(),
+  },
+  'how-much-does-a-website-cost-in-kenya': {
+    title:    'How Much Does a Website Cost in Kenya? (2026 Comprehensive Price Guide)',
+    category: 'Buying Guide',
+    date:     'January 15, 2026',
+    readTime: '9 min read',
+    tags:     ['Website Cost', 'Pricing', 'Web Design Kenya', 'SME'],
+    excerpt:  'Looking to build a website in Kenya? Here is a transparent breakdown of real market costs in 2026 — from basic launch sites to corporate portals and e-commerce stores.',
+    content:  `
+One of the most common questions Kenyan business owners ask is: **"How much should a website cost in Kenya?"**
+
+If you have ever requested quotes from three different web design agencies in Nairobi, you probably received three vastly different answers: one person quoted KSh 10,000, another quoted KSh 80,000, and an established agency quoted KSh 400,000.
+
+Why does pricing vary so wildly? And more importantly: what are you actually paying for?
+
+## The 4 Tiers of Website Development in Kenya
+
+In the Kenyan market, website development projects generally fall into four tiers:
+
+### 1. The Budget / Freelance Tier (KSh 10,000 – KSh 20,000)
+Often offered by solo freelancers or computer college students using pirated WordPress themes.
+- **What you get:** A basic 3-page template populated with your text.
+- **The hidden risks:** Poor mobile responsiveness, no security hardening, pirated plugins that get hacked within 6 months, and the dreaded "ghosting developer" who disappears when updates are required.
+- **Best for:** Personal hobby projects with zero commercial dependency.
+
+### 2. The Professional Launch Tier (KSh 25,000 – KSh 45,000)
+Engineered for startups, sole practitioners, consultants, and new businesses needing credibility and immediate lead generation.
+- **What you get:** Up to 5 custom-designed pages built on high-performance frameworks (like Next.js), SSL encryption, WhatsApp direct integration, contact forms, mobile-first design, and Google indexing.
+- **Turnaround:** 5 to 10 business days.
+- **BazionWeb package:** Our **Launch Package** (KSh 25,000) includes complete asset handover, 14-day warranty, and zero vendor lock-in.
+
+### 3. The Established Business Tier (KSh 80,000 – KSh 160,000)
+For registered SMEs, professional services firms (law firms, medical clinics, accounting practices), and multi-service organizations.
+- **What you get:** 10 to 25 structured pages, dynamic CMS (allowing your staff to publish blog articles and announcements without coding), technical Schema.org SEO for Google ranking, high-speed CDN deployment, and conversion-optimized sales funnels.
+- **Turnaround:** 2 to 4 weeks.
+- **BazionWeb package:** Our **Business Package** (KSh 90,000) and **Professional Package** (KSh 160,000).
+
+### 4. Custom Systems & E-Commerce (KSh 90,000 – KSh 500,000+)
+For online shops selling physical or digital goods, schools needing student portals, churches handling tithes/givings, or logistics firms tracking shipments.
+- **What you get:** Automated Safaricom M-Pesa STK Push integration, inventory tracking, role-based client logins, automated PDF invoicing, and bespoke database architectures.
+- **Turnaround:** 4 to 12 weeks with milestone reviews.
+
+## Recurring Costs You Need to Factor In
+
+Building the website is only the initial phase. Every business website requires ongoing infrastructure:
+
+1. **Domain Name Registration (.co.ke or .com):** KSh 1,000 to KSh 2,500 per year.
+2. **Cloud Hosting & CDN:** KSh 5,000 to KSh 30,000 per year depending on traffic and compute requirements.
+3. **Maintenance, Security & Backups:** KSh 4,500 to KSh 25,000 per month. Websites that neglect monthly CMS patches and database backups invariably crash or succumb to automated bot attacks.
+
+## 4 Questions to Ask Any Developer Before Signing a Contract
+
+Before paying a deposit to any agency or freelancer in Kenya, demand clear written answers to these four questions:
+
+- **Do I own the code, domain, and assets 100%?** (Many agencies register the domain in their own name and hold clients hostage).
+- **Is the website built on a modern, fast framework?** (Slow websites lose 50%+ of mobile visitors before the page even finishes loading).
+- **Is automated M-Pesa STK Push supported?** (For e-commerce, forcing customers to manually copy a Paybill number leads to high cart abandonment).
+- **What happens after launch?** (Always ensure you receive a written defect warranty).
+
+## The Bottom Line
+
+A website shouldn't be an expense that sits on your balance sheet doing nothing. Engineered properly, it is your highest-performing sales representative—working 24/7/365 to attract prospects and capture qualified leads.
+    `.trim(),
+  },
+  'how-to-accept-mpesa-payments-on-your-website': {
+    title:    'Accepting M-Pesa on Your Website: The Complete Daraja STK Push Guide',
+    category: 'E-Commerce',
+    date:     'February 3, 2026',
+    readTime: '10 min read',
+    tags:     ['M-Pesa', 'Daraja API', 'E-Commerce', 'Next.js', 'Payments'],
+    excerpt:  'Stop losing customers at checkout. Learn how Safaricom Daraja 2.0 STK Push works, how it compares to manual Paybill, and how to implement it on modern web apps.',
+    content:  `
+In Kenya and East Africa, mobile money is not an alternative payment method — it **is** the default payment method. Over 85% of online retail and service transactions in Kenya occur via Safaricom M-Pesa.
+
+Yet, hundreds of e-commerce websites still ask buyers to:
+1. Leave the checkout screen.
+2. Open the SIM toolkit or M-Pesa app.
+3. Type in a Paybill or Till number manually.
+4. Enter the exact order total.
+5. Wait for an SMS confirmation.
+6. Copy-paste the transaction code (e.g. \`SKD91X29A\`) into a contact form or WhatsApp.
+
+**This clunky workflow causes up to 60% of buyers to abandon their carts.**
+
+## The Solution: Automated Daraja 2.0 STK Push
+
+With modern M-Pesa integration using Safaricom's **Daraja API (Lipa Na M-Pesa Online / STK Push)**, the checkout experience becomes effortless:
+
+1. The customer enters their Safaricom phone number on your website.
+2. An instant prompt pops up on their smartphone screen with your business name and the exact amount pre-filled.
+3. The customer simply enters their secret M-Pesa PIN.
+4. Safaricom sends an encrypted callback webhook directly to your website server.
+5. The order status automatically switches to **"Paid"**, inventory is updated, and an automated PDF receipt is dispatched to the client's email.
+
+Zero typing of Paybill numbers. Zero transcribing 10-digit transaction codes. Total transaction time: **under 15 seconds**.
+
+## Paybill vs Till (Buy Goods): Which One Do You Need?
+
+When applying for your Safaricom Daraja API credentials, you have two primary options:
+
+### Buy Goods (Till Number)
+- **Best for:** Retail shops, physical merchandise, and direct e-commerce sales.
+- **Customer experience:** Free for the customer (the merchant pays the standard transaction fee).
+- **Recommended for:** Consumer e-commerce where you don't want buyers deterred by customer-side fees.
+
+### Paybill Number
+- **Best for:** B2B services, subscriptions, school fees, utilities, and invoices requiring specific account reference tracking.
+- **Account Number feature:** Supports passing an invoice number, client ID, or order code dynamically.
+
+## Key Technical Considerations for Modern Websites
+
+If your engineering team or web development partner is implementing Daraja STK Push (especially in modern serverless frameworks like Next.js 14/15 or NestJS), keep these critical rules in mind:
+
+### 1. Secure Webhook Architecture
+Never trust client-side confirmations. Your backend server must provide an encrypted HTTPS callback endpoint that verifies the Safaricom payload signature before marking an order as fulfilled.
+
+### 2. Idempotency & Reconciliation
+Mobile network glitches can cause webhook retries. Your database must enforce idempotent transaction processing so duplicate callback requests never charge a customer twice or deliver duplicate orders.
+
+### 3. Graceful Timeout Handling
+If a customer's phone is unreachable or they cancel the prompt, your frontend should poll or listen to WebSocket updates to gently prompt the customer to retry without resetting their cart.
+
+## Ready to Supercharge Your E-Commerce Store?
+
+At BazionWeb, all of our e-commerce platforms and client portals come pre-engineered with full Safaricom Daraja 2.0 STK Push integration alongside global card gateways (Stripe & Visa/Mastercard).
+
+Contact our engineering team today to review your store and integrate automated checkout.
     `.trim(),
   },
 };

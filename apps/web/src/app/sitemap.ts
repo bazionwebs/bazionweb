@@ -9,6 +9,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: BASE, lastModified: now, changeFrequency: 'weekly', priority: 1.0 },
     { url: `${BASE}/services`, lastModified: now, changeFrequency: 'monthly', priority: 0.9 },
     { url: `${BASE}/pricing`, lastModified: now, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${BASE}/store`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${BASE}/about`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${BASE}/contact`, lastModified: now, changeFrequency: 'yearly', priority: 0.8 },
     { url: `${BASE}/quote`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
@@ -44,6 +45,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/legal/sla`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${BASE}/legal/cookies`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
     // Blog posts — seeded static content; sync slugs with blog/[slug]/page.tsx posts record
+    { url: `${BASE}/blog/how-much-does-a-website-cost-in-kenya`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE}/blog/how-to-accept-mpesa-payments-on-your-website`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${BASE}/blog/why-smes-need-managed-website-services`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${BASE}/blog/core-web-vitals-guide-2025`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${BASE}/blog/ssl-certificate-management-guide`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },

@@ -19,10 +19,29 @@ import ClientJourneyProgress from '@/components/navigation/ClientJourneyProgress
 import { getServerMarket } from '@/lib/geoDetection';
 
 export const metadata: Metadata = {
-  title: 'Digital Engineering Services — Websites, E-Commerce & Systems',
+  title: 'Web Design, E-Commerce & Custom Software Services | BazionWeb Kenya',
   description:
-    'Complete website & system lifecycle: custom development, e-commerce, custom web applications, security, and ongoing care plans.',
+    'Complete website & system engineering: custom Next.js websites, e-commerce with M-Pesa integration, custom web applications, security, and ongoing care plans for businesses in Kenya and worldwide.',
   alternates: { canonical: 'https://bazionweb.com/services' },
+  keywords: [
+    'web design services Kenya',
+    'website development Nairobi',
+    'e-commerce development Kenya',
+    'custom web application development',
+    'M-Pesa integration services',
+    'website maintenance Kenya',
+    'Next.js developers Kenya',
+  ],
+  openGraph: {
+    title: 'Web Design & Digital Engineering Services | BazionWeb',
+    description:
+      'Professional web design, Next.js web application development, M-Pesa integrated e-commerce stores, custom portals, and ongoing maintenance in Kenya and worldwide.',
+    url: 'https://bazionweb.com/services',
+    siteName: 'BazionWeb',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'BazionWeb Services' }],
+    locale: 'en_US',
+    type: 'website',
+  },
 };
 
 interface ProductFamily {
@@ -171,26 +190,59 @@ export default async function ServicesPage() {
       <JsonLd
         data={{
           '@context': 'https://schema.org',
-          '@type': 'ItemList',
-          name: 'BazionWeb Services',
-          itemListElement: productFamilies.map((family, index) => ({
-            '@type': 'ListItem',
-            position: index + 1,
-            item: {
-              '@type': 'Service',
-              name: family.name,
-              description: family.desc,
-              provider: {
-                '@type': 'Organization',
-                name: 'BazionWeb',
-                url: 'https://bazionweb.com',
-              },
-              offers: {
-                '@type': 'Offer',
-                description: family.startingPrice[activeMarket] ?? family.startingPrice.GLOBAL,
-              },
+          '@graph': [
+            {
+              '@type': 'ItemList',
+              name: 'BazionWeb Services',
+              itemListElement: productFamilies.map((family, index) => ({
+                '@type': 'ListItem',
+                position: index + 1,
+                item: {
+                  '@type': 'Service',
+                  name: family.name,
+                  description: family.desc,
+                  provider: {
+                    '@type': 'Organization',
+                    name: 'BazionWeb',
+                    url: 'https://bazionweb.com',
+                  },
+                  offers: {
+                    '@type': 'Offer',
+                    description: family.startingPrice[activeMarket] ?? family.startingPrice.GLOBAL,
+                  },
+                },
+              })),
             },
-          })),
+            {
+              '@type': 'FAQPage',
+              mainEntity: [
+                {
+                  '@type': 'Question',
+                  name: 'What web engineering services does BazionWeb provide?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'BazionWeb provides custom website design & development, e-commerce stores with M-Pesa integration, custom web portals & CRMs, website performance optimization, managed security defense, and SLA-backed website care plans.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'Do you build websites with Next.js and modern technologies?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Yes. All our modern websites and web applications are built with Next.js, React, TypeScript, and Tailwind CSS to guarantee sub-second load times, exceptional Core Web Vitals, and strong SEO.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'How do you handle website maintenance after the project launches?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Every project comes with a 14 to 90-day defect warranty. For long-term care, we offer managed monthly retainer plans covering updates, daily encrypted backups, uptime monitoring, security patches, and support.',
+                  },
+                },
+              ],
+            },
+          ],
         }}
       />
       {/* ─── Hero Header ─── */}
